@@ -111,15 +111,15 @@ export default function Dashboard() {
       {/* Header */}
       <header className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center py-6">
+            <div className="mb-4 sm:mb-0">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
                 Blink Balance Tracker V2
               </h1>
               <p className="text-sm text-gray-500">Welcome, {user?.username}</p>
             </div>
             
-            <div className="flex items-center space-x-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
               {/* Connection Status */}
               <div className="flex items-center">
                 <div className={`w-3 h-3 rounded-full mr-2 ${connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
@@ -128,28 +128,29 @@ export default function Dashboard() {
                 </span>
               </div>
               
-              {/* Refresh Button */}
-              <button
-                onClick={handleRefresh}
-                disabled={loading}
-                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
-              >
-                {loading ? 'Refreshing...' : 'Refresh'}
-              </button>
-              
-              {/* Logout Button */}
-              <button
-                onClick={handleLogout}
-                className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
-              >
-                Logout
-              </button>
+              {/* Buttons */}
+              <div className="flex space-x-2 w-full sm:w-auto">
+                <button
+                  onClick={handleRefresh}
+                  disabled={loading}
+                  className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50 flex-1 sm:flex-none"
+                >
+                  {loading ? 'Refreshing...' : 'Refresh'}
+                </button>
+                
+                <button
+                  onClick={handleLogout}
+                  className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded flex-1 sm:flex-none"
+                >
+                  Logout
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         {error && (
           <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
             {error}
@@ -219,7 +220,31 @@ export default function Dashboard() {
         {/* Past Transactions */}
         <div>
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Past Transactions</h2>
-          <div className="bg-white shadow overflow-hidden sm:rounded-md">
+          
+          {/* Mobile-friendly card layout for small screens */}
+          <div className="block sm:hidden">
+            <div className="space-y-3">
+              {transactions.map((tx) => (
+                <div key={tx.id} className="bg-white shadow rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-lg font-medium ${
+                      tx.direction === 'RECEIVE' ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {tx.amount}
+                    </span>
+                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                      {tx.status}
+                    </span>
+                  </div>
+                  <div className="text-sm text-gray-900 mb-1">{tx.date}</div>
+                  {tx.memo && <div className="text-sm text-gray-500">{tx.memo}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Desktop table layout for larger screens */}
+          <div className="hidden sm:block bg-white shadow overflow-hidden sm:rounded-md">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">

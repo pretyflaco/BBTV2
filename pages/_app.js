@@ -33,7 +33,7 @@ function MyApp({ Component, pageProps }) {
 
     // Force reload for mobile browsers if this is a cached version
     const lastUpdate = localStorage.getItem('lastUpdate');
-    const currentVersion = '2025-09-16-v2'; // Update this when you deploy
+    const currentVersion = '2025-09-16-v3-features-restored'; // Update this when you deploy
     
     if (lastUpdate !== currentVersion) {
       localStorage.setItem('lastUpdate', currentVersion);

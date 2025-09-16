@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import QRCode from 'react-qr-code';
 
-const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived }) => {
+const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts }) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -196,6 +196,16 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived }) => {
     if (!apiKey) {
       setError('No API key available. Please log in again.');
       return;
+    }
+
+    // Warn if not connected but allow creating invoice
+    if (!connected) {
+      const proceed = window.confirm(
+        '⚠ WebSocket disconnected! Invoice can be created but payment notifications may not work. Try reconnecting first, or proceed anyway?'
+      );
+      if (!proceed) {
+        return;
+      }
     }
 
     setLoading(true);
@@ -403,7 +413,20 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived }) => {
               )}
             </div>
             <div className="min-h-[20px]">
-              {loadingRate ? '🔄 Loading exchange rate...' :
+              {!connected ? (
+                <div className="flex items-center justify-center space-x-2">
+                  <span className="text-red-600">⚠ Disconnected</span>
+                  {reconnectAttempts > 0 && (
+                    <span className="text-xs text-gray-500">(retry {reconnectAttempts})</span>
+                  )}
+                  <button
+                    onClick={manualReconnect}
+                    className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded"
+                  >
+                    Reconnect
+                  </button>
+                </div>
+              ) : loadingRate ? '🔄 Loading exchange rate...' :
                !apiKey ? '⚠ No API key' : 
                !selectedWallet?.id ? '⚠ Loading wallet...' : 
                displayCurrency !== 'BTC' && !exchangeRate ? '⚠ Exchange rate not available' :
@@ -465,9 +488,9 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived }) => {
           <button
             onClick={createInvoice}
             disabled={(total === 0 && !amount) || loading || !selectedWallet || !apiKey || (displayCurrency !== 'BTC' && !exchangeRate) || loadingRate}
-            className="h-[136px] bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg text-lg font-bold transition-colors shadow-md flex items-center justify-center row-span-2"
+            className={`h-[136px] ${!connected ? 'bg-orange-500 hover:bg-orange-600' : 'bg-green-600 hover:bg-green-700'} disabled:bg-gray-400 text-white rounded-lg text-lg font-bold transition-colors shadow-md flex items-center justify-center row-span-2`}
           >
-            {loading ? 'Creating...' : 'OK'}
+            {loading ? 'Creating...' : !connected ? 'OK ⚠' : 'OK'}
           </button>
 
           {/* Row 3: 7, 8, 9, OK (continues) */}

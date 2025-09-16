@@ -41,7 +41,7 @@ export default function Dashboard() {
   };
 
   // Use direct Blink WebSocket connection (like the donation button)
-  const { connected, lastPayment, showAnimation, hideAnimation } = useBlinkWebSocket(apiKey, user?.username);
+  const { connected, lastPayment, showAnimation, hideAnimation, manualReconnect, reconnectAttempts } = useBlinkWebSocket(apiKey, user?.username);
   
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -54,6 +54,12 @@ export default function Dashboard() {
   useEffect(() => {
     if (user) {
       fetchData();
+      
+      // Set display currency from user preference
+      if (user.preferredCurrency) {
+        console.log(`Setting display currency to user preference: ${user.preferredCurrency}`);
+        setDisplayCurrency(user.preferredCurrency);
+      }
     }
   }, [user]);
 
@@ -583,6 +589,9 @@ export default function Dashboard() {
             displayCurrency={displayCurrency}
             wallets={wallets}
             onPaymentReceived={posPaymentReceivedRef}
+            connected={connected}
+            manualReconnect={manualReconnect}
+            reconnectAttempts={reconnectAttempts}
           />
         ) : (
           <>

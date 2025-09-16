@@ -35,14 +35,26 @@ export default async function handler(req, res) {
     }
 
     const fetchedUsername = userInfo.username;
+    const userDisplayCurrency = userInfo.defaultAccount?.displayCurrency;
+
+    // Map Blink display currency to our supported currencies
+    let preferredCurrency = 'BTC'; // Default to BTC (sats)
+    const supportedCurrencies = ['USD', 'BTC', 'KES'];
+    
+    if (userDisplayCurrency && supportedCurrencies.includes(userDisplayCurrency)) {
+      preferredCurrency = userDisplayCurrency;
+    }
+
+    console.log(`User display currency: ${userDisplayCurrency} → Using: ${preferredCurrency}`);
 
     // Generate session token
     const sessionToken = AuthManager.generateSession(fetchedUsername);
 
-    // Save user data with fetched username
+    // Save user data with fetched username and preferred currency
     await StorageManager.saveUserData(fetchedUsername, {
       username: fetchedUsername,
       apiKey,
+      preferredCurrency,
       lastLogin: Date.now()
     });
 
@@ -53,7 +65,10 @@ export default async function handler(req, res) {
 
     res.status(200).json({
       success: true,
-      user: { username: fetchedUsername },
+      user: { 
+        username: fetchedUsername,
+        preferredCurrency 
+      },
       message: 'Authentication successful'
     });
 

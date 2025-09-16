@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../lib/hooks/useAuth';
 import { useBlinkWebSocket } from '../lib/hooks/useBlinkWebSocket';
 import PaymentAnimation from './PaymentAnimation';
+import POS from './POS';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -13,6 +14,11 @@ export default function Dashboard() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [currentView, setCurrentView] = useState('transactions'); // 'transactions' or 'pos'
+  const [displayCurrency, setDisplayCurrency] = useState('USD'); // 'USD' or 'BTC'
+  const [wallets, setWallets] = useState([]);
+  const touchStartX = useRef(0);
+  const touchEndX = useRef(0);
   
   // Get user's API key for direct WebSocket connection
   useEffect(() => {
@@ -45,6 +51,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (user) {
       fetchData();
+      fetchWallets();
     }
   }, [user]);
 
@@ -100,6 +107,19 @@ export default function Dashboard() {
       setError('Failed to load data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch wallet information for POS
+  const fetchWallets = async () => {
+    try {
+      const response = await fetch('/api/blink/wallets');
+      if (response.ok) {
+        const walletsData = await response.json();
+        setWallets(walletsData.wallets || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch wallets:', err);
     }
   };
 
@@ -192,6 +212,33 @@ export default function Dashboard() {
       setDeferredPrompt(null);
       setShowInstallPrompt(false);
     }
+  };
+
+  // Handle touch events for swipe navigation
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchMove = (e) => {
+    touchEndX.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStartX.current || !touchEndX.current) return;
+    
+    const distance = touchStartX.current - touchEndX.current;
+    const isLeftSwipe = distance > 50;
+    const isRightSwipe = distance < -50;
+
+    if (isLeftSwipe && currentView === 'transactions') {
+      setCurrentView('pos');
+    } else if (isRightSwipe && currentView === 'pos') {
+      setCurrentView('transactions');
+    }
+
+    // Reset touch positions
+    touchStartX.current = 0;
+    touchEndX.current = 0;
   };
 
   // Group transactions by month
@@ -372,6 +419,59 @@ export default function Dashboard() {
                         <p className="text-sm text-gray-500">Welcome, {user?.username}</p>
                       </div>
                       
+                      {/* Currency Selection */}
+                      <div className="border-b border-gray-200 pb-4">
+                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                          Display Currency
+                        </label>
+                        <select
+                          value={displayCurrency}
+                          onChange={(e) => setDisplayCurrency(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blink-orange focus:border-transparent text-sm"
+                        >
+                          <option value="USD">USD - US Dollar</option>
+                          <option value="BTC">BTC - Bitcoin (Satoshis)</option>
+                        </select>
+                      </div>
+
+                      {/* View Navigation */}
+                      <div className="border-b border-gray-200 pb-4">
+                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                          Current View
+                        </label>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => {
+                              setCurrentView('transactions');
+                              setSideMenuOpen(false);
+                            }}
+                            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                              currentView === 'transactions'
+                                ? 'bg-blink-orange text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            📊 Transactions
+                          </button>
+                          <button
+                            onClick={() => {
+                              setCurrentView('pos');
+                              setSideMenuOpen(false);
+                            }}
+                            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                              currentView === 'pos'
+                                ? 'bg-blink-orange text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            💰 POS
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                          💡 Tip: Swipe left/right to switch views
+                        </p>
+                      </div>
+
                       {/* Connection Status (detailed) */}
                       <div className="border-b border-gray-200 pb-4">
                         <h3 className="text-sm font-medium text-gray-900 mb-2">Connection Status</h3>
@@ -431,17 +531,39 @@ export default function Dashboard() {
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 mobile-content">
+      <main 
+        className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 mobile-content"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         {error && (
           <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
             {error}
           </div>
         )}
 
+        {/* View Indicator */}
+        <div className="flex justify-center mb-4">
+          <div className="flex bg-gray-200 rounded-lg p-1">
+            <div className={`w-3 h-3 rounded-full mx-1 ${currentView === 'transactions' ? 'bg-blink-orange' : 'bg-gray-400'}`}></div>
+            <div className={`w-3 h-3 rounded-full mx-1 ${currentView === 'pos' ? 'bg-blink-orange' : 'bg-gray-400'}`}></div>
+          </div>
+        </div>
 
-        {/* Most Recent Transactions */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Most Recent Transactions</h2>
+        {/* Conditional Content Based on Current View */}
+        {currentView === 'pos' ? (
+          <POS 
+            apiKey={apiKey}
+            user={user}
+            displayCurrency={displayCurrency}
+            wallets={wallets}
+          />
+        ) : (
+          <>
+            {/* Most Recent Transactions */}
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Most Recent Transactions</h2>
           <div className="bg-white shadow overflow-hidden sm:rounded-md">
             <ul className="divide-y divide-gray-200">
               {transactions.slice(0, 5).map((tx) => (
@@ -629,6 +751,8 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+          </>
+        )}
       </main>
     </div>
   );

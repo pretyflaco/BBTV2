@@ -9,12 +9,13 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "crypto-js": "^4.2.0",
+    "jsonwebtoken": "^9.0.0",
     "next": "12.3.4",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
-    "crypto-js": "^4.2.0",
-    "jsonwebtoken": "^9.0.0",
-    "bcryptjs": "^2.4.3"
+    "react-qr-code": "^2.0.18"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

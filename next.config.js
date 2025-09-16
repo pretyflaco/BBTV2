@@ -2,9 +2,6 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  experimental: {
-    serverComponentsExternalPackages: ['ws']
-  },
   async headers() {
     return [
       {
@@ -56,6 +53,13 @@ const nextConfig = {
         tls: false,
       };
     }
+    
+    // Handle WebSocket modules properly
+    config.externals = config.externals || [];
+    if (isServer) {
+      config.externals.push('ws');
+    }
+    
     return config;
   },
 }

@@ -11,6 +11,8 @@ export default function Dashboard() {
   const [monthlyTransactions, setMonthlyTransactions] = useState({});
   const [hasMoreTransactions, setHasMoreTransactions] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   
   // Get user's API key for direct WebSocket connection
   useEffect(() => {
@@ -45,6 +47,21 @@ export default function Dashboard() {
       fetchData();
     }
   }, [user]);
+
+  // PWA Install prompt
+  useEffect(() => {
+    const handler = (e) => {
+      // Prevent the mini-infobar from appearing on mobile
+      e.preventDefault();
+      // Stash the event so it can be triggered later
+      setDeferredPrompt(e);
+      setShowInstallPrompt(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handler);
+
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
 
   // Refresh data when payment received
   useEffect(() => {
@@ -155,6 +172,26 @@ export default function Dashboard() {
 
   const handleLogout = () => {
     logout();
+  };
+
+  const handleInstallApp = async () => {
+    if (deferredPrompt) {
+      // Show the install prompt
+      deferredPrompt.prompt();
+      
+      // Wait for the user to respond to the prompt
+      const { outcome } = await deferredPrompt.userChoice;
+      
+      if (outcome === 'accepted') {
+        console.log('User accepted the install prompt');
+      } else {
+        console.log('User dismissed the install prompt');
+      }
+      
+      // Clear the deferred prompt
+      setDeferredPrompt(null);
+      setShowInstallPrompt(false);
+    }
   };
 
   // Group transactions by month
@@ -348,6 +385,22 @@ export default function Dashboard() {
                       
                       {/* Action buttons */}
                       <div className="space-y-3">
+                        {/* Install App Button */}
+                        {showInstallPrompt && (
+                          <button
+                            onClick={() => {
+                              handleInstallApp();
+                              setSideMenuOpen(false);
+                            }}
+                            className="w-full bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-4 rounded transition-colors mobile-button flex items-center justify-center"
+                          >
+                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                            Install App
+                          </button>
+                        )}
+                        
                         <button
                           onClick={() => {
                             handleRefresh();

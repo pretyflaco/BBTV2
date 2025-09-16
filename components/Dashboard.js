@@ -47,6 +47,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Ref for POS payment received callback
+  const posPaymentReceivedRef = useRef(null);
+
   // Fetch initial data
   useEffect(() => {
     if (user) {
@@ -76,9 +79,14 @@ export default function Dashboard() {
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
-  // Refresh data when payment received
+  // Refresh data when payment received and clear POS invoice
   useEffect(() => {
     if (lastPayment) {
+      // Clear the POS invoice immediately when payment is received
+      if (posPaymentReceivedRef.current) {
+        posPaymentReceivedRef.current();
+      }
+      
       // Small delay to ensure transaction is processed
       setTimeout(() => {
         fetchData();
@@ -460,6 +468,7 @@ export default function Dashboard() {
                         >
                           <option value="USD">USD - US Dollar</option>
                           <option value="BTC">BTC - Bitcoin (Satoshis)</option>
+                          <option value="KES">KES - Kenyan Shilling</option>
                         </select>
                       </div>
 
@@ -573,6 +582,7 @@ export default function Dashboard() {
             user={user}
             displayCurrency={displayCurrency}
             wallets={wallets}
+            onPaymentReceived={posPaymentReceivedRef}
           />
         ) : (
           <>

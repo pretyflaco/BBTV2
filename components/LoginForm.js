@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useAuth } from '../lib/hooks/useAuth';
 
 export default function LoginForm() {
-  const [username, setUsername] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -14,7 +13,8 @@ export default function LoginForm() {
     setLoading(true);
     setError('');
 
-    const result = await login(username, apiKey);
+    // Use only API key for login, username will be fetched from API
+    const result = await login(null, apiKey);
 
     if (!result.success) {
       setError(result.error || 'Login failed');
@@ -36,22 +36,6 @@ export default function LoginForm() {
         </div>
         
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div>
-            <label htmlFor="username" className="sr-only">
-              Username
-            </label>
-            <input
-              id="username"
-              name="username"
-              type="text"
-              required
-              className="relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blink-orange focus:border-blink-orange focus:z-10 sm:text-sm"
-              placeholder="Blink Username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
-          </div>
-          
           <div>
             <label htmlFor="apiKey" className="sr-only">
               API Key

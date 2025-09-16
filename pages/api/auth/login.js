@@ -1,5 +1,6 @@
 const AuthManager = require('../../../lib/auth');
 const StorageManager = require('../../../lib/storage');
+const { BlinkAPI } = require('../../../lib/blink-api');
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -9,22 +10,32 @@ export default async function handler(req, res) {
   try {
     const { username, apiKey } = req.body;
 
-    if (!username || !apiKey) {
-      return res.status(400).json({ error: 'Username and API key are required' });
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key is required' });
     }
 
-    // Validate API key with Blink
-    const isValid = await AuthManager.validateBlinkApiKey(apiKey);
-    if (!isValid) {
+    // Validate API key with Blink and fetch username
+    const blinkAPI = new BlinkAPI(apiKey);
+    let userInfo;
+    
+    try {
+      userInfo = await blinkAPI.getMe();
+      if (!userInfo || !userInfo.username) {
+        return res.status(401).json({ error: 'Invalid API key or unable to fetch user info' });
+      }
+    } catch (error) {
+      console.error('Blink API error:', error);
       return res.status(401).json({ error: 'Invalid API key' });
     }
 
-    // Generate session token
-    const sessionToken = AuthManager.generateSession(username);
+    const fetchedUsername = userInfo.username;
 
-    // Save user data
-    await StorageManager.saveUserData(username, {
-      username,
+    // Generate session token
+    const sessionToken = AuthManager.generateSession(fetchedUsername);
+
+    // Save user data with fetched username
+    await StorageManager.saveUserData(fetchedUsername, {
+      username: fetchedUsername,
       apiKey,
       lastLogin: Date.now()
     });
@@ -36,7 +47,7 @@ export default async function handler(req, res) {
 
     res.status(200).json({
       success: true,
-      user: { username },
+      user: { username: fetchedUsername },
       message: 'Authentication successful'
     });
 

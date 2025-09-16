@@ -385,6 +385,11 @@ export default function Dashboard() {
               <div className={`w-3 h-3 rounded-full mr-2 ${connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
               <span className="text-sm text-gray-600">
                 {connected ? 'Connected' : 'Disconnected'}
+                {user?.username && (
+                  <span className="ml-2 text-blink-orange font-medium">
+                    @{user.username}
+                  </span>
+                )}
               </span>
             </div>
             
@@ -466,6 +471,11 @@ export default function Dashboard() {
                           <div className={`w-3 h-3 rounded-full mr-2 ${connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
                           <span className="text-sm text-gray-600">
                             {connected ? 'Connected to Blink WebSocket' : 'Disconnected from Blink WebSocket'}
+                            {user?.username && (
+                              <div className="mt-1 text-blink-orange font-medium">
+                                @{user.username}
+                              </div>
+                            )}
                           </span>
                         </div>
                       </div>

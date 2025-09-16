@@ -3,6 +3,7 @@ import QRCode from 'react-qr-code';
 
 const POS = ({ apiKey, user, displayCurrency, wallets }) => {
   const [amount, setAmount] = useState('');
+  const [quantity, setQuantity] = useState(1);
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -58,8 +59,13 @@ const POS = ({ apiKey, user, displayCurrency, wallets }) => {
 
   const handleClear = () => {
     setAmount('');
+    setQuantity(1);
     setInvoice(null);
     setError('');
+  };
+
+  const handlePlusPress = () => {
+    setQuantity(prev => prev + 1);
   };
 
   const createInvoice = async () => {
@@ -84,12 +90,16 @@ const POS = ({ apiKey, user, displayCurrency, wallets }) => {
       return;
     }
 
+    const totalAmount = numericAmount * quantity;
+
     setLoading(true);
     setError('');
 
     try {
       console.log('Creating invoice with:', {
-        amount: numericAmount,
+        amount: totalAmount,
+        originalAmount: numericAmount,
+        quantity: quantity,
         currency: 'BTC', // Always BTC for simplicity
         walletId: selectedWallet.id,
         hasApiKey: !!apiKey
@@ -101,9 +111,9 @@ const POS = ({ apiKey, user, displayCurrency, wallets }) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          amount: numericAmount,
+          amount: totalAmount,
           currency: 'BTC', // Always create BTC invoices
-          memo: '', // No memo field
+          memo: quantity > 1 ? `${quantity}x ${numericAmount} sats` : '', // Show quantity in memo if multiple
           walletId: selectedWallet.id,
           apiKey: apiKey // Pass user's API key
         }),
@@ -227,9 +237,19 @@ const POS = ({ apiKey, user, displayCurrency, wallets }) => {
       <div className="p-4">
         <div className="text-center mb-4">
           <div className="text-3xl font-bold text-gray-800 mb-1">
-            {amount ? `${amount} sats` : '0 sats'}
+            {amount ? (
+              quantity > 1 ? (
+                <div>
+                  <span className="text-lg text-gray-600">{quantity}x </span>
+                  {amount} sats = <span className="text-blink-orange">{amount * quantity} sats</span>
+                </div>
+              ) : (
+                `${amount} sats`
+              )
+            ) : '0 sats'}
           </div>
           <div className="text-sm text-gray-600">
+            {quantity > 1 && <div className="mb-1">Quantity: {quantity} items</div>}
             {!apiKey ? '⚠ No API key' : 
              !selectedWallet?.id ? '⚠ Loading wallet...' : 
              '✓ BTC wallet ready'}
@@ -302,7 +322,12 @@ const POS = ({ apiKey, user, displayCurrency, wallets }) => {
           </button>
 
           {/* Row 4 */}
-          <div></div> {/* Empty space for BTC (no decimals) */}
+          <button
+            onClick={handlePlusPress}
+            className="h-12 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md flex items-center justify-center"
+          >
+            +
+          </button>
           <button
             onClick={() => handleDigitPress('0')}
             className="h-12 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"

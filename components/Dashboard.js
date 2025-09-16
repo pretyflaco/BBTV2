@@ -35,7 +35,6 @@ export default function Dashboard() {
   // Use direct Blink WebSocket connection (like the donation button)
   const { connected, lastPayment, showAnimation, hideAnimation } = useBlinkWebSocket(apiKey, user?.username);
   
-  const [balance, setBalance] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -61,17 +60,12 @@ export default function Dashboard() {
     try {
       setLoading(true);
       
-      // Fetch balance and initial transactions in parallel
-      const [balanceRes, transactionsRes] = await Promise.all([
-        fetch('/api/blink/balance'),
-        fetch('/api/blink/transactions?first=100') // Load more transactions initially
-      ]);
+      // Fetch transactions only (no balance for employee privacy)
+      const transactionsRes = await fetch('/api/blink/transactions?first=100');
 
-      if (balanceRes.ok && transactionsRes.ok) {
-        const balanceData = await balanceRes.json();
+      if (transactionsRes.ok) {
         const transactionsData = await transactionsRes.json();
         
-        setBalance(balanceData.wallets);
         setTransactions(transactionsData.transactions);
         setHasMoreTransactions(transactionsData.pageInfo?.hasNextPage || false);
         setError('');
@@ -82,7 +76,7 @@ export default function Dashboard() {
           setHasMoreTransactions(finalHasMore);
         }
       } else {
-        throw new Error('Failed to fetch data');
+        throw new Error('Failed to fetch transactions');
       }
     } catch (err) {
       console.error('Fetch error:', err);
@@ -254,12 +248,12 @@ export default function Dashboard() {
     }
   };
 
-  if (loading && !balance) {
+  if (loading && transactions.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blink-orange mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading your wallet data...</p>
+          <p className="mt-4 text-gray-600">Loading transactions...</p>
         </div>
       </div>
     );
@@ -391,35 +385,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Wallet Balances */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Wallet Balances</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {balance?.map((wallet) => (
-              <div key={wallet.id} className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="px-4 py-5 sm:p-6">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-blink-orange rounded-full flex items-center justify-center">
-                        <span className="text-white font-bold text-sm">
-                          {wallet.currency === 'BTC' ? '₿' : wallet.currency.charAt(0)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-500">
-                        {wallet.currency} Balance
-                      </p>
-                      <p className="text-2xl font-bold text-gray-900">
-                        {wallet.formattedBalance}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
 
         {/* Most Recent Transactions */}
         <div className="mb-8">

@@ -79,6 +79,90 @@ html, body {
   to { transform: scale(1.05); }
 }
 
+/* Side Menu Animation */
+.side-menu-slide-in {
+  animation: slideInFromRight 0.3s ease-out;
+}
+
+.side-menu-slide-out {
+  animation: slideOutToRight 0.3s ease-in;
+}
+
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutToRight {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Expandable Month Groups */
+.month-group-header {
+  transition: background-color 0.2s ease-in-out;
+}
+
+.month-group-content {
+  animation: expandDown 0.3s ease-out;
+}
+
+@keyframes expandDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    max-height: 1000px;
+    transform: translateY(0);
+  }
+}
+
+/* Improved mobile transaction cards */
+.transaction-card-mobile {
+  transition: all 0.2s ease-in-out;
+}
+
+.transaction-card-mobile:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Mobile optimization for small screens */
+@media (max-width: 640px) {
+  /* Ensure side menu takes full available width on mobile */
+  .side-menu-panel {
+    max-width: calc(100vw - 2rem);
+  }
+  
+  /* Reduce padding on mobile for more content space */
+  .mobile-content {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+  
+  /* Make touch targets larger on mobile */
+  .mobile-button {
+    min-height: 44px;
+    padding: 12px 16px;
+  }
+  
+  /* Month group headers should be larger on mobile */
+  .month-group-header {
+    min-height: 60px;
+  }
+}
+
 /* Dark mode support */
 @media (prefers-color-scheme: dark) {
   html {

@@ -1,16 +1,18 @@
 import BlinkAPI from '../../../lib/blink-api';
 
 export default async function handler(req, res) {
-  if (req.method !== 'GET') {
+  if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    // Get API key from environment
-    const apiKey = process.env.BLINK_API_KEY;
+    const { apiKey } = req.body;
+
+    // Validate required fields
     if (!apiKey) {
-      console.error('BLINK_API_KEY not found in environment variables');
-      return res.status(500).json({ error: 'Server configuration error' });
+      return res.status(400).json({ 
+        error: 'Missing required field: apiKey' 
+      });
     }
 
     const blinkAPI = new BlinkAPI(apiKey);

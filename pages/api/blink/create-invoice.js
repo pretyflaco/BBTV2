@@ -6,12 +6,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { amount, currency, memo, walletId } = req.body;
+    const { amount, currency, memo, walletId, apiKey } = req.body;
 
     // Validate required fields
-    if (!amount || !currency || !walletId) {
+    if (!amount || !currency || !walletId || !apiKey) {
       return res.status(400).json({ 
-        error: 'Missing required fields: amount, currency, walletId' 
+        error: 'Missing required fields: amount, currency, walletId, apiKey' 
       });
     }
 
@@ -21,13 +21,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ 
         error: 'Invalid amount: must be a positive number' 
       });
-    }
-
-    // Get API key from environment
-    const apiKey = process.env.BLINK_API_KEY;
-    if (!apiKey) {
-      console.error('BLINK_API_KEY not found in environment variables');
-      return res.status(500).json({ error: 'Server configuration error' });
     }
 
     const blinkAPI = new BlinkAPI(apiKey);

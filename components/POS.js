@@ -3,7 +3,6 @@ import QRCode from 'react-qr-code';
 
 const POS = ({ apiKey, user, displayCurrency, wallets }) => {
   const [amount, setAmount] = useState('');
-  const [memo, setMemo] = useState('');
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -11,10 +10,17 @@ const POS = ({ apiKey, user, displayCurrency, wallets }) => {
 
   // Set default wallet when wallets are loaded
   useEffect(() => {
-    if (wallets && wallets.length > 0 && !selectedWallet) {
-      // Default to BTC wallet, fallback to first wallet
+    console.log('Wallets changed:', wallets);
+    if (wallets && wallets.length > 0) {
+      // Always use BTC wallet for POS
       const btcWallet = wallets.find(w => w.walletCurrency === 'BTC');
-      setSelectedWallet(btcWallet || wallets[0]);
+      if (btcWallet && !selectedWallet) {
+        setSelectedWallet(btcWallet);
+        console.log('Selected BTC wallet:', btcWallet);
+      } else if (!btcWallet) {
+        console.error('No BTC wallet found in:', wallets);
+        setError('No BTC wallet available for invoice generation');
+      }
     }
   }, [wallets, selectedWallet]);
 
@@ -52,14 +58,23 @@ const POS = ({ apiKey, user, displayCurrency, wallets }) => {
 
   const handleClear = () => {
     setAmount('');
-    setMemo('');
     setInvoice(null);
     setError('');
   };
 
   const createInvoice = async () => {
-    if (!amount || !selectedWallet) {
-      setError('Please enter an amount and select a wallet');
+    if (!amount) {
+      setError('Please enter an amount');
+      return;
+    }
+
+    if (!selectedWallet) {
+      setError('No BTC wallet available. Please try refreshing.');
+      return;
+    }
+
+    if (!apiKey) {
+      setError('No API key available. Please log in again.');
       return;
     }
 
@@ -73,6 +88,13 @@ const POS = ({ apiKey, user, displayCurrency, wallets }) => {
     setError('');
 
     try {
+      console.log('Creating invoice with:', {
+        amount: numericAmount,
+        currency: 'BTC', // Always BTC for simplicity
+        walletId: selectedWallet.id,
+        hasApiKey: !!apiKey
+      });
+
       const response = await fetch('/api/blink/create-invoice', {
         method: 'POST',
         headers: {
@@ -80,16 +102,19 @@ const POS = ({ apiKey, user, displayCurrency, wallets }) => {
         },
         body: JSON.stringify({
           amount: numericAmount,
-          currency: displayCurrency === 'BTC' ? 'BTC' : 'USD',
-          memo: memo.trim(),
-          walletId: selectedWallet.id
+          currency: 'BTC', // Always create BTC invoices
+          memo: '', // No memo field
+          walletId: selectedWallet.id,
+          apiKey: apiKey // Pass user's API key
         }),
       });
 
       const data = await response.json();
 
+      console.log('Invoice response:', data);
+
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create invoice');
+        throw new Error(data.error || `Server error: ${response.status}`);
       }
 
       if (data.success && data.invoice) {
@@ -140,9 +165,6 @@ const POS = ({ apiKey, user, displayCurrency, wallets }) => {
             <div className="text-3xl font-bold text-gray-800">
               {formatDisplayAmount(invoice.amount, invoice.currency)}
             </div>
-            {invoice.memo && (
-              <div className="text-gray-600 mt-2">{invoice.memo}</div>
-            )}
           </div>
 
           {/* QR Code */}
@@ -189,67 +211,52 @@ const POS = ({ apiKey, user, displayCurrency, wallets }) => {
 
   return (
     <div className="h-full flex flex-col bg-white">
-      {/* Header */}
-      <div className="bg-blink-orange text-white p-4">
-        <h2 className="text-xl font-bold text-center">Point of Sale</h2>
-        <p className="text-center text-orange-100 text-sm mt-1">
-          Create Lightning invoices for customers
-        </p>
+      {/* Compact Header */}
+      <div className="bg-blink-orange text-white p-3">
+        <h2 className="text-lg font-bold text-center">Point of Sale</h2>
       </div>
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 mx-4 mt-4 rounded">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 mx-3 mt-3 rounded text-sm">
           {error}
         </div>
       )}
 
-      {/* Amount Display */}
-      <div className="p-6">
-        <div className="text-center mb-6">
-          <div className="text-4xl font-bold text-gray-800 mb-2">
-            {amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount('0', displayCurrency)}
+      {/* Compact Amount Display */}
+      <div className="p-4">
+        <div className="text-center mb-4">
+          <div className="text-3xl font-bold text-gray-800 mb-1">
+            {amount ? `${amount} sats` : '0 sats'}
           </div>
-          <div className="text-gray-600">
-            Receiving to: {selectedWallet?.walletCurrency || 'No wallet'} wallet
+          <div className="text-sm text-gray-600">
+            {!apiKey ? '⚠ No API key' : 
+             !selectedWallet?.id ? '⚠ Loading wallet...' : 
+             '✓ BTC wallet ready'}
           </div>
         </div>
 
-        {/* Memo Input */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Memo (optional)
-          </label>
-          <input
-            type="text"
-            value={memo}
-            onChange={(e) => setMemo(e.target.value)}
-            placeholder="Description for this payment..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blink-orange focus:border-transparent"
-            maxLength={100}
-          />
-        </div>
       </div>
 
-      {/* Numpad */}
-      <div className="flex-1 px-6 pb-6">
-        <div className="grid grid-cols-3 gap-4 max-w-sm mx-auto">
+      {/* Compact Numpad */}
+      <div className="flex-1 px-4 pb-4">
+        <div className="grid grid-cols-3 gap-3 max-w-xs mx-auto">
           {/* Row 1 */}
           <button
             onClick={() => handleDigitPress('1')}
-            className="aspect-square bg-gray-100 hover:bg-gray-200 rounded-lg text-2xl font-semibold transition-colors"
+            className="h-12 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"
           >
             1
           </button>
           <button
             onClick={() => handleDigitPress('2')}
-            className="aspect-square bg-gray-100 hover:bg-gray-200 rounded-lg text-2xl font-semibold transition-colors"
+            className="h-12 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"
           >
             2
           </button>
           <button
             onClick={() => handleDigitPress('3')}
-            className="aspect-square bg-gray-100 hover:bg-gray-200 rounded-lg text-2xl font-semibold transition-colors"
+            className="h-12 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"
           >
             3
           </button>
@@ -257,19 +264,19 @@ const POS = ({ apiKey, user, displayCurrency, wallets }) => {
           {/* Row 2 */}
           <button
             onClick={() => handleDigitPress('4')}
-            className="aspect-square bg-gray-100 hover:bg-gray-200 rounded-lg text-2xl font-semibold transition-colors"
+            className="h-12 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"
           >
             4
           </button>
           <button
             onClick={() => handleDigitPress('5')}
-            className="aspect-square bg-gray-100 hover:bg-gray-200 rounded-lg text-2xl font-semibold transition-colors"
+            className="h-12 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"
           >
             5
           </button>
           <button
             onClick={() => handleDigitPress('6')}
-            className="aspect-square bg-gray-100 hover:bg-gray-200 rounded-lg text-2xl font-semibold transition-colors"
+            className="h-12 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"
           >
             6
           </button>
@@ -277,63 +284,54 @@ const POS = ({ apiKey, user, displayCurrency, wallets }) => {
           {/* Row 3 */}
           <button
             onClick={() => handleDigitPress('7')}
-            className="aspect-square bg-gray-100 hover:bg-gray-200 rounded-lg text-2xl font-semibold transition-colors"
+            className="h-12 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"
           >
             7
           </button>
           <button
             onClick={() => handleDigitPress('8')}
-            className="aspect-square bg-gray-100 hover:bg-gray-200 rounded-lg text-2xl font-semibold transition-colors"
+            className="h-12 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"
           >
             8
           </button>
           <button
             onClick={() => handleDigitPress('9')}
-            className="aspect-square bg-gray-100 hover:bg-gray-200 rounded-lg text-2xl font-semibold transition-colors"
+            className="h-12 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"
           >
             9
           </button>
 
           {/* Row 4 */}
-          {displayCurrency === 'USD' && (
-            <button
-              onClick={() => handleDigitPress('.')}
-              className="aspect-square bg-gray-100 hover:bg-gray-200 rounded-lg text-2xl font-semibold transition-colors"
-            >
-              .
-            </button>
-          )}
-          {displayCurrency === 'BTC' && <div></div>}
-          
+          <div></div> {/* Empty space for BTC (no decimals) */}
           <button
             onClick={() => handleDigitPress('0')}
-            className="aspect-square bg-gray-100 hover:bg-gray-200 rounded-lg text-2xl font-semibold transition-colors"
+            className="h-12 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"
           >
             0
           </button>
           <button
             onClick={handleBackspace}
-            className="aspect-square bg-gray-100 hover:bg-gray-200 rounded-lg text-xl font-semibold transition-colors flex items-center justify-center"
+            className="h-12 bg-red-600 hover:bg-red-700 text-white rounded-lg text-lg font-bold transition-colors flex items-center justify-center shadow-md"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
             </svg>
           </button>
         </div>
 
-        {/* Action Buttons */}
-        <div className="mt-6 space-y-4 max-w-sm mx-auto">
+        {/* Compact Action Buttons */}
+        <div className="mt-4 space-y-3 max-w-xs mx-auto">
           <button
             onClick={createInvoice}
-            disabled={!amount || loading}
-            className="w-full bg-blink-orange hover:bg-orange-600 disabled:bg-gray-300 text-white font-bold py-4 rounded-lg transition-colors text-lg"
+            disabled={!amount || loading || !selectedWallet || !apiKey}
+            className="w-full bg-blink-orange hover:bg-orange-600 disabled:bg-gray-300 text-white font-bold py-3 rounded-lg transition-colors"
           >
-            {loading ? 'Creating Invoice...' : 'Create Invoice'}
+            {loading ? 'Creating...' : 'Create Invoice'}
           </button>
           
           <button
             onClick={handleClear}
-            className="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 rounded-lg transition-colors"
+            className="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 rounded-lg transition-colors text-sm"
           >
             Clear
           </button>

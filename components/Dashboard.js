@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../lib/hooks/useAuth';
 import { useBlinkWebSocket } from '../lib/hooks/useBlinkWebSocket';
 import PaymentAnimation from './PaymentAnimation';
@@ -51,9 +51,15 @@ export default function Dashboard() {
   useEffect(() => {
     if (user) {
       fetchData();
-      fetchWallets();
     }
   }, [user]);
+
+  // Fetch wallets when API key becomes available
+  useEffect(() => {
+    if (apiKey) {
+      fetchWallets();
+    }
+  }, [apiKey, fetchWallets]);
 
   // PWA Install prompt
   useEffect(() => {
@@ -111,17 +117,35 @@ export default function Dashboard() {
   };
 
   // Fetch wallet information for POS
-  const fetchWallets = async () => {
+  const fetchWallets = useCallback(async () => {
+    if (!apiKey) {
+      console.log('No API key available yet, skipping wallet fetch');
+      return;
+    }
+
     try {
-      const response = await fetch('/api/blink/wallets');
+      const response = await fetch('/api/blink/wallets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ apiKey }),
+      });
+
       if (response.ok) {
         const walletsData = await response.json();
-        setWallets(walletsData.wallets || []);
+        const walletsList = walletsData.wallets || [];
+        setWallets(walletsList);
+        
+        // Debug log
+        console.log('Fetched wallets:', walletsList);
+      } else {
+        console.error('Failed to fetch wallets:', response.status, response.statusText);
       }
     } catch (err) {
       console.error('Failed to fetch wallets:', err);
     }
-  };
+  }, [apiKey]);
 
   // Load more historical transactions to populate older months
   const loadMoreHistoricalTransactions = async (cursor, currentTransactions) => {
@@ -434,43 +458,6 @@ export default function Dashboard() {
                         </select>
                       </div>
 
-                      {/* View Navigation */}
-                      <div className="border-b border-gray-200 pb-4">
-                        <label className="block text-sm font-medium text-gray-900 mb-2">
-                          Current View
-                        </label>
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => {
-                              setCurrentView('transactions');
-                              setSideMenuOpen(false);
-                            }}
-                            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
-                              currentView === 'transactions'
-                                ? 'bg-blink-orange text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                          >
-                            📊 Transactions
-                          </button>
-                          <button
-                            onClick={() => {
-                              setCurrentView('pos');
-                              setSideMenuOpen(false);
-                            }}
-                            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
-                              currentView === 'pos'
-                                ? 'bg-blink-orange text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                          >
-                            💰 POS
-                          </button>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-2">
-                          💡 Tip: Swipe left/right to switch views
-                        </p>
-                      </div>
 
                       {/* Connection Status (detailed) */}
                       <div className="border-b border-gray-200 pb-4">
@@ -543,11 +530,29 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* View Indicator */}
-        <div className="flex justify-center mb-4">
-          <div className="flex bg-gray-200 rounded-lg p-1">
-            <div className={`w-3 h-3 rounded-full mx-1 ${currentView === 'transactions' ? 'bg-blink-orange' : 'bg-gray-400'}`}></div>
-            <div className={`w-3 h-3 rounded-full mx-1 ${currentView === 'pos' ? 'bg-blink-orange' : 'bg-gray-400'}`}></div>
+        {/* View Switch */}
+        <div className="flex justify-center mb-6">
+          <div className="bg-gray-100 rounded-lg p-1 flex">
+            <button
+              onClick={() => setCurrentView('transactions')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                currentView === 'transactions'
+                  ? 'bg-white text-blink-orange shadow-sm'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              📊 Transaction History
+            </button>
+            <button
+              onClick={() => setCurrentView('pos')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                currentView === 'pos'
+                  ? 'bg-white text-blink-orange shadow-sm'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              💰 Point of Sale
+            </button>
           </div>
         </div>
 

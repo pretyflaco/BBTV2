@@ -1,22 +1,20 @@
-import { useEffect } from 'react';
-
 export default function PaymentAnimation({ show, payment, onHide }) {
-  useEffect(() => {
-    if (show) {
-      // Auto-hide after 4 seconds
-      const timer = setTimeout(() => {
-        onHide();
-      }, 4000);
-
-      return () => clearTimeout(timer);
-    }
-  }, [show, onHide]);
-
   if (!show) return null;
 
+  const handleDismiss = (e) => {
+    console.log('🎬 Payment animation dismissed by user click/touch');
+    e.preventDefault();
+    e.stopPropagation();
+    onHide();
+  };
+
   return (
-    <div className={`payment-overlay ${show ? 'active' : ''}`}>
-      <div>
+    <div 
+      className={`payment-overlay ${show ? 'active' : ''} cursor-pointer`}
+      onClick={handleDismiss}
+      onTouchStart={handleDismiss}
+    >
+      <div className="payment-animation-content">
         <div className="payment-text">
           🎉 PAYMENT RECEIVED! 🎉
         </div>
@@ -28,6 +26,9 @@ export default function PaymentAnimation({ show, payment, onHide }) {
             {payment.memo}
           </div>
         )}
+        <div className="text-white text-lg mt-6 opacity-75 animate-pulse">
+          👆 Tap to continue
+        </div>
       </div>
     </div>
   );

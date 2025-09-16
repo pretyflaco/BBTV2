@@ -56,6 +56,7 @@ html, body {
 .payment-overlay.active {
   opacity: 1;
   visibility: visible;
+  pointer-events: auto;
   animation: payment-celebration 4s ease-in-out, gradientShift 1s ease-in-out infinite;
 }
 

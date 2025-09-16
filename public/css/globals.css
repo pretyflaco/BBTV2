@@ -58,6 +58,14 @@ html, body {
   visibility: visible;
   pointer-events: auto;
   animation: payment-celebration 4s ease-in-out, gradientShift 1s ease-in-out infinite;
+  /* Ensure overlay blocks all touch events to elements underneath */
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 .payment-text {

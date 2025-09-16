@@ -5,6 +5,23 @@ export default function PaymentAnimation({ show, payment, onHide }) {
     console.log('🎬 Payment animation dismissed by user click/touch');
     e.preventDefault();
     e.stopPropagation();
+    e.stopImmediatePropagation();
+    onHide();
+  };
+
+  const handleTouchStart = (e) => {
+    // Prevent touch events from bubbling to elements underneath
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+  };
+
+  const handleTouchEnd = (e) => {
+    // Only dismiss on touch end to prevent accidental triggers
+    console.log('🎬 Payment animation dismissed by touch end');
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
     onHide();
   };
 
@@ -12,7 +29,9 @@ export default function PaymentAnimation({ show, payment, onHide }) {
     <div 
       className={`payment-overlay ${show ? 'active' : ''} cursor-pointer`}
       onClick={handleDismiss}
-      onTouchStart={handleDismiss}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchMove={(e) => { e.preventDefault(); e.stopPropagation(); }}
     >
       <div className="payment-animation-content">
         <div className="payment-text">

@@ -5,6 +5,9 @@ import Head from 'next/head';
 
 function MyApp({ Component, pageProps }) {
   useEffect(() => {
+    // Only run on client side to prevent hydration mismatch
+    if (typeof window === 'undefined') return;
+    
     // Register service worker for PWA functionality
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker

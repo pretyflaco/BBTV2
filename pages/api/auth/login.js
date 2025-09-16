@@ -1,6 +1,6 @@
 const AuthManager = require('../../../lib/auth');
 const StorageManager = require('../../../lib/storage');
-const { BlinkAPI } = require('../../../lib/blink-api');
+const BlinkAPI = require('../../../lib/blink-api');
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -9,18 +9,24 @@ export default async function handler(req, res) {
 
   try {
     const { username, apiKey } = req.body;
+    console.log('Login attempt with API key length:', apiKey?.length);
 
     if (!apiKey) {
       return res.status(400).json({ error: 'API key is required' });
     }
 
     // Validate API key with Blink and fetch username
+    console.log('Creating BlinkAPI instance...');
     const blinkAPI = new BlinkAPI(apiKey);
     let userInfo;
     
     try {
+      console.log('Calling blinkAPI.getMe()...');
       userInfo = await blinkAPI.getMe();
+      console.log('getMe() response:', userInfo);
+      
       if (!userInfo || !userInfo.username) {
+        console.error('Invalid user info received:', userInfo);
         return res.status(401).json({ error: 'Invalid API key or unable to fetch user info' });
       }
     } catch (error) {

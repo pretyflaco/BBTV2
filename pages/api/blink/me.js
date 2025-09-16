@@ -1,5 +1,5 @@
-import { BlinkAPI } from '../../../lib/blink-api';
-import { verifyToken } from '../../../lib/auth';
+const BlinkAPI = require('../../../lib/blink-api');
+const { verifyToken } = require('../../../lib/auth');
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {

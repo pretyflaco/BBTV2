@@ -3,7 +3,8 @@ import QRCode from 'react-qr-code';
 
 const POS = ({ apiKey, user, displayCurrency, wallets }) => {
   const [amount, setAmount] = useState('');
-  const [quantity, setQuantity] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [items, setItems] = useState([]);
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -59,18 +60,46 @@ const POS = ({ apiKey, user, displayCurrency, wallets }) => {
 
   const handleClear = () => {
     setAmount('');
-    setQuantity(1);
+    setTotal(0);
+    setItems([]);
     setInvoice(null);
     setError('');
   };
 
   const handlePlusPress = () => {
-    setQuantity(prev => prev + 1);
+    if (!amount) {
+      setError('Enter an amount before adding');
+      return;
+    }
+    
+    const numericAmount = parseFloat(amount);
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      setError('Enter a valid amount');
+      return;
+    }
+    
+    // Add current amount to items and total
+    setItems(prev => [...prev, numericAmount]);
+    setTotal(prev => prev + numericAmount);
+    setAmount(''); // Clear input for next item
+    setError('');
   };
 
   const createInvoice = async () => {
-    if (!amount) {
-      setError('Please enter an amount');
+    // Calculate final total (current amount + existing total)
+    let finalTotal = total;
+    
+    if (amount) {
+      const numericAmount = parseFloat(amount);
+      if (isNaN(numericAmount) || numericAmount <= 0) {
+        setError('Please enter a valid amount');
+        return;
+      }
+      finalTotal += numericAmount;
+    }
+    
+    if (finalTotal <= 0) {
+      setError('Please add some items or enter an amount');
       return;
     }
 
@@ -84,23 +113,18 @@ const POS = ({ apiKey, user, displayCurrency, wallets }) => {
       return;
     }
 
-    const numericAmount = parseFloat(amount);
-    if (isNaN(numericAmount) || numericAmount <= 0) {
-      setError('Please enter a valid amount');
-      return;
-    }
-
-    const totalAmount = numericAmount * quantity;
-
     setLoading(true);
     setError('');
 
     try {
+      // Build memo showing calculation if multiple items
+      const allItems = amount ? [...items, parseFloat(amount)] : items;
+      const memo = allItems.length > 1 ? `${allItems.join(' + ')} = ${finalTotal} sats` : '';
+
       console.log('Creating invoice with:', {
-        amount: totalAmount,
-        originalAmount: numericAmount,
-        quantity: quantity,
-        currency: 'BTC', // Always BTC for simplicity
+        amount: finalTotal,
+        items: allItems,
+        currency: 'BTC',
         walletId: selectedWallet.id,
         hasApiKey: !!apiKey
       });
@@ -111,9 +135,9 @@ const POS = ({ apiKey, user, displayCurrency, wallets }) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          amount: totalAmount,
+          amount: finalTotal,
           currency: 'BTC', // Always create BTC invoices
-          memo: quantity > 1 ? `${quantity}x ${numericAmount} sats` : '', // Show quantity in memo if multiple
+          memo: memo, // Show calculation in memo
           walletId: selectedWallet.id,
           apiKey: apiKey // Pass user's API key
         }),
@@ -237,19 +261,23 @@ const POS = ({ apiKey, user, displayCurrency, wallets }) => {
       <div className="p-4">
         <div className="text-center mb-4">
           <div className="text-3xl font-bold text-gray-800 mb-1">
-            {amount ? (
-              quantity > 1 ? (
-                <div>
-                  <span className="text-lg text-gray-600">{quantity}x </span>
-                  {amount} sats = <span className="text-blink-orange">{amount * quantity} sats</span>
-                </div>
-              ) : (
-                `${amount} sats`
-              )
-            ) : '0 sats'}
+            {total > 0 ? (
+              <div>
+                <span className="text-blink-orange">{total} sats</span>
+                {amount && <span className="text-lg text-gray-600"> + {amount}</span>}
+              </div>
+            ) : (
+              amount ? `${amount} sats` : '0 sats'
+            )}
           </div>
           <div className="text-sm text-gray-600">
-            {quantity > 1 && <div className="mb-1">Quantity: {quantity} items</div>}
+            {items.length > 0 && (
+              <div className="mb-1">
+                Items: {items.join(' + ')}
+                {amount && ` + ${amount}`}
+                {total > 0 && amount && ` = ${total + (parseFloat(amount) || 0)} sats`}
+              </div>
+            )}
             {!apiKey ? '⚠ No API key' : 
              !selectedWallet?.id ? '⚠ Loading wallet...' : 
              '✓ BTC wallet ready'}
@@ -348,7 +376,7 @@ const POS = ({ apiKey, user, displayCurrency, wallets }) => {
         <div className="mt-4 space-y-3 max-w-xs mx-auto">
           <button
             onClick={createInvoice}
-            disabled={!amount || loading || !selectedWallet || !apiKey}
+            disabled={(total === 0 && !amount) || loading || !selectedWallet || !apiKey}
             className="w-full bg-blink-orange hover:bg-orange-600 disabled:bg-gray-300 text-white font-bold py-3 rounded-lg transition-colors"
           >
             {loading ? 'Creating...' : 'Create Invoice'}

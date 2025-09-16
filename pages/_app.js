@@ -5,39 +5,36 @@ import Head from 'next/head';
 
 function MyApp({ Component, pageProps }) {
   useEffect(() => {
-    // Force cache refresh on mobile browsers
-    const timestamp = Date.now();
-    
-    // Clear any existing caches
-    if ('caches' in window) {
-      caches.keys().then(function(names) {
-        for (let name of names) {
-          caches.delete(name);
-        }
-      });
-    }
-
-    // Register service worker for PWA functionality with cache busting
+    // Register service worker for PWA functionality
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
-        .register(`/sw.js?v=${timestamp}`)
+        .register('/sw.js')
         .then((registration) => {
           console.log('Service Worker registered successfully:', registration);
-          // Force update if there's an existing service worker
-          registration.update();
         })
         .catch((error) => {
           console.log('Service Worker registration failed:', error);
         });
     }
 
-    // Force reload for mobile browsers if this is a cached version
+    // Force reload for mobile browsers if this is a cached version (preserve PWA cache)
     const lastUpdate = localStorage.getItem('lastUpdate');
-    const currentVersion = '2025-09-16-v3-features-restored'; // Update this when you deploy
+    const currentVersion = '2025-09-16-v4-pwa-restored'; // Update this when you deploy
     
     if (lastUpdate !== currentVersion) {
       localStorage.setItem('lastUpdate', currentVersion);
       if (lastUpdate && window.location.reload) {
+        // Clear only specific non-PWA caches to preserve install functionality
+        if ('caches' in window) {
+          caches.keys().then(function(names) {
+            for (let name of names) {
+              // Don't delete the service worker cache (PWA cache)
+              if (!name.includes('blink-tracker') && !name.includes('workbox')) {
+                caches.delete(name);
+              }
+            }
+          });
+        }
         window.location.reload(true);
       }
     }

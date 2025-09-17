@@ -14,12 +14,27 @@ export default function Dashboard() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
-  const [currentView, setCurrentView] = useState('transactions'); // 'transactions' or 'pos'
+  const [currentView, setCurrentView] = useState('pos'); // 'transactions' or 'pos'
   const [displayCurrency, setDisplayCurrency] = useState('USD'); // 'USD' or 'BTC'
   const [wallets, setWallets] = useState([]);
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    // Load sound preference from localStorage, default to true
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('soundEnabled');
+      return saved !== null ? JSON.parse(saved) : true;
+    }
+    return true;
+  }); // Sound effects on/off
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
   
+  // Save sound preference to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('soundEnabled', JSON.stringify(soundEnabled));
+    }
+  }, [soundEnabled]);
+
   // Get user's API key for direct WebSocket connection
   useEffect(() => {
     if (user) {
@@ -388,6 +403,7 @@ export default function Dashboard() {
         show={showAnimation} 
         payment={lastPayment}
         onHide={hideAnimation}
+        soundEnabled={soundEnabled}
       />
 
       {/* Mobile Header - Only Connection Status Visible */}
@@ -478,6 +494,29 @@ export default function Dashboard() {
                         </select>
                       </div>
 
+                      {/* Sound Settings */}
+                      <div className="border-b border-gray-200 pb-4">
+                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                          Sound Effects
+                        </label>
+                        <div className="flex items-center">
+                          <button
+                            onClick={() => setSoundEnabled(!soundEnabled)}
+                            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blink-orange focus:ring-offset-2 ${
+                              soundEnabled ? 'bg-blink-orange' : 'bg-gray-200'
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition duration-200 ease-in-out ${
+                                soundEnabled ? 'translate-x-5' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                          <span className="ml-3 text-sm text-gray-600">
+                            {soundEnabled ? '🔊 Cash register sound enabled' : '🔇 Sound disabled'}
+                          </span>
+                        </div>
+                      </div>
 
                       {/* Connection Status (detailed) */}
                       <div className="border-b border-gray-200 pb-4">
@@ -559,16 +598,6 @@ export default function Dashboard() {
         <div className="flex justify-center mb-6">
           <div className="bg-gray-100 rounded-lg p-1 flex">
             <button
-              onClick={() => setCurrentView('transactions')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                currentView === 'transactions'
-                  ? 'bg-white text-blink-orange shadow-sm'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              📊 Transaction History
-            </button>
-            <button
               onClick={() => setCurrentView('pos')}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 currentView === 'pos'
@@ -577,6 +606,16 @@ export default function Dashboard() {
               }`}
             >
               💰 Point of Sale
+            </button>
+            <button
+              onClick={() => setCurrentView('transactions')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                currentView === 'transactions'
+                  ? 'bg-white text-blink-orange shadow-sm'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              📊 Transaction History
             </button>
           </div>
         </div>

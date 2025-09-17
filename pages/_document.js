@@ -16,6 +16,10 @@ export default function Document() {
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="theme-color" content="#f59e0b" />
         
+        {/* Prevent password managers from auto-triggering */}
+        <meta name="password" content="false" />
+        <meta name="1password-ignore" content="all" />
+        
         {/* Favicon and Apple Touch Icons */}
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="apple-touch-icon" href="/icons/icon-152x152.svg" />

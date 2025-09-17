@@ -90,10 +90,8 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
   };
 
   const formatDisplayAmount = (value, currency) => {
-    if (!value) return '';
-    
-    const numValue = parseFloat(value);
-    if (isNaN(numValue)) return '';
+    // Handle empty or invalid values by showing 0 in the appropriate format
+    const numValue = parseFloat(value) || 0;
 
     if (currency === 'BTC') {
       return `${numValue.toLocaleString()} sats`;
@@ -353,6 +351,9 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
                 type="text"
                 value={invoice.paymentRequest}
                 readOnly
+                autoComplete="off"
+                data-1p-ignore
+                data-lpignore="true"
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md bg-gray-50 text-sm font-mono"
               />
               <button
@@ -439,7 +440,7 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
 
       {/* Redesigned Numpad */}
       <div className="flex-1 px-4 pb-4">
-        <div className="grid grid-cols-4 gap-3 max-w-sm mx-auto">
+        <div className="grid grid-cols-4 gap-3 max-w-sm mx-auto" data-1p-ignore data-lpignore="true">
           {/* Row 1: 1, 2, 3, + */}
           <button
             onClick={() => handleDigitPress('1')}
@@ -487,8 +488,8 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
           </button>
           <button
             onClick={createInvoice}
-            disabled={(total === 0 && !amount) || loading || !selectedWallet || !apiKey || (displayCurrency !== 'BTC' && !exchangeRate) || loadingRate}
-            className={`h-[136px] ${!connected ? 'bg-orange-500 hover:bg-orange-600' : 'bg-green-600 hover:bg-green-700'} disabled:bg-gray-400 text-white rounded-lg text-lg font-bold transition-colors shadow-md flex items-center justify-center row-span-2`}
+            disabled={(total === 0 && (!amount || parseFloat(amount) === 0)) || loading || !selectedWallet || !apiKey || (displayCurrency !== 'BTC' && !exchangeRate) || loadingRate}
+            className={`h-[136px] ${!connected ? 'bg-orange-500 hover:bg-orange-600' : (total === 0 && (!amount || parseFloat(amount) === 0)) ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'} disabled:bg-gray-400 text-white rounded-lg text-lg font-bold transition-colors shadow-md flex items-center justify-center row-span-2`}
           >
             {loading ? 'Creating...' : !connected ? 'OK ⚠' : 'OK'}
           </button>

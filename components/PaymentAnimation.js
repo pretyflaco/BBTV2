@@ -1,4 +1,29 @@
-export default function PaymentAnimation({ show, payment, onHide }) {
+import { useEffect, useRef } from 'react';
+
+export default function PaymentAnimation({ show, payment, onHide, soundEnabled = true }) {
+  const audioRef = useRef(null);
+
+  // Play sound when animation shows
+  useEffect(() => {
+    if (show && soundEnabled) {
+      try {
+        // Create or reuse audio element
+        if (!audioRef.current) {
+          audioRef.current = new Audio('/chaching.mp3');
+          audioRef.current.volume = 0.7; // Set volume to 70%
+        }
+        
+        // Reset and play the sound
+        audioRef.current.currentTime = 0;
+        audioRef.current.play().catch(error => {
+          console.log('Could not play sound (might need user interaction first):', error);
+        });
+      } catch (error) {
+        console.log('Audio playback error:', error);
+      }
+    }
+  }, [show, soundEnabled]);
+
   if (!show) return null;
 
   const handleClick = (e) => {

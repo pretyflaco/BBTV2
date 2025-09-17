@@ -58,7 +58,7 @@ export default function LoginForm() {
           </p>
         </div>
         
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit} autoComplete="off">
           <div className="space-y-4">
             <div>
               <label htmlFor="apiKey" className="sr-only">
@@ -69,6 +69,9 @@ export default function LoginForm() {
                 name="apiKey"
                 type="password"
                 required
+                autoComplete="new-password"
+                data-1p-ignore
+                data-lpignore="true"
                 className="relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blink-orange focus:border-blink-orange focus:z-10 sm:text-sm"
                 placeholder="Blink API Key"
                 value={apiKey}

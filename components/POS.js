@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import QRCode from 'react-qr-code';
 
-const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts }) => {
+const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipient }) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -11,6 +11,24 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
   const [selectedWallet, setSelectedWallet] = useState(null);
   const [exchangeRate, setExchangeRate] = useState(null);
   const [loadingRate, setLoadingRate] = useState(false);
+  
+  // Tip functionality state (local)
+  const [selectedTipPercent, setSelectedTipPercent] = useState(0);
+  const [showTipDialog, setShowTipDialog] = useState(false);
+  const [pendingTipSelection, setPendingTipSelection] = useState(null);
+
+  // Handle tip selection and create invoice after state update
+  useEffect(() => {
+    if (pendingTipSelection !== null) {
+      const newTipPercent = pendingTipSelection;
+      setSelectedTipPercent(newTipPercent);
+      setShowTipDialog(false);
+      setPendingTipSelection(null);
+      
+      // Create invoice with the specific tip percentage
+      createInvoiceWithTip(newTipPercent);
+    }
+  }, [pendingTipSelection]);
 
   // Set default wallet when wallets are loaded
   useEffect(() => {
@@ -47,12 +65,16 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
         setTotal(0);
         setItems([]);
         setError('');
+        setSelectedTipPercent(0);
+        setShowTipDialog(false);
+        setPendingTipSelection(null);
       };
       
       // Set up the callback
       onPaymentReceived.current = clearInvoiceOnPayment;
     }
   }, [onPaymentReceived]);
+
 
   const fetchExchangeRate = async () => {
     if (displayCurrency === 'BTC') return;
@@ -120,6 +142,46 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
     return satsAmount;
   };
 
+  // Calculate tip amount based on percentage
+  const calculateTipAmount = (baseAmount, tipPercent) => {
+    return (tipPercent / 100) * baseAmount;
+  };
+
+  // Get total amount including selected tip
+  const getTotalWithTip = () => {
+    let finalTotal = total;
+    if (amount) {
+      const numericAmount = parseFloat(amount);
+      if (!isNaN(numericAmount) && numericAmount > 0) {
+        finalTotal += numericAmount;
+      }
+    }
+    
+    if (selectedTipPercent > 0) {
+      const tipAmount = calculateTipAmount(finalTotal, selectedTipPercent);
+      return finalTotal + tipAmount;
+    }
+    
+    return finalTotal;
+  };
+
+  // Get tip amount in current display currency
+  const getTipAmount = () => {
+    let finalTotal = total;
+    if (amount) {
+      const numericAmount = parseFloat(amount);
+      if (!isNaN(numericAmount) && numericAmount > 0) {
+        finalTotal += numericAmount;
+      }
+    }
+    
+    if (selectedTipPercent > 0) {
+      return calculateTipAmount(finalTotal, selectedTipPercent);
+    }
+    
+    return 0;
+  };
+
   const handleDigitPress = (digit) => {
     if (amount === '0' && digit !== '.') {
       setAmount(digit);
@@ -168,7 +230,19 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
     setError('');
   };
 
-  const createInvoice = async () => {
+  // Create invoice with specific tip percentage (bypasses state timing issues)
+  const createInvoiceWithTip = async (tipPercent) => {
+    return createInvoice(true, tipPercent);
+  };
+
+  const createInvoice = async (skipTipDialog = false, forceTipPercent = null) => {
+    // Ensure skipTipDialog is a boolean (handle event objects)
+    const shouldSkipTipDialog = typeof skipTipDialog === 'boolean' ? skipTipDialog : false;
+    
+    // Use forced tip percent if provided, otherwise use state
+    const effectiveTipPercent = forceTipPercent !== null ? forceTipPercent : selectedTipPercent;
+    
+    
     // Calculate final total (current amount + existing total)
     let finalTotal = total;
     
@@ -186,6 +260,12 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
       return;
     }
 
+    // Show tip overlay if tips are enabled and we haven't skipped it
+    if (tipsEnabled && tipRecipient && tipRecipient.length > 0 && !shouldSkipTipDialog && effectiveTipPercent === 0) {
+      setShowTipDialog(true);
+      return;
+    }
+
     if (!selectedWallet) {
       setError('No BTC wallet available. Please try refreshing.');
       return;
@@ -197,9 +277,13 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
     }
 
     // Warn if not connected but allow creating invoice
-    if (!connected) {
+    if (!connected || !blinkposConnected) {
+      const issues = [];
+      if (!connected) issues.push('User WebSocket disconnected');
+      if (!blinkposConnected) issues.push('BlinkPOS WebSocket disconnected');
+      
       const proceed = window.confirm(
-        '⚠ WebSocket disconnected! Invoice can be created but payment notifications may not work. Try reconnecting first, or proceed anyway?'
+        `⚠ ${issues.join(' and ')}! Invoice can be created but payment detection/forwarding may not work. Try reconnecting first, or proceed anyway?`
       );
       if (!proceed) {
         return;
@@ -210,8 +294,12 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
     setError('');
 
     try {
+      // Calculate total including tip using effective tip percent
+      const tipAmount = effectiveTipPercent > 0 ? calculateTipAmount(finalTotal, effectiveTipPercent) : 0;
+      const totalWithTip = finalTotal + tipAmount;
+      
       // Convert the final total to satoshis if using fiat currency
-      let finalTotalInSats = finalTotal;
+      let finalTotalInSats = totalWithTip;
       let memo = '';
       
       if (displayCurrency !== 'BTC') {
@@ -221,20 +309,32 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
           return;
         }
         
-        finalTotalInSats = convertToSatoshis(finalTotal, displayCurrency);
+        finalTotalInSats = convertToSatoshis(totalWithTip, displayCurrency);
         
-        // Build memo showing conversion
+        // Build memo showing conversion and tip
         const allItems = amount ? [...items, parseFloat(amount)] : items;
-        if (allItems.length > 1) {
-          memo = `${allItems.join(' + ')} = ${formatDisplayAmount(finalTotal, displayCurrency)} (${finalTotalInSats} sats)`;
+        if (effectiveTipPercent > 0) {
+          if (allItems.length > 1) {
+            memo = `${allItems.join(' + ')} + ${effectiveTipPercent}% tip = ${formatDisplayAmount(totalWithTip, displayCurrency)} (${finalTotalInSats} sats)`;
+          } else {
+            memo = `${formatDisplayAmount(finalTotal, displayCurrency)} + ${effectiveTipPercent}% tip = ${formatDisplayAmount(totalWithTip, displayCurrency)} (${finalTotalInSats} sats)`;
+          }
         } else {
-          memo = `${formatDisplayAmount(finalTotal, displayCurrency)} (${finalTotalInSats} sats)`;
+          if (allItems.length > 1) {
+            memo = `${allItems.join(' + ')} = ${formatDisplayAmount(finalTotal, displayCurrency)} (${finalTotalInSats} sats)`;
+          } else {
+            memo = `${formatDisplayAmount(finalTotal, displayCurrency)} (${finalTotalInSats} sats)`;
+          }
         }
       } else {
         // BTC - show calculation in sats
         const allItems = amount ? [...items, parseFloat(amount)] : items;
-        memo = allItems.length > 1 ? `${allItems.join(' + ')} = ${finalTotal} sats` : '';
-        finalTotalInSats = Math.round(finalTotal);
+        if (effectiveTipPercent > 0) {
+          memo = allItems.length > 1 ? `${allItems.join(' + ')} + ${effectiveTipPercent}% tip = ${totalWithTip} sats` : `${finalTotal} + ${effectiveTipPercent}% tip = ${totalWithTip} sats`;
+        } else {
+          memo = allItems.length > 1 ? `${allItems.join(' + ')} = ${finalTotal} sats` : '';
+        }
+        finalTotalInSats = Math.round(totalWithTip);
       }
 
       console.log('Creating invoice with:', {
@@ -254,8 +354,14 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
           amount: finalTotalInSats,
           currency: 'BTC', // Always create BTC invoices
           memo: memo, // Show calculation in memo
-          walletId: selectedWallet.id,
-          apiKey: apiKey // Pass user's API key
+          walletId: selectedWallet.id, // This will be ignored in the new flow
+          userWalletId: selectedWallet.id, // User's wallet for payment forwarding
+          apiKey: apiKey, // Pass user's API key for payment forwarding
+          // Tip information for payment splitting
+          baseAmount: convertToSatoshis(finalTotal, displayCurrency !== 'BTC' ? displayCurrency : 'BTC'),
+          tipAmount: effectiveTipPercent > 0 ? convertToSatoshis(tipAmount, displayCurrency !== 'BTC' ? displayCurrency : 'BTC') : 0,
+          tipPercent: effectiveTipPercent,
+          tipRecipient: tipRecipient || null
         }),
       });
 
@@ -377,10 +483,15 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
   }
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="h-full flex flex-col bg-white relative">
       {/* Compact Header */}
       <div className="bg-blink-orange text-white p-3">
         <h2 className="text-lg font-bold text-center">Point of Sale</h2>
+        {tipsEnabled && tipRecipient && (
+          <div className="text-xs text-center text-orange-100 mt-1">
+            💰 Tips enabled → {tipRecipient}@blink.sv
+          </div>
+        )}
       </div>
 
       {/* Error Message */}
@@ -393,14 +504,24 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
       {/* Compact Amount Display */}
       <div className="p-4">
         <div className="text-center mb-4">
-          <div className="text-3xl font-bold text-gray-800 mb-1 min-h-[48px] flex items-center justify-center">
-            {total > 0 ? (
-              <div>
-                <span className="text-blink-orange">{formatDisplayAmount(total, displayCurrency)}</span>
-                {amount && <span className="text-lg text-gray-600"> + {amount}</span>}
+          <div className="text-center">
+            <div className="text-3xl font-bold text-gray-800 mb-1 min-h-[48px] flex items-center justify-center">
+              {total > 0 ? (
+                <div>
+                  <span className="text-blink-orange">{formatDisplayAmount(total, displayCurrency)}</span>
+                  {amount && <span className="text-lg text-gray-600"> + {amount}</span>}
+                </div>
+              ) : (
+                amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency)
+              )}
+            </div>
+            {selectedTipPercent > 0 && (
+              <div className="text-lg text-green-600 font-semibold">
+                + {selectedTipPercent}% tip ({formatDisplayAmount(getTipAmount(), displayCurrency)})
+                <div className="text-xl text-green-700 mt-1">
+                  Total: {formatDisplayAmount(getTotalWithTip(), displayCurrency)}
+                </div>
               </div>
-            ) : (
-              amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency)
             )}
           </div>
           <div className="text-sm text-gray-600">
@@ -414,24 +535,42 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
               )}
             </div>
             <div className="min-h-[20px]">
-              {!connected ? (
-                <div className="flex items-center justify-center space-x-2">
-                  <span className="text-red-600">⚠ Disconnected</span>
-                  {reconnectAttempts > 0 && (
-                    <span className="text-xs text-gray-500">(retry {reconnectAttempts})</span>
+              {!connected || !blinkposConnected ? (
+                <div className="flex flex-col items-center space-y-1">
+                  {!connected && (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-red-600">⚠ User disconnected</span>
+                      {reconnectAttempts > 0 && (
+                        <span className="text-xs text-gray-500">(retry {reconnectAttempts})</span>
+                      )}
+                      <button
+                        onClick={manualReconnect}
+                        className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-1 py-1 rounded"
+                      >
+                        Reconnect
+                      </button>
+                    </div>
                   )}
-                  <button
-                    onClick={manualReconnect}
-                    className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded"
-                  >
-                    Reconnect
-                  </button>
+                  {!blinkposConnected && (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-orange-600">⚠ BlinkPOS disconnected</span>
+                      {blinkposReconnectAttempts > 0 && (
+                        <span className="text-xs text-gray-500">(retry {blinkposReconnectAttempts})</span>
+                      )}
+                      <button
+                        onClick={blinkposReconnect}
+                        className="text-xs bg-orange-500 hover:bg-orange-600 text-white px-1 py-1 rounded"
+                      >
+                        Reconnect
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : loadingRate ? '🔄 Loading exchange rate...' :
                !apiKey ? '⚠ No API key' : 
                !selectedWallet?.id ? '⚠ Loading wallet...' : 
                displayCurrency !== 'BTC' && !exchangeRate ? '⚠ Exchange rate not available' :
-               '✓ BTC wallet ready'}
+               '✓ Ready (User + BlinkPOS connected)'}
             </div>
           </div>
         </div>
@@ -487,11 +626,11 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
             6
           </button>
           <button
-            onClick={createInvoice}
-            disabled={(total === 0 && (!amount || parseFloat(amount) === 0)) || loading || !selectedWallet || !apiKey || (displayCurrency !== 'BTC' && !exchangeRate) || loadingRate}
-            className={`h-[136px] ${!connected ? 'bg-orange-500 hover:bg-orange-600' : (total === 0 && (!amount || parseFloat(amount) === 0)) ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'} disabled:bg-gray-400 text-white rounded-lg text-lg font-bold transition-colors shadow-md flex items-center justify-center row-span-2`}
+            onClick={() => createInvoice()}
+            disabled={(total === 0 && (!amount || parseFloat(amount) === 0)) || loading || !selectedWallet || !apiKey || (displayCurrency !== 'BTC' && !exchangeRate) || loadingRate || !blinkposConnected}
+            className={`h-[136px] ${(!connected || !blinkposConnected) ? 'bg-orange-500 hover:bg-orange-600' : (total === 0 && (!amount || parseFloat(amount) === 0)) ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'} disabled:bg-gray-400 text-white rounded-lg text-lg font-bold transition-colors shadow-md flex items-center justify-center row-span-2`}
           >
-            {loading ? 'Creating...' : !connected ? 'OK ⚠' : 'OK'}
+            {loading ? 'Creating...' : (!connected || !blinkposConnected) ? 'OK ⚠' : 'OK'}
           </button>
 
           {/* Row 3: 7, 8, 9, OK (continues) */}
@@ -545,6 +684,53 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
         </div>
 
       </div>
+
+      {/* Tip Selection Overlay (over numpad) */}
+      {showTipDialog && (
+        <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-30">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
+            <h3 className="text-xl font-bold mb-4 text-center text-gray-800">Add Tip?</h3>
+            <div className="mb-4 text-center">
+              <div className="text-lg text-gray-700">
+                Order: {formatDisplayAmount(total + (parseFloat(amount) || 0), displayCurrency)}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {(tipPresets || [10, 15, 20]).map(percent => (
+                <button
+                  key={percent}
+                  onClick={() => {
+                    setPendingTipSelection(percent);
+                  }}
+                  className="h-16 bg-green-600 hover:bg-green-700 text-white rounded-lg text-lg font-bold transition-colors shadow-lg"
+                >
+                  {percent}%
+                  <div className="text-sm opacity-90">
+                    +{formatDisplayAmount(calculateTipAmount(total + (parseFloat(amount) || 0), percent), displayCurrency)}
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setPendingTipSelection(0);
+                }}
+                className="flex-1 h-12 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-bold transition-colors"
+              >
+                No Tip
+              </button>
+              <button
+                onClick={() => setShowTipDialog(false)}
+                className="flex-1 h-12 bg-red-500 hover:bg-red-600 text-white rounded-lg font-bold transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

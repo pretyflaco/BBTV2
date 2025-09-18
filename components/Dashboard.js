@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../lib/hooks/useAuth';
 import { useBlinkWebSocket } from '../lib/hooks/useBlinkWebSocket';
+import { useBlinkPOSWebSocket } from '../lib/hooks/useBlinkPOSWebSocket';
 import PaymentAnimation from './PaymentAnimation';
 import POS from './POS';
 
@@ -25,6 +26,27 @@ export default function Dashboard() {
     }
     return true;
   }); // Sound effects on/off
+
+  // Tip functionality state
+  const [tipsEnabled, setTipsEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('blinkpos-tips-enabled') === 'true';
+    }
+    return false;
+  });
+  const [tipPresets, setTipPresets] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('blinkpos-tip-presets');
+      return saved ? JSON.parse(saved) : [10, 15, 20]; // Default tip percentages
+    }
+    return [10, 15, 20];
+  });
+  const [tipRecipient, setTipRecipient] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('blinkpos-tip-recipient') || '';
+    }
+    return '';
+  });
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
   
@@ -34,6 +56,25 @@ export default function Dashboard() {
       localStorage.setItem('soundEnabled', JSON.stringify(soundEnabled));
     }
   }, [soundEnabled]);
+
+  // Persist tip settings to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('blinkpos-tips-enabled', tipsEnabled.toString());
+    }
+  }, [tipsEnabled]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('blinkpos-tip-presets', JSON.stringify(tipPresets));
+    }
+  }, [tipPresets]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('blinkpos-tip-recipient', tipRecipient);
+    }
+  }, [tipRecipient]);
 
   // Get user's API key for direct WebSocket connection
   useEffect(() => {
@@ -55,8 +96,40 @@ export default function Dashboard() {
     }
   };
 
-  // Use direct Blink WebSocket connection (like the donation button)
-  const { connected, lastPayment, showAnimation, hideAnimation, manualReconnect, reconnectAttempts } = useBlinkWebSocket(apiKey, user?.username);
+  // Use direct Blink WebSocket connection for user account (balance updates)
+  const { connected, lastPayment, showAnimation, hideAnimation, triggerPaymentAnimation, manualReconnect, reconnectAttempts } = useBlinkWebSocket(apiKey, user?.username);
+  
+  // Setup BlinkPOS WebSocket for real-time payment detection and forwarding
+  const userBtcWallet = wallets.find(w => w.walletCurrency === 'BTC');
+  const { connected: blinkposConnected, manualReconnect: blinkposReconnect, reconnectAttempts: blinkposReconnectAttempts } = useBlinkPOSWebSocket(
+    apiKey, 
+    userBtcWallet?.id, 
+    (forwardedPayment) => {
+      console.log('🎉 Payment forwarded from BlinkPOS to user account:', forwardedPayment);
+      
+      // Trigger payment animation immediately when payment is forwarded
+      triggerPaymentAnimation({
+        amount: forwardedPayment.amount,
+        currency: forwardedPayment.currency || 'BTC',
+        memo: forwardedPayment.memo || `BlinkPOS: ${forwardedPayment.amount} sats`,
+        isForwarded: true
+      });
+      
+      // Play sound if enabled
+      if (soundEnabled) {
+        const audio = new Audio('/chaching.mp3');
+        audio.play().catch(console.error);
+      }
+      
+      // Clear POS invoice
+      if (posPaymentReceivedRef.current) {
+        posPaymentReceivedRef.current();
+      }
+      
+      // Refresh data to show the forwarded payment
+      fetchData();
+    }
+  );
   
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -518,6 +591,94 @@ export default function Dashboard() {
                         </div>
                       </div>
 
+                      {/* Tip Settings */}
+                      <div className="border-b border-gray-200 pb-4">
+                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                          Tip Settings
+                        </label>
+                        
+                        <div className="space-y-4">
+                          {/* Enable Tips Toggle */}
+                          <div className="flex items-center">
+                            <button
+                              onClick={() => setTipsEnabled(!tipsEnabled)}
+                              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blink-orange focus:ring-offset-2 ${
+                                tipsEnabled ? 'bg-blink-orange' : 'bg-gray-200'
+                              }`}
+                            >
+                              <span
+                                className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition duration-200 ease-in-out ${
+                                  tipsEnabled ? 'translate-x-5' : 'translate-x-0'
+                                }`}
+                              />
+                            </button>
+                            <span className="ml-3 text-sm text-gray-600">
+                              {tipsEnabled ? '💰 Tips enabled' : '❌ Tips disabled'}
+                            </span>
+                          </div>
+
+                          {/* Tip Settings (only show when enabled) */}
+                          {tipsEnabled && (
+                            <>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                  Employee Username (receives tips)
+                                </label>
+                                <input
+                                  type="text"
+                                  value={tipRecipient}
+                                  onChange={(e) => setTipRecipient(e.target.value)}
+                                  placeholder="Enter username"
+                                  className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blink-orange focus:border-transparent"
+                                />
+                                <div className="text-xs text-gray-500 mt-1">
+                                  Tips sent to: {tipRecipient}@blink.sv
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                  Tip Presets (%)
+                                </label>
+                                <div className="flex gap-1 mb-2">
+                                  {tipPresets.map((preset, index) => (
+                                    <div key={index} className="flex items-center">
+                                      <input
+                                        type="number"
+                                        value={preset}
+                                        onChange={(e) => {
+                                          const newPresets = [...tipPresets];
+                                          newPresets[index] = parseInt(e.target.value) || 0;
+                                          setTipPresets(newPresets);
+                                        }}
+                                        className="w-12 px-1 py-1 text-xs border border-gray-300 rounded text-center"
+                                        min="0"
+                                        max="100"
+                                      />
+                                      <span className="text-xs ml-1">%</span>
+                                      {tipPresets.length > 1 && (
+                                        <button
+                                          onClick={() => setTipPresets(tipPresets.filter((_, i) => i !== index))}
+                                          className="ml-1 text-red-500 hover:text-red-700 text-xs"
+                                        >
+                                          ×
+                                        </button>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                                <button
+                                  onClick={() => setTipPresets([...tipPresets, 5])}
+                                  className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
+                                >
+                                  Add
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
                       {/* Connection Status (detailed) */}
                       <div className="border-b border-gray-200 pb-4">
                         <h3 className="text-sm font-medium text-gray-900 mb-2">Connection Status</h3>
@@ -631,6 +792,12 @@ export default function Dashboard() {
             connected={connected}
             manualReconnect={manualReconnect}
             reconnectAttempts={reconnectAttempts}
+            blinkposConnected={blinkposConnected}
+            blinkposReconnect={blinkposReconnect}
+            blinkposReconnectAttempts={blinkposReconnectAttempts}
+            tipsEnabled={tipsEnabled}
+            tipPresets={tipPresets}
+            tipRecipient={tipRecipient}
           />
         ) : (
           <>

@@ -47,3 +47,6 @@ server.log
 # Temporary files
 *.tmp
 *.temp
+
+# Tip store (development persistence)
+.tip-store.json

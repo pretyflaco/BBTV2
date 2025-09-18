@@ -1,4 +1,5 @@
 import BlinkAPI from '../../../lib/blink-api';
+const tipStore = require('../../../lib/tip-store');
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -6,12 +7,23 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { amount, currency, memo, walletId, apiKey } = req.body;
+    const { amount, currency, memo, walletId, apiKey, userWalletId, baseAmount, tipAmount, tipPercent, tipRecipient } = req.body;
 
-    // Validate required fields
-    if (!amount || !currency || !walletId || !apiKey) {
+    // Validate required fields - note we now need both blinkpos credentials and user credentials
+    if (!amount || !currency || !apiKey) {
       return res.status(400).json({ 
-        error: 'Missing required fields: amount, currency, walletId, apiKey' 
+        error: 'Missing required fields: amount, currency, apiKey' 
+      });
+    }
+
+    // Get BlinkPOS credentials from environment
+    const blinkposApiKey = process.env.BLINKPOS_API_KEY;
+    const blinkposBtcWalletId = process.env.BLINKPOS_BTC_WALLET_ID;
+
+    if (!blinkposApiKey || !blinkposBtcWalletId) {
+      console.error('Missing BlinkPOS environment variables');
+      return res.status(500).json({ 
+        error: 'BlinkPOS configuration missing' 
       });
     }
 
@@ -23,23 +35,27 @@ export default async function handler(req, res) {
       });
     }
 
-    const blinkAPI = new BlinkAPI(apiKey);
+    console.log('Creating invoice with BlinkPOS credentials:', {
+      amount: numericAmount,
+      currency,
+      blinkposWallet: blinkposBtcWalletId,
+      userWallet: userWalletId,
+      hasTip: tipAmount > 0,
+      tipRecipient
+    });
+
+    // Always use BlinkPOS API and BTC wallet for invoice creation
+    const blinkAPI = new BlinkAPI(blinkposApiKey);
 
     let invoice;
-    let finalAmount;
-
+    
     try {
-      if (currency === 'BTC') {
-        // For BTC, amount should be in satoshis
-        finalAmount = Math.round(numericAmount);
-        invoice = await blinkAPI.createLnInvoice(walletId, finalAmount, memo);
-      } else if (currency === 'USD') {
-        // For USD, amount should be in cents
-        finalAmount = Math.round(numericAmount * 100);
-        invoice = await blinkAPI.createLnUsdInvoice(walletId, finalAmount, memo);
+      // Always create BTC invoice from BlinkPOS wallet (even for USD payments)
+      if (currency === 'BTC' || currency === 'USD') {
+        invoice = await blinkAPI.createLnInvoice(blinkposBtcWalletId, Math.round(numericAmount), memo);
       } else {
         return res.status(400).json({ 
-          error: 'Unsupported currency. Only BTC and USD are supported.' 
+          error: 'Unsupported currency. Only BTC is supported through BlinkPOS.' 
         });
       }
 
@@ -47,7 +63,19 @@ export default async function handler(req, res) {
         throw new Error('Failed to create invoice');
       }
 
-      // Return invoice details
+      // Store tip metadata if there's a tip
+      if (tipAmount > 0 && tipRecipient) {
+        tipStore.storeTipData(invoice.paymentHash, {
+          baseAmount: baseAmount || numericAmount,
+          tipAmount: tipAmount,
+          tipPercent: tipPercent,
+          tipRecipient: tipRecipient,
+          userApiKey: apiKey,
+          userWalletId: userWalletId || walletId
+        });
+      }
+
+      // Return invoice details with additional metadata for payment forwarding
       res.status(200).json({
         success: true,
         invoice: {
@@ -57,7 +85,12 @@ export default async function handler(req, res) {
           amount: numericAmount,
           currency: currency,
           memo: memo || '',
-          walletId: walletId
+          walletId: blinkposBtcWalletId, // This is now the BlinkPOS wallet
+          userApiKey: apiKey, // Store user's API key for payment forwarding
+          userWalletId: userWalletId || walletId, // Store user's wallet for forwarding
+          hasTip: tipAmount > 0,
+          tipAmount: tipAmount || 0,
+          tipRecipient: tipRecipient || null
         }
       });
 

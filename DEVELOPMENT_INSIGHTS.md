@@ -129,8 +129,10 @@ onClick={() => createInvoice()}  // Passes no parameters (undefined → false)
 ```bash
 # .env (never commit to git)
 BLINKPOS_API_KEY=your_blinkpos_api_key_here
-BLINKPOS_BTC_WALLET_ID=860b3e63-72a8-4adc-95cd-8be3390e6e51
+BLINKPOS_BTC_WALLET_ID=your_blinkpos_wallet_id_here
 ```
+
+**IMPORTANT**: Replace the placeholder values above with your actual BlinkPOS credentials. These should never be committed to version control.
 
 ### .gitignore Entries
 ```

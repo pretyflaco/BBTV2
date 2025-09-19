@@ -53,7 +53,54 @@ export default async function handler(req, res) {
 
     // Step 1: Forward base amount to user
     const userBlinkAPI = new BlinkAPI(tipData.userApiKey);
-    const forwardingMemo = memo ? `BlinkPOS: ${memo}` : 'BlinkPOS: Payment forwarded';
+    
+    // Enhanced memo with tip information
+    let forwardingMemo;
+    if (memo && tipData.tipAmount > 0 && tipData.tipRecipient) {
+      // Extract the base amount and tip details for enhanced memo
+      const displayCurrency = tipData.displayCurrency || 'BTC';
+      const tipAmountDisplay = tipData.tipAmountDisplay || tipData.tipAmount;
+      
+      let tipAmountText;
+      if (displayCurrency === 'BTC') {
+        tipAmountText = `${tipData.tipAmount} sat`;
+      } else {
+        // Format the amount with proper currency symbol/format
+        let formattedAmount;
+        if (displayCurrency === 'USD') {
+          formattedAmount = `$${tipAmountDisplay.toFixed(2)}`;
+        } else if (displayCurrency === 'KES') {
+          formattedAmount = `KSh ${tipAmountDisplay.toFixed(2)}`;
+        } else {
+          formattedAmount = `${tipAmountDisplay.toFixed(2)} ${displayCurrency}`;
+        }
+        
+        tipAmountText = `${formattedAmount} (${tipData.tipAmount} sat)`;
+      }
+      
+      // Convert original memo format to enhanced format
+      // From: "$0.80 + 10% tip = $0.88 (757 sats)" 
+      // To: "BlinkPOS: $0.80 + 10% tip = $0.88 (757 sats) | $0.08 (69 sat) tip received to username"
+      const enhancedMemo = memo.replace(
+        /([^+]+?)\s*\+\s*(\d+)%\s*tip\s*=\s*(.+)/,
+        (match, baseAmount, tipPercent, total) => {
+          // Clean up baseAmount - remove extra spaces and ensure proper formatting
+          const cleanBaseAmount = baseAmount.trim();
+          return `${cleanBaseAmount} + ${tipPercent}% tip = ${total} | ${tipAmountText} tip received to ${tipData.tipRecipient}`;
+        }
+      );
+      
+      forwardingMemo = `BlinkPOS: ${enhancedMemo !== memo ? enhancedMemo : memo}`;
+    } else {
+      forwardingMemo = memo ? `BlinkPOS: ${memo}` : 'BlinkPOS: Payment forwarded';
+    }
+    
+    console.log('📝 Enhanced forwarding memo:', {
+      originalMemo: memo,
+      enhancedMemo: forwardingMemo,
+      tipAmount: tipData.tipAmount,
+      tipRecipient: tipData.tipRecipient
+    });
     
     console.log('💳 Creating invoice from user account for base amount...');
     const userInvoice = await userBlinkAPI.createLnInvoice(
@@ -89,12 +136,45 @@ export default async function handler(req, res) {
           tipRecipient: `${tipData.tipRecipient}@blink.sv`
         });
 
-        // Send tip to the tip recipient using LN Address
-        const tipPaymentResult = await blinkposAPI.payLnAddress(
+        // Generate tip memo based on display currency and amounts
+        const generateTipMemo = (tipAmountInDisplayCurrency, tipAmountSats, displayCurrency) => {
+          if (displayCurrency === 'BTC') {
+            return `BlinkPOS Tip received: ${tipAmountSats} sats`;
+          } else {
+            // Format the amount based on currency
+            let formattedAmount;
+            if (displayCurrency === 'USD') {
+              formattedAmount = `$${tipAmountInDisplayCurrency.toFixed(2)}`;
+            } else if (displayCurrency === 'KES') {
+              formattedAmount = `${tipAmountInDisplayCurrency.toFixed(2)} Ksh`;
+            } else {
+              formattedAmount = `${tipAmountInDisplayCurrency.toFixed(2)} ${displayCurrency}`;
+            }
+            
+            return `BlinkPOS Tip received: ${formattedAmount} (${tipAmountSats} sats)`;
+          }
+        };
+
+        // Get tip amounts - use stored display amounts if available
+        const tipAmountSats = Math.round(tipData.tipAmount);
+        const displayCurrency = tipData.displayCurrency || 'BTC';
+        const tipAmountInDisplayCurrency = tipData.tipAmountDisplay || tipAmountSats;
+
+        const tipMemo = generateTipMemo(tipAmountInDisplayCurrency, tipAmountSats, displayCurrency);
+
+        console.log('💡 Tip memo generated:', {
+          displayCurrency,
+          tipAmountInDisplayCurrency,
+          tipAmountSats,
+          tipMemo
+        });
+
+        // Send tip using invoice creation on behalf of recipient (supports custom memo)
+        const tipPaymentResult = await blinkposAPI.sendTipViaInvoice(
           blinkposBtcWalletId,
-          `${tipData.tipRecipient}@blink.sv`,
-          Math.round(tipData.tipAmount),
-          `Tip from BlinkPOS${memo ? ` - ${memo}` : ''}`
+          tipData.tipRecipient,
+          tipAmountSats,
+          tipMemo
         );
 
         if (tipPaymentResult.status === 'SUCCESS') {

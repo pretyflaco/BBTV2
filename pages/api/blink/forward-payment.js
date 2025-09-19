@@ -71,13 +71,13 @@ export default async function handler(req, res) {
       try {
         console.log('💡 Processing tip payment:', {
           tipAmount,
-          tipRecipient: `${tipRecipient}@blink.sv`
+          tipRecipient: tipRecipient
         });
 
-        // Send tip to the tip recipient using LN Address
-        const tipPaymentResult = await blinkposAPI.payLnAddress(
+        // Send tip using invoice creation on behalf of recipient (supports custom memo)
+        const tipPaymentResult = await blinkposAPI.sendTipViaInvoice(
           blinkposBtcWalletId,
-          `${tipRecipient}@blink.sv`,
+          tipRecipient,
           Math.round(tipAmount),
           `Tip from BlinkPOS${memo ? ` - ${memo}` : ''}`
         );

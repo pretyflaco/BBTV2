@@ -357,32 +357,32 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
         finalTotalInSats = Math.round(totalWithTip);
       }
 
-      console.log('Creating invoice with:', {
-        displayAmount: finalTotal,
-        displayCurrency,
-        amountInSats: finalTotalInSats,
-        walletId: selectedWallet.id,
-        hasApiKey: !!apiKey
-      });
+      const requestBody = {
+        amount: finalTotalInSats,
+        currency: 'BTC', // Always create BTC invoices
+        memo: memo, // Show calculation in memo
+        walletId: selectedWallet.id, // This will be ignored in the new flow
+        userWalletId: selectedWallet.id, // User's wallet for payment forwarding
+        apiKey: apiKey, // Pass user's API key for payment forwarding
+        displayCurrency: displayCurrency, // Pass the actual display currency for tip memo
+        // Tip information for payment splitting
+        baseAmount: convertToSatoshis(finalTotal, displayCurrency !== 'BTC' ? displayCurrency : 'BTC'),
+        tipAmount: effectiveTipPercent > 0 ? convertToSatoshis(tipAmount, displayCurrency !== 'BTC' ? displayCurrency : 'BTC') : 0,
+        tipPercent: effectiveTipPercent,
+        tipRecipient: tipRecipient || null,
+        // Display currency amounts for memo calculation
+        baseAmountDisplay: finalTotal,
+        tipAmountDisplay: tipAmount
+      };
+
+      console.log('Creating invoice with request body:', requestBody);
 
       const response = await fetch('/api/blink/create-invoice', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          amount: finalTotalInSats,
-          currency: 'BTC', // Always create BTC invoices
-          memo: memo, // Show calculation in memo
-          walletId: selectedWallet.id, // This will be ignored in the new flow
-          userWalletId: selectedWallet.id, // User's wallet for payment forwarding
-          apiKey: apiKey, // Pass user's API key for payment forwarding
-          // Tip information for payment splitting
-          baseAmount: convertToSatoshis(finalTotal, displayCurrency !== 'BTC' ? displayCurrency : 'BTC'),
-          tipAmount: effectiveTipPercent > 0 ? convertToSatoshis(tipAmount, displayCurrency !== 'BTC' ? displayCurrency : 'BTC') : 0,
-          tipPercent: effectiveTipPercent,
-          tipRecipient: tipRecipient || null
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();

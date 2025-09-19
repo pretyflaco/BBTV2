@@ -7,7 +7,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { amount, currency, memo, walletId, apiKey, userWalletId, baseAmount, tipAmount, tipPercent, tipRecipient } = req.body;
+    const { amount, currency, memo, walletId, apiKey, userWalletId, displayCurrency, baseAmount, tipAmount, tipPercent, tipRecipient, baseAmountDisplay, tipAmountDisplay } = req.body;
+
+    console.log('📥 Create invoice request received:', {
+      amount,
+      currency,
+      displayCurrency,
+      tipAmount,
+      tipRecipient,
+      hasBaseAmountDisplay: !!baseAmountDisplay,
+      hasTipAmountDisplay: !!tipAmountDisplay
+    });
 
     // Validate required fields - note we now need both blinkpos credentials and user credentials
     if (!amount || !currency || !apiKey) {
@@ -19,6 +29,13 @@ export default async function handler(req, res) {
     // Get BlinkPOS credentials from environment
     const blinkposApiKey = process.env.BLINKPOS_API_KEY;
     const blinkposBtcWalletId = process.env.BLINKPOS_BTC_WALLET_ID;
+
+    console.log('🔐 BlinkPOS credentials check:', {
+      hasApiKey: !!blinkposApiKey,
+      apiKeyLength: blinkposApiKey ? blinkposApiKey.length : 0,
+      hasWalletId: !!blinkposBtcWalletId,
+      walletIdLength: blinkposBtcWalletId ? blinkposBtcWalletId.length : 0
+    });
 
     if (!blinkposApiKey || !blinkposBtcWalletId) {
       console.error('Missing BlinkPOS environment variables');
@@ -71,7 +88,10 @@ export default async function handler(req, res) {
           tipPercent: tipPercent,
           tipRecipient: tipRecipient,
           userApiKey: apiKey,
-          userWalletId: userWalletId || walletId
+          userWalletId: userWalletId || walletId,
+          displayCurrency: displayCurrency || 'BTC', // Store display currency for tip memo
+          baseAmountDisplay: baseAmountDisplay, // Base amount in display currency
+          tipAmountDisplay: tipAmountDisplay // Tip amount in display currency
         });
       }
 

@@ -41,12 +41,8 @@ export default function Dashboard() {
     }
     return [10, 15, 20];
   });
-  const [tipRecipient, setTipRecipient] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('blinkpos-tip-recipient') || '';
-    }
-    return '';
-  });
+  const [tipRecipient, setTipRecipient] = useState('');
+  const [usernameValidation, setUsernameValidation] = useState({ status: null, message: '', isValidating: false });
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
   
@@ -70,10 +66,110 @@ export default function Dashboard() {
     }
   }, [tipPresets]);
 
+  // Clear tip recipient when user changes (no persistence across sessions)
   useEffect(() => {
+    setTipRecipient('');
+    setUsernameValidation({ status: null, message: '', isValidating: false });
+    // Also clear any existing localStorage value
     if (typeof window !== 'undefined') {
-      localStorage.setItem('blinkpos-tip-recipient', tipRecipient);
+      localStorage.removeItem('blinkpos-tip-recipient');
     }
+  }, [user?.username]);
+
+  // Validate Blink username function
+  const validateBlinkUsername = async (username) => {
+    if (!username || username.trim() === '') {
+      setUsernameValidation({ status: null, message: '', isValidating: false });
+      return;
+    }
+
+    // Clean username input - strip @blink.sv if user enters full Lightning Address
+    let cleanedUsername = username.trim();
+    if (cleanedUsername.includes('@blink.sv')) {
+      cleanedUsername = cleanedUsername.replace('@blink.sv', '').trim();
+    }
+    if (cleanedUsername.includes('@')) {
+      cleanedUsername = cleanedUsername.split('@')[0].trim();
+    }
+
+    setUsernameValidation({ status: null, message: '', isValidating: true });
+
+    const query = `
+      query Query($username: Username!) {
+        usernameAvailable(username: $username)
+      }
+    `;
+
+    const variables = {
+      username: cleanedUsername
+    };
+
+    try {
+      const response = await fetch('https://api.blink.sv/graphql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: query,
+          variables: variables
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.errors) {
+        const errorMessage = data.errors[0].message;
+        if (errorMessage.includes('Invalid value for Username')) {
+          setUsernameValidation({ 
+            status: 'error', 
+            message: 'Invalid username format', 
+            isValidating: false 
+          });
+          return;
+        }
+        throw new Error(errorMessage);
+      }
+
+      // usernameAvailable: true means username does NOT exist
+      // usernameAvailable: false means username DOES exist
+      const usernameExists = !data.data.usernameAvailable;
+
+      if (usernameExists) {
+        setUsernameValidation({ 
+          status: 'success', 
+          message: '✓ Blink username found!', 
+          isValidating: false 
+        });
+      } else {
+        setUsernameValidation({ 
+          status: 'error', 
+          message: 'This Blink username does not exist yet', 
+          isValidating: false 
+        });
+      }
+
+    } catch (error) {
+      console.error('Error checking username:', error);
+      setUsernameValidation({ 
+        status: 'error', 
+        message: 'Error checking username. Please try again.', 
+        isValidating: false 
+      });
+    }
+  };
+
+  // Debounced username validation
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      validateBlinkUsername(tipRecipient);
+    }, 500); // 500ms delay
+
+    return () => clearTimeout(timeoutId);
   }, [tipRecipient]);
 
   // Get user's API key for direct WebSocket connection
@@ -624,13 +720,39 @@ export default function Dashboard() {
                                 <label className="block text-xs font-medium text-gray-700 mb-1">
                                   Employee Username (receives tips)
                                 </label>
-                                <input
-                                  type="text"
-                                  value={tipRecipient}
-                                  onChange={(e) => setTipRecipient(e.target.value)}
-                                  placeholder="Enter username"
-                                  className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blink-orange focus:border-transparent"
-                                />
+                                <div className="relative">
+                                  <input
+                                    type="text"
+                                    value={tipRecipient}
+                                    onChange={(e) => setTipRecipient(e.target.value)}
+                                    placeholder="Enter username"
+                                    className={`w-full px-2 py-1 text-sm border rounded-md focus:outline-none focus:ring-1 focus:ring-blink-orange focus:border-transparent ${
+                                      usernameValidation.status === 'success' ? 'border-green-500' :
+                                      usernameValidation.status === 'error' ? 'border-red-500' :
+                                      'border-gray-300'
+                                    }`}
+                                  />
+                                  {usernameValidation.isValidating && (
+                                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blink-orange"></div>
+                                    </div>
+                                  )}
+                                  {usernameValidation.status === 'success' && (
+                                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-green-500">
+                                      ✓
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Validation message */}
+                                {usernameValidation.message && (
+                                  <div className={`text-xs mt-1 ${
+                                    usernameValidation.status === 'success' ? 'text-green-600' : 'text-red-600'
+                                  }`}>
+                                    {usernameValidation.message}
+                                  </div>
+                                )}
+                                
                                 <div className="text-xs text-gray-500 mt-1">
                                   Tips sent to: {tipRecipient}@blink.sv
                                 </div>
@@ -798,6 +920,7 @@ export default function Dashboard() {
             tipsEnabled={tipsEnabled}
             tipPresets={tipPresets}
             tipRecipient={tipRecipient}
+            soundEnabled={soundEnabled}
           />
         ) : (
           <>

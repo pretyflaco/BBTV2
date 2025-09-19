@@ -128,7 +128,7 @@ onClick={() => createInvoice()}  // Passes no parameters (undefined → false)
 ### Required Environment Variables
 ```bash
 # .env (never commit to git)
-BLINKPOS_API_KEY=blink_Nfyh937XWKjr2nlgpVJuok3jsNGmvTlfatN0pLthboUQa1GruTtK18m0Ber79b37
+BLINKPOS_API_KEY=your_blinkpos_api_key_here
 BLINKPOS_BTC_WALLET_ID=860b3e63-72a8-4adc-95cd-8be3390e6e51
 ```
 

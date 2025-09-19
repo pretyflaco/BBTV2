@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import QRCode from 'react-qr-code';
 
-const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipient }) => {
+const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipient, soundEnabled }) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -182,7 +182,19 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
     return 0;
   };
 
+  // Play keystroke sound
+  const playKeystrokeSound = () => {
+    if (soundEnabled) {
+      const audio = new Audio('/stroke1.mp3');
+      audio.volume = 0.3; // Set volume to 30% to avoid being too loud
+      audio.play().catch(console.error);
+    }
+  };
+
   const handleDigitPress = (digit) => {
+    // Play sound effect for keystroke
+    playKeystrokeSound();
+    
     if (amount === '0' && digit !== '.') {
       setAmount(digit);
     } else if (digit === '.' && amount.includes('.')) {
@@ -200,18 +212,26 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
   };
 
   const handleBackspace = () => {
+    playKeystrokeSound();
     setAmount(amount.slice(0, -1));
   };
 
   const handleClear = () => {
+    playKeystrokeSound();
     setAmount('');
     setTotal(0);
     setItems([]);
     setInvoice(null);
     setError('');
+    // Reset all tip-related state
+    setSelectedTipPercent(0);
+    setShowTipDialog(false);
+    setPendingTipSelection(null);
   };
 
   const handlePlusPress = () => {
+    playKeystrokeSound();
+    
     if (!amount) {
       setError('Enter an amount before adding');
       return;
@@ -377,7 +397,7 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
         // Enhance invoice with display currency information
         const enhancedInvoice = {
           ...data.invoice,
-          displayAmount: finalTotal,
+          displayAmount: totalWithTip, // Use totalWithTip to include tip amount
           displayCurrency: displayCurrency,
           satAmount: finalTotalInSats
         };
@@ -415,7 +435,7 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
             <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
             </svg>
-            New Payment
+            Cancel
           </button>
           <h2 className="text-xl font-bold">Payment Request</h2>
           <div className="w-8"></div>

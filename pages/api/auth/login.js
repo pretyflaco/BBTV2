@@ -37,14 +37,10 @@ export default async function handler(req, res) {
     const fetchedUsername = userInfo.username;
     const userDisplayCurrency = userInfo.defaultAccount?.displayCurrency;
 
-    // Map Blink display currency to our supported currencies
-    let preferredCurrency = 'BTC'; // Default to BTC (sats)
-    const supportedCurrencies = ['USD', 'BTC', 'KES'];
+    // Use user's preferred display currency from Blink
+    // All currencies supported by Blink are now supported
+    let preferredCurrency = userDisplayCurrency || 'BTC'; // Default to BTC (sats) if not set
     
-    if (userDisplayCurrency && supportedCurrencies.includes(userDisplayCurrency)) {
-      preferredCurrency = userDisplayCurrency;
-    }
-
     console.log(`User display currency: ${userDisplayCurrency} → Using: ${preferredCurrency}`);
 
     // Generate session token

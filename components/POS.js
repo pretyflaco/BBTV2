@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import QRCode from 'react-qr-code';
+import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
 
-const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipient, soundEnabled }) => {
+const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipient, soundEnabled }) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -112,17 +113,63 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
   };
 
   const formatDisplayAmount = (value, currency) => {
-    // Handle empty or invalid values by showing 0 in the appropriate format
-    const numValue = parseFloat(value) || 0;
+    // Use dynamic currency formatting from currency-utils
+    return formatCurrency(value, currency, currencies);
+  };
 
-    if (currency === 'BTC') {
-      return `${numValue.toLocaleString()} sats`;
-    } else if (currency === 'USD') {
-      return `$${numValue.toFixed(2)}`;
-    } else if (currency === 'KES') {
-      return `KSh ${numValue.toFixed(2)}`;
+  // Get current currency metadata
+  const getCurrentCurrency = () => {
+    return getCurrencyById(displayCurrency, currencies);
+  };
+
+  // Validate if amount meets minimum requirements for the currency
+  const isValidAmount = (amountValue) => {
+    if (!amountValue || amountValue === '' || amountValue === '0') {
+      return false;
     }
-    return `${numValue} ${currency}`;
+
+    const numValue = parseFloat(amountValue);
+    if (isNaN(numValue) || numValue <= 0) {
+      return false;
+    }
+
+    // For BTC, check minimum 1 sat
+    if (displayCurrency === 'BTC') {
+      return numValue >= 1;
+    }
+
+    // For fiat currencies, check minimum based on fraction digits
+    const currency = getCurrentCurrency();
+    if (!currency) {
+      return numValue > 0; // Fallback
+    }
+
+    // Minimum is 1 in the smallest unit (e.g., 0.01 for 2 decimals, 1 for 0 decimals)
+    const minimumAmount = currency.fractionDigits > 0 
+      ? 1 / Math.pow(10, currency.fractionDigits)
+      : 1;
+    
+    if (numValue < minimumAmount) {
+      return false;
+    }
+
+    // Also check if it converts to at least 1 satoshi
+    if (exchangeRate && exchangeRate.satPriceInCurrency) {
+      const sats = convertToSatoshis(numValue, displayCurrency);
+      if (sats < 1) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  // Check if current amount or total is valid for creating invoice
+  const hasValidAmount = () => {
+    if (total > 0) {
+      return true; // If there's a total from items, it's valid
+    }
+    return isValidAmount(amount);
   };
 
   // Convert display currency amount to satoshis for invoice creation
@@ -200,12 +247,23 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
     } else if (digit === '.' && amount.includes('.')) {
       // Don't add multiple decimal points
       return;
-    } else if ((displayCurrency === 'USD' || displayCurrency === 'KES') && amount.includes('.') && amount.split('.')[1].length >= 2) {
-      // Don't allow more than 2 decimal places for fiat currencies
-      return;
     } else if (displayCurrency === 'BTC' && digit === '.') {
       // Don't allow decimal points for BTC (sats are integers)
       return;
+    } else if (digit === '.' && amount.includes('.')) {
+      // Already has a decimal point
+      return;
+    } else if (amount.includes('.')) {
+      // Check decimal places based on currency fractionDigits
+      const currency = getCurrentCurrency();
+      const maxDecimals = currency ? currency.fractionDigits : 2;
+      const currentDecimals = amount.split('.')[1].length;
+      
+      if (currentDecimals >= maxDecimals) {
+        // Don't allow more decimals than the currency supports
+        return;
+      }
+      setAmount(amount + digit);
     } else {
       setAmount(amount + digit);
     }
@@ -272,6 +330,17 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
         setError('Please enter a valid amount');
         return;
       }
+      
+      // Validate minimum amount for currency
+      if (!isValidAmount(amount)) {
+        const currency = getCurrentCurrency();
+        const minAmount = currency && currency.fractionDigits > 0 
+          ? (1 / Math.pow(10, currency.fractionDigits)).toFixed(currency.fractionDigits)
+          : '1';
+        setError(`Minimum amount is ${formatDisplayAmount(minAmount, displayCurrency)}`);
+        return;
+      }
+      
       finalTotal += numericAmount;
     }
     
@@ -326,10 +395,18 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
         // Check if we have exchange rates
         if (!exchangeRate) {
           setError(`Exchange rate not available for ${displayCurrency}. Please try again.`);
+          setLoading(false);
           return;
         }
         
         finalTotalInSats = convertToSatoshis(totalWithTip, displayCurrency);
+        
+        // Validate minimum 1 satoshi
+        if (finalTotalInSats < 1) {
+          setError(`Amount too small. Converts to less than 1 satoshi. Minimum is ${formatDisplayAmount(0.01, displayCurrency)}`);
+          setLoading(false);
+          return;
+        }
         
         // Build memo showing conversion and tip
         const allItems = amount ? [...items, parseFloat(amount)] : items;
@@ -504,22 +581,14 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
 
   return (
     <div className="h-full flex flex-col bg-white relative">
-      {/* Compact Header */}
-      <div className="bg-blink-orange text-white p-3">
-        <h2 className="text-lg font-bold text-center">Point of Sale</h2>
-        {tipsEnabled && tipRecipient && (
-          <div className="text-xs text-center text-orange-100 mt-1">
-            💰 Tips enabled → {tipRecipient}@blink.sv
+      {/* Error Message - Fixed height container to prevent layout shift */}
+      <div className="mx-3 mt-3 min-h-[44px]">
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded text-sm animate-pulse">
+            {error}
           </div>
         )}
       </div>
-
-      {/* Error Message */}
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 mx-3 mt-3 rounded text-sm">
-          {error}
-        </div>
-      )}
 
       {/* Compact Amount Display */}
       <div className="p-4">
@@ -647,8 +716,8 @@ const POS = ({ apiKey, user, displayCurrency, wallets, onPaymentReceived, connec
           </button>
           <button
             onClick={() => createInvoice()}
-            disabled={(total === 0 && (!amount || parseFloat(amount) === 0)) || loading || !selectedWallet || !apiKey || (displayCurrency !== 'BTC' && !exchangeRate) || loadingRate || !blinkposConnected}
-            className={`h-[136px] ${(!connected || !blinkposConnected) ? 'bg-orange-500 hover:bg-orange-600' : (total === 0 && (!amount || parseFloat(amount) === 0)) ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'} disabled:bg-gray-400 text-white rounded-lg text-lg font-bold transition-colors shadow-md flex items-center justify-center row-span-2`}
+            disabled={!hasValidAmount() || loading || !selectedWallet || !apiKey || (displayCurrency !== 'BTC' && !exchangeRate) || loadingRate || !blinkposConnected}
+            className={`h-[136px] ${(!connected || !blinkposConnected) ? 'bg-orange-500 hover:bg-orange-600' : !hasValidAmount() ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'} disabled:bg-gray-400 text-white rounded-lg text-lg font-bold transition-colors shadow-md flex items-center justify-center row-span-2`}
           >
             {loading ? 'Creating...' : (!connected || !blinkposConnected) ? 'OK ⚠' : 'OK'}
           </button>

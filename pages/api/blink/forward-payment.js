@@ -10,8 +10,28 @@ export default async function handler(req, res) {
 
     // Validate required fields
     if (!amount || !userApiKey || !userWalletId) {
+      console.error('❌ CRITICAL: Missing required fields for payment forwarding:', {
+        hasAmount: !!amount,
+        hasUserApiKey: !!userApiKey,
+        hasUserWalletId: !!userWalletId,
+        userWalletId: userWalletId,
+        timestamp: new Date().toISOString()
+      });
       return res.status(400).json({ 
         error: 'Missing required fields: amount, userApiKey, userWalletId' 
+      });
+    }
+
+    // CRITICAL SECURITY: Validate userWalletId format to prevent injection
+    if (typeof userWalletId !== 'string' || userWalletId.length < 10) {
+      console.error('❌ CRITICAL: Invalid userWalletId format:', {
+        userWalletId,
+        type: typeof userWalletId,
+        length: userWalletId?.length,
+        timestamp: new Date().toISOString()
+      });
+      return res.status(400).json({ 
+        error: 'Invalid userWalletId format' 
       });
     }
 
@@ -37,7 +57,10 @@ export default async function handler(req, res) {
     console.log('🔄 Starting payment forwarding process:', {
       amount: numericAmount,
       fromWallet: blinkposBtcWalletId,
-      toUserWallet: userWalletId
+      toUserWallet: userWalletId,
+      userApiKeyPrefix: userApiKey?.substring(0, 10) + '...',
+      timestamp: new Date().toISOString(),
+      memo: memo
     });
 
     // Step 1: Create an invoice from the user's account for the amount

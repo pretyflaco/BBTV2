@@ -1,5 +1,6 @@
 import BlinkAPI from '../../../lib/blink-api';
 const tipStore = require('../../../lib/tip-store');
+const { formatCurrencyServer } = require('../../../lib/currency-formatter-server');
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -8,6 +9,14 @@ export default async function handler(req, res) {
 
   try {
     const { paymentHash, totalAmount, memo = '' } = req.body;
+    
+    // CRITICAL: Log all tip forwarding attempts for security audit
+    console.log('🎯 TIP FORWARDING REQUEST:', {
+      paymentHash: paymentHash?.substring(0, 16) + '...',
+      totalAmount,
+      timestamp: new Date().toISOString(),
+      memo: memo?.substring(0, 50) + '...'
+    });
 
     // Validate required fields
     if (!paymentHash || !totalAmount) {
@@ -20,7 +29,7 @@ export default async function handler(req, res) {
     const tipData = tipStore.getTipData(paymentHash);
     
     if (!tipData) {
-      console.log('⚠️ No tip data found for payment hash:', paymentHash);
+      console.log('❌ No tip data found for payment hash:', paymentHash);
       console.log('📊 Current tip store contents:', tipStore.getStats());
       return res.status(400).json({ 
         error: 'No tip data found for this payment',
@@ -28,6 +37,30 @@ export default async function handler(req, res) {
         tipStoreStats: tipStore.getStats()
       });
     }
+
+    // CRITICAL: Validate tip data contains proper user credentials
+    if (!tipData.userApiKey || !tipData.userWalletId) {
+      console.error('❌ CRITICAL: Tip data missing user credentials:', {
+        paymentHash: paymentHash?.substring(0, 16) + '...',
+        hasUserApiKey: !!tipData.userApiKey,
+        hasUserWalletId: !!tipData.userWalletId,
+        userWalletId: tipData.userWalletId,
+        timestamp: new Date().toISOString()
+      });
+      return res.status(400).json({ 
+        error: 'Invalid tip data: missing user credentials' 
+      });
+    }
+
+    // CRITICAL: Log the user wallet being used for payment forwarding
+    console.log('🔍 TIP FORWARDING USER CONTEXT:', {
+      paymentHash: paymentHash?.substring(0, 16) + '...',
+      userWalletId: tipData.userWalletId,
+      apiKeyPrefix: tipData.userApiKey?.substring(0, 10) + '...',
+      tipAmount: tipData.tipAmount,
+      tipRecipient: tipData.tipRecipient,
+      timestamp: new Date().toISOString()
+    });
 
     // Get BlinkPOS credentials from environment
     const blinkposApiKey = process.env.BLINKPOS_API_KEY;
@@ -65,16 +98,8 @@ export default async function handler(req, res) {
       if (displayCurrency === 'BTC') {
         tipAmountText = `${tipData.tipAmount} sat`;
       } else {
-        // Format the amount with proper currency symbol/format
-        let formattedAmount;
-        if (displayCurrency === 'USD') {
-          formattedAmount = `$${tipAmountDisplay.toFixed(2)}`;
-        } else if (displayCurrency === 'KES') {
-          formattedAmount = `KSh ${tipAmountDisplay.toFixed(2)}`;
-        } else {
-          formattedAmount = `${tipAmountDisplay.toFixed(2)} ${displayCurrency}`;
-        }
-        
+        // Format the amount with dynamic currency formatting
+        const formattedAmount = formatCurrencyServer(tipAmountDisplay, displayCurrency);
         tipAmountText = `${formattedAmount} (${tipData.tipAmount} sat)`;
       }
       

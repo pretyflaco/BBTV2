@@ -2,11 +2,13 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../lib/hooks/useAuth';
 import { useBlinkWebSocket } from '../lib/hooks/useBlinkWebSocket';
 import { useBlinkPOSWebSocket } from '../lib/hooks/useBlinkPOSWebSocket';
+import { useCurrencies } from '../lib/hooks/useCurrencies';
 import PaymentAnimation from './PaymentAnimation';
 import POS from './POS';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
+  const { currencies, loading: currenciesLoading, getAllCurrencies } = useCurrencies();
   const [apiKey, setApiKey] = useState(null);
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
   const [expandedMonths, setExpandedMonths] = useState(new Set());
@@ -585,8 +587,13 @@ export default function Dashboard() {
               <span className="text-sm text-gray-600">
                 {connected ? 'Connected' : 'Disconnected'}
                 {user?.username && (
-                  <span className="ml-2 text-blink-orange font-medium">
-                    @{user.username}
+                  <span className="ml-1 text-blink-orange font-medium">
+                    {user.username}
+                  </span>
+                )}
+                {tipsEnabled && tipRecipient && (
+                  <span className="ml-2 text-gray-600">
+                    Tips: <span className="text-green-600 font-medium">{tipRecipient}@blink.sv</span>
                   </span>
                 )}
               </span>
@@ -656,10 +663,17 @@ export default function Dashboard() {
                           value={displayCurrency}
                           onChange={(e) => setDisplayCurrency(e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blink-orange focus:border-transparent text-sm"
+                          disabled={currenciesLoading}
                         >
-                          <option value="USD">USD - US Dollar</option>
-                          <option value="BTC">BTC - Bitcoin (Satoshis)</option>
-                          <option value="KES">KES - Kenyan Shilling</option>
+                          {currenciesLoading ? (
+                            <option>Loading currencies...</option>
+                          ) : (
+                            getAllCurrencies().map((currency) => (
+                              <option key={currency.id} value={currency.id}>
+                                {currency.flag ? `${currency.flag} ` : ''}{currency.id} - {currency.name}
+                              </option>
+                            ))
+                          )}
                         </select>
                       </div>
 
@@ -809,8 +823,15 @@ export default function Dashboard() {
                           <span className="text-sm text-gray-600">
                             {connected ? 'Connected to Blink WebSocket' : 'Disconnected from Blink WebSocket'}
                             {user?.username && (
-                              <div className="mt-1 text-blink-orange font-medium">
-                                @{user.username}
+                              <div className="mt-1">
+                                <span className="text-blink-orange font-medium">
+                                  {user.username}
+                                </span>
+                                {tipsEnabled && tipRecipient && (
+                                  <span className="ml-2 text-gray-600">
+                                    Tips: <span className="text-green-600 font-medium">{tipRecipient}@blink.sv</span>
+                                  </span>
+                                )}
                               </div>
                             )}
                           </span>
@@ -909,6 +930,7 @@ export default function Dashboard() {
             apiKey={apiKey}
             user={user}
             displayCurrency={displayCurrency}
+            currencies={currencies}
             wallets={wallets}
             onPaymentReceived={posPaymentReceivedRef}
             connected={connected}

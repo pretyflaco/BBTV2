@@ -49,21 +49,44 @@ export default function PaymentAnimation({ show, payment, onHide, soundEnabled =
       onClick={handleClick}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
+      style={{ backgroundColor: 'rgba(34, 197, 94, 0.95)' }} // Green background
     >
-      <div className="payment-animation-content">
-        <div className="payment-text">
-          🎉 PAYMENT RECEIVED! 🎉
+      <div className="payment-animation-content flex flex-col items-center justify-center">
+        {/* Checkmark on white circle */}
+        <div className="bg-white rounded-full w-32 h-32 flex items-center justify-center mb-8 shadow-lg">
+          <img 
+            src="/checkmark.svg" 
+            alt="Success" 
+            className="w-20 h-20"
+          />
         </div>
-        <div className="payment-text text-2xl mt-4">
-          {payment ? `+${payment.amount} ${payment.currency === 'BTC' ? 'sats' : payment.currency}` : '⚡ 💰 ⚡'}
-        </div>
-        {payment?.memo && (
-          <div className="text-white text-xl mt-2 opacity-80">
-            {payment.memo}
+        
+        {/* Payment info */}
+        <div className="text-white text-center">
+          <div className="text-3xl font-bold mb-4">
+            Payment Received
           </div>
-        )}
-        <div className="text-white text-lg mt-6 opacity-75 animate-pulse">
-          👆 Tap to continue
+          
+          {payment && (
+            <>
+              <div className="text-5xl font-bold mb-2">
+                +{payment.amount}
+              </div>
+              <div className="text-2xl font-medium mb-6">
+                {payment.currency === 'BTC' ? 'sats' : payment.currency}
+              </div>
+            </>
+          )}
+          
+          {payment?.memo && (
+            <div className="text-lg mt-4 opacity-90 max-w-md mx-auto">
+              {payment.memo}
+            </div>
+          )}
+          
+          <div className="text-base mt-8 opacity-75">
+            Tap to continue
+          </div>
         </div>
       </div>
     </div>

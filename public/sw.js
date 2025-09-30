@@ -1,5 +1,5 @@
 // Service Worker for Blink Balance Tracker V2
-const CACHE_NAME = 'blink-tracker-v1';
+const CACHE_NAME = 'blink-tracker-v2-2025-01-01'; // Update this version when deploying changes
 const urlsToCache = [
   '/',
   '/manifest.json',

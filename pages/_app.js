@@ -8,6 +8,15 @@ function MyApp({ Component, pageProps }) {
     // Only run on client side to prevent hydration mismatch
     if (typeof window === 'undefined') return;
     
+    // Initialize dark mode (default to dark)
+    const savedMode = localStorage.getItem('darkMode');
+    const isDark = savedMode === null ? true : savedMode === 'true';
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    
     // Register service worker for PWA functionality
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker

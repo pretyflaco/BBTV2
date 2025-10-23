@@ -9,7 +9,7 @@ export default function PaymentAnimation({ show, payment, onHide, soundEnabled =
       try {
         // Create or reuse audio element
         if (!audioRef.current) {
-          audioRef.current = new Audio('/chaching.mp3');
+          audioRef.current = new Audio('/ping.mp3');
           audioRef.current.volume = 0.7; // Set volume to 70%
         }
         
@@ -52,14 +52,12 @@ export default function PaymentAnimation({ show, payment, onHide, soundEnabled =
       style={{ backgroundColor: 'rgba(34, 197, 94, 0.95)' }} // Green background - same for light and dark
     >
       <div className="payment-animation-content flex flex-col items-center justify-center">
-        {/* Checkmark on white circle */}
-        <div className="bg-white dark:bg-gray-100 rounded-full w-32 h-32 flex items-center justify-center mb-8 shadow-lg">
-          <img 
-            src="/checkmark.svg" 
-            alt="Success" 
-            className="w-20 h-20"
-          />
-        </div>
+        {/* Checkmark */}
+        <img 
+          src="/checkmark.png" 
+          alt="Success" 
+          className="w-[123px] h-[123px] mb-8"
+        />
         
         {/* Payment info */}
         <div className="text-white text-center">

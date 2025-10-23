@@ -227,7 +227,7 @@ export default function Dashboard() {
       
       // Play sound if enabled
       if (soundEnabled) {
-        const audio = new Audio('/chaching.mp3');
+        const audio = new Audio('/ping.mp3');
         audio.play().catch(console.error);
       }
       

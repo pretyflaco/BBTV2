@@ -49,11 +49,11 @@ export default function PaymentAnimation({ show, payment, onHide, soundEnabled =
       onClick={handleClick}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      style={{ backgroundColor: 'rgba(34, 197, 94, 0.95)' }} // Green background
+      style={{ backgroundColor: 'rgba(34, 197, 94, 0.95)' }} // Green background - same for light and dark
     >
       <div className="payment-animation-content flex flex-col items-center justify-center">
         {/* Checkmark on white circle */}
-        <div className="bg-white rounded-full w-32 h-32 flex items-center justify-center mb-8 shadow-lg">
+        <div className="bg-white dark:bg-gray-100 rounded-full w-32 h-32 flex items-center justify-center mb-8 shadow-lg">
           <img 
             src="/checkmark.svg" 
             alt="Success" 

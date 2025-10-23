@@ -1,6 +1,6 @@
-# Blink Balance Tracker V2 (BBTV2)
+# Blink POS
 
-A modern, secure, and real-time Bitcoin wallet monitoring dashboard built with Next.js. Monitor your Blink wallet balances and transactions with instant payment notifications and celebratory animations.
+A modern, secure, and real-time Bitcoin Lightning Point of Sale system built with Next.js. Accept Bitcoin Lightning payments with instant notifications and a beautiful user interface.
 
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
 ![Next.js](https://img.shields.io/badge/Next.js-12.3.4-black.svg)

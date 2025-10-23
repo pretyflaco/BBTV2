@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import QRCode from 'react-qr-code';
 import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
 
-const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipient, soundEnabled }) => {
+const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipient, soundEnabled, onInvoiceStateChange }) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -60,7 +60,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
   useEffect(() => {
     if (onPaymentReceived) {
       const clearInvoiceOnPayment = () => {
-        console.log('🎉 Payment received - clearing invoice and returning to numpad');
+        console.log('Payment received - clearing invoice and returning to numpad');
         setInvoice(null);
         setAmount('');
         setTotal(0);
@@ -75,6 +75,13 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
       onPaymentReceived.current = clearInvoiceOnPayment;
     }
   }, [onPaymentReceived]);
+
+  // Notify parent when invoice state changes
+  useEffect(() => {
+    if (onInvoiceStateChange) {
+      onInvoiceStateChange(!!invoice);
+    }
+  }, [invoice, onInvoiceStateChange]);
 
 
   const fetchExchangeRate = async () => {
@@ -285,6 +292,12 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
     setSelectedTipPercent(0);
     setShowTipDialog(false);
     setPendingTipSelection(null);
+    
+    // Disconnect WebSocket when clearing invoice (user cancelled/abandoned)
+    if (blinkposConnected && blinkposDisconnect) {
+      console.log('💤 Disconnecting BlinkPOS WebSocket (invoice cleared)');
+      blinkposDisconnect();
+    }
   };
 
   const handlePlusPress = () => {
@@ -365,18 +378,14 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
       return;
     }
 
-    // Warn if not connected but allow creating invoice
-    if (!connected || !blinkposConnected) {
-      const issues = [];
-      if (!connected) issues.push('User WebSocket disconnected');
-      if (!blinkposConnected) issues.push('BlinkPOS WebSocket disconnected');
+    // Connect BlinkPOS WebSocket if not already connected (lazy-loading)
+    if (!blinkposConnected && blinkposConnect) {
+      console.log('🔗 Connecting BlinkPOS WebSocket before invoice creation...');
+      blinkposConnect();
       
-      const proceed = window.confirm(
-        `⚠ ${issues.join(' and ')}! Invoice can be created but payment detection/forwarding may not work. Try reconnecting first, or proceed anyway?`
-      );
-      if (!proceed) {
-        return;
-      }
+      // Give it a moment to connect before proceeding
+      // Note: The invoice will be created even if connection is still in progress
+      // The WebSocket will pick up the payment when it connects
     }
 
     setLoading(true);
@@ -502,19 +511,19 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
 
   if (invoice) {
     return (
-      <div className="h-full flex flex-col bg-white">
+      <div className="h-full flex flex-col bg-white dark:bg-black" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
         {/* Header */}
-        <div className="bg-blink-orange text-white p-4 flex items-center justify-between">
+        <div className="bg-white dark:bg-blink-dark border-b border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between">
           <button
             onClick={handleClear}
-            className="text-white hover:text-gray-200 flex items-center"
+            className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 flex items-center"
           >
             <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
             </svg>
             Cancel
           </button>
-          <h2 className="text-xl font-bold">Payment Request</h2>
+          <h2 className="text-xl font-bold text-black dark:text-white">Payment Request</h2>
           <div className="w-8"></div>
         </div>
 
@@ -522,11 +531,11 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
         <div className="flex-1 p-6 flex flex-col items-center justify-center space-y-6">
           {/* Amount */}
           <div className="text-center">
-            <div className="text-3xl font-bold text-gray-800">
+            <div className="text-3xl font-bold text-gray-800 dark:text-gray-100">
               {invoice.displayCurrency !== 'BTC' ? (
                 <div>
                   <div>{formatDisplayAmount(invoice.displayAmount, invoice.displayCurrency)}</div>
-                  <div className="text-lg text-gray-600 mt-1">({invoice.satAmount} sats)</div>
+                  <div className="text-lg text-gray-600 dark:text-gray-400 mt-1">({invoice.satAmount} sats)</div>
                 </div>
               ) : (
                 formatDisplayAmount(invoice.amount, invoice.currency)
@@ -535,7 +544,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
           </div>
 
           {/* QR Code */}
-          <div className="bg-white p-4 rounded-lg shadow-lg border-2 border-gray-200">
+          <div className="bg-white dark:bg-white p-4 rounded-lg shadow-lg border-2 border-gray-200 dark:border-gray-600">
             <QRCode 
               value={invoice.paymentRequest} 
               size={256}
@@ -546,7 +555,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
 
           {/* Payment Request */}
           <div className="w-full max-w-md">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Lightning Invoice
             </label>
             <div className="flex">
@@ -557,11 +566,11 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
                 autoComplete="off"
                 data-1p-ignore
                 data-lpignore="true"
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md bg-gray-50 text-sm font-mono"
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-l-md bg-gray-50 dark:bg-blink-dark text-sm font-mono text-black dark:text-gray-100"
               />
               <button
                 onClick={() => copyToClipboard(invoice.paymentRequest)}
-                className="px-4 py-2 bg-blue-500 text-white rounded-r-md hover:bg-blue-600 transition-colors"
+                className="px-4 py-2 bg-blue-500 dark:bg-blue-600 text-white rounded-r-md hover:bg-blue-600 dark:hover:bg-blue-700 transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -569,22 +578,17 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
               </button>
             </div>
           </div>
-
-          {/* Instructions */}
-          <div className="text-center text-gray-600 text-sm max-w-md">
-            <p>Scan the QR code with a Lightning wallet or copy the invoice to complete the payment.</p>
-          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col bg-white relative">
+    <div className="h-full flex flex-col bg-white dark:bg-black relative" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
       {/* Error Message - Fixed height container to prevent layout shift */}
       <div className="mx-3 mt-3 min-h-[44px]">
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded text-sm animate-pulse">
+          <div className="bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 px-3 py-2 rounded text-sm animate-pulse">
             {error}
           </div>
         )}
@@ -594,26 +598,26 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
       <div className="p-4">
         <div className="text-center mb-4">
           <div className="text-center">
-            <div className="text-3xl font-bold text-gray-800 mb-1 min-h-[48px] flex items-center justify-center">
+            <div className="text-6xl font-semibold text-gray-800 dark:text-gray-100 mb-1 min-h-[96px] flex items-center justify-center leading-none tracking-normal" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
               {total > 0 ? (
                 <div>
-                  <span className="text-blink-orange">{formatDisplayAmount(total, displayCurrency)}</span>
-                  {amount && <span className="text-lg text-gray-600"> + {amount}</span>}
+                  <span className="text-blink-accent">{formatDisplayAmount(total, displayCurrency)}</span>
+                  {amount && <span className="text-4xl text-gray-600 dark:text-gray-400"> + {amount}</span>}
                 </div>
               ) : (
                 amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency)
               )}
             </div>
             {selectedTipPercent > 0 && (
-              <div className="text-lg text-green-600 font-semibold">
+              <div className="text-2xl text-green-600 dark:text-green-400 font-semibold">
                 + {selectedTipPercent}% tip ({formatDisplayAmount(getTipAmount(), displayCurrency)})
-                <div className="text-xl text-green-700 mt-1">
+                <div className="text-3xl text-green-700 dark:text-green-400 mt-1">
                   Total: {formatDisplayAmount(getTotalWithTip(), displayCurrency)}
                 </div>
               </div>
             )}
           </div>
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
             <div className="mb-1 min-h-[20px]">
               {items.length > 0 && (
                 <div>
@@ -622,44 +626,6 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
                   {total > 0 && amount && ` = ${formatDisplayAmount(total + (parseFloat(amount) || 0), displayCurrency)}`}
                 </div>
               )}
-            </div>
-            <div className="min-h-[20px]">
-              {!connected || !blinkposConnected ? (
-                <div className="flex flex-col items-center space-y-1">
-                  {!connected && (
-                    <div className="flex items-center space-x-2">
-                      <span className="text-red-600">⚠ User disconnected</span>
-                      {reconnectAttempts > 0 && (
-                        <span className="text-xs text-gray-500">(retry {reconnectAttempts})</span>
-                      )}
-                      <button
-                        onClick={manualReconnect}
-                        className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-1 py-1 rounded"
-                      >
-                        Reconnect
-                      </button>
-                    </div>
-                  )}
-                  {!blinkposConnected && (
-                    <div className="flex items-center space-x-2">
-                      <span className="text-orange-600">⚠ BlinkPOS disconnected</span>
-                      {blinkposReconnectAttempts > 0 && (
-                        <span className="text-xs text-gray-500">(retry {blinkposReconnectAttempts})</span>
-                      )}
-                      <button
-                        onClick={blinkposReconnect}
-                        className="text-xs bg-orange-500 hover:bg-orange-600 text-white px-1 py-1 rounded"
-                      >
-                        Reconnect
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ) : loadingRate ? '🔄 Loading exchange rate...' :
-               !apiKey ? '⚠ No API key' : 
-               !selectedWallet?.id ? '⚠ Loading wallet...' : 
-               displayCurrency !== 'BTC' && !exchangeRate ? '⚠ Exchange rate not available' :
-               '✓ Ready (User + BlinkPOS connected)'}
             </div>
           </div>
         </div>
@@ -672,25 +638,29 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
           {/* Row 1: 1, 2, 3, + */}
           <button
             onClick={() => handleDigitPress('1')}
-            className="h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             1
           </button>
           <button
             onClick={() => handleDigitPress('2')}
-            className="h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             2
           </button>
           <button
             onClick={() => handleDigitPress('3')}
-            className="h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             3
           </button>
           <button
             onClick={handlePlusPress}
-            className="h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md flex items-center justify-center"
+            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center"
+            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             +
           </button>
@@ -698,46 +668,53 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
           {/* Row 2: 4, 5, 6, OK (starts) */}
           <button
             onClick={() => handleDigitPress('4')}
-            className="h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             4
           </button>
           <button
             onClick={() => handleDigitPress('5')}
-            className="h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             5
           </button>
           <button
             onClick={() => handleDigitPress('6')}
-            className="h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             6
           </button>
           <button
             onClick={() => createInvoice()}
-            disabled={!hasValidAmount() || loading || !selectedWallet || !apiKey || (displayCurrency !== 'BTC' && !exchangeRate) || loadingRate || !blinkposConnected}
-            className={`h-[136px] ${(!connected || !blinkposConnected) ? 'bg-orange-500 hover:bg-orange-600' : !hasValidAmount() ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'} disabled:bg-gray-400 text-white rounded-lg text-lg font-bold transition-colors shadow-md flex items-center justify-center row-span-2`}
+            disabled={!hasValidAmount() || loading || !selectedWallet || !apiKey || (displayCurrency !== 'BTC' && !exchangeRate) || loadingRate}
+            className={`h-[136px] ${!hasValidAmount() || loading ? 'bg-gray-200 dark:bg-blink-dark border-2 border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500' : 'bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'} disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-lg text-lg font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center row-span-2`}
+            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
-            {loading ? 'Creating...' : (!connected || !blinkposConnected) ? 'OK ⚠' : 'OK'}
+            {loading ? 'Creating...' : 'OK'}
           </button>
 
           {/* Row 3: 7, 8, 9, OK (continues) */}
           <button
             onClick={() => handleDigitPress('7')}
-            className="h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             7
           </button>
           <button
             onClick={() => handleDigitPress('8')}
-            className="h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             8
           </button>
           <button
             onClick={() => handleDigitPress('9')}
-            className="h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             9
           </button>
@@ -745,26 +722,30 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
           {/* Row 4: C, 0, ., ⌫ */}
           <button
             onClick={handleClear}
-            className="h-16 bg-red-600 hover:bg-red-700 text-white rounded-lg text-lg font-bold transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-lg font-normal leading-none tracking-normal transition-colors shadow-md"
+            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             C
           </button>
           <button
             onClick={() => handleDigitPress('0')}
-            className="h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xl font-bold transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             0
           </button>
           <button
             onClick={() => handleDigitPress('.')}
             disabled={displayCurrency === 'BTC'}
-            className="h-16 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg text-xl font-bold transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             .
           </button>
           <button
             onClick={handleBackspace}
-            className="h-16 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-lg font-bold transition-colors flex items-center justify-center shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 rounded-lg text-lg font-normal leading-none tracking-normal transition-colors flex items-center justify-center shadow-md"
+            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
@@ -776,11 +757,11 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
 
       {/* Tip Selection Overlay (over numpad) */}
       {showTipDialog && (
-        <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-30">
-          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
-            <h3 className="text-xl font-bold mb-4 text-center text-gray-800">Add Tip?</h3>
+        <div className="absolute inset-0 bg-black bg-opacity-70 dark:bg-opacity-80 flex items-center justify-center z-30">
+          <div className="bg-white dark:bg-blink-dark rounded-lg p-6 max-w-sm w-full mx-4" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+            <h3 className="text-xl font-bold mb-4 text-center text-gray-800 dark:text-gray-100">Add Tip?</h3>
             <div className="mb-4 text-center">
-              <div className="text-lg text-gray-700">
+              <div className="text-lg text-gray-700 dark:text-gray-300">
                 Order: {formatDisplayAmount(total + (parseFloat(amount) || 0), displayCurrency)}
               </div>
             </div>
@@ -791,7 +772,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
                   onClick={() => {
                     setPendingTipSelection(percent);
                   }}
-                  className="h-16 bg-green-600 hover:bg-green-700 text-white rounded-lg text-lg font-bold transition-colors shadow-lg"
+                  className="h-16 bg-green-600 dark:bg-green-700 hover:bg-green-700 dark:hover:bg-green-600 text-white rounded-lg text-lg font-bold transition-colors shadow-lg"
                 >
                   {percent}%
                   <div className="text-sm opacity-90">
@@ -805,13 +786,13 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
                 onClick={() => {
                   setPendingTipSelection(0);
                 }}
-                className="flex-1 h-12 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-bold transition-colors"
+                className="flex-1 h-12 bg-gray-500 dark:bg-gray-600 hover:bg-gray-600 dark:hover:bg-gray-700 text-white rounded-lg font-bold transition-colors"
               >
                 No Tip
               </button>
               <button
                 onClick={() => setShowTipDialog(false)}
-                className="flex-1 h-12 bg-red-500 hover:bg-red-600 text-white rounded-lg font-bold transition-colors"
+                className="flex-1 h-12 bg-red-500 dark:bg-red-600 hover:bg-red-600 dark:hover:bg-red-700 text-white rounded-lg font-bold transition-colors"
               >
                 Cancel
               </button>

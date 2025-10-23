@@ -47,13 +47,20 @@ export default function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-black">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Blink Balance Tracker V2
+          <div className="flex justify-center mb-6">
+            <img 
+              src="/logos/blink-logo-full.svg" 
+              alt="Blink" 
+              className="h-24"
+            />
+          </div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-gray-100">
+            Blink POS
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
             Sign in with your Blink API key
           </p>
         </div>
@@ -72,7 +79,7 @@ export default function LoginForm() {
                 autoComplete="new-password"
                 data-1p-ignore
                 data-lpignore="true"
-                className="relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blink-orange focus:border-blink-orange focus:z-10 sm:text-sm"
+                className="relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-gray-100 bg-white dark:bg-blink-dark rounded-md focus:outline-none focus:ring-blink-accent focus:border-blink-accent focus:z-10 sm:text-sm"
                 placeholder="Blink API Key"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
@@ -85,7 +92,7 @@ export default function LoginForm() {
                 type="button"
                 onClick={handlePasteFromClipboard}
                 disabled={pasting}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blink-orange disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-blink-dark text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-black focus:ring-blink-accent disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {pasting ? (
                   <>
@@ -108,7 +115,7 @@ export default function LoginForm() {
           </div>
 
           {error && (
-            <div className="text-red-600 text-sm text-center">
+            <div className="text-red-600 dark:text-red-400 text-sm text-center">
               {error}
             </div>
           )}
@@ -117,14 +124,14 @@ export default function LoginForm() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blink-orange hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blink-orange disabled:opacity-50"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blink-accent hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-black focus:ring-blink-accent disabled:opacity-50"
             >
               {loading ? 'Signing in...' : 'Sign in'}
             </button>
           </div>
         </form>
 
-        <div className="text-xs text-gray-500 text-center">
+        <div className="text-xs text-gray-500 dark:text-gray-400 text-center">
           <p>Your API key is encrypted and stored securely.</p>
           <p className="mt-1">
             Get your API key from{' '}
@@ -132,7 +139,7 @@ export default function LoginForm() {
               href="https://dashboard.blink.sv"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blink-orange hover:underline"
+              className="text-blink-accent hover:underline"
             >
               Blink Dashboard
             </a>

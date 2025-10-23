@@ -4,14 +4,19 @@ export default function Document() {
   return (
     <Html>
       <Head>
+        {/* Google Fonts - Source Sans Pro */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600&display=swap" rel="stylesheet" />
+        
         {/* PWA Manifest */}
         <link rel="manifest" href="/manifest.json" />
         
         {/* PWA Meta Tags */}
-        <meta name="application-name" content="Blink Tracker" />
+        <meta name="application-name" content="Blink POS" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="Blink Tracker" />
+        <meta name="apple-mobile-web-app-title" content="Blink POS" />
         <meta name="format-detection" content="telephone=no" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="theme-color" content="#f59e0b" />

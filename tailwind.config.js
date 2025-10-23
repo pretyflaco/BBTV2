@@ -4,11 +4,14 @@ module.exports = {
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+  darkMode: 'class', // Enable dark mode with class strategy
   theme: {
     extend: {
       colors: {
         'blink-orange': '#FF6600',
-        'blink-dark': '#1a1a1a',
+        'blink-accent': '#FFAD0D',
+        'blink-dark': '#1D1D1D',
+        'blink-black': '#000000',
       },
       animation: {
         'payment-pulse': 'payment-pulse 0.6s ease-in-out',

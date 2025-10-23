@@ -3,12 +3,14 @@ import { useAuth } from '../lib/hooks/useAuth';
 import { useBlinkWebSocket } from '../lib/hooks/useBlinkWebSocket';
 import { useBlinkPOSWebSocket } from '../lib/hooks/useBlinkPOSWebSocket';
 import { useCurrencies } from '../lib/hooks/useCurrencies';
+import { useDarkMode } from '../lib/hooks/useDarkMode';
 import PaymentAnimation from './PaymentAnimation';
 import POS from './POS';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const { currencies, loading: currenciesLoading, getAllCurrencies } = useCurrencies();
+  const { darkMode, toggleDarkMode } = useDarkMode();
   const [apiKey, setApiKey] = useState(null);
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
   const [expandedMonths, setExpandedMonths] = useState(new Set());
@@ -45,6 +47,7 @@ export default function Dashboard() {
   });
   const [tipRecipient, setTipRecipient] = useState('');
   const [usernameValidation, setUsernameValidation] = useState({ status: null, message: '', isValidating: false });
+  const [showingInvoice, setShowingInvoice] = useState(false);
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
   
@@ -144,7 +147,7 @@ export default function Dashboard() {
       if (usernameExists) {
         setUsernameValidation({ 
           status: 'success', 
-          message: '✓ Blink username found!', 
+          message: 'Blink username found', 
           isValidating: false 
         });
       } else {
@@ -195,11 +198,20 @@ export default function Dashboard() {
   };
 
   // Use direct Blink WebSocket connection for user account (balance updates)
-  const { connected, lastPayment, showAnimation, hideAnimation, triggerPaymentAnimation, manualReconnect, reconnectAttempts } = useBlinkWebSocket(apiKey, user?.username);
+  // NOTE: Only needed for non-POS payments. Currently disabled for POS-only mode.
+  // To enable: pass apiKey and user?.username instead of null
+  const { connected, lastPayment, showAnimation, hideAnimation, triggerPaymentAnimation, manualReconnect, reconnectAttempts } = useBlinkWebSocket(null, null);
   
   // Setup BlinkPOS WebSocket for real-time payment detection and forwarding
+  // LAZY-LOADED: Connection only established when POS invoice is created
   const userBtcWallet = wallets.find(w => w.walletCurrency === 'BTC');
-  const { connected: blinkposConnected, manualReconnect: blinkposReconnect, reconnectAttempts: blinkposReconnectAttempts } = useBlinkPOSWebSocket(
+  const { 
+    connected: blinkposConnected, 
+    connect: blinkposConnect, 
+    disconnect: blinkposDisconnect,
+    manualReconnect: blinkposReconnect, 
+    reconnectAttempts: blinkposReconnectAttempts 
+  } = useBlinkPOSWebSocket(
     apiKey, 
     userBtcWallet?.id, 
     (forwardedPayment) => {
@@ -223,6 +235,10 @@ export default function Dashboard() {
       if (posPaymentReceivedRef.current) {
         posPaymentReceivedRef.current();
       }
+      
+      // Disconnect WebSocket after payment received
+      console.log('💤 Disconnecting BlinkPOS WebSocket after payment received');
+      blinkposDisconnect();
       
       // Refresh data to show the forwarded payment
       fetchData();
@@ -248,6 +264,14 @@ export default function Dashboard() {
       }
     }
   }, [user]);
+
+  // Refresh transaction data when switching to transaction history view
+  useEffect(() => {
+    if (currentView === 'transactions' && user) {
+      console.log('Switching to transaction history - refreshing data...');
+      fetchData();
+    }
+  }, [currentView]);
 
   // Fetch wallets when API key becomes available
   useEffect(() => {
@@ -454,10 +478,12 @@ export default function Dashboard() {
     const isLeftSwipe = distance > 50;
     const isRightSwipe = distance < -50;
 
-    if (isLeftSwipe && currentView === 'transactions') {
-      setCurrentView('pos');
-    } else if (isRightSwipe && currentView === 'pos') {
+    // Left swipe: POS → Transactions
+    // Right swipe: Transactions → POS
+    if (isLeftSwipe && currentView === 'pos') {
       setCurrentView('transactions');
+    } else if (isRightSwipe && currentView === 'transactions') {
+      setCurrentView('pos');
     }
 
     // Reset touch positions
@@ -560,7 +586,7 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blink-orange mx-auto"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blink-accent mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading transactions...</p>
         </div>
       </div>
@@ -568,7 +594,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-black">
       {/* Payment Animation Overlay */}
       <PaymentAnimation 
         show={showAnimation} 
@@ -577,41 +603,58 @@ export default function Dashboard() {
         soundEnabled={soundEnabled}
       />
 
-      {/* Mobile Header - Only Connection Status Visible */}
-      <header className="bg-white shadow sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            {/* Connection Status */}
-            <div className="flex items-center">
-              <div className={`w-3 h-3 rounded-full mr-2 ${connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <span className="text-sm text-gray-600">
-                {connected ? 'Connected' : 'Disconnected'}
-                {user?.username && (
-                  <span className="ml-1 text-blink-orange font-medium">
-                    {user.username}
-                  </span>
-                )}
-                {tipsEnabled && tipRecipient && (
-                  <span className="ml-2 text-gray-600">
-                    Tips: <span className="text-green-600 font-medium">{tipRecipient}@blink.sv</span>
-                  </span>
-                )}
-              </span>
+      {/* Mobile Header - Hidden when showing invoice */}
+      {!showingInvoice && (
+        <header className="bg-white dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center py-4 relative">
+              {/* User Status - Left */}
+              <div className="flex items-center flex-1">
+                <div className={`w-3 h-3 rounded-full mr-2 ${user ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <span className="text-sm text-gray-600 dark:text-gray-300">
+                  {user?.username && (
+                    <span className="text-blink-accent font-medium">
+                      {user.username}
+                    </span>
+                  )}
+                  {tipsEnabled && tipRecipient && (
+                    <span className="ml-2 text-gray-600 dark:text-gray-400">
+                      Tips: <span className="text-green-600 dark:text-green-400 font-medium">{tipRecipient}@blink.sv</span>
+                    </span>
+                  )}
+                </span>
+              </div>
+              
+              {/* Blink Logo - Center */}
+              <div className="absolute left-1/2 transform -translate-x-1/2">
+                <img 
+                  src="/logos/blink-icon-light.svg" 
+                  alt="Blink" 
+                  className="h-12 w-12 dark:hidden"
+                />
+                <img 
+                  src="/logos/blink-icon-dark.svg" 
+                  alt="Blink" 
+                  className="h-12 w-12 hidden dark:block"
+                />
+              </div>
+              
+              {/* Menu Button - Right */}
+              <div className="flex-1 flex justify-end">
+                <button
+                  onClick={() => setSideMenuOpen(!sideMenuOpen)}
+                  className="p-2 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-blink-dark focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+                  aria-label="Open menu"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+              </div>
             </div>
-            
-            {/* Menu Button */}
-            <button
-              onClick={() => setSideMenuOpen(!sideMenuOpen)}
-              className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
-              aria-label="Open menu"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       {/* Side Menu Overlay */}
       {sideMenuOpen && (
@@ -626,16 +669,16 @@ export default function Dashboard() {
             {/* Side menu panel */}
             <div className="pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-10">
               <div className="pointer-events-auto relative w-screen max-w-md side-menu-panel">
-                <div className="flex h-full flex-col overflow-y-scroll bg-white py-6 shadow-xl side-menu-slide-in">
+                <div className="flex h-full flex-col overflow-y-scroll bg-white dark:bg-blink-dark py-6 shadow-xl side-menu-slide-in">
                   <div className="px-4 sm:px-6">
                     <div className="flex items-start justify-between">
-                      <h2 className="text-lg font-medium text-gray-900" id="slide-over-title">
-                        Blink Balance Tracker V2
+                      <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100" id="slide-over-title">
+                        Blink POS
                       </h2>
                       <div className="ml-3 flex h-7 items-center">
                         <button
                           type="button"
-                          className="rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                          className="rounded-md bg-white dark:bg-blink-dark text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-blink-dark"
                           onClick={() => setSideMenuOpen(false)}
                         >
                           <span className="sr-only">Close panel</span>
@@ -650,19 +693,19 @@ export default function Dashboard() {
                     {/* Menu content */}
                     <div className="space-y-6">
                       {/* Welcome message */}
-                      <div className="border-b border-gray-200 pb-4">
-                        <p className="text-sm text-gray-500">Welcome, {user?.username}</p>
+                      <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Welcome, {user?.username}</p>
                       </div>
                       
                       {/* Currency Selection */}
-                      <div className="border-b border-gray-200 pb-4">
-                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                      <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
+                        <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
                           Display Currency
                         </label>
                         <select
                           value={displayCurrency}
                           onChange={(e) => setDisplayCurrency(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blink-orange focus:border-transparent text-sm"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-blink-dark text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent text-sm"
                           disabled={currenciesLoading}
                         >
                           {currenciesLoading ? (
@@ -677,16 +720,40 @@ export default function Dashboard() {
                         </select>
                       </div>
 
+                      {/* Dark Mode Toggle */}
+                      <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
+                        <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+                          Appearance
+                        </label>
+                        <div className="flex items-center">
+                          <button
+                            onClick={toggleDarkMode}
+                            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blink-accent focus:ring-offset-2 ${
+                              darkMode ? 'bg-blink-accent' : 'bg-gray-200'
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition duration-200 ease-in-out ${
+                                darkMode ? 'translate-x-5' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                          <span className="ml-3 text-sm text-gray-600 dark:text-gray-400">
+                            {darkMode ? 'Dark mode' : 'Light mode'}
+                          </span>
+                        </div>
+                      </div>
+
                       {/* Sound Settings */}
-                      <div className="border-b border-gray-200 pb-4">
-                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                      <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
+                        <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
                           Sound Effects
                         </label>
                         <div className="flex items-center">
                           <button
                             onClick={() => setSoundEnabled(!soundEnabled)}
-                            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blink-orange focus:ring-offset-2 ${
-                              soundEnabled ? 'bg-blink-orange' : 'bg-gray-200'
+                            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blink-accent focus:ring-offset-2 ${
+                              soundEnabled ? 'bg-blink-accent' : 'bg-gray-200'
                             }`}
                           >
                             <span
@@ -695,15 +762,15 @@ export default function Dashboard() {
                               }`}
                             />
                           </button>
-                          <span className="ml-3 text-sm text-gray-600">
-                            {soundEnabled ? '🔊 Cash register sound enabled' : '🔇 Sound disabled'}
+                          <span className="ml-3 text-sm text-gray-600 dark:text-gray-400">
+                            {soundEnabled ? 'Cash register sound enabled' : 'Sound disabled'}
                           </span>
                         </div>
                       </div>
 
                       {/* Tip Settings */}
-                      <div className="border-b border-gray-200 pb-4">
-                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                      <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
+                        <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
                           Tip Settings
                         </label>
                         
@@ -712,8 +779,8 @@ export default function Dashboard() {
                           <div className="flex items-center">
                             <button
                               onClick={() => setTipsEnabled(!tipsEnabled)}
-                              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blink-orange focus:ring-offset-2 ${
-                                tipsEnabled ? 'bg-blink-orange' : 'bg-gray-200'
+                              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blink-accent focus:ring-offset-2 ${
+                                tipsEnabled ? 'bg-blink-accent' : 'bg-gray-200'
                               }`}
                             >
                               <span
@@ -723,7 +790,7 @@ export default function Dashboard() {
                               />
                             </button>
                             <span className="ml-3 text-sm text-gray-600">
-                              {tipsEnabled ? '💰 Tips enabled' : '❌ Tips disabled'}
+                              {tipsEnabled ? 'Tips enabled' : 'Tips disabled'}
                             </span>
                           </div>
 
@@ -731,7 +798,7 @@ export default function Dashboard() {
                           {tipsEnabled && (
                             <>
                               <div>
-                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                                   Employee Username (receives tips)
                                 </label>
                                 <div className="relative">
@@ -740,15 +807,15 @@ export default function Dashboard() {
                                     value={tipRecipient}
                                     onChange={(e) => setTipRecipient(e.target.value)}
                                     placeholder="Enter username"
-                                    className={`w-full px-2 py-1 text-sm border rounded-md focus:outline-none focus:ring-1 focus:ring-blink-orange focus:border-transparent ${
+                                    className={`w-full px-2 py-1 text-sm border rounded-md bg-white dark:bg-blink-dark text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blink-accent focus:border-transparent ${
                                       usernameValidation.status === 'success' ? 'border-green-500' :
                                       usernameValidation.status === 'error' ? 'border-red-500' :
-                                      'border-gray-300'
+                                      'border-gray-300 dark:border-gray-600'
                                     }`}
                                   />
                                   {usernameValidation.isValidating && (
                                     <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
-                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blink-orange"></div>
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blink-accent"></div>
                                     </div>
                                   )}
                                   {usernameValidation.status === 'success' && (
@@ -761,19 +828,19 @@ export default function Dashboard() {
                                 {/* Validation message */}
                                 {usernameValidation.message && (
                                   <div className={`text-xs mt-1 ${
-                                    usernameValidation.status === 'success' ? 'text-green-600' : 'text-red-600'
+                                    usernameValidation.status === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                                   }`}>
                                     {usernameValidation.message}
                                   </div>
                                 )}
                                 
-                                <div className="text-xs text-gray-500 mt-1">
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                   Tips sent to: {tipRecipient}@blink.sv
                                 </div>
                               </div>
 
                               <div>
-                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                                   Tip Presets (%)
                                 </label>
                                 <div className="flex gap-1 mb-2">
@@ -787,7 +854,7 @@ export default function Dashboard() {
                                           newPresets[index] = parseInt(e.target.value) || 0;
                                           setTipPresets(newPresets);
                                         }}
-                                        className="w-12 px-1 py-1 text-xs border border-gray-300 rounded text-center"
+                                        className="w-12 px-1 py-1 text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-blink-dark text-gray-900 dark:text-gray-100 rounded text-center"
                                         min="0"
                                         max="100"
                                       />
@@ -815,26 +882,28 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      {/* Connection Status (detailed) */}
+                      {/* Account Status */}
                       <div className="border-b border-gray-200 pb-4">
-                        <h3 className="text-sm font-medium text-gray-900 mb-2">Connection Status</h3>
+                        <h3 className="text-sm font-medium text-gray-900 mb-2">Account Status</h3>
                         <div className="flex items-center">
-                          <div className={`w-3 h-3 rounded-full mr-2 ${connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                          <div className={`w-3 h-3 rounded-full mr-2 ${user ? 'bg-green-500' : 'bg-red-500'}`}></div>
                           <span className="text-sm text-gray-600">
-                            {connected ? 'Connected to Blink WebSocket' : 'Disconnected from Blink WebSocket'}
                             {user?.username && (
-                              <div className="mt-1">
-                                <span className="text-blink-orange font-medium">
-                                  {user.username}
+                              <div>
+                                <span className="text-blink-accent font-medium">
+                                  Logged in as {user.username}
                                 </span>
                                 {tipsEnabled && tipRecipient && (
-                                  <span className="ml-2 text-gray-600">
+                                  <div className="mt-1 text-gray-600">
                                     Tips: <span className="text-green-600 font-medium">{tipRecipient}@blink.sv</span>
-                                  </span>
+                                  </div>
                                 )}
                               </div>
                             )}
                           </span>
+                        </div>
+                        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                          Info: WebSocket connects automatically when creating invoices
                         </div>
                       </div>
                       
@@ -847,7 +916,7 @@ export default function Dashboard() {
                               handleInstallApp();
                               setSideMenuOpen(false);
                             }}
-                            className="w-full bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-4 rounded transition-colors mobile-button flex items-center justify-center"
+                            className="w-full bg-green-500 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white font-bold py-3 px-4 rounded transition-colors mobile-button flex items-center justify-center"
                           >
                             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -862,7 +931,7 @@ export default function Dashboard() {
                             setSideMenuOpen(false);
                           }}
                           disabled={loading}
-                          className="w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded disabled:opacity-50 transition-colors mobile-button"
+                          className="w-full bg-blue-500 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-bold py-3 px-4 rounded disabled:opacity-50 transition-colors mobile-button"
                         >
                           {loading ? 'Refreshing...' : 'Refresh Data'}
                         </button>
@@ -872,7 +941,7 @@ export default function Dashboard() {
                             handleLogout();
                             setSideMenuOpen(false);
                           }}
-                          className="w-full bg-red-500 hover:bg-red-700 text-white font-bold py-3 px-4 rounded transition-colors mobile-button"
+                          className="w-full bg-red-500 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700 text-white font-bold py-3 px-4 rounded transition-colors mobile-button"
                         >
                           Logout
                         </button>
@@ -893,36 +962,38 @@ export default function Dashboard() {
         onTouchEnd={handleTouchEnd}
       >
         {error && (
-          <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          <div className="mb-4 bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 px-4 py-3 rounded">
             {error}
           </div>
         )}
 
-        {/* View Switch */}
-        <div className="flex justify-center mb-6">
-          <div className="bg-gray-100 rounded-lg p-1 flex">
-            <button
-              onClick={() => setCurrentView('pos')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                currentView === 'pos'
-                  ? 'bg-white text-blink-orange shadow-sm'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              💰 Point of Sale
-            </button>
-            <button
-              onClick={() => setCurrentView('transactions')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                currentView === 'transactions'
-                  ? 'bg-white text-blink-orange shadow-sm'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              📊 Transaction History
-            </button>
+        {/* View Switch - Hidden when showing invoice */}
+        {!showingInvoice && (
+          <div className="flex justify-center mb-6">
+            <div className="bg-gray-100 dark:bg-blink-dark rounded-lg p-1 flex">
+              <button
+                onClick={() => setCurrentView('pos')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  currentView === 'pos'
+                    ? 'bg-white dark:bg-blink-dark text-blink-accent shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                }`}
+              >
+                Point of Sale
+              </button>
+              <button
+                onClick={() => setCurrentView('transactions')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  currentView === 'transactions'
+                    ? 'bg-white dark:bg-blink-dark text-blink-accent shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                }`}
+              >
+                Transaction History
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Conditional Content Based on Current View */}
         {currentView === 'pos' ? (
@@ -937,20 +1008,23 @@ export default function Dashboard() {
             manualReconnect={manualReconnect}
             reconnectAttempts={reconnectAttempts}
             blinkposConnected={blinkposConnected}
+            blinkposConnect={blinkposConnect}
+            blinkposDisconnect={blinkposDisconnect}
             blinkposReconnect={blinkposReconnect}
             blinkposReconnectAttempts={blinkposReconnectAttempts}
             tipsEnabled={tipsEnabled}
             tipPresets={tipPresets}
             tipRecipient={tipRecipient}
             soundEnabled={soundEnabled}
+            onInvoiceStateChange={setShowingInvoice}
           />
         ) : (
           <>
             {/* Most Recent Transactions */}
             <div className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Most Recent Transactions</h2>
-          <div className="bg-white shadow overflow-hidden sm:rounded-md">
-            <ul className="divide-y divide-gray-200">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Most Recent Transactions</h2>
+          <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black overflow-hidden sm:rounded-md">
+            <ul className="divide-y divide-gray-200 dark:divide-gray-700">
               {transactions.slice(0, 5).map((tx) => (
                 <li key={tx.id} className="px-6 py-4">
                   <div className="flex items-center justify-between">
@@ -959,15 +1033,15 @@ export default function Dashboard() {
                         tx.direction === 'RECEIVE' ? 'bg-green-500' : 'bg-red-500'
                       }`}></div>
                       <div>
-                        <p className="text-sm font-medium text-gray-900">
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           {tx.amount}
                         </p>
-                        <p className="text-sm text-gray-500">{tx.memo}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{tx.memo}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm text-gray-900">{tx.status}</p>
-                      <p className="text-sm text-gray-500">{tx.date}</p>
+                      <p className="text-sm text-gray-900 dark:text-gray-100">{tx.status}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{tx.date}</p>
                     </div>
                   </div>
                 </li>
@@ -978,7 +1052,7 @@ export default function Dashboard() {
 
         {/* Past Transactions - Grouped by Month */}
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Past Transactions</h2>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Past Transactions</h2>
           
           {(() => {
             const monthGroups = getMonthGroups();
@@ -986,7 +1060,7 @@ export default function Dashboard() {
             
             if (monthKeys.length === 0) {
               return (
-                <div className="bg-white shadow rounded-lg p-6 text-center text-gray-500">
+                <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6 text-center text-gray-500 dark:text-gray-400">
                   No past transactions available
                 </div>
               );
@@ -1000,18 +1074,18 @@ export default function Dashboard() {
                   const transactionCount = monthData.transactions.length;
                   
                   return (
-                    <div key={monthKey} className="bg-white shadow rounded-lg overflow-hidden">
+                    <div key={monthKey} className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg overflow-hidden">
                       {/* Month Header - Clickable */}
                       <button
                         onClick={() => toggleMonth(monthKey)}
-                        className="w-full px-6 py-4 text-left hover:bg-gray-50 focus:outline-none focus:bg-gray-50 transition-colors month-group-header"
+                        className="w-full px-6 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 transition-colors month-group-header"
                       >
                         <div className="flex items-center justify-between">
                           <div>
-                            <h3 className="text-lg font-medium text-gray-900">
+                            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
                               {monthData.label}
                             </h3>
-                            <p className="text-sm text-gray-500">
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
                               {transactionCount} transaction{transactionCount !== 1 ? 's' : ''}
                             </p>
                           </div>
@@ -1032,25 +1106,25 @@ export default function Dashboard() {
                       
                       {/* Month Transactions - Expandable */}
                       {isExpanded && (
-                        <div className="border-t border-gray-200 month-group-content">
+                        <div className="border-t border-gray-200 dark:border-gray-700 month-group-content">
                           {/* Mobile-friendly card layout for small screens */}
                           <div className="block sm:hidden">
                             <div className="p-4 space-y-3">
                               {monthData.transactions.map((tx) => (
-                                <div key={tx.id} className="bg-gray-50 rounded-lg p-4 transaction-card-mobile">
+                                <div key={tx.id} className="bg-gray-50 dark:bg-blink-dark rounded-lg p-4 transaction-card-mobile">
                                   <div className="flex items-center justify-between mb-2">
                                     <span className={`text-lg font-medium ${
-                                      tx.direction === 'RECEIVE' ? 'text-green-600' : 'text-red-600'
+                                      tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                                     }`}>
                                       {tx.amount}
                                     </span>
-                                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
                                       {tx.status}
                                     </span>
                                   </div>
-                                  <div className="text-sm text-gray-900 mb-1">{tx.date}</div>
+                                  <div className="text-sm text-gray-900 dark:text-gray-100 mb-1">{tx.date}</div>
                                   {tx.memo && tx.memo !== '-' && (
-                                    <div className="text-sm text-gray-500">{tx.memo}</div>
+                                    <div className="text-sm text-gray-500 dark:text-gray-400">{tx.memo}</div>
                                   )}
                                 </div>
                               ))}
@@ -1060,42 +1134,42 @@ export default function Dashboard() {
                           {/* Desktop table layout for larger screens */}
                           <div className="hidden sm:block">
                             <div className="overflow-x-auto">
-                              <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
+                              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                <thead className="bg-gray-50 dark:bg-blink-dark">
                                   <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                       Amount
                                     </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                       Status
                                     </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                       Date
                                     </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                       Memo
                                     </th>
                                   </tr>
                                 </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
+                                <tbody className="bg-white dark:bg-blink-dark divide-y divide-gray-200 dark:divide-gray-700">
                                   {monthData.transactions.map((tx) => (
-                                    <tr key={tx.id} className="hover:bg-gray-50">
+                                    <tr key={tx.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                                       <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`text-sm font-medium ${
-                                          tx.direction === 'RECEIVE' ? 'text-green-600' : 'text-red-600'
+                                          tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                                         }`}>
                                           {tx.amount}
                                         </span>
                                       </td>
                                       <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
                                           {tx.status}
                                         </span>
                                       </td>
-                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                                         {tx.date}
                                       </td>
-                                      <td className="px-6 py-4 text-sm text-gray-500">
+                                      <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
                                         {tx.memo && tx.memo !== '-' ? tx.memo : '-'}
                                       </td>
                                     </tr>

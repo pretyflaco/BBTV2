@@ -617,11 +617,6 @@ export default function Dashboard() {
                       {user.username}
                     </span>
                   )}
-                  {tipsEnabled && tipRecipient && (
-                    <span className="ml-2 text-gray-600 dark:text-gray-400">
-                      Tips: <span className="text-green-600 dark:text-green-400 font-medium">{tipRecipient}@blink.sv</span>
-                    </span>
-                  )}
                 </span>
               </div>
               
@@ -992,6 +987,15 @@ export default function Dashboard() {
                 Transaction History
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Cashier Display - Centered below POS switcher */}
+        {!showingInvoice && tipsEnabled && tipRecipient && (
+          <div className="flex justify-center mb-4">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Cashier: <span className="text-green-600 dark:text-green-400 font-medium">{tipRecipient}</span>
+            </span>
           </div>
         )}
 

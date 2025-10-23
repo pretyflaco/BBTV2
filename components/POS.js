@@ -249,6 +249,16 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
     // Play sound effect for keystroke
     playKeystrokeSound();
     
+    // Special handling for '0' as first digit: treat as "0." for fiat currencies
+    if (amount === '' && digit === '0') {
+      if (displayCurrency === 'BTC') {
+        setAmount('0');
+      } else {
+        setAmount('0.');
+      }
+      return;
+    }
+    
     if (amount === '0' && digit !== '.') {
       setAmount(digit);
     } else if (digit === '.' && amount.includes('.')) {
@@ -303,14 +313,13 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
   const handlePlusPress = () => {
     playKeystrokeSound();
     
+    // Silently ignore if no amount entered or amount is invalid
     if (!amount) {
-      setError('Enter an amount before adding');
       return;
     }
     
     const numericAmount = parseFloat(amount);
     if (isNaN(numericAmount) || numericAmount <= 0) {
-      setError('Enter a valid amount');
       return;
     }
     
@@ -605,7 +614,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
                   {amount && <span className="text-4xl text-gray-600 dark:text-gray-400"> + {amount}</span>}
                 </div>
               ) : (
-                amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency)
+                (amount === '0' || amount === '0.') ? (displayCurrency === 'BTC' ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency))
               )}
             </div>
             {selectedTipPercent > 0 && (
@@ -659,7 +668,8 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
           </button>
           <button
             onClick={handlePlusPress}
-            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center"
+            disabled={!amount || parseFloat(amount) <= 0}
+            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             +

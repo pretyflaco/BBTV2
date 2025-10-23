@@ -61,7 +61,7 @@ export default function LoginForm() {
             Blink POS
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-            Sign in with your Blink API key
+            Sign in with your Blink API key (READ + RECEIVE Scopes)
           </p>
         </div>
         
@@ -92,11 +92,11 @@ export default function LoginForm() {
                 type="button"
                 onClick={handlePasteFromClipboard}
                 disabled={pasting}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-blink-dark text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-black focus:ring-blink-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center px-6 py-3 rounded-full shadow-sm bg-gray-700 dark:bg-gray-700 text-base font-medium text-white hover:bg-gray-600 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-black focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {pasting ? (
                   <>
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
@@ -104,7 +104,7 @@ export default function LoginForm() {
                   </>
                 ) : (
                   <>
-                    <svg className="-ml-1 mr-2 h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="-ml-1 mr-2 h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
                     </svg>
                     Paste API Key from Clipboard
@@ -124,7 +124,7 @@ export default function LoginForm() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blink-accent hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-black focus:ring-blink-accent disabled:opacity-50"
+              className="group relative w-full flex justify-center py-4 px-6 border border-transparent text-xl font-bold rounded-full text-black bg-[#FFAD0D] hover:bg-[#D9930B] focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-black focus:ring-[#FFAD0D] disabled:opacity-50 shadow-lg"
             >
               {loading ? 'Signing in...' : 'Sign in'}
             </button>

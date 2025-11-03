@@ -1,4 +1,4 @@
-import '../public/css/globals.css';
+import '../styles/globals.css';
 import { AuthProvider } from '../lib/hooks/useAuth';
 import { useEffect } from 'react';
 import Head from 'next/head';

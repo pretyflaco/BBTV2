@@ -45,6 +45,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Copy database init script for health checks
 COPY --from=builder /app/database ./database
 
+# Create .data directory for user session storage with proper permissions
+USER root
+RUN mkdir -p /app/.data && chown -R nextjs:nodejs /app/.data
 USER nextjs
 
 EXPOSE 3000

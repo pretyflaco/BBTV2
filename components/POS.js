@@ -23,15 +23,17 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
 
   // Helper function to get dynamic font size based on amount length
   const getDynamicFontSize = (displayText) => {
-    const length = String(displayText).length;
+    // Extract only numeric characters (remove currency symbols, spaces, "sats", commas, etc.)
+    const numericOnly = String(displayText).replace(/[^0-9.]/g, '');
+    const length = numericOnly.length;
     
-    // Scale down font size as the number gets longer
-    if (length <= 6) return 'text-6xl';      // Standard size for short amounts
-    if (length <= 8) return 'text-5xl';      // Slightly smaller
-    if (length <= 10) return 'text-4xl';     // Medium
-    if (length <= 12) return 'text-3xl';     // Smaller
-    if (length <= 15) return 'text-2xl';     // Even smaller
-    return 'text-xl';                         // Minimum size for very long numbers
+    // Scale down font size every 3 additional digits (counting only the numbers)
+    if (length <= 9) return 'text-6xl';      // Standard size (up to 9 digits) - millions
+    if (length <= 12) return 'text-5xl';     // Slightly smaller (10-12 digits) - billions
+    if (length <= 15) return 'text-4xl';     // Medium (13-15 digits) - trillions
+    if (length <= 18) return 'text-3xl';     // Smaller (16-18 digits) - quadrillions
+    if (length <= 21) return 'text-2xl';     // Even smaller (19-21 digits)
+    return 'text-xl';                         // Minimum size (22+ digits)
   };
 
   // Handle tip selection and create invoice after state update

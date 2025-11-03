@@ -17,8 +17,9 @@ function MyApp({ Component, pageProps }) {
       document.documentElement.classList.remove('dark');
     }
     
-    // Register service worker for PWA functionality
-    if ('serviceWorker' in navigator) {
+    // Register service worker for PWA functionality (DISABLED IN DEVELOPMENT)
+    // Service Workers aggressively cache files which breaks hot reload during development
+    if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
       navigator.serviceWorker
         .register('/sw.js')
         .then((registration) => {
@@ -26,6 +27,14 @@ function MyApp({ Component, pageProps }) {
         })
         .catch((error) => {
           console.log('Service Worker registration failed:', error);
+        });
+    } else if ('serviceWorker' in navigator && process.env.NODE_ENV === 'development') {
+      // Unregister any existing service workers in development
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (let registration of registrations) {
+          registration.unregister();
+          console.log('🔥 Development mode: Service Worker unregistered');
+        }
         });
     }
 

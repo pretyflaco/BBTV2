@@ -1,5 +1,5 @@
 import BlinkAPI from '../../../lib/blink-api';
-const tipStore = require('../../../lib/tip-store');
+const { getHybridStore } = require('../../../lib/storage/hybrid-store');
 const { formatCurrencyServer } = require('../../../lib/currency-formatter-server');
 
 export default async function handler(req, res) {
@@ -25,16 +25,18 @@ export default async function handler(req, res) {
       });
     }
 
-    // Get tip metadata from store
-    const tipData = tipStore.getTipData(paymentHash);
+    // Get tip metadata from hybrid store
+    const hybridStore = await getHybridStore();
+    const tipData = await hybridStore.getTipData(paymentHash);
     
     if (!tipData) {
       console.log('❌ No tip data found for payment hash:', paymentHash);
-      console.log('📊 Current tip store contents:', tipStore.getStats());
+      const stats = await hybridStore.getStats();
+      console.log('📊 Current storage stats:', stats);
       return res.status(400).json({ 
         error: 'No tip data found for this payment',
         paymentHash: paymentHash,
-        tipStoreStats: tipStore.getStats()
+        storageStats: stats
       });
     }
 
@@ -226,8 +228,18 @@ export default async function handler(req, res) {
       }
     }
 
-    // Step 4: Clean up tip data
-    tipStore.removeTipData(paymentHash);
+    // Step 4: Update payment status and clean up
+    await hybridStore.updatePaymentStatus(paymentHash, 'processing');
+    
+    // Log forwarding event
+    await hybridStore.logEvent(paymentHash, 'forwarded', 'success', {
+      forwardedAmount: userAmount,
+      tipAmount: tipData.tipAmount,
+      tipRecipient: tipData.tipRecipient
+    });
+    
+    // Mark as completed (removes from hot storage)
+    await hybridStore.removeTipData(paymentHash);
 
     // Return success response
     res.status(200).json({

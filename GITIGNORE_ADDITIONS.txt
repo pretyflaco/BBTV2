@@ -1,0 +1,5 @@
+# Add to .gitignore (if not already present):
+backups/
+.tip-store.json.migrated
+*.backup.*
+docker-compose.override.yml

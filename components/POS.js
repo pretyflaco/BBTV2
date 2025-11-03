@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import QRCode from 'react-qr-code';
 import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
 
-const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipient, soundEnabled, onInvoiceStateChange }) => {
+const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipient, soundEnabled, onInvoiceStateChange, darkMode, toggleDarkMode }) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [creatingInvoice, setCreatingInvoice] = useState(false);
   const [error, setError] = useState('');
   const [selectedWallet, setSelectedWallet] = useState(null);
   const [exchangeRate, setExchangeRate] = useState(null);
@@ -17,6 +18,8 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
   const [selectedTipPercent, setSelectedTipPercent] = useState(0);
   const [showTipDialog, setShowTipDialog] = useState(false);
   const [pendingTipSelection, setPendingTipSelection] = useState(null);
+  const [showCustomTipInput, setShowCustomTipInput] = useState(false);
+  const [customTipValue, setCustomTipValue] = useState('');
 
   // Handle tip selection and create invoice after state update
   useEffect(() => {
@@ -259,6 +262,17 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
       return;
     }
     
+    // Special handling for '.' as first digit: treat same as '0' (i.e., "0." for fiat)
+    if (amount === '' && digit === '.') {
+      if (displayCurrency === 'BTC') {
+        // Don't allow decimal points for BTC (sats are integers)
+        return;
+      } else {
+        setAmount('0.');
+      }
+      return;
+    }
+    
     if (amount === '0' && digit !== '.') {
       setAmount(digit);
     } else if (digit === '.' && amount.includes('.')) {
@@ -398,6 +412,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
     }
 
     setLoading(true);
+    setCreatingInvoice(true);
     setError('');
 
     try {
@@ -504,8 +519,11 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
     } catch (err) {
       console.error('Invoice creation error:', err);
       setError(err.message || 'Failed to create invoice');
+      setCreatingInvoice(false);
     } finally {
       setLoading(false);
+      // Keep creatingInvoice true for a moment to show the animation
+      setTimeout(() => setCreatingInvoice(false), 500);
     }
   };
 
@@ -518,29 +536,122 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
     }
   };
 
+  // Show loading animation while creating invoice
+  if (creatingInvoice) {
+    // Calculate display values for loading state
+    const finalTotal = total + (parseFloat(amount) || 0);
+    const tipAmount = selectedTipPercent > 0 ? calculateTipAmount(finalTotal, selectedTipPercent) : 0;
+    const totalWithTip = finalTotal + tipAmount;
+
+    return (
+      <div className="h-full flex flex-col bg-white dark:bg-black" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+        {/* Error Message Space - Same as numpad view */}
+        <div className="mx-3 mt-1 min-h-[44px]"></div>
+
+        {/* Amount Display - Same as numpad */}
+        <div className="px-4 pt-2 pb-2">
+          <div className="text-center mb-4">
+            <div className="text-center">
+              <div className="text-6xl font-semibold text-gray-800 dark:text-gray-100 mb-1 min-h-[96px] flex items-center justify-center leading-none tracking-normal">
+                {total > 0 ? (
+                  <div>
+                    <span className="text-blink-accent">{formatDisplayAmount(total, displayCurrency)}</span>
+                    {amount && <span className="text-4xl text-gray-600 dark:text-gray-400"> + {amount}</span>}
+                  </div>
+                ) : (
+                  (amount === '0' || amount === '0.') ? (displayCurrency === 'BTC' ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency))
+                )}
+              </div>
+              {selectedTipPercent > 0 && (
+                <div className="text-2xl text-green-600 dark:text-green-400 font-semibold">
+                  + {selectedTipPercent}% tip ({formatDisplayAmount(tipAmount, displayCurrency)})
+                  <div className="text-3xl text-green-700 dark:text-green-400 mt-1">
+                    Total: {formatDisplayAmount(totalWithTip, displayCurrency)}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              <div className="mb-1 min-h-[20px]">
+                {items.length > 0 && (
+                  <div>
+                    Items: {items.join(' + ')}
+                    {amount && ` + ${amount}`}
+                    {total > 0 && amount && ` = ${formatDisplayAmount(total + (parseFloat(amount) || 0), displayCurrency)}`}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Loading Animation - Contained in center */}
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center bg-gray-50 dark:bg-blink-dark rounded-lg p-8 shadow-lg">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blink-accent mb-4"></div>
+            <div className="text-xl font-semibold text-gray-800 dark:text-gray-100">
+              Creating Invoice...
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (invoice) {
     return (
       <div className="h-full flex flex-col bg-white dark:bg-black" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-        {/* Header */}
-        <div className="bg-white dark:bg-blink-dark border-b border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between">
-          <button
-            onClick={handleClear}
-            className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 flex items-center"
-          >
-            <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-            </svg>
-            Cancel
-          </button>
-          <h2 className="text-xl font-bold text-black dark:text-white">Payment Request</h2>
-          <div className="w-8"></div>
+        {/* Header - Match main header structure exactly */}
+        <div className="bg-white dark:bg-blink-dark border-b border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-black">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between py-4">
+              {/* Blink Logo - Left */}
+              <div className="flex items-center">
+                <img 
+                  src="/logos/blink-icon-light.svg" 
+                  alt="Blink" 
+                  className="h-12 w-12 dark:hidden"
+                />
+                <img 
+                  src="/logos/blink-icon-dark.svg" 
+                  alt="Blink" 
+                  className="h-12 w-12 hidden dark:block"
+                />
+              </div>
+              
+              {/* Dark Mode Toggle - Right */}
+              <div className="flex items-center">
+                <button
+                  onClick={toggleDarkMode}
+                  className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:ring-offset-2 rounded"
+                  aria-label="Toggle dark mode"
+                >
+                  <span
+                    className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
+                      darkMode ? 'bg-blue-600 dark:bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
+                    }`}
+                  />
+                  <span
+                    className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
+                      darkMode ? 'bg-gray-300 dark:bg-gray-600' : 'bg-blink-accent'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Invoice Display */}
-        <div className="flex-1 p-6 flex flex-col items-center justify-center space-y-6">
-          {/* Amount */}
+        <div className="flex-1 flex flex-col">
+          {/* Error Message Space - Same as numpad view */}
+          <div className="mx-3 mt-1 min-h-[44px]"></div>
+
+          {/* Amount - Fixed at top position - Same as numpad */}
+          <div className="px-4 pt-2 pb-2">
+            <div className="text-center mb-4">
           <div className="text-center">
-            <div className="text-3xl font-bold text-gray-800 dark:text-gray-100">
+                <div className="text-6xl font-semibold text-gray-800 dark:text-gray-100 mb-1 min-h-[96px] flex items-center justify-center leading-none tracking-normal">
               {invoice.displayCurrency !== 'BTC' ? (
                 <div>
                   <div>{formatDisplayAmount(invoice.displayAmount, invoice.displayCurrency)}</div>
@@ -549,9 +660,16 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
               ) : (
                 formatDisplayAmount(invoice.amount, invoice.currency)
               )}
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  <div className="mb-1 min-h-[20px]"></div>
+                </div>
+              </div>
             </div>
           </div>
 
+          {/* QR Code and Invoice - Centered in remaining space */}
+          <div className="flex-1 flex flex-col items-center justify-center space-y-4 px-6">
           {/* QR Code */}
           <div className="bg-white dark:bg-white p-4 rounded-lg shadow-lg border-2 border-gray-200 dark:border-gray-600">
             <QRCode 
@@ -586,6 +704,18 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
                 </svg>
               </button>
             </div>
+            </div>
+          </div>
+
+          {/* Cancel Button - Bottom Left */}
+          <div className="px-4 pb-4 pt-6">
+            <button
+              onClick={handleClear}
+              className="w-full h-12 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+              style={{fontFamily: "'Source Sans Pro', sans-serif"}}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       </div>
@@ -595,7 +725,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
   return (
     <div className="h-full flex flex-col bg-white dark:bg-black relative" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
       {/* Error Message - Fixed height container to prevent layout shift */}
-      <div className="mx-3 mt-3 min-h-[44px]">
+      <div className="mx-3 mt-1 min-h-[44px]">
         {error && (
           <div className="bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 px-3 py-2 rounded text-sm animate-pulse">
             {error}
@@ -604,11 +734,16 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
       </div>
 
       {/* Compact Amount Display */}
-      <div className="p-4">
+      <div className="px-4 pt-2 pb-2">
         <div className="text-center mb-4">
           <div className="text-center">
             <div className="text-6xl font-semibold text-gray-800 dark:text-gray-100 mb-1 min-h-[96px] flex items-center justify-center leading-none tracking-normal" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-              {total > 0 ? (
+              {showTipDialog ? (
+                // When tip dialog is showing, show the combined total in white/black (not orange)
+                <div>
+                  <span className="text-gray-800 dark:text-white">{formatDisplayAmount(total + (parseFloat(amount) || 0), displayCurrency)}</span>
+                </div>
+              ) : total > 0 ? (
                 <div>
                   <span className="text-blink-accent">{formatDisplayAmount(total, displayCurrency)}</span>
                   {amount && <span className="text-4xl text-gray-600 dark:text-gray-400"> + {amount}</span>}
@@ -630,9 +765,9 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
             <div className="mb-1 min-h-[20px]">
               {items.length > 0 && (
                 <div>
-                  Items: {items.join(' + ')}
+                  {items.join(' + ')}
                   {amount && ` + ${amount}`}
-                  {total > 0 && amount && ` = ${formatDisplayAmount(total + (parseFloat(amount) || 0), displayCurrency)}`}
+                  {!showTipDialog && total > 0 && amount && ` = ${formatDisplayAmount(total + (parseFloat(amount) || 0), displayCurrency)}`}
                 </div>
               )}
             </div>
@@ -642,7 +777,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
       </div>
 
       {/* Redesigned Numpad */}
-      <div className="flex-1 px-4 pb-4">
+      <div className="flex-1 px-4 pb-4 relative">
         <div className="grid grid-cols-4 gap-3 max-w-sm mx-auto" data-1p-ignore data-lpignore="true">
           {/* Row 1: 1, 2, 3, + */}
           <button
@@ -761,55 +896,134 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
             </svg>
           </button>
-        </div>
-
       </div>
 
       {/* Tip Selection Overlay (over numpad) */}
-      {showTipDialog && (
-        <div className="absolute inset-0 bg-black bg-opacity-70 dark:bg-opacity-80 flex items-center justify-center z-30">
-          <div className="bg-white dark:bg-blink-dark rounded-lg p-6 max-w-sm w-full mx-4" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-            <h3 className="text-xl font-bold mb-4 text-center text-gray-800 dark:text-gray-100">Add Tip?</h3>
-            <div className="mb-4 text-center">
-              <div className="text-lg text-gray-700 dark:text-gray-300">
-                Order: {formatDisplayAmount(total + (parseFloat(amount) || 0), displayCurrency)}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              {(tipPresets || [10, 15, 20]).map(percent => (
+        {showTipDialog && !showCustomTipInput && (
+          <div className="absolute inset-0 bg-white dark:bg-black z-30">
+            <div className="grid grid-cols-4 gap-3 max-w-sm mx-auto" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+              <h3 className="col-span-4 text-xl font-bold mb-2 text-center text-gray-800 dark:text-white">Tip Options</h3>
+              
+              {/* Tip preset buttons in grid */}
+              {(tipPresets || [10, 15, 20]).slice(0, 2).map(percent => (
                 <button
                   key={percent}
                   onClick={() => {
                     setPendingTipSelection(percent);
                   }}
-                  className="h-16 bg-green-600 dark:bg-green-700 hover:bg-green-700 dark:hover:bg-green-600 text-white rounded-lg text-lg font-bold transition-colors shadow-lg"
+                  className="col-span-2 h-16 bg-white dark:bg-black border-2 border-green-500 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 rounded-lg text-lg font-normal transition-colors shadow-md"
                 >
                   {percent}%
-                  <div className="text-sm opacity-90">
+                  <div className="text-sm">
                     +{formatDisplayAmount(calculateTipAmount(total + (parseFloat(amount) || 0), percent), displayCurrency)}
                   </div>
                 </button>
               ))}
+              
+              {/* Second row of tip presets */}
+              {(tipPresets || [10, 15, 20]).slice(2, 4).map(percent => (
+                <button
+                  key={percent}
+                  onClick={() => {
+                    setPendingTipSelection(percent);
+                  }}
+                  className="col-span-2 h-16 bg-white dark:bg-black border-2 border-green-500 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                >
+                  {percent}%
+                  <div className="text-sm">
+                    +{formatDisplayAmount(calculateTipAmount(total + (parseFloat(amount) || 0), percent), displayCurrency)}
             </div>
-            <div className="flex gap-3">
+                </button>
+              ))}
+              
+              {/* Show Custom button when exactly 3 presets */}
+              {(tipPresets || []).length === 3 && (
+              <button
+                onClick={() => {
+                    setShowCustomTipInput(true);
+                    setCustomTipValue('');
+                }}
+                  className="col-span-2 h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+              >
+                  Custom
+              </button>
+              )}
+              
+              {/* Cancel and No Tip buttons */}
+              <button
+                onClick={() => setShowTipDialog(false)}
+                className="col-span-2 h-16 bg-white dark:bg-black border-2 border-red-500 hover:border-red-600 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+              >
+                Cancel
+              </button>
               <button
                 onClick={() => {
                   setPendingTipSelection(0);
                 }}
-                className="flex-1 h-12 bg-gray-500 dark:bg-gray-600 hover:bg-gray-600 dark:hover:bg-gray-700 text-white rounded-lg font-bold transition-colors"
+                className="col-span-2 h-16 bg-white dark:bg-black border-2 border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 rounded-lg text-lg font-normal transition-colors shadow-md"
               >
                 No Tip
               </button>
-              <button
-                onClick={() => setShowTipDialog(false)}
-                className="flex-1 h-12 bg-red-500 dark:bg-red-600 hover:bg-red-600 dark:hover:bg-red-700 text-white rounded-lg font-bold transition-colors"
-              >
-                Cancel
+            </div>
+          </div>
+        )}
+
+        {/* Custom Tip Input Overlay */}
+        {showTipDialog && showCustomTipInput && (
+          <div className="absolute inset-0 bg-white dark:bg-black flex items-center justify-center z-30">
+            <div className="max-w-sm w-full" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+              <h3 className="text-xl font-bold mb-4 text-center text-gray-800 dark:text-white">Custom Tip</h3>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 text-center">
+                  Enter Tip Percentage
+                </label>
+                <input
+                  type="number"
+                  value={customTipValue}
+                  onChange={(e) => setCustomTipValue(e.target.value)}
+                  placeholder="e.g., 15"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  className="w-full px-4 py-3 text-center text-2xl border-2 border-blue-600 dark:border-blue-500 rounded-lg bg-white dark:bg-blink-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600"
+                  autoFocus
+                />
+                {customTipValue && parseFloat(customTipValue) > 0 && (
+                  <div className="mt-2 text-center text-gray-600 dark:text-gray-400">
+                    +{formatDisplayAmount(calculateTipAmount(total + (parseFloat(amount) || 0), parseFloat(customTipValue)), displayCurrency)}
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => {
+                    setShowCustomTipInput(false);
+                    setCustomTipValue('');
+                  }}
+                  className="h-16 bg-white dark:bg-black border-2 border-gray-500 hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={() => {
+                    const tipPercent = parseFloat(customTipValue) || 0;
+                    if (tipPercent >= 0 && tipPercent <= 100) {
+                      setPendingTipSelection(tipPercent);
+                      setShowCustomTipInput(false);
+                      setCustomTipValue('');
+                    }
+                  }}
+                  disabled={!customTipValue || parseFloat(customTipValue) < 0 || parseFloat(customTipValue) > 100}
+                  className="h-16 bg-white dark:bg-black border-2 border-green-500 hover:border-green-600 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 disabled:border-gray-400 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-black rounded-lg text-lg font-normal transition-colors shadow-md"
+                >
+                  Apply
               </button>
             </div>
           </div>
         </div>
       )}
+
+      </div>
 
     </div>
   );

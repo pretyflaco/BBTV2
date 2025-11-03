@@ -1,5 +1,5 @@
 import BlinkAPI from '../../../lib/blink-api';
-const tipStore = require('../../../lib/tip-store');
+const { getHybridStore } = require('../../../lib/storage/hybrid-store');
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -80,9 +80,10 @@ export default async function handler(req, res) {
         throw new Error('Failed to create invoice');
       }
 
-      // Store tip metadata if there's a tip
+      // Store tip metadata if there's a tip (using hybrid storage)
       if (tipAmount > 0 && tipRecipient) {
-        tipStore.storeTipData(invoice.paymentHash, {
+        const hybridStore = await getHybridStore();
+        await hybridStore.storeTipData(invoice.paymentHash, {
           baseAmount: baseAmount || numericAmount,
           tipAmount: tipAmount,
           tipPercent: tipPercent,
@@ -91,7 +92,8 @@ export default async function handler(req, res) {
           userWalletId: userWalletId || walletId,
           displayCurrency: displayCurrency || 'BTC', // Store display currency for tip memo
           baseAmountDisplay: baseAmountDisplay, // Base amount in display currency
-          tipAmountDisplay: tipAmountDisplay // Tip amount in display currency
+          tipAmountDisplay: tipAmountDisplay, // Tip amount in display currency
+          memo: memo
         });
       }
 

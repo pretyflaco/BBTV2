@@ -50,3 +50,9 @@ server.log
 
 # Tip store (development persistence)
 .tip-store.json
+.tip-store.json.backup.*
+
+# Database backups
+*.sql
+*.rdb
+backup_*

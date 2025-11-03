@@ -41,9 +41,9 @@ export default function Dashboard() {
   const [tipPresets, setTipPresets] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('blinkpos-tip-presets');
-      return saved ? JSON.parse(saved) : [10, 15, 20]; // Default tip percentages
+      return saved ? JSON.parse(saved) : [7.5, 10, 12.5, 20]; // Default tip percentages
     }
-    return [10, 15, 20];
+    return [7.5, 10, 12.5, 20];
   });
   const [tipRecipient, setTipRecipient] = useState('');
   const [usernameValidation, setUsernameValidation] = useState({ status: null, message: '', isValidating: false });
@@ -246,16 +246,16 @@ export default function Dashboard() {
   );
   
   const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // ✅ Changed: Start as not loading
   const [error, setError] = useState('');
 
   // Ref for POS payment received callback
   const posPaymentReceivedRef = useRef(null);
 
-  // Fetch initial data
+  // Set display currency from user preference (removed immediate fetchData)
   useEffect(() => {
     if (user) {
-      fetchData();
+      // ✅ REMOVED: fetchData() - transactions now load ONLY when user clicks "Transactions" tab
       
       // Set display currency from user preference
       if (user.preferredCurrency) {
@@ -314,8 +314,17 @@ export default function Dashboard() {
     try {
       setLoading(true);
       
+      // ✅ ADDED: Fetch with 10 second timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      try {
       // Fetch transactions only (no balance for employee privacy)
-      const transactionsRes = await fetch('/api/blink/transactions?first=100');
+        const transactionsRes = await fetch('/api/blink/transactions?first=100', {
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
 
       if (transactionsRes.ok) {
         const transactionsData = await transactionsRes.json();
@@ -331,10 +340,17 @@ export default function Dashboard() {
         }
       } else {
         throw new Error('Failed to fetch transactions');
+        }
+      } catch (fetchErr) {
+        clearTimeout(timeoutId);
+        if (fetchErr.name === 'AbortError') {
+          throw new Error('Transaction loading timed out. Please try again.');
+        }
+        throw fetchErr;
       }
     } catch (err) {
       console.error('Fetch error:', err);
-      setError('Failed to load data');
+      setError(err.message || 'Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -594,7 +610,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-black">
+    <div className="min-h-screen bg-white dark:bg-black">
       {/* Payment Animation Overlay */}
       <PaymentAnimation 
         show={showAnimation} 
@@ -605,23 +621,11 @@ export default function Dashboard() {
 
       {/* Mobile Header - Hidden when showing invoice */}
       {!showingInvoice && (
-        <header className="bg-white dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-40">
+        <header className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center py-4 relative">
-              {/* User Status - Left */}
-              <div className="flex items-center flex-1">
-                <div className={`w-3 h-3 rounded-full mr-2 ${user ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                <span className="text-sm text-gray-600 dark:text-gray-300">
-                  {user?.username && (
-                    <span className="text-blink-accent font-medium">
-                      {user.username}
-                    </span>
-                  )}
-                </span>
-              </div>
-              
-              {/* Blink Logo - Center */}
-              <div className="absolute left-1/2 transform -translate-x-1/2">
+            <div className="flex items-center justify-between py-4">
+              {/* Blink Logo - Left */}
+              <div className="flex items-center">
                 <img 
                   src="/logos/blink-icon-light.svg" 
                   alt="Blink" 
@@ -634,8 +638,27 @@ export default function Dashboard() {
                 />
               </div>
               
-              {/* Menu Button - Right */}
-              <div className="flex-1 flex justify-end">
+              {/* Right Side: Dark Mode Toggle + Menu Button */}
+              <div className="flex items-center gap-3">
+                {/* Dark Mode Toggle */}
+                <button
+                  onClick={toggleDarkMode}
+                  className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:ring-offset-2 rounded"
+                  aria-label="Toggle dark mode"
+                >
+                  <span
+                    className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
+                      darkMode ? 'bg-blue-600 dark:bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
+                    }`}
+                  />
+                  <span
+                    className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
+                      darkMode ? 'bg-gray-300 dark:bg-gray-600' : 'bg-blink-accent'
+                    }`}
+                  />
+                </button>
+                
+                {/* Menu Button */}
                 <button
                   onClick={() => setSideMenuOpen(!sideMenuOpen)}
                   className="p-2 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-blink-dark focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
@@ -664,16 +687,21 @@ export default function Dashboard() {
             {/* Side menu panel */}
             <div className="pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-10">
               <div className="pointer-events-auto relative w-screen max-w-md side-menu-panel">
-                <div className="flex h-full flex-col overflow-y-scroll bg-white dark:bg-blink-dark py-6 shadow-xl side-menu-slide-in">
+                <div className="flex h-full flex-col overflow-y-scroll bg-white dark:bg-black py-6 shadow-xl side-menu-slide-in" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
                   <div className="px-4 sm:px-6">
                     <div className="flex items-start justify-between">
-                      <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100" id="slide-over-title">
-                        Blink POS
-                      </h2>
+                      {/* Logo */}
+                      <div className="flex items-center">
+                        <img 
+                          src={darkMode ? '/logos/blink-icon-dark.svg' : '/logos/blink-icon-light.svg'}
+                          alt="Blink Logo"
+                          className="h-8 w-8"
+                        />
+                      </div>
                       <div className="ml-3 flex h-7 items-center">
                         <button
                           type="button"
-                          className="rounded-md bg-white dark:bg-blink-dark text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-blink-dark"
+                          className="rounded-md bg-white dark:bg-black text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600 dark:focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-black"
                           onClick={() => setSideMenuOpen(false)}
                         >
                           <span className="sr-only">Close panel</span>
@@ -688,19 +716,19 @@ export default function Dashboard() {
                     {/* Menu content */}
                     <div className="space-y-6">
                       {/* Welcome message */}
-                      <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Welcome, {user?.username}</p>
+                      <div className="border-b border-gray-300 dark:border-gray-700 pb-4">
+                        <p className="text-sm text-gray-600 dark:text-white">Welcome, {user?.username}</p>
                       </div>
                       
                       {/* Currency Selection */}
-                      <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
-                        <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+                      <div className="border-b border-gray-300 dark:border-gray-700 pb-4">
+                        <label className="block text-sm font-bold text-gray-900 dark:text-white mb-2">
                           Display Currency
                         </label>
                         <select
                           value={displayCurrency}
                           onChange={(e) => setDisplayCurrency(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-blink-dark text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent text-sm"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-blink-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-transparent text-sm"
                           disabled={currenciesLoading}
                         >
                           {currenciesLoading ? (
@@ -716,57 +744,63 @@ export default function Dashboard() {
                       </div>
 
                       {/* Dark Mode Toggle */}
-                      <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
-                        <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                          Appearance
+                      <div className="border-b border-gray-300 dark:border-gray-700 pb-4">
+                        <label className="block text-sm font-bold text-gray-900 dark:text-white mb-2">
+                          Dark Mode
                         </label>
                         <div className="flex items-center">
                           <button
                             onClick={toggleDarkMode}
-                            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blink-accent focus:ring-offset-2 ${
-                              darkMode ? 'bg-blink-accent' : 'bg-gray-200'
-                            }`}
+                            className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:ring-offset-2 rounded"
                           >
                             <span
-                              className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition duration-200 ease-in-out ${
-                                darkMode ? 'translate-x-5' : 'translate-x-0'
+                              className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
+                                darkMode ? 'bg-blue-600 dark:bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
+                              }`}
+                            />
+                            <span
+                              className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
+                                darkMode ? 'bg-gray-300 dark:bg-gray-600' : 'bg-blink-accent'
                               }`}
                             />
                           </button>
-                          <span className="ml-3 text-sm text-gray-600 dark:text-gray-400">
-                            {darkMode ? 'Dark mode' : 'Light mode'}
+                          <span className="ml-3 text-sm text-gray-700 dark:text-white">
+                            {darkMode ? 'ON' : 'OFF'}
                           </span>
                         </div>
                       </div>
 
                       {/* Sound Settings */}
-                      <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
-                        <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+                      <div className="border-b border-gray-300 dark:border-gray-700 pb-4">
+                        <label className="block text-sm font-bold text-gray-900 dark:text-white mb-2">
                           Sound Effects
                         </label>
                         <div className="flex items-center">
                           <button
                             onClick={() => setSoundEnabled(!soundEnabled)}
-                            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blink-accent focus:ring-offset-2 ${
-                              soundEnabled ? 'bg-blink-accent' : 'bg-gray-200'
-                            }`}
+                            className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:ring-offset-2 rounded"
                           >
                             <span
-                              className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition duration-200 ease-in-out ${
-                                soundEnabled ? 'translate-x-5' : 'translate-x-0'
+                              className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
+                                soundEnabled ? 'bg-blue-600 dark:bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
+                              }`}
+                            />
+                            <span
+                              className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
+                                soundEnabled ? 'bg-gray-300 dark:bg-gray-600' : 'bg-blink-accent'
                               }`}
                             />
                           </button>
-                          <span className="ml-3 text-sm text-gray-600 dark:text-gray-400">
-                            {soundEnabled ? 'Cash register sound enabled' : 'Sound disabled'}
+                          <span className="ml-3 text-sm text-gray-700 dark:text-white">
+                            {soundEnabled ? 'ON' : 'OFF'}
                           </span>
                         </div>
                       </div>
 
                       {/* Tip Settings */}
-                      <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
-                        <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                          Tip Settings
+                      <div className="border-b border-gray-300 dark:border-gray-700 pb-4">
+                        <label className="block text-sm font-bold text-gray-900 dark:text-white mb-2">
+                          Tips
                         </label>
                         
                         <div className="space-y-4">
@@ -774,18 +808,21 @@ export default function Dashboard() {
                           <div className="flex items-center">
                             <button
                               onClick={() => setTipsEnabled(!tipsEnabled)}
-                              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blink-accent focus:ring-offset-2 ${
-                                tipsEnabled ? 'bg-blink-accent' : 'bg-gray-200'
-                              }`}
+                              className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:ring-offset-2 rounded"
                             >
                               <span
-                                className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition duration-200 ease-in-out ${
-                                  tipsEnabled ? 'translate-x-5' : 'translate-x-0'
+                                className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
+                                  tipsEnabled ? 'bg-blue-600 dark:bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
+                                }`}
+                              />
+                              <span
+                                className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
+                                  tipsEnabled ? 'bg-gray-300 dark:bg-gray-600' : 'bg-blink-accent'
                                 }`}
                               />
                             </button>
-                            <span className="ml-3 text-sm text-gray-600">
-                              {tipsEnabled ? 'Tips enabled' : 'Tips disabled'}
+                            <span className="ml-3 text-sm text-gray-700 dark:text-white">
+                              {tipsEnabled ? 'ON' : 'OFF'}
                             </span>
                           </div>
 
@@ -793,16 +830,16 @@ export default function Dashboard() {
                           {tipsEnabled && (
                             <>
                               <div>
-                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                  Employee Username (receives tips)
+                                <label className="block text-xs font-medium text-gray-700 dark:text-white mb-1">
+                                  Recipient
                                 </label>
                                 <div className="relative">
                                   <input
                                     type="text"
                                     value={tipRecipient}
                                     onChange={(e) => setTipRecipient(e.target.value)}
-                                    placeholder="Enter username"
-                                    className={`w-full px-2 py-1 text-sm border rounded-md bg-white dark:bg-blink-dark text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blink-accent focus:border-transparent ${
+                                    placeholder="Enter Blink username"
+                                    className={`w-full px-2 py-1 text-sm border rounded-md bg-white dark:bg-blink-dark text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-transparent ${
                                       usernameValidation.status === 'success' ? 'border-green-500' :
                                       usernameValidation.status === 'error' ? 'border-red-500' :
                                       'border-gray-300 dark:border-gray-600'
@@ -810,7 +847,7 @@ export default function Dashboard() {
                                   />
                                   {usernameValidation.isValidating && (
                                     <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
-                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blink-accent"></div>
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                                     </div>
                                   )}
                                   {usernameValidation.status === 'success' && (
@@ -820,22 +857,16 @@ export default function Dashboard() {
                                   )}
                                 </div>
                                 
-                                {/* Validation message */}
-                                {usernameValidation.message && (
-                                  <div className={`text-xs mt-1 ${
-                                    usernameValidation.status === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                                  }`}>
+                                {/* Validation message - only show errors */}
+                                {usernameValidation.message && usernameValidation.status === 'error' && (
+                                  <div className="text-xs mt-1 text-red-600 dark:text-red-400">
                                     {usernameValidation.message}
                                   </div>
                                 )}
-                                
-                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                  Tips sent to: {tipRecipient}@blink.sv
-                                </div>
                               </div>
 
                               <div>
-                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-xs font-medium text-gray-700 dark:text-white mb-1">
                                   Tip Presets (%)
                                 </label>
                                 <div className="flex gap-1 mb-2">
@@ -846,15 +877,15 @@ export default function Dashboard() {
                                         value={preset}
                                         onChange={(e) => {
                                           const newPresets = [...tipPresets];
-                                          newPresets[index] = parseInt(e.target.value) || 0;
+                                          newPresets[index] = parseFloat(e.target.value) || 0;
                                           setTipPresets(newPresets);
                                         }}
-                                        className="w-12 px-1 py-1 text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-blink-dark text-gray-900 dark:text-gray-100 rounded text-center"
+                                        className="w-12 px-1 py-1 text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-blink-dark text-gray-900 dark:text-white rounded text-center"
                                         min="0"
                                         max="100"
+                                        step="0.5"
                                       />
-                                      <span className="text-xs ml-1">%</span>
-                                      {tipPresets.length > 1 && (
+                                      {index === tipPresets.length - 1 && tipPresets.length > 1 && (
                                         <button
                                           onClick={() => setTipPresets(tipPresets.filter((_, i) => i !== index))}
                                           className="ml-1 text-red-500 hover:text-red-700 text-xs"
@@ -867,7 +898,7 @@ export default function Dashboard() {
                                 </div>
                                 <button
                                   onClick={() => setTipPresets([...tipPresets, 5])}
-                                  className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
+                                  className="text-xs bg-blink-accent hover:bg-orange-500 text-white px-2 py-1 rounded transition-colors"
                                 >
                                   Add
                                 </button>
@@ -878,27 +909,24 @@ export default function Dashboard() {
                       </div>
 
                       {/* Account Status */}
-                      <div className="border-b border-gray-200 pb-4">
-                        <h3 className="text-sm font-medium text-gray-900 mb-2">Account Status</h3>
+                      <div className="border-b border-gray-300 dark:border-gray-700 pb-4">
+                        <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Account Status</h3>
                         <div className="flex items-center">
                           <div className={`w-3 h-3 rounded-full mr-2 ${user ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                          <span className="text-sm text-gray-600">
+                          <span className="text-sm text-gray-700 dark:text-white">
                             {user?.username && (
                               <div>
                                 <span className="text-blink-accent font-medium">
                                   Logged in as {user.username}
                                 </span>
                                 {tipsEnabled && tipRecipient && (
-                                  <div className="mt-1 text-gray-600">
+                                  <div className="mt-1 text-gray-700 dark:text-white">
                                     Tips: <span className="text-green-600 font-medium">{tipRecipient}@blink.sv</span>
                                   </div>
                                 )}
                               </div>
                             )}
                           </span>
-                        </div>
-                        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                          Info: WebSocket connects automatically when creating invoices
                         </div>
                       </div>
                       
@@ -919,17 +947,6 @@ export default function Dashboard() {
                             Install App
                           </button>
                         )}
-                        
-                        <button
-                          onClick={() => {
-                            handleRefresh();
-                            setSideMenuOpen(false);
-                          }}
-                          disabled={loading}
-                          className="w-full bg-blue-500 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-bold py-3 px-4 rounded disabled:opacity-50 transition-colors mobile-button"
-                        >
-                          {loading ? 'Refreshing...' : 'Refresh Data'}
-                        </button>
                         
                         <button
                           onClick={() => {
@@ -962,40 +979,65 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* View Switch - Hidden when showing invoice */}
+        {/* Dot Navigation - Consistent position on all pages */}
         {!showingInvoice && (
-          <div className="flex justify-center mb-6">
-            <div className="bg-gray-100 dark:bg-blink-dark rounded-lg p-1 flex">
+          <div className="flex justify-center mt-4 mb-4 gap-2">
               <button
                 onClick={() => setCurrentView('pos')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              className={`w-2 h-2 rounded-full transition-colors ${
                   currentView === 'pos'
-                    ? 'bg-white dark:bg-blink-dark text-blink-accent shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                  ? 'bg-blink-accent'
+                  : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
                 }`}
-              >
-                Point of Sale
-              </button>
+              aria-label="POS"
+            />
               <button
                 onClick={() => setCurrentView('transactions')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              className={`w-2 h-2 rounded-full transition-colors ${
                   currentView === 'transactions'
-                    ? 'bg-white dark:bg-blink-dark text-blink-accent shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                  ? 'bg-blink-accent'
+                  : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
                 }`}
-              >
-                Transaction History
-              </button>
-            </div>
+              aria-label="History"
+            />
           </div>
         )}
 
-        {/* Cashier Display - Centered below POS switcher */}
-        {!showingInvoice && tipsEnabled && tipRecipient && (
-          <div className="flex justify-center mb-4">
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              Cashier: <span className="text-green-600 dark:text-green-400 font-medium">{tipRecipient}</span>
-            </span>
+        {/* Owner/Agent Display - Left aligned on POS only */}
+        {!showingInvoice && currentView === 'pos' && (
+          <div className="flex items-start mb-2 gap-3 bg-white dark:bg-black">
+            {/* Connection Visualization - Only show when both owner and agent are present AND username is valid */}
+            {tipsEnabled && tipRecipient && usernameValidation.status === 'success' ? (
+              <>
+                <img 
+                  src="/connect_light2.svg" 
+                  alt="Connected" 
+                  className="w-auto dark:hidden"
+                  style={{height: '38.4px'}}
+                />
+                <img 
+                  src="/connect_dark2.svg" 
+                  alt="Connected" 
+                  className="w-auto hidden dark:block"
+                  style={{height: '38.4px'}}
+                />
+                <div className="relative" style={{height: '38.4px', fontSize: '11.2px'}}>
+                  <span className="absolute text-blue-600 dark:text-blue-400 font-semibold" style={{top: '22%', transform: 'translateY(-50%)'}}>
+                    {user?.username || 'owner'}
+                  </span>
+                  <span className="absolute text-green-600 dark:text-green-400 font-semibold" style={{top: '78%', transform: 'translateY(-50%)'}}>
+                    {tipRecipient}
+                  </span>
+                </div>
+              </>
+            ) : (
+              /* Only Owner - Simple display */
+              <div style={{fontSize: '11.2px'}}>
+                <span className="text-blue-600 dark:text-blue-400 font-semibold">
+                  {user?.username || 'owner'}
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -1021,6 +1063,8 @@ export default function Dashboard() {
             tipRecipient={tipRecipient}
             soundEnabled={soundEnabled}
             onInvoiceStateChange={setShowingInvoice}
+            darkMode={darkMode}
+            toggleDarkMode={toggleDarkMode}
           />
         ) : (
           <>
@@ -1082,7 +1126,7 @@ export default function Dashboard() {
                       {/* Month Header - Clickable */}
                       <button
                         onClick={() => toggleMonth(monthKey)}
-                        className="w-full px-6 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 transition-colors month-group-header"
+                        className="w-full px-6 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:bg-white dark:focus:bg-gray-700 transition-colors month-group-header"
                       >
                         <div className="flex items-center justify-between">
                           <div>
@@ -1115,7 +1159,7 @@ export default function Dashboard() {
                           <div className="block sm:hidden">
                             <div className="p-4 space-y-3">
                               {monthData.transactions.map((tx) => (
-                                <div key={tx.id} className="bg-gray-50 dark:bg-blink-dark rounded-lg p-4 transaction-card-mobile">
+                                <div key={tx.id} className="bg-white dark:bg-blink-dark rounded-lg p-4 border border-gray-200 dark:border-gray-700 transaction-card-mobile">
                                   <div className="flex items-center justify-between mb-2">
                                     <span className={`text-lg font-medium ${
                                       tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
@@ -1139,7 +1183,7 @@ export default function Dashboard() {
                           <div className="hidden sm:block">
                             <div className="overflow-x-auto">
                               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                <thead className="bg-gray-50 dark:bg-blink-dark">
+                                <thead className="bg-white dark:bg-blink-dark">
                                   <tr>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                       Amount
@@ -1157,7 +1201,7 @@ export default function Dashboard() {
                                 </thead>
                                 <tbody className="bg-white dark:bg-blink-dark divide-y divide-gray-200 dark:divide-gray-700">
                                   {monthData.transactions.map((tx) => (
-                                    <tr key={tx.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                    <tr key={tx.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-blink-dark">
                                       <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`text-sm font-medium ${
                                           tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'

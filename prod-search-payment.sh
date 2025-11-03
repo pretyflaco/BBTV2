@@ -1,5 +1,5 @@
 #!/bin/bash
-# Search for a specific payment by hash (partial match)
+# Search for specific payment by hash in production database
 
 if [ -z "$1" ]; then
     echo "Usage: ./prod-search-payment.sh <payment_hash_prefix>"
@@ -9,10 +9,11 @@ fi
 
 HASH_PREFIX="$1"
 
-echo "🔍 Searching for payment starting with: $HASH_PREFIX"
+echo "🔍 Searching for payment: $HASH_PREFIX"
 echo ""
 
-echo "Payment Details:"
+echo "💳 Payment Details"
+echo "=================="
 ssh ubuntu@track.twentyone.ist "cd /var/www/blinkpos && docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos -c \"
 SELECT 
   payment_hash,
@@ -22,22 +23,29 @@ SELECT
   tip_recipient,
   display_currency,
   status,
-  created_at,
-  processed_at
+  memo,
+  TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI:SS') as created,
+  TO_CHAR(processed_at, 'YYYY-MM-DD HH24:MI:SS') as processed
 FROM payment_splits 
 WHERE payment_hash LIKE '$HASH_PREFIX%'
 ORDER BY created_at DESC;
 \""
 
 echo ""
-echo "Payment Events:"
+echo "📝 Full Event History (Audit Trail)"
+echo "==================================="
 ssh ubuntu@track.twentyone.ist "cd /var/www/blinkpos && docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos -c \"
 SELECT 
-  event_type,
-  event_status,
-  created_at
-FROM payment_events 
-WHERE payment_hash LIKE '$HASH_PREFIX%'
-ORDER BY created_at ASC;
+  ps.payment_hash,
+  ps.total_amount,
+  ps.tip_recipient,
+  pe.event_type,
+  pe.event_status,
+  pe.event_data,
+  TO_CHAR(pe.created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp
+FROM payment_splits ps
+LEFT JOIN payment_events pe ON ps.payment_hash = pe.payment_hash
+WHERE ps.payment_hash LIKE '$HASH_PREFIX%'
+ORDER BY pe.created_at ASC;
 \""
 

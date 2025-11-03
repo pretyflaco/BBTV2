@@ -953,7 +953,8 @@ export default function Dashboard() {
                             handleLogout();
                             setSideMenuOpen(false);
                           }}
-                          className="w-full bg-red-500 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700 text-white font-bold py-3 px-4 rounded transition-colors mobile-button"
+                          className="w-full h-12 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                          style={{fontFamily: "'Source Sans Pro', sans-serif"}}
                         >
                           Logout
                         </button>
@@ -1005,36 +1006,29 @@ export default function Dashboard() {
 
         {/* Owner/Agent Display - Left aligned on POS only */}
         {!showingInvoice && currentView === 'pos' && (
-          <div className="flex items-start mb-2 gap-3 bg-white dark:bg-black">
-            {/* Connection Visualization - Only show when both owner and agent are present AND username is valid */}
-            {tipsEnabled && tipRecipient && usernameValidation.status === 'success' ? (
-              <>
+          <div className="flex flex-col gap-1 mb-2 bg-white dark:bg-black">
+            {/* Owner Display - Always show when logged in */}
+            <div className="flex items-center gap-2">
+              <img 
+                src="/bluedot.svg" 
+                alt="Owner" 
+                className="w-2 h-2"
+              />
+              <span className="text-blue-600 dark:text-blue-400 font-semibold" style={{fontSize: '11.2px'}}>
+                {user?.username || 'owner'}
+              </span>
+            </div>
+            
+            {/* Agent Display - Show when agent is added and username is valid */}
+            {tipsEnabled && tipRecipient && usernameValidation.status === 'success' && (
+              <div className="flex items-center gap-2">
                 <img 
-                  src="/connect_light2.svg" 
-                  alt="Connected" 
-                  className="w-auto dark:hidden"
-                  style={{height: '38.4px'}}
+                  src="/greendot.svg" 
+                  alt="Agent" 
+                  className="w-2 h-2"
                 />
-                <img 
-                  src="/connect_dark2.svg" 
-                  alt="Connected" 
-                  className="w-auto hidden dark:block"
-                  style={{height: '38.4px'}}
-                />
-                <div className="relative" style={{height: '38.4px', fontSize: '11.2px'}}>
-                  <span className="absolute text-blue-600 dark:text-blue-400 font-semibold" style={{top: '22%', transform: 'translateY(-50%)'}}>
-                    {user?.username || 'owner'}
-                  </span>
-                  <span className="absolute text-green-600 dark:text-green-400 font-semibold" style={{top: '78%', transform: 'translateY(-50%)'}}>
-                    {tipRecipient}
-                  </span>
-                </div>
-              </>
-            ) : (
-              /* Only Owner - Simple display */
-              <div style={{fontSize: '11.2px'}}>
-                <span className="text-blue-600 dark:text-blue-400 font-semibold">
-                  {user?.username || 'owner'}
+                <span className="text-green-600 dark:text-green-400 font-semibold" style={{fontSize: '11.2px'}}>
+                  {tipRecipient}
                 </span>
               </div>
             )}

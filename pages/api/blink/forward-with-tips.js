@@ -118,7 +118,11 @@ export default async function handler(req, res) {
       );
       
       forwardingMemo = `BlinkPOS: ${enhancedMemo !== memo ? enhancedMemo : memo}`;
+    } else if (memo && tipData.tipRecipient && tipData.tipAmount === 0) {
+      // Tips enabled but customer chose "No Tip" - still show proper memo with recipient info
+      forwardingMemo = `BlinkPOS: ${memo} | No tip (recipient: ${tipData.tipRecipient})`;
     } else {
+      // Standard payment without tip system or no memo provided
       forwardingMemo = memo ? `BlinkPOS: ${memo}` : 'BlinkPOS: Payment forwarded';
     }
     

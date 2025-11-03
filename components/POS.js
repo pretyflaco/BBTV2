@@ -21,6 +21,19 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
   const [showCustomTipInput, setShowCustomTipInput] = useState(false);
   const [customTipValue, setCustomTipValue] = useState('');
 
+  // Helper function to get dynamic font size based on amount length
+  const getDynamicFontSize = (displayText) => {
+    const length = String(displayText).length;
+    
+    // Scale down font size as the number gets longer
+    if (length <= 6) return 'text-6xl';      // Standard size for short amounts
+    if (length <= 8) return 'text-5xl';      // Slightly smaller
+    if (length <= 10) return 'text-4xl';     // Medium
+    if (length <= 12) return 'text-3xl';     // Smaller
+    if (length <= 15) return 'text-2xl';     // Even smaller
+    return 'text-xl';                         // Minimum size for very long numbers
+  };
+
   // Handle tip selection and create invoice after state update
   useEffect(() => {
     if (pendingTipSelection !== null) {
@@ -462,7 +475,8 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
         if (effectiveTipPercent > 0) {
           memo = allItems.length > 1 ? `${allItems.join(' + ')} + ${effectiveTipPercent}% tip = ${totalWithTip} sats` : `${finalTotal} + ${effectiveTipPercent}% tip = ${totalWithTip} sats`;
         } else {
-          memo = allItems.length > 1 ? `${allItems.join(' + ')} = ${finalTotal} sats` : '';
+          // Even with no tip, include amount in memo to avoid Blink's default "From $username"
+          memo = allItems.length > 1 ? `${allItems.join(' + ')} = ${finalTotal} sats` : `${finalTotal} sats`;
         }
         finalTotalInSats = Math.round(totalWithTip);
       }
@@ -737,34 +751,52 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
       <div className="px-4 pt-2 pb-2">
         <div className="text-center mb-4">
           <div className="text-center">
-            <div className="text-6xl font-semibold text-gray-800 dark:text-gray-100 mb-1 min-h-[96px] flex items-center justify-center leading-none tracking-normal" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+            <div className={`font-semibold text-gray-800 dark:text-gray-100 mb-1 min-h-[96px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${
+              showTipDialog 
+                ? getDynamicFontSize(formatDisplayAmount(total + (parseFloat(amount) || 0), displayCurrency))
+                : total > 0 
+                  ? getDynamicFontSize(formatDisplayAmount(total, displayCurrency) + (amount ? ' + ' + amount : ''))
+                  : getDynamicFontSize((amount === '0' || amount === '0.') ? (displayCurrency === 'BTC' ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency)))
+            }`} style={{fontFamily: "'Source Sans Pro', sans-serif", wordBreak: 'break-all'}}>
               {showTipDialog ? (
                 // When tip dialog is showing, show the combined total in white/black (not orange)
-                <div>
+                <div className="max-w-full">
                   <span className="text-gray-800 dark:text-white">{formatDisplayAmount(total + (parseFloat(amount) || 0), displayCurrency)}</span>
                 </div>
               ) : total > 0 ? (
-                <div>
+                <div className="max-w-full flex flex-wrap items-center justify-center gap-2">
                   <span className="text-blink-accent">{formatDisplayAmount(total, displayCurrency)}</span>
-                  {amount && <span className="text-4xl text-gray-600 dark:text-gray-400"> + {amount}</span>}
+                  {amount && (
+                    <span className={`text-gray-600 dark:text-gray-400 ${
+                      // Secondary amount is 2 sizes smaller than main amount
+                      getDynamicFontSize(amount) === 'text-6xl' ? 'text-4xl' :
+                      getDynamicFontSize(amount) === 'text-5xl' ? 'text-3xl' :
+                      getDynamicFontSize(amount) === 'text-4xl' ? 'text-2xl' :
+                      getDynamicFontSize(amount) === 'text-3xl' ? 'text-xl' :
+                      getDynamicFontSize(amount) === 'text-2xl' ? 'text-lg' :
+                      'text-base'
+                    }`}> + {amount}</span>
+                  )}
                 </div>
               ) : (
-                (amount === '0' || amount === '0.') ? (displayCurrency === 'BTC' ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency))
+                <div className="max-w-full">
+                  {(amount === '0' || amount === '0.') ? (displayCurrency === 'BTC' ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency))}
+                </div>
               )}
             </div>
             {selectedTipPercent > 0 && (
-              <div className="text-2xl text-green-600 dark:text-green-400 font-semibold">
+              <div className={`text-green-600 dark:text-green-400 font-semibold max-w-full overflow-hidden px-2 ${getDynamicFontSize(formatDisplayAmount(getTipAmount(), displayCurrency)) === 'text-6xl' ? 'text-2xl' : getDynamicFontSize(formatDisplayAmount(getTipAmount(), displayCurrency)) === 'text-5xl' ? 'text-xl' : 'text-lg'}`}>
                 + {selectedTipPercent}% tip ({formatDisplayAmount(getTipAmount(), displayCurrency)})
-                <div className="text-3xl text-green-700 dark:text-green-400 mt-1">
+                <div className={`text-green-700 dark:text-green-400 mt-1 max-w-full ${getDynamicFontSize(formatDisplayAmount(getTotalWithTip(), displayCurrency))}`} style={{wordBreak: 'break-all'}}>
                   Total: {formatDisplayAmount(getTotalWithTip(), displayCurrency)}
                 </div>
               </div>
             )}
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-400">
-            <div className="mb-1 min-h-[20px]">
+            <div className="mb-1 min-h-[20px] max-w-full overflow-x-auto px-2">
               {items.length > 0 && (
-                <div>
+                <div className="whitespace-nowrap">
                   {items.join(' + ')}
                   {amount && ` + ${amount}`}
                   {!showTipDialog && total > 0 && amount && ` = ${formatDisplayAmount(total + (parseFloat(amount) || 0), displayCurrency)}`}

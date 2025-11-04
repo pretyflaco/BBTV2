@@ -974,7 +974,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
 
       {/* Tip Selection Overlay (over numpad) */}
         {showTipDialog && !showCustomTipInput && (
-          <div className="absolute inset-0 bg-white dark:bg-black flex items-center justify-center z-30">
+          <div className="absolute inset-0 bg-white dark:bg-black z-30 pt-24">
             <div className="grid grid-cols-4 gap-3 max-w-sm mx-auto" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
               <h3 className="col-span-4 text-xl font-bold mb-2 text-center text-gray-800 dark:text-white">Tip Options</h3>
               

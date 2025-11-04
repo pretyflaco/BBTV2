@@ -1,15 +1,29 @@
 import { useEffect, useRef } from 'react';
 
-export default function PaymentAnimation({ show, payment, onHide, soundEnabled = true }) {
+// Sound theme configuration
+const SOUND_THEMES = {
+  success: {
+    nfc: '/connect.mp3',
+    payment: '/success.mp3',
+  },
+  zelda: {
+    nfc: '/botw_connect.mp3',
+    payment: '/botw_shrine.mp3',
+  },
+};
+
+export default function PaymentAnimation({ show, payment, onHide, soundEnabled = true, soundTheme = 'success' }) {
   const audioRef = useRef(null);
 
   // Play sound when animation shows
   useEffect(() => {
     if (show && soundEnabled) {
       try {
+        const themeConfig = SOUND_THEMES[soundTheme] || SOUND_THEMES.success;
+        
         // Create or reuse audio element
-        if (!audioRef.current) {
-          audioRef.current = new Audio('/success.mp3');
+        if (!audioRef.current || audioRef.current.src !== themeConfig.payment) {
+          audioRef.current = new Audio(themeConfig.payment);
           audioRef.current.volume = 0.7; // Set volume to 70%
         }
         
@@ -22,7 +36,7 @@ export default function PaymentAnimation({ show, payment, onHide, soundEnabled =
         console.log('Audio playback error:', error);
       }
     }
-  }, [show, soundEnabled]);
+  }, [show, soundEnabled, soundTheme]);
 
   if (!show) return null;
 

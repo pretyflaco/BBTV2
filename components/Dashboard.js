@@ -31,6 +31,15 @@ export default function Dashboard() {
     }
     return true;
   }); // Sound effects on/off
+  
+  const [soundTheme, setSoundTheme] = useState(() => {
+    // Load sound theme from localStorage, default to 'success'
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('soundTheme');
+      return saved || 'success';
+    }
+    return 'success';
+  });
 
   // Tip functionality state
   const [tipsEnabled, setTipsEnabled] = useState(() => {
@@ -49,6 +58,7 @@ export default function Dashboard() {
   const [tipRecipient, setTipRecipient] = useState('');
   const [usernameValidation, setUsernameValidation] = useState({ status: null, message: '', isValidating: false });
   const [showingInvoice, setShowingInvoice] = useState(false);
+  const [showSoundThemes, setShowSoundThemes] = useState(false);
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
   
@@ -58,6 +68,13 @@ export default function Dashboard() {
       localStorage.setItem('soundEnabled', JSON.stringify(soundEnabled));
     }
   }, [soundEnabled]);
+  
+  // Save sound theme to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('soundTheme', soundTheme);
+    }
+  }, [soundTheme]);
 
   // Persist tip settings to localStorage
   useEffect(() => {
@@ -256,6 +273,7 @@ export default function Dashboard() {
       console.error('NFC payment error:', error);
     },
     soundEnabled,
+    soundTheme,
   });
   
   const [transactions, setTransactions] = useState([]);
@@ -633,6 +651,7 @@ export default function Dashboard() {
         payment={lastPayment}
         onHide={hideAnimation}
         soundEnabled={soundEnabled}
+        soundTheme={soundTheme}
       />
 
       {/* Mobile Header - Hidden when showing invoice */}
@@ -791,7 +810,7 @@ export default function Dashboard() {
                         <label className="block text-sm font-bold text-gray-900 dark:text-white mb-2">
                           Sound Effects
                         </label>
-                        <div className="flex items-center">
+                        <div className="flex items-center mb-3">
                           <button
                             onClick={() => setSoundEnabled(!soundEnabled)}
                             className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:ring-offset-2 rounded"
@@ -811,6 +830,17 @@ export default function Dashboard() {
                             {soundEnabled ? 'ON' : 'OFF'}
                           </span>
                         </div>
+                        
+                        {/* Sound Themes button (only show when sound is ON) */}
+                        {soundEnabled && (
+                          <button
+                            onClick={() => setShowSoundThemes(true)}
+                            className="w-full flex items-center justify-between px-3 py-2 text-sm bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-md transition-colors"
+                          >
+                            <span>Sound Themes</span>
+                            <span className="text-gray-500 dark:text-gray-400">›</span>
+                          </button>
+                        )}
                       </div>
 
                       {/* Tip Settings */}
@@ -978,6 +1008,91 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sound Themes Overlay */}
+      {showSoundThemes && (
+        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+          <div className="min-h-screen">
+            {/* Header */}
+            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center h-16">
+                  <button
+                    onClick={() => setShowSoundThemes(false)}
+                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
+                  >
+                    <span className="text-2xl mr-2">‹</span>
+                    <span className="text-lg">Back</span>
+                  </button>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                    Sound Themes
+                  </h1>
+                  <div className="w-16"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Sound Themes List */}
+            <div className="max-w-md mx-auto px-4 py-6">
+              <div className="space-y-3">
+                {/* Success Theme */}
+                <button
+                  onClick={() => {
+                    setSoundTheme('success');
+                    setShowSoundThemes(false);
+                  }}
+                  className={`w-full p-4 rounded-lg border-2 transition-all ${
+                    soundTheme === 'success'
+                      ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-left">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                        Success
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Classic payment sounds
+                      </p>
+                    </div>
+                    {soundTheme === 'success' && (
+                      <div className="text-blue-600 dark:text-blue-400 text-2xl">✓</div>
+                    )}
+                  </div>
+                </button>
+
+                {/* Zelda Theme */}
+                <button
+                  onClick={() => {
+                    setSoundTheme('zelda');
+                    setShowSoundThemes(false);
+                  }}
+                  className={`w-full p-4 rounded-lg border-2 transition-all ${
+                    soundTheme === 'zelda'
+                      ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-left">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                        Zelda
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Breath of the Wild sounds
+                      </p>
+                    </div>
+                    {soundTheme === 'zelda' && (
+                      <div className="text-blue-600 dark:text-blue-400 text-2xl">✓</div>
+                    )}
+                  </div>
+                </button>
               </div>
             </div>
           </div>

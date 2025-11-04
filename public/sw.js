@@ -1,11 +1,16 @@
 // Service Worker for Blink POS
-const CACHE_NAME = 'blink-tracker-v5-2025-11-04-swipe-fix'; // Update this version when deploying changes
+const CACHE_NAME = 'blink-tracker-v6-2025-11-04-sound-themes'; // Update this version when deploying changes
 const urlsToCache = [
   '/',
   '/manifest.json',
   '/icons/icon-192x192.svg',
   '/icons/icon-512x512.svg',
-  '/favicon.svg'
+  '/favicon.svg',
+  '/connect.mp3',
+  '/success.mp3',
+  '/botw_connect.mp3',
+  '/botw_shrine.mp3',
+  '/click.mp3'
 ];
 
 // Install event - cache key resources

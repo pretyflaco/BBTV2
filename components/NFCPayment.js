@@ -21,8 +21,20 @@ const decodeNDEFRecord = (record) => {
   return decoder.decode(buffer);
 };
 
+// Sound theme configuration
+const SOUND_THEMES = {
+  success: {
+    nfc: '/connect.mp3',
+    payment: '/success.mp3',
+  },
+  zelda: {
+    nfc: '/botw_connect.mp3',
+    payment: '/botw_shrine.mp3',
+  },
+};
+
 // Hook to manage NFC state and functionality
-export const useNFC = ({ paymentRequest, onPaymentSuccess, onPaymentError, soundEnabled }) => {
+export const useNFC = ({ paymentRequest, onPaymentSuccess, onPaymentError, soundEnabled, soundTheme = 'success' }) => {
   const [hasNFCPermission, setHasNFCPermission] = useState(false);
   const [nfcMessage, setNfcMessage] = useState('');
   const [isNfcSupported, setIsNfcSupported] = useState(false);
@@ -162,15 +174,16 @@ export const useNFC = ({ paymentRequest, onPaymentSuccess, onPaymentError, sound
         return;
       }
 
-      // Play payment sound if enabled (only once per payment)
+      // Play NFC tap sound if enabled (only once per payment)
       if (soundEnabled && !soundPlayedRef.current) {
         soundPlayedRef.current = true;
         try {
-          const sound = new Audio('/connect.mp3');
+          const themeConfig = SOUND_THEMES[soundTheme] || SOUND_THEMES.success;
+          const sound = new Audio(themeConfig.nfc);
           sound.volume = 0.5;
           await sound.play();
         } catch (error) {
-          console.error('Failed to play payment sound:', error);
+          console.error('Failed to play NFC tap sound:', error);
         }
       }
 
@@ -231,7 +244,7 @@ export const useNFC = ({ paymentRequest, onPaymentSuccess, onPaymentError, sound
         soundPlayedRef.current = false; // Reset sound flag for next payment
       }
     })();
-  }, [nfcMessage, paymentRequest, soundEnabled, onPaymentSuccess, onPaymentError]);
+  }, [nfcMessage, paymentRequest, soundEnabled, soundTheme, onPaymentSuccess, onPaymentError]);
 
   // Return the state and control functions
   return {

@@ -98,12 +98,13 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
     }
   }, [onPaymentReceived, onInvoiceChange]);
 
-  // Notify parent when invoice state changes
+  // Notify parent when invoice or tip dialog state changes
   useEffect(() => {
     if (onInvoiceStateChange) {
-      onInvoiceStateChange(!!invoice);
+      // Consider both invoice and tip dialog as "showing invoice" state
+      onInvoiceStateChange(!!invoice || showTipDialog);
     }
-  }, [invoice, onInvoiceStateChange]);
+  }, [invoice, showTipDialog, onInvoiceStateChange]);
 
 
   const fetchExchangeRate = async () => {

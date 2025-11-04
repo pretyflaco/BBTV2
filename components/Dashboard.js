@@ -511,9 +511,12 @@ export default function Dashboard() {
     const isLeftSwipe = distance > 50;
     const isRightSwipe = distance < -50;
 
-    // Left swipe: POS → Transactions
+    // Only allow swipe navigation when:
+    // - On POS numpad screen (not showing invoice/tips)
+    // - On transactions screen
+    // Left swipe: POS → Transactions (only when not showing invoice/tips)
     // Right swipe: Transactions → POS
-    if (isLeftSwipe && currentView === 'pos') {
+    if (isLeftSwipe && currentView === 'pos' && !showingInvoice) {
       setCurrentView('transactions');
     } else if (isRightSwipe && currentView === 'transactions') {
       setCurrentView('pos');

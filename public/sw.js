@@ -1,5 +1,5 @@
 // Service Worker for Blink POS
-const CACHE_NAME = 'blink-tracker-v2-2025-01-01'; // Update this version when deploying changes
+const CACHE_NAME = 'blink-tracker-v3-2025-11-04-nfc'; // Update this version when deploying changes
 const urlsToCache = [
   '/',
   '/manifest.json',

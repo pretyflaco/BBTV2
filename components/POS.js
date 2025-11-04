@@ -262,7 +262,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
   // Play keystroke sound
   const playKeystrokeSound = () => {
     if (soundEnabled) {
-      const audio = new Audio('/stroke1.mp3');
+      const audio = new Audio('/click.mp3');
       audio.volume = 0.3; // Set volume to 30% to avoid being too loud
       audio.play().catch(console.error);
     }

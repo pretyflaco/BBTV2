@@ -9,7 +9,7 @@ export default function PaymentAnimation({ show, payment, onHide, soundEnabled =
       try {
         // Create or reuse audio element
         if (!audioRef.current) {
-          audioRef.current = new Audio('/ping.mp3');
+          audioRef.current = new Audio('/success.mp3');
           audioRef.current.volume = 0.7; // Set volume to 70%
         }
         

@@ -166,7 +166,7 @@ export const useNFC = ({ paymentRequest, onPaymentSuccess, onPaymentError, sound
       if (soundEnabled && !soundPlayedRef.current) {
         soundPlayedRef.current = true;
         try {
-          const sound = new Audio('/chaching.mp3');
+          const sound = new Audio('/connect.mp3');
           sound.volume = 0.5;
           await sound.play();
         } catch (error) {

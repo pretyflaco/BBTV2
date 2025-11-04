@@ -651,7 +651,7 @@ Callback Executes:
        memo: "$2.00 + 10% tip = $2.20 (23 sats)"
      })
   
-  2. Play sound: /ping.mp3
+  2. Play sound: /success.mp3
   
   3. Clear POS invoice (via posPaymentReceivedRef)
   
@@ -686,7 +686,7 @@ Animation Display:
   └──────────────────────────────────────┘
 
 Background: Green (rgba(34, 197, 94, 0.95))
-Sound: ping.mp3 plays
+Sound: success.mp3 plays
 Duration: Until user taps screen
 
        │

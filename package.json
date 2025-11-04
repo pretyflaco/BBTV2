@@ -11,6 +11,7 @@
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "crypto-js": "^4.2.0",
+    "js-lnurl": "^0.6.0",
     "jsonwebtoken": "^9.0.0",
     "next": "12.3.4",
     "pg": "^8.16.3",

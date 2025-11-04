@@ -13,7 +13,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Configuration - HARDCODED TO PREVENT MISTAKES
-PROD_SERVER="track.twentyone.ist"
+PROD_SERVER="170.75.172.111"  # track.twentyone.ist
 PROD_USER="ubuntu"
 PROD_PATH="/var/www/blinkpos"
 GITHUB_REPO="https://github.com/pretyflaco/BBTV2.git"
@@ -61,13 +61,13 @@ print_info "GitHub Branch: ${CYAN}${BRANCH}${NC}"
 echo ""
 
 # Verify server
-if [ "$PROD_SERVER" != "track.twentyone.ist" ]; then
-    print_error "WRONG SERVER! Must be track.twentyone.ist"
+if [ "$PROD_SERVER" != "170.75.172.111" ]; then
+    print_error "WRONG SERVER! Must be 170.75.172.111 (track.twentyone.ist)"
     print_error "Current target: $PROD_SERVER"
     exit 1
 fi
 
-print_success "Server verified: track.twentyone.ist ✅"
+print_success "Server verified: 170.75.172.111 (track.twentyone.ist) ✅"
 echo ""
 
 # Step 1: Check for uncommitted changes

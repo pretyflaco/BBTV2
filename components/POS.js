@@ -28,13 +28,14 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
     const numericOnly = String(displayText).replace(/[^0-9.]/g, '');
     const length = numericOnly.length;
     
-    // Scale down font size every 3 additional digits (counting only the numbers)
-    if (length <= 9) return 'text-6xl';      // Standard size (up to 9 digits) - millions
-    if (length <= 12) return 'text-5xl';     // Slightly smaller (10-12 digits) - billions
-    if (length <= 15) return 'text-4xl';     // Medium (13-15 digits) - trillions
-    if (length <= 18) return 'text-3xl';     // Smaller (16-18 digits) - quadrillions
-    if (length <= 21) return 'text-2xl';     // Even smaller (19-21 digits)
-    return 'text-xl';                         // Minimum size (22+ digits)
+    // More aggressive scaling to prevent word breaks on mobile
+    if (length <= 6) return 'text-6xl';      // Standard size (up to 6 digits) - 999,999
+    if (length <= 9) return 'text-5xl';      // (7-9 digits) - millions
+    if (length <= 11) return 'text-4xl';     // (10-11 digits) - billions
+    if (length <= 13) return 'text-3xl';     // (12-13 digits) - trillions
+    if (length <= 15) return 'text-2xl';     // (14-15 digits) - quadrillions
+    if (length <= 16) return 'text-xl';      // (16 digits) - max bitcoin supply
+    return 'text-lg';                         // Minimum size (17+ digits - shouldn't happen)
   };
 
   // Handle tip selection and create invoice after state update
@@ -272,12 +273,24 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
     // Play sound effect for keystroke
     playKeystrokeSound();
     
-    // Check if adding this digit would exceed 14 numeric digits (max cap)
+    // Maximum bitcoin supply in sats: 21,000,000 BTC * 100,000,000 sats/BTC = 2,100,000,000,000,000 sats
+    const MAX_SATS = 2100000000000000;
+    
+    // Check if adding this digit would exceed the maximum bitcoin supply
     if (digit !== '.') {
+      const newAmount = amount + digit;
+      const numericValue = parseFloat(newAmount.replace(/[^0-9.]/g, ''));
+      
+      // For BTC currency, the amount is in sats already
+      if (displayCurrency === 'BTC' && numericValue > MAX_SATS) {
+        return; // Don't allow exceeding max bitcoin supply
+      }
+      
+      // For fiat currencies, we can't validate until we have exchange rate,
+      // but we cap at 16 digits as a reasonable limit
       const currentNumericDigits = amount.replace(/[^0-9]/g, '').length;
-      if (currentNumericDigits >= 14) {
-        // Already at max 14 digits, don't allow more
-        return;
+      if (currentNumericDigits >= 16) {
+        return; // Already at max 16 digits
       }
     }
     
@@ -799,7 +812,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
                 : total > 0 
                   ? getDynamicFontSize(formatDisplayAmount(total, displayCurrency) + (amount ? ' + ' + amount : ''))
                   : getDynamicFontSize((amount === '0' || amount === '0.') ? (displayCurrency === 'BTC' ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency)))
-            }`} style={{fontFamily: "'Source Sans Pro', sans-serif", wordBreak: 'break-all'}}>
+            }`} style={{fontFamily: "'Source Sans Pro', sans-serif", wordBreak: 'keep-all', overflowWrap: 'normal'}}>
               {showTipDialog ? (
                 // When tip dialog is showing, show the combined total in white/black (not orange)
                 <div className="max-w-full">
@@ -829,7 +842,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
             {selectedTipPercent > 0 && (
               <div className={`text-green-600 dark:text-green-400 font-semibold max-w-full overflow-hidden px-2 ${getDynamicFontSize(formatDisplayAmount(getTipAmount(), displayCurrency)) === 'text-6xl' ? 'text-2xl' : getDynamicFontSize(formatDisplayAmount(getTipAmount(), displayCurrency)) === 'text-5xl' ? 'text-xl' : 'text-lg'}`}>
                 + {selectedTipPercent}% tip ({formatDisplayAmount(getTipAmount(), displayCurrency)})
-                <div className={`text-green-700 dark:text-green-400 mt-1 max-w-full ${getDynamicFontSize(formatDisplayAmount(getTotalWithTip(), displayCurrency))}`} style={{wordBreak: 'break-all'}}>
+                <div className={`text-green-700 dark:text-green-400 mt-1 max-w-full ${getDynamicFontSize(formatDisplayAmount(getTotalWithTip(), displayCurrency))}`} style={{wordBreak: 'keep-all', overflowWrap: 'normal'}}>
                   Total: {formatDisplayAmount(getTotalWithTip(), displayCurrency)}
                 </div>
               </div>

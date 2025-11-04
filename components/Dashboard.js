@@ -4,6 +4,7 @@ import { useBlinkWebSocket } from '../lib/hooks/useBlinkWebSocket';
 import { useBlinkPOSWebSocket } from '../lib/hooks/useBlinkPOSWebSocket';
 import { useCurrencies } from '../lib/hooks/useCurrencies';
 import { useDarkMode } from '../lib/hooks/useDarkMode';
+import { useNFC } from './NFCPayment';
 import PaymentAnimation from './PaymentAnimation';
 import POS from './POS';
 
@@ -244,6 +245,22 @@ export default function Dashboard() {
       fetchData();
     }
   );
+
+  // Track current invoice for NFC payments
+  const [currentInvoice, setCurrentInvoice] = useState(null);
+  
+  // Setup NFC for Boltcard payments
+  const nfcState = useNFC({
+    paymentRequest: currentInvoice,
+    onPaymentSuccess: () => {
+      console.log('🎉 NFC Boltcard payment successful');
+      // Payment will be picked up by BlinkPOS WebSocket
+    },
+    onPaymentError: (error) => {
+      console.error('NFC payment error:', error);
+    },
+    soundEnabled,
+  });
   
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false); // ✅ Changed: Start as not loading
@@ -1004,33 +1021,62 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Owner/Agent Display - Left aligned on POS only */}
+        {/* Owner/Agent Display with NFC Icon - Left and right aligned on POS only */}
         {!showingInvoice && currentView === 'pos' && (
-          <div className="flex flex-col gap-1 mb-2 bg-white dark:bg-black">
-            {/* Owner Display - Always show when logged in */}
-            <div className="flex items-center gap-2">
-              <img 
-                src="/bluedot.svg" 
-                alt="Owner" 
-                className="w-2 h-2"
-              />
-              <span className="text-blue-600 dark:text-blue-400 font-semibold" style={{fontSize: '11.2px'}}>
-                {user?.username || 'owner'}
-              </span>
-            </div>
-            
-            {/* Agent Display - Show when agent is added and username is valid */}
-            {tipsEnabled && tipRecipient && usernameValidation.status === 'success' && (
+          <div className="flex items-start justify-between mb-2 bg-white dark:bg-black">
+            {/* Left side: Owner/Agent Display */}
+            <div className="flex flex-col gap-1">
+              {/* Owner Display - Always show when logged in */}
               <div className="flex items-center gap-2">
                 <img 
-                  src="/greendot.svg" 
-                  alt="Agent" 
+                  src="/bluedot.svg" 
+                  alt="Owner" 
                   className="w-2 h-2"
                 />
-                <span className="text-green-600 dark:text-green-400 font-semibold" style={{fontSize: '11.2px'}}>
-                  {tipRecipient}
+                <span className="text-blue-600 dark:text-blue-400 font-semibold" style={{fontSize: '11.2px'}}>
+                  {user?.username || 'owner'}
                 </span>
               </div>
+              
+              {/* Agent Display - Show when agent is added and username is valid */}
+              {tipsEnabled && tipRecipient && usernameValidation.status === 'success' && (
+                <div className="flex items-center gap-2">
+                  <img 
+                    src="/greendot.svg" 
+                    alt="Agent" 
+                    className="w-2 h-2"
+                  />
+                  <span className="text-green-600 dark:text-green-400 font-semibold" style={{fontSize: '11.2px'}}>
+                    {tipRecipient}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Right side: NFC Icon - Show only if NFC is supported */}
+            {nfcState.isNfcSupported && (
+              <button
+                onClick={nfcState.activateNfcScan}
+                className="flex items-center justify-center p-1 transition-all hover:scale-110"
+                aria-label={nfcState.hasNFCPermission ? "NFC Activated" : "Activate NFC"}
+                disabled={nfcState.hasNFCPermission}
+                title={nfcState.hasNFCPermission ? "NFC Activated - Tap card on invoice screen" : "Click to activate NFC for Boltcard payments"}
+              >
+                <img 
+                  src="/nfc.svg" 
+                  alt="NFC" 
+                  className={`w-7 h-7 transition-all ${
+                    nfcState.hasNFCPermission 
+                      ? 'brightness-0 saturate-100' 
+                      : ''
+                  }`}
+                  style={{
+                    filter: nfcState.hasNFCPermission 
+                      ? 'invert(48%) sepia(79%) saturate(2476%) hue-rotate(86deg) brightness(98%) contrast(119%)' // Green
+                      : 'invert(48%) sepia(79%) saturate(2476%) hue-rotate(190deg) brightness(98%) contrast(119%)' // Blue
+                  }}
+                />
+              </button>
             )}
           </div>
         )}
@@ -1057,8 +1103,10 @@ export default function Dashboard() {
             tipRecipient={tipRecipient}
             soundEnabled={soundEnabled}
             onInvoiceStateChange={setShowingInvoice}
+            onInvoiceChange={setCurrentInvoice}
             darkMode={darkMode}
             toggleDarkMode={toggleDarkMode}
+            nfcState={nfcState}
           />
         ) : (
           <>

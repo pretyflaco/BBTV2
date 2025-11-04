@@ -21,7 +21,8 @@ const decodeNDEFRecord = (record) => {
   return decoder.decode(buffer);
 };
 
-const NFCPayment = ({ paymentRequest, onPaymentSuccess, onPaymentError, soundEnabled }) => {
+// Hook to manage NFC state and functionality
+export const useNFC = ({ paymentRequest, onPaymentSuccess, onPaymentError, soundEnabled }) => {
   const [hasNFCPermission, setHasNFCPermission] = useState(false);
   const [nfcMessage, setNfcMessage] = useState('');
   const [isNfcSupported, setIsNfcSupported] = useState(false);
@@ -222,44 +223,17 @@ const NFCPayment = ({ paymentRequest, onPaymentSuccess, onPaymentError, soundEna
     })();
   }, [nfcMessage, paymentRequest, soundEnabled, onPaymentSuccess, onPaymentError]);
 
-  // Don't show anything if invoice hasn't been created yet
-  if (paymentRequest) {
-    return null;
-  }
-
-  // Show activation button when no invoice is present
-  return (
-    <div className="w-full mb-3">
-      <button
-        onClick={activateNfcScan}
-        disabled={hasNFCPermission || !isNfcSupported || isProcessing}
-        className={`w-full h-12 rounded-lg text-base font-normal transition-colors shadow-md ${
-          hasNFCPermission
-            ? 'bg-green-100 dark:bg-green-900 border-2 border-green-500 dark:border-green-400 text-green-700 dark:text-green-300 cursor-default'
-            : !isNfcSupported
-            ? 'bg-gray-200 dark:bg-gray-700 border-2 border-gray-400 dark:border-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-            : 'bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300'
-        }`}
-        style={{ fontFamily: "'Source Sans Pro', sans-serif" }}
-      >
-        {!isNfcSupported
-          ? '🚫 Boltcard not supported on this device'
-          : hasNFCPermission
-          ? '✓ Boltcard activated - Ready to scan'
-          : '📱 Activate Boltcard payments'}
-      </button>
-      
-      {isProcessing && (
-        <div className="mt-2 text-center">
-          <div className="inline-flex items-center gap-2 text-blue-600 dark:text-blue-400">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 dark:border-blue-400"></div>
-            <span className="text-sm">Processing Boltcard payment...</span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  // Return the state and control functions
+  return {
+    isNfcSupported,
+    hasNFCPermission,
+    isProcessing,
+    activateNfcScan,
+  };
 };
 
-export default NFCPayment;
+// Default export for backwards compatibility (though not used anymore)
+export default function NFCPayment() {
+  return null;
+}
 

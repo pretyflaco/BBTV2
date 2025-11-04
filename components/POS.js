@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import QRCode from 'react-qr-code';
 import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
-import NFCPayment from './NFCPayment';
+import { useNFC } from './NFCPayment';
 
-const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipient, soundEnabled, onInvoiceStateChange, darkMode, toggleDarkMode }) => {
+const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipient, soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState }) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -81,6 +81,9 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
       const clearInvoiceOnPayment = () => {
         console.log('Payment received - clearing invoice and returning to numpad');
         setInvoice(null);
+        if (onInvoiceChange) {
+          onInvoiceChange(null);
+        }
         setAmount('');
         setTotal(0);
         setItems([]);
@@ -93,7 +96,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
       // Set up the callback
       onPaymentReceived.current = clearInvoiceOnPayment;
     }
-  }, [onPaymentReceived]);
+  }, [onPaymentReceived, onInvoiceChange]);
 
   // Notify parent when invoice state changes
   useEffect(() => {
@@ -336,6 +339,9 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
     setTotal(0);
     setItems([]);
     setInvoice(null);
+    if (onInvoiceChange) {
+      onInvoiceChange(null);
+    }
     setError('');
     // Reset all tip-related state
     setSelectedTipPercent(0);
@@ -538,6 +544,10 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
           satAmount: finalTotalInSats
         };
         setInvoice(enhancedInvoice);
+        // Notify parent of invoice creation for NFC scanning
+        if (onInvoiceChange) {
+          onInvoiceChange(data.invoice.paymentRequest);
+        }
       } else {
         throw new Error('Invalid response from server');
       }
@@ -696,20 +706,6 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
 
           {/* QR Code and Invoice - Centered in remaining space */}
           <div className="flex-1 flex flex-col items-center justify-center space-y-4 px-6">
-          {/* NFC Payment Component */}
-          <NFCPayment 
-            paymentRequest={invoice.paymentRequest}
-            onPaymentSuccess={() => {
-              console.log('NFC payment successful via Boltcard');
-              // Payment will be picked up by WebSocket
-            }}
-            onPaymentError={(error) => {
-              console.error('NFC payment error:', error);
-              setError(error);
-            }}
-            soundEnabled={soundEnabled}
-          />
-          
           {/* QR Code */}
           <div className="bg-white dark:bg-white p-4 rounded-lg shadow-lg border-2 border-gray-200 dark:border-gray-600">
             <QRCode 
@@ -832,14 +828,6 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
           </div>
         </div>
 
-      </div>
-
-      {/* NFC Payment Activation (when no invoice) */}
-      <div className="px-4">
-        <NFCPayment 
-          paymentRequest={null}
-          soundEnabled={soundEnabled}
-        />
       </div>
 
       {/* Redesigned Numpad */}

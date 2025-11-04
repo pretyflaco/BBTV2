@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 // TODO: refine the interface
 const decodeNDEFRecord = (record) => {
@@ -27,6 +27,8 @@ export const useNFC = ({ paymentRequest, onPaymentSuccess, onPaymentError, sound
   const [nfcMessage, setNfcMessage] = useState('');
   const [isNfcSupported, setIsNfcSupported] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const ndefReaderRef = useRef(null);
+  const soundPlayedRef = useRef(false);
 
   const handleNFCScan = async () => {
     if (typeof window === 'undefined' || !('NDEFReader' in window)) {
@@ -34,9 +36,16 @@ export const useNFC = ({ paymentRequest, onPaymentSuccess, onPaymentError, sound
       return;
     }
 
+    // If we already have an active reader, don't create a new one
+    if (ndefReaderRef.current) {
+      console.log('NFC reader already active, skipping new scan setup');
+      return;
+    }
+
     console.log('NFC is supported, starting scan...');
 
     const ndef = new NDEFReader();
+    ndefReaderRef.current = ndef;
 
     try {
       await ndef.scan();
@@ -58,6 +67,7 @@ export const useNFC = ({ paymentRequest, onPaymentSuccess, onPaymentError, sound
       };
     } catch (error) {
       console.error(`Error! Scan failed to start: ${error}`);
+      ndefReaderRef.current = null; // Reset on error
     }
   };
 
@@ -119,6 +129,15 @@ export const useNFC = ({ paymentRequest, onPaymentSuccess, onPaymentError, sound
     if (hasNFCPermission) {
       handleNFCScan();
     }
+    
+    // Cleanup function
+    return () => {
+      if (ndefReaderRef.current) {
+        console.log('Cleaning up NFC reader');
+        // Note: NDEFReader doesn't have a stop() method, but we clear the ref
+        ndefReaderRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasNFCPermission]);
 
@@ -143,8 +162,9 @@ export const useNFC = ({ paymentRequest, onPaymentSuccess, onPaymentError, sound
         return;
       }
 
-      // Play payment sound if enabled
-      if (soundEnabled) {
+      // Play payment sound if enabled (only once per payment)
+      if (soundEnabled && !soundPlayedRef.current) {
+        soundPlayedRef.current = true;
         try {
           const sound = new Audio('/chaching.mp3');
           sound.volume = 0.5;
@@ -208,6 +228,7 @@ export const useNFC = ({ paymentRequest, onPaymentSuccess, onPaymentError, sound
       } finally {
         setIsProcessing(false);
         setNfcMessage(''); // Reset for next scan
+        soundPlayedRef.current = false; // Reset sound flag for next payment
       }
     })();
   }, [nfcMessage, paymentRequest, soundEnabled, onPaymentSuccess, onPaymentError]);

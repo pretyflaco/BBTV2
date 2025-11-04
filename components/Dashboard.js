@@ -226,11 +226,7 @@ export default function Dashboard() {
         isForwarded: true
       });
       
-      // Play sound if enabled
-      if (soundEnabled) {
-        const audio = new Audio('/ping.mp3');
-        audio.play().catch(console.error);
-      }
+      // Note: Sound is played by PaymentAnimation component, not here
       
       // Clear POS invoice
       if (posPaymentReceivedRef.current) {

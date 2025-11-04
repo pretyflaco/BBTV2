@@ -655,6 +655,25 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
                 />
               </div>
               
+              {/* NFC Icon - Center (only if supported) */}
+              {nfcState && nfcState.isNfcSupported && (
+                <div className="absolute left-1/2 transform -translate-x-1/2">
+                  <button
+                    onClick={nfcState.activateNfcScan}
+                    disabled={nfcState.hasNFCPermission}
+                    className="flex items-center justify-center transition-all hover:scale-110 disabled:cursor-default"
+                    aria-label={nfcState.hasNFCPermission ? "NFC Activated" : "Activate NFC"}
+                    title={nfcState.hasNFCPermission ? "NFC ready - tap your card now" : "Click to activate NFC"}
+                  >
+                    <img 
+                      src={nfcState.hasNFCPermission ? "/greennfc.svg" : "/bluenfc.svg"}
+                      alt="NFC" 
+                      className="h-10 w-10"
+                    />
+                  </button>
+                </div>
+              )}
+              
               {/* Dark Mode Toggle - Right */}
               <div className="flex items-center">
                 <button

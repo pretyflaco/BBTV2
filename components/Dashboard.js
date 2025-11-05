@@ -19,6 +19,8 @@ export default function Dashboard() {
   const [hasMoreTransactions, setHasMoreTransactions] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [pastTransactionsLoaded, setPastTransactionsLoaded] = useState(false);
+  const [showExportOptions, setShowExportOptions] = useState(false);
+  const [exportingData, setExportingData] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [currentView, setCurrentView] = useState('pos'); // 'transactions' or 'pos'
@@ -503,6 +505,171 @@ export default function Dashboard() {
 
   const handleRefresh = () => {
     fetchData();
+  };
+
+  // Export all transactions to CSV
+  const exportFullTransactions = async () => {
+    setExportingData(true);
+    try {
+      // Fetch ALL transactions by paginating through all pages
+      let allTransactions = [];
+      let hasMore = true;
+      let cursor = null;
+      
+      while (hasMore) {
+        const url = cursor 
+          ? `/api/blink/transactions?first=100&after=${cursor}`
+          : '/api/blink/transactions?first=100';
+        
+        const response = await fetch(url);
+        
+        if (response.ok) {
+          const data = await response.json();
+          allTransactions = [...allTransactions, ...data.transactions];
+          hasMore = data.pageInfo?.hasNextPage || false;
+          cursor = data.pageInfo?.endCursor;
+        } else {
+          break;
+        }
+      }
+      
+      console.log(`Fetched ${allTransactions.length} total transactions for export`);
+      
+      // Convert transactions to CSV format
+      const csv = convertTransactionsToCSV(allTransactions);
+      
+      // Generate filename with date and username
+      const date = new Date();
+      const dateStr = date.getFullYear() + 
+                      String(date.getMonth() + 1).padStart(2, '0') + 
+                      String(date.getDate()).padStart(2, '0');
+      const username = user?.username || 'user';
+      const filename = `${dateStr}-${username}-transactions-blink.csv`;
+      
+      // Trigger download
+      downloadCSV(csv, filename);
+      
+      setShowExportOptions(false);
+    } catch (error) {
+      console.error('Error exporting transactions:', error);
+      alert('Failed to export transactions. Please try again.');
+    } finally {
+      setExportingData(false);
+    }
+  };
+
+  // Convert transactions to CSV format matching Blink's schema
+  const convertTransactionsToCSV = (txs) => {
+    // CSV Header
+    const header = 'id,walletId,type,credit,debit,fee,currency,timestamp,pendingConfirmation,journalId,lnMemo,usd,feeUsd,recipientWalletId,username,memoFromPayer,paymentHash,pubkey,feeKnownInAdvance,address,txHash,displayAmount,displayFee,displayCurrency';
+    
+    // CSV Rows
+    const rows = txs.map(tx => {
+      // Extract data from transaction
+      const id = tx.id || '';
+      const walletId = tx.walletId || '';
+      const type = tx.settlementVia?.__typename === 'SettlementViaLn' ? 'ln_on_us' : 
+                   tx.settlementVia?.__typename === 'SettlementViaOnChain' ? 'onchain' : 
+                   tx.settlementVia?.__typename === 'SettlementViaIntraLedger' ? 'intraledger' : '';
+      const credit = tx.direction === 'RECEIVE' ? Math.abs(tx.settlementAmount) : 0;
+      const debit = tx.direction === 'SEND' ? Math.abs(tx.settlementAmount) : 0;
+      const fee = tx.settlementFee || 0;
+      const currency = tx.settlementCurrency || 'BTC';
+      const timestamp = tx.createdAt ? new Date(parseInt(tx.createdAt) * 1000).toString() : '';
+      const pendingConfirmation = tx.status === 'PENDING' ? 'true' : 'false';
+      const journalId = tx.journalId || '';
+      const lnMemo = tx.memo || '';
+      const usd = tx.settlementDisplayAmount || '';
+      const feeUsd = tx.settlementDisplayFee || '';
+      const recipientWalletId = '';
+      const username = tx.initiationVia?.counterPartyUsername || '';
+      const memoFromPayer = '';
+      const paymentHash = tx.initiationVia?.paymentHash || '';
+      const pubkey = '';
+      const feeKnownInAdvance = 'false';
+      const address = tx.initiationVia?.address || '';
+      const txHash = tx.initiationVia?.paymentHash || '';
+      const displayAmount = Math.abs(tx.settlementAmount);
+      const displayFee = tx.settlementFee || 0;
+      const displayCurrency = tx.settlementDisplayCurrency || 'USD';
+      
+      // Escape commas and quotes in fields
+      const escape = (field) => {
+        const str = String(field);
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+      
+      return [
+        escape(id),
+        escape(walletId),
+        escape(type),
+        escape(credit),
+        escape(debit),
+        escape(fee),
+        escape(currency),
+        escape(timestamp),
+        escape(pendingConfirmation),
+        escape(journalId),
+        escape(lnMemo),
+        escape(usd),
+        escape(feeUsd),
+        escape(recipientWalletId),
+        escape(username),
+        escape(memoFromPayer),
+        escape(paymentHash),
+        escape(pubkey),
+        escape(feeKnownInAdvance),
+        escape(address),
+        escape(txHash),
+        escape(displayAmount),
+        escape(displayFee),
+        escape(displayCurrency)
+      ].join(',');
+    });
+    
+    return [header, ...rows].join('\n');
+  };
+
+  // Download CSV file
+  const downloadCSV = (csvContent, filename) => {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    
+    // Check if native share is available (for mobile)
+    if (navigator.share && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+      // Create a File object for sharing
+      const file = new File([blob], filename, { type: 'text/csv' });
+      
+      navigator.share({
+        files: [file],
+        title: 'Blink Transactions Export',
+        text: 'Transaction history from Blink'
+      }).catch((error) => {
+        console.log('Share failed, falling back to download:', error);
+        // Fallback to regular download
+        triggerDownload(blob, filename);
+      });
+    } else {
+      // Regular download for desktop or if share not available
+      triggerDownload(blob, filename);
+    }
+  };
+
+  // Trigger download via link
+  const triggerDownload = (blob, filename) => {
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
   };
 
   const handleLogout = () => {
@@ -1174,6 +1341,89 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Export Options Overlay */}
+      {showExportOptions && (
+        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+          <div className="min-h-screen">
+            {/* Header */}
+            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center h-16">
+                  <button
+                    onClick={() => setShowExportOptions(false)}
+                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
+                  >
+                    <span className="text-2xl mr-2">‹</span>
+                    <span className="text-lg">Back</span>
+                  </button>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                    Export Options
+                  </h1>
+                  <div className="w-16"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Export Options List */}
+            <div className="max-w-md mx-auto px-4 py-6">
+              <div className="space-y-3">
+                {/* Basic Export - Placeholder */}
+                <button
+                  onClick={() => {
+                    // Placeholder - no action yet
+                    alert('Basic export coming soon!');
+                  }}
+                  className="w-full p-4 rounded-lg border-2 border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600 transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-left">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                        Basic
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Simple transaction summary (coming soon)
+                      </p>
+                    </div>
+                    <div className="text-gray-400 text-xl">›</div>
+                  </div>
+                </button>
+
+                {/* Full Export */}
+                <button
+                  onClick={exportFullTransactions}
+                  disabled={exportingData}
+                  className="w-full p-4 rounded-lg border-2 border-yellow-500 dark:border-yellow-400 bg-white dark:bg-blink-dark hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-left">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                        Full
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {exportingData ? 'Exporting complete transaction history...' : 'Complete transaction history (CSV)'}
+                      </p>
+                    </div>
+                    {exportingData ? (
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-yellow-600 dark:border-yellow-400"></div>
+                    ) : (
+                      <div className="text-yellow-600 dark:text-yellow-400 text-xl">↓</div>
+                    )}
+                  </div>
+                </button>
+              </div>
+              
+              {/* Info Text */}
+              <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <strong>Full Export</strong> will download all transaction history as a CSV file. 
+                  On mobile devices, you'll have the option to save or share the file with other apps.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <main 
         className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 mobile-content"
         onTouchStart={handleTouchStart}
@@ -1467,10 +1717,7 @@ export default function Dashboard() {
               
               {/* Export Button */}
               <button
-                onClick={() => {
-                  // Placeholder for now
-                  console.log('Export clicked');
-                }}
+                onClick={() => setShowExportOptions(true)}
                 className="h-16 bg-white dark:bg-black border-2 border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 rounded-lg text-lg font-normal transition-colors shadow-md"
                 style={{fontFamily: "'Source Sans Pro', sans-serif"}}
               >

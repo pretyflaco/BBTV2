@@ -565,32 +565,97 @@ export default function Dashboard() {
     
     // CSV Rows
     const rows = txs.map(tx => {
-      // Extract data from transaction
-      const id = tx.id || '';
-      const walletId = tx.walletId || '';
-      const type = tx.settlementVia?.__typename === 'SettlementViaLn' ? 'ln_on_us' : 
-                   tx.settlementVia?.__typename === 'SettlementViaOnChain' ? 'onchain' : 
-                   tx.settlementVia?.__typename === 'SettlementViaIntraLedger' ? 'intraledger' : '';
-      const credit = tx.direction === 'RECEIVE' ? Math.abs(tx.settlementAmount) : 0;
-      const debit = tx.direction === 'SEND' ? Math.abs(tx.settlementAmount) : 0;
-      const fee = tx.settlementFee || 0;
+      // Determine transaction type from settlementVia
+      let type = '';
+      if (tx.settlementVia?.__typename === 'SettlementViaLn') {
+        type = 'ln_on_us';
+      } else if (tx.settlementVia?.__typename === 'SettlementViaOnChain') {
+        type = 'onchain';
+      } else if (tx.settlementVia?.__typename === 'SettlementViaIntraLedger') {
+        type = 'intraledger';
+      }
+      
+      // Calculate credit/debit based on direction and amount
+      const absoluteAmount = Math.abs(tx.settlementAmount || 0);
+      const credit = tx.direction === 'RECEIVE' ? absoluteAmount : 0;
+      const debit = tx.direction === 'SEND' ? absoluteAmount : 0;
+      
+      // Fee handling
+      const fee = Math.abs(tx.settlementFee || 0);
+      
+      // Currency
       const currency = tx.settlementCurrency || 'BTC';
+      
+      // Timestamp - convert Unix timestamp to readable format
       const timestamp = tx.createdAt ? new Date(parseInt(tx.createdAt) * 1000).toString() : '';
-      const pendingConfirmation = tx.status === 'PENDING' ? 'true' : 'false';
-      const journalId = tx.journalId || '';
+      
+      // Pending confirmation
+      const pendingConfirmation = tx.status === 'PENDING';
+      
+      // Journal ID (not available from GraphQL, leave empty)
+      const journalId = '';
+      
+      // Memo
       const lnMemo = tx.memo || '';
+      
+      // Display amounts (USD or other fiat)
       const usd = tx.settlementDisplayAmount || '';
       const feeUsd = tx.settlementDisplayFee || '';
-      const recipientWalletId = '';
-      const username = tx.initiationVia?.counterPartyUsername || '';
+      
+      // Recipient wallet ID and username
+      let recipientWalletId = '';
+      let username = '';
+      
+      // Try to get from initiationVia first (for sends)
+      if (tx.initiationVia?.__typename === 'InitiationViaIntraLedger') {
+        username = tx.initiationVia.counterPartyUsername || '';
+        recipientWalletId = tx.initiationVia.counterPartyWalletId || '';
+      }
+      
+      // Try settlementVia next (for receives)
+      if (!username && tx.settlementVia?.__typename === 'SettlementViaIntraLedger') {
+        username = tx.settlementVia.counterPartyUsername || '';
+        recipientWalletId = tx.settlementVia.counterPartyWalletId || '';
+      }
+      
+      // Memo from payer (not available separately, using main memo)
       const memoFromPayer = '';
-      const paymentHash = tx.initiationVia?.paymentHash || '';
+      
+      // Payment hash
+      let paymentHash = '';
+      if (tx.initiationVia?.__typename === 'InitiationViaLn') {
+        paymentHash = tx.initiationVia.paymentHash || '';
+      }
+      // Also check for preImage in settlementVia
+      if (!paymentHash && tx.settlementVia?.preImage) {
+        paymentHash = tx.settlementVia.preImage;
+      }
+      
+      // Pubkey (not available from GraphQL)
       const pubkey = '';
-      const feeKnownInAdvance = 'false';
-      const address = tx.initiationVia?.address || '';
-      const txHash = tx.initiationVia?.paymentHash || '';
-      const displayAmount = Math.abs(tx.settlementAmount);
-      const displayFee = tx.settlementFee || 0;
+      
+      // Fee known in advance (Lightning fees are known, onchain are estimates)
+      const feeKnownInAdvance = type === 'ln_on_us' || type === 'intraledger';
+      
+      // Address (for onchain)
+      let address = '';
+      if (tx.initiationVia?.__typename === 'InitiationViaOnChain') {
+        address = tx.initiationVia.address || '';
+      }
+      
+      // Transaction hash (for onchain)
+      let txHash = '';
+      if (tx.settlementVia?.__typename === 'SettlementViaOnChain') {
+        txHash = tx.settlementVia.transactionHash || '';
+      }
+      // For lightning, use payment hash as txHash if no onchain hash
+      if (!txHash && paymentHash) {
+        txHash = paymentHash;
+      }
+      
+      // Display amounts
+      const displayAmount = absoluteAmount;
+      const displayFee = fee;
       const displayCurrency = tx.settlementDisplayCurrency || 'USD';
       
       // Escape commas and quotes in fields

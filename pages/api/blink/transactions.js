@@ -31,10 +31,11 @@ export default async function handler(req, res) {
     // Get transactions
     const transactionData = await blink.getTransactions(parseInt(first), after);
     
-    // Format transactions
+    // Format transactions for display (preserving all raw data for CSV export)
     const formattedTransactions = transactionData.edges.map(edge => {
       const tx = edge.node;
       return {
+        // Display fields (for UI)
         id: tx.id,
         direction: tx.direction,
         status: tx.status,
@@ -42,7 +43,18 @@ export default async function handler(req, res) {
         currency: tx.settlementCurrency,
         date: BlinkAPI.formatDate(tx.createdAt),
         memo: tx.memo || '-',
-        cursor: edge.cursor
+        cursor: edge.cursor,
+        // Raw fields (for CSV export) - pass through all data
+        walletId: tx.walletId,
+        settlementAmount: tx.settlementAmount,
+        settlementFee: tx.settlementFee,
+        settlementCurrency: tx.settlementCurrency,
+        settlementDisplayAmount: tx.settlementDisplayAmount,
+        settlementDisplayCurrency: tx.settlementDisplayCurrency,
+        settlementDisplayFee: tx.settlementDisplayFee,
+        createdAt: tx.createdAt,
+        initiationVia: tx.initiationVia,
+        settlementVia: tx.settlementVia
       };
     });
 

@@ -591,6 +591,10 @@ export default function Dashboard() {
     // CSV Rows
     const rows = txs.map((tx, index) => {
       try {
+      // Extract basic transaction data
+      const id = tx.id || '';
+      const walletId = tx.walletId || '';
+      
       // Determine transaction type from settlementVia
       let type = '';
       if (tx.settlementVia?.__typename === 'SettlementViaLn') {

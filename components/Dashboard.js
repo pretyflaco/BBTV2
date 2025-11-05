@@ -511,32 +511,52 @@ export default function Dashboard() {
   const exportFullTransactions = async () => {
     setExportingData(true);
     try {
+      console.log('Starting full transaction export...');
+      
       // Fetch ALL transactions by paginating through all pages
       let allTransactions = [];
       let hasMore = true;
       let cursor = null;
+      let pageCount = 0;
       
       while (hasMore) {
+        pageCount++;
         const url = cursor 
           ? `/api/blink/transactions?first=100&after=${cursor}`
           : '/api/blink/transactions?first=100';
         
+        console.log(`Fetching page ${pageCount}, cursor: ${cursor ? cursor.substring(0, 20) + '...' : 'none'}`);
+        
         const response = await fetch(url);
         
-        if (response.ok) {
-          const data = await response.json();
-          allTransactions = [...allTransactions, ...data.transactions];
-          hasMore = data.pageInfo?.hasNextPage || false;
-          cursor = data.pageInfo?.endCursor;
-        } else {
-          break;
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('API response error:', response.status, errorText);
+          throw new Error(`API returned ${response.status}: ${errorText.substring(0, 200)}`);
         }
+        
+        const data = await response.json();
+        console.log(`Received ${data.transactions?.length || 0} transactions`);
+        
+        if (!data.transactions || !Array.isArray(data.transactions)) {
+          console.error('Invalid data structure:', data);
+          throw new Error('Invalid transaction data received from API');
+        }
+        
+        allTransactions = [...allTransactions, ...data.transactions];
+        hasMore = data.pageInfo?.hasNextPage || false;
+        cursor = data.pageInfo?.endCursor;
+        
+        console.log(`Total so far: ${allTransactions.length}, hasMore: ${hasMore}`);
       }
       
-      console.log(`Fetched ${allTransactions.length} total transactions for export`);
+      console.log(`Fetched ${allTransactions.length} total transactions across ${pageCount} pages`);
       
       // Convert transactions to CSV format
+      console.log('Converting to CSV...');
+      console.log('Sample transaction:', allTransactions[0]);
       const csv = convertTransactionsToCSV(allTransactions);
+      console.log(`CSV generated, length: ${csv.length} characters`);
       
       // Generate filename with date and username
       const date = new Date();
@@ -552,7 +572,12 @@ export default function Dashboard() {
       setShowExportOptions(false);
     } catch (error) {
       console.error('Error exporting transactions:', error);
-      alert('Failed to export transactions. Please try again.');
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      alert(`Failed to export transactions: ${error.message || 'Unknown error'}. Check console for details.`);
     } finally {
       setExportingData(false);
     }
@@ -564,7 +589,8 @@ export default function Dashboard() {
     const header = 'id,walletId,type,credit,debit,fee,currency,timestamp,pendingConfirmation,journalId,lnMemo,usd,feeUsd,recipientWalletId,username,memoFromPayer,paymentHash,pubkey,feeKnownInAdvance,address,txHash,displayAmount,displayFee,displayCurrency';
     
     // CSV Rows
-    const rows = txs.map(tx => {
+    const rows = txs.map((tx, index) => {
+      try {
       // Determine transaction type from settlementVia
       let type = '';
       if (tx.settlementVia?.__typename === 'SettlementViaLn') {
@@ -693,6 +719,11 @@ export default function Dashboard() {
         escape(displayFee),
         escape(displayCurrency)
       ].join(',');
+      } catch (error) {
+        console.error(`Error processing transaction ${index}:`, error);
+        console.error('Transaction data:', tx);
+        throw new Error(`Failed to convert transaction ${index}: ${error.message}`);
+      }
     });
     
     return [header, ...rows].join('\n');

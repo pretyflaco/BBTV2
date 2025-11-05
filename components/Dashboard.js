@@ -507,56 +507,43 @@ export default function Dashboard() {
     fetchData();
   };
 
-  // Export all transactions to CSV
+  // Export all transactions to CSV using official Blink CSV export
   const exportFullTransactions = async () => {
     setExportingData(true);
     try {
-      console.log('Starting full transaction export...');
+      console.log('Starting full transaction export using Blink official CSV...');
       
-      // Fetch ALL transactions by paginating through all pages
-      let allTransactions = [];
-      let hasMore = true;
-      let cursor = null;
-      let pageCount = 0;
+      // Get all wallet IDs
+      const walletIds = wallets.map(w => w.id);
       
-      while (hasMore) {
-        pageCount++;
-        const url = cursor 
-          ? `/api/blink/transactions?first=100&after=${cursor}`
-          : '/api/blink/transactions?first=100';
-        
-        console.log(`Fetching page ${pageCount}, cursor: ${cursor ? cursor.substring(0, 20) + '...' : 'none'}`);
-        
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('API response error:', response.status, errorText);
-          throw new Error(`API returned ${response.status}: ${errorText.substring(0, 200)}`);
-        }
-        
-        const data = await response.json();
-        console.log(`Received ${data.transactions?.length || 0} transactions`);
-        
-        if (!data.transactions || !Array.isArray(data.transactions)) {
-          console.error('Invalid data structure:', data);
-          throw new Error('Invalid transaction data received from API');
-        }
-        
-        allTransactions = [...allTransactions, ...data.transactions];
-        hasMore = data.pageInfo?.hasNextPage || false;
-        cursor = data.pageInfo?.endCursor;
-        
-        console.log(`Total so far: ${allTransactions.length}, hasMore: ${hasMore}`);
+      if (walletIds.length === 0) {
+        throw new Error('No wallets found. Please ensure you are logged in.');
       }
       
-      console.log(`Fetched ${allTransactions.length} total transactions across ${pageCount} pages`);
+      console.log(`Exporting CSV for wallets: ${walletIds.join(', ')}`);
       
-      // Convert transactions to CSV format
-      console.log('Converting to CSV...');
-      console.log('Sample transaction:', allTransactions[0]);
-      const csv = convertTransactionsToCSV(allTransactions);
-      console.log(`CSV generated, length: ${csv.length} characters`);
+      // Call the CSV export API
+      const response = await fetch('/api/blink/csv-export', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ walletIds })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `API returned ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.csv) {
+        throw new Error('No CSV data received from API');
+      }
+      
+      const csv = data.csv;
+      console.log(`CSV received, length: ${csv.length} characters`);
       
       // Generate filename with date and username
       const date = new Date();
@@ -741,170 +728,6 @@ export default function Dashboard() {
           escape(inMemo),
           escape(username)
         ].join(',');
-      } catch (error) {
-        console.error(`Error processing transaction ${index}:`, error);
-        console.error('Transaction data:', tx);
-        throw new Error(`Failed to convert transaction ${index}: ${error.message}`);
-      }
-    });
-    
-    return [header, ...rows].join('\n');
-  };
-
-  // Convert transactions to CSV format matching Blink's schema
-  const convertTransactionsToCSV = (txs) => {
-    // CSV Header
-    const header = 'id,walletId,type,credit,debit,fee,currency,timestamp,pendingConfirmation,journalId,lnMemo,usd,feeUsd,recipientWalletId,username,memoFromPayer,paymentHash,pubkey,feeKnownInAdvance,address,txHash,displayAmount,displayFee,displayCurrency';
-    
-    // CSV Rows
-    const rows = txs.map((tx, index) => {
-      try {
-      // Extract basic transaction data
-      const id = tx.id || '';
-      const walletId = tx.walletId || '';
-      
-      // Determine transaction type from settlementVia
-      let type = '';
-      if (tx.settlementVia?.__typename === 'SettlementViaLn') {
-        type = 'ln_on_us';
-      } else if (tx.settlementVia?.__typename === 'SettlementViaOnChain') {
-        type = 'onchain';
-      } else if (tx.settlementVia?.__typename === 'SettlementViaIntraLedger') {
-        type = 'intraledger';
-      }
-      
-      // Calculate credit/debit based on direction and amount
-      const absoluteAmount = Math.abs(tx.settlementAmount || 0);
-      const credit = tx.direction === 'RECEIVE' ? absoluteAmount : 0;
-      const debit = tx.direction === 'SEND' ? absoluteAmount : 0;
-      
-      // Fee handling
-      const fee = Math.abs(tx.settlementFee || 0);
-      
-      // Currency
-      const currency = tx.settlementCurrency || 'BTC';
-      
-      // Timestamp - convert Unix timestamp to readable format
-      const timestamp = tx.createdAt ? new Date(parseInt(tx.createdAt) * 1000).toString() : '';
-      
-      // Pending confirmation
-      const pendingConfirmation = tx.status === 'PENDING';
-      
-      // Journal ID (not available from GraphQL, leave empty)
-      const journalId = '';
-      
-      // Memo
-      const lnMemo = tx.memo || '';
-      
-      // Display amounts (USD or other fiat)
-      const usd = tx.settlementDisplayAmount || '';
-      const feeUsd = tx.settlementDisplayFee || '';
-      
-      // Recipient wallet ID and username - check both initiationVia and settlementVia
-      let recipientWalletId = '';
-      let username = '';
-      
-      // For RECEIVE transactions: get sender info from initiationVia
-      if (tx.direction === 'RECEIVE') {
-        if (tx.initiationVia?.__typename === 'InitiationViaIntraLedger') {
-          username = tx.initiationVia.counterPartyUsername || '';
-          recipientWalletId = tx.initiationVia.counterPartyWalletId || '';
-        }
-        // Also check settlementVia for intraledger receives
-        if (!username && tx.settlementVia?.__typename === 'SettlementViaIntraLedger') {
-          username = tx.settlementVia.counterPartyUsername || '';
-          recipientWalletId = tx.settlementVia.counterPartyWalletId || '';
-        }
-      }
-      
-      // For SEND transactions: get recipient info from settlementVia (or initiationVia as fallback)
-      if (tx.direction === 'SEND') {
-        if (tx.settlementVia?.__typename === 'SettlementViaIntraLedger') {
-          username = tx.settlementVia.counterPartyUsername || '';
-          recipientWalletId = tx.settlementVia.counterPartyWalletId || '';
-        }
-        // Fallback to initiationVia
-        if (!username && tx.initiationVia?.__typename === 'InitiationViaIntraLedger') {
-          username = tx.initiationVia.counterPartyUsername || '';
-          recipientWalletId = tx.initiationVia.counterPartyWalletId || '';
-        }
-      }
-      
-      // Memo from payer (not available separately, using main memo)
-      const memoFromPayer = '';
-      
-      // Payment hash
-      let paymentHash = '';
-      if (tx.initiationVia?.__typename === 'InitiationViaLn') {
-        paymentHash = tx.initiationVia.paymentHash || '';
-      }
-      // Also check for preImage in settlementVia
-      if (!paymentHash && tx.settlementVia?.preImage) {
-        paymentHash = tx.settlementVia.preImage;
-      }
-      
-      // Pubkey (not available from GraphQL)
-      const pubkey = '';
-      
-      // Fee known in advance (Lightning fees are known, onchain are estimates)
-      const feeKnownInAdvance = type === 'ln_on_us' || type === 'intraledger';
-      
-      // Address (for onchain)
-      let address = '';
-      if (tx.initiationVia?.__typename === 'InitiationViaOnChain') {
-        address = tx.initiationVia.address || '';
-      }
-      
-      // Transaction hash (for onchain)
-      let txHash = '';
-      if (tx.settlementVia?.__typename === 'SettlementViaOnChain') {
-        txHash = tx.settlementVia.transactionHash || '';
-      }
-      // For lightning, use payment hash as txHash if no onchain hash
-      if (!txHash && paymentHash) {
-        txHash = paymentHash;
-      }
-      
-      // Display amounts
-      const displayAmount = absoluteAmount;
-      const displayFee = fee;
-      const displayCurrency = tx.settlementDisplayCurrency || 'USD';
-      
-      // Escape commas and quotes in fields
-      const escape = (field) => {
-        const str = String(field);
-        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-          return `"${str.replace(/"/g, '""')}"`;
-        }
-        return str;
-      };
-      
-      return [
-        escape(id),
-        escape(walletId),
-        escape(type),
-        escape(credit),
-        escape(debit),
-        escape(fee),
-        escape(currency),
-        escape(timestamp),
-        escape(pendingConfirmation),
-        escape(journalId),
-        escape(lnMemo),
-        escape(usd),
-        escape(feeUsd),
-        escape(recipientWalletId),
-        escape(username),
-        escape(memoFromPayer),
-        escape(paymentHash),
-        escape(pubkey),
-        escape(feeKnownInAdvance),
-        escape(address),
-        escape(txHash),
-        escape(displayAmount),
-        escape(displayFee),
-        escape(displayCurrency)
-      ].join(',');
       } catch (error) {
         console.error(`Error processing transaction ${index}:`, error);
         console.error('Transaction data:', tx);

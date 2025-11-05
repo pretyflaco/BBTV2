@@ -18,6 +18,7 @@ export default function Dashboard() {
   const [monthlyTransactions, setMonthlyTransactions] = useState({});
   const [hasMoreTransactions, setHasMoreTransactions] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [pastTransactionsLoaded, setPastTransactionsLoaded] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [currentView, setCurrentView] = useState('pos'); // 'transactions' or 'pos'
@@ -364,11 +365,8 @@ export default function Dashboard() {
         setHasMoreTransactions(transactionsData.pageInfo?.hasNextPage || false);
         setError('');
         
-        // If we have pagination info and more pages available, load more historical data
-        if (transactionsData.pageInfo?.hasNextPage) {
-          const finalHasMore = await loadMoreHistoricalTransactions(transactionsData.pageInfo.endCursor, transactionsData.transactions);
-          setHasMoreTransactions(finalHasMore);
-        }
+        // Don't automatically load past transactions - user must click "Show" button
+        // This saves bandwidth and respects user's data plan
       } else {
         throw new Error('Failed to fetch transactions');
         }
@@ -454,7 +452,29 @@ export default function Dashboard() {
     }
   };
 
-  // Load more months on demand
+  // Load past transactions (initial load of historical data)
+  const loadPastTransactions = async () => {
+    if (loadingMore || !hasMoreTransactions) return;
+    
+    setLoadingMore(true);
+    try {
+      // Get the last transaction from current transactions
+      const lastTransaction = transactions[transactions.length - 1];
+      
+      if (lastTransaction?.cursor) {
+        // Load historical transactions (same logic as before, but triggered by user)
+        const finalHasMore = await loadMoreHistoricalTransactions(lastTransaction.cursor, transactions);
+        setHasMoreTransactions(finalHasMore);
+        setPastTransactionsLoaded(true);
+      }
+    } catch (error) {
+      console.error('Error loading past transactions:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // Load more months on demand (after initial past transactions are loaded)
   const loadMoreMonths = async () => {
     if (loadingMore || !hasMoreTransactions) return;
     
@@ -1284,7 +1304,11 @@ export default function Dashboard() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Past Transactions</h2>
           
-          {(() => {
+          {!pastTransactionsLoaded ? (
+            <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6 text-center text-gray-500 dark:text-gray-400">
+              Click "Show" to load past transaction history
+            </div>
+          ) : (() => {
             const monthGroups = getMonthGroups();
             const monthKeys = Object.keys(monthGroups);
             
@@ -1417,13 +1441,13 @@ export default function Dashboard() {
             );
           })()}
           
-          {/* Action Buttons */}
-          {hasMoreTransactions && (
-            <div className="mt-6 px-4">
-              <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto">
-                {/* Load More Months Button */}
+          {/* Action Buttons - Always visible */}
+          <div className="mt-6 px-4">
+            <div className={`grid gap-3 max-w-sm mx-auto ${hasMoreTransactions ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              {/* Show / Show More Button */}
+              {hasMoreTransactions && (
                 <button
-                  onClick={loadMoreMonths}
+                  onClick={pastTransactionsLoaded ? loadMoreMonths : loadPastTransactions}
                   disabled={loadingMore}
                   className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:border-gray-400 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-black rounded-lg text-lg font-normal transition-colors shadow-md"
                   style={{fontFamily: "'Source Sans Pro', sans-serif"}}
@@ -1433,28 +1457,34 @@ export default function Dashboard() {
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
                       Loading...
                     </div>
+                  ) : pastTransactionsLoaded ? (
+                    'Show More'
                   ) : (
-                    'Load More'
+                    'Show'
                   )}
                 </button>
-                
-                {/* Export Button */}
-                <button
-                  onClick={() => {
-                    // Placeholder for now
-                    console.log('Export clicked');
-                  }}
-                  className="h-16 bg-white dark:bg-black border-2 border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 rounded-lg text-lg font-normal transition-colors shadow-md"
-                  style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-                >
-                  Export
-                </button>
-              </div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-2">
-                Load more historical data or export transactions
-              </p>
+              )}
+              
+              {/* Export Button */}
+              <button
+                onClick={() => {
+                  // Placeholder for now
+                  console.log('Export clicked');
+                }}
+                className="h-16 bg-white dark:bg-black border-2 border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                style={{fontFamily: "'Source Sans Pro', sans-serif"}}
+              >
+                Export
+              </button>
             </div>
-          )}
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-2">
+              {!pastTransactionsLoaded && hasMoreTransactions
+                ? 'Load past transactions or export current data'
+                : hasMoreTransactions 
+                  ? 'Load more historical data or export transactions'
+                  : 'Export transaction data'}
+            </p>
+          </div>
         </div>
           </>
         )}

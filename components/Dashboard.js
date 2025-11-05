@@ -985,7 +985,8 @@ export default function Dashboard() {
                               handleInstallApp();
                               setSideMenuOpen(false);
                             }}
-                            className="w-full bg-green-500 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white font-bold py-3 px-4 rounded transition-colors mobile-button flex items-center justify-center"
+                            className="w-full h-16 bg-white dark:bg-black border-2 border-green-500 hover:border-green-600 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 rounded-lg text-lg font-normal transition-colors shadow-md flex items-center justify-center"
+                            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
                           >
                             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -1416,25 +1417,41 @@ export default function Dashboard() {
             );
           })()}
           
-          {/* Load More Months Button */}
+          {/* Action Buttons */}
           {hasMoreTransactions && (
-            <div className="mt-6 text-center">
-              <button
-                onClick={loadMoreMonths}
-                disabled={loadingMore}
-                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors mobile-button"
-              >
-                {loadingMore ? (
-                  <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Loading More Months...
-                  </div>
-                ) : (
-                  'Load More Months'
-                )}
-              </button>
-              <p className="text-sm text-gray-500 mt-2">
-                Load more historical transaction data
+            <div className="mt-6 px-4">
+              <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto">
+                {/* Load More Months Button */}
+                <button
+                  onClick={loadMoreMonths}
+                  disabled={loadingMore}
+                  className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:border-gray-400 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-black rounded-lg text-lg font-normal transition-colors shadow-md"
+                  style={{fontFamily: "'Source Sans Pro', sans-serif"}}
+                >
+                  {loadingMore ? (
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                      Loading...
+                    </div>
+                  ) : (
+                    'Load More'
+                  )}
+                </button>
+                
+                {/* Export Button */}
+                <button
+                  onClick={() => {
+                    // Placeholder for now
+                    console.log('Export clicked');
+                  }}
+                  className="h-16 bg-white dark:bg-black border-2 border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                  style={{fontFamily: "'Source Sans Pro', sans-serif"}}
+                >
+                  Export
+                </button>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-2">
+                Load more historical data or export transactions
               </p>
             </div>
           )}

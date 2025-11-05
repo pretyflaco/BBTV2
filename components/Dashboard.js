@@ -564,7 +564,7 @@ export default function Dashboard() {
                       String(date.getMonth() + 1).padStart(2, '0') + 
                       String(date.getDate()).padStart(2, '0');
       const username = user?.username || 'user';
-      const filename = `${dateStr}-${username}-transactions-blink.csv`;
+      const filename = `${dateStr}-${username}-transactions-FULL-blink.csv`;
       
       // Trigger download
       downloadCSV(csv, filename);
@@ -581,6 +581,174 @@ export default function Dashboard() {
     } finally {
       setExportingData(false);
     }
+  };
+
+  // Export basic transactions to CSV (simplified format)
+  const exportBasicTransactions = async () => {
+    setExportingData(true);
+    try {
+      console.log('Starting basic transaction export...');
+      
+      // Fetch ALL transactions by paginating through all pages
+      let allTransactions = [];
+      let hasMore = true;
+      let cursor = null;
+      let pageCount = 0;
+      
+      while (hasMore) {
+        pageCount++;
+        const url = cursor 
+          ? `/api/blink/transactions?first=100&after=${cursor}`
+          : '/api/blink/transactions?first=100';
+        
+        console.log(`Fetching page ${pageCount}, cursor: ${cursor ? cursor.substring(0, 20) + '...' : 'none'}`);
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('API response error:', response.status, errorText);
+          throw new Error(`API returned ${response.status}: ${errorText.substring(0, 200)}`);
+        }
+        
+        const data = await response.json();
+        console.log(`Received ${data.transactions?.length || 0} transactions`);
+        
+        if (!data.transactions || !Array.isArray(data.transactions)) {
+          console.error('Invalid data structure:', data);
+          throw new Error('Invalid transaction data received from API');
+        }
+        
+        allTransactions = [...allTransactions, ...data.transactions];
+        hasMore = data.pageInfo?.hasNextPage || false;
+        cursor = data.pageInfo?.endCursor;
+        
+        console.log(`Total so far: ${allTransactions.length}, hasMore: ${hasMore}`);
+      }
+      
+      console.log(`Fetched ${allTransactions.length} total transactions across ${pageCount} pages`);
+      
+      // Convert transactions to Basic CSV format
+      console.log('Converting to Basic CSV...');
+      const csv = convertTransactionsToBasicCSV(allTransactions);
+      console.log(`CSV generated, length: ${csv.length} characters`);
+      
+      // Generate filename with date and username
+      const date = new Date();
+      const dateStr = date.getFullYear() + 
+                      String(date.getMonth() + 1).padStart(2, '0') + 
+                      String(date.getDate()).padStart(2, '0');
+      const username = user?.username || 'user';
+      const filename = `${dateStr}-${username}-transactions-BASIC-blink.csv`;
+      
+      // Trigger download
+      downloadCSV(csv, filename);
+      
+      setShowExportOptions(false);
+    } catch (error) {
+      console.error('Error exporting basic transactions:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      alert(`Failed to export transactions: ${error.message || 'Unknown error'}. Check console for details.`);
+    } finally {
+      setExportingData(false);
+    }
+  };
+
+  // Convert transactions to Basic CSV format (simplified)
+  const convertTransactionsToBasicCSV = (txs) => {
+    // CSV Header: timestamp, type, credit, debit, fee, currency, status, InMemo, username
+    const header = 'timestamp,type,credit,debit,fee,currency,status,InMemo,username';
+    
+    // CSV Rows
+    const rows = txs.map((tx, index) => {
+      try {
+        // Timestamp - convert Unix timestamp to readable format
+        const timestamp = tx.createdAt ? new Date(parseInt(tx.createdAt) * 1000).toString() : '';
+        
+        // Determine transaction type from settlementVia
+        let type = '';
+        if (tx.settlementVia?.__typename === 'SettlementViaLn') {
+          type = 'ln_on_us';
+        } else if (tx.settlementVia?.__typename === 'SettlementViaOnChain') {
+          type = 'onchain';
+        } else if (tx.settlementVia?.__typename === 'SettlementViaIntraLedger') {
+          type = 'intraledger';
+        }
+        
+        // Calculate credit/debit based on direction and amount
+        const absoluteAmount = Math.abs(tx.settlementAmount || 0);
+        const credit = tx.direction === 'RECEIVE' ? absoluteAmount : 0;
+        const debit = tx.direction === 'SEND' ? absoluteAmount : 0;
+        
+        // Fee
+        const fee = Math.abs(tx.settlementFee || 0);
+        
+        // Currency
+        const currency = tx.settlementCurrency || 'BTC';
+        
+        // Status
+        const status = tx.status || '';
+        
+        // InMemo (memo field)
+        const inMemo = tx.memo || '';
+        
+        // Username - extract from initiationVia or settlementVia
+        let username = '';
+        
+        // For RECEIVE transactions: get sender info from initiationVia
+        if (tx.direction === 'RECEIVE') {
+          if (tx.initiationVia?.__typename === 'InitiationViaIntraLedger') {
+            username = tx.initiationVia.counterPartyUsername || '';
+          }
+          // Also check settlementVia for intraledger receives
+          if (!username && tx.settlementVia?.__typename === 'SettlementViaIntraLedger') {
+            username = tx.settlementVia.counterPartyUsername || '';
+          }
+        }
+        
+        // For SEND transactions: get recipient info from settlementVia
+        if (tx.direction === 'SEND') {
+          if (tx.settlementVia?.__typename === 'SettlementViaIntraLedger') {
+            username = tx.settlementVia.counterPartyUsername || '';
+          }
+          // Fallback to initiationVia
+          if (!username && tx.initiationVia?.__typename === 'InitiationViaIntraLedger') {
+            username = tx.initiationVia.counterPartyUsername || '';
+          }
+        }
+        
+        // Escape commas and quotes in fields
+        const escape = (field) => {
+          const str = String(field);
+          if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return `"${str.replace(/"/g, '""')}"`;
+          }
+          return str;
+        };
+        
+        return [
+          escape(timestamp),
+          escape(type),
+          escape(credit),
+          escape(debit),
+          escape(fee),
+          escape(currency),
+          escape(status),
+          escape(inMemo),
+          escape(username)
+        ].join(',');
+      } catch (error) {
+        console.error(`Error processing transaction ${index}:`, error);
+        console.error('Transaction data:', tx);
+        throw new Error(`Failed to convert transaction ${index}: ${error.message}`);
+      }
+    });
+    
+    return [header, ...rows].join('\n');
   };
 
   // Convert transactions to CSV format matching Blink's schema
@@ -632,20 +800,34 @@ export default function Dashboard() {
       const usd = tx.settlementDisplayAmount || '';
       const feeUsd = tx.settlementDisplayFee || '';
       
-      // Recipient wallet ID and username
+      // Recipient wallet ID and username - check both initiationVia and settlementVia
       let recipientWalletId = '';
       let username = '';
       
-      // Try to get from initiationVia first (for sends)
-      if (tx.initiationVia?.__typename === 'InitiationViaIntraLedger') {
-        username = tx.initiationVia.counterPartyUsername || '';
-        recipientWalletId = tx.initiationVia.counterPartyWalletId || '';
+      // For RECEIVE transactions: get sender info from initiationVia
+      if (tx.direction === 'RECEIVE') {
+        if (tx.initiationVia?.__typename === 'InitiationViaIntraLedger') {
+          username = tx.initiationVia.counterPartyUsername || '';
+          recipientWalletId = tx.initiationVia.counterPartyWalletId || '';
+        }
+        // Also check settlementVia for intraledger receives
+        if (!username && tx.settlementVia?.__typename === 'SettlementViaIntraLedger') {
+          username = tx.settlementVia.counterPartyUsername || '';
+          recipientWalletId = tx.settlementVia.counterPartyWalletId || '';
+        }
       }
       
-      // Try settlementVia next (for receives)
-      if (!username && tx.settlementVia?.__typename === 'SettlementViaIntraLedger') {
-        username = tx.settlementVia.counterPartyUsername || '';
-        recipientWalletId = tx.settlementVia.counterPartyWalletId || '';
+      // For SEND transactions: get recipient info from settlementVia (or initiationVia as fallback)
+      if (tx.direction === 'SEND') {
+        if (tx.settlementVia?.__typename === 'SettlementViaIntraLedger') {
+          username = tx.settlementVia.counterPartyUsername || '';
+          recipientWalletId = tx.settlementVia.counterPartyWalletId || '';
+        }
+        // Fallback to initiationVia
+        if (!username && tx.initiationVia?.__typename === 'InitiationViaIntraLedger') {
+          username = tx.initiationVia.counterPartyUsername || '';
+          recipientWalletId = tx.initiationVia.counterPartyWalletId || '';
+        }
       }
       
       // Memo from payer (not available separately, using main memo)
@@ -1467,13 +1649,11 @@ export default function Dashboard() {
             {/* Export Options List */}
             <div className="max-w-md mx-auto px-4 py-6">
               <div className="space-y-3">
-                {/* Basic Export - Placeholder */}
+                {/* Basic Export */}
                 <button
-                  onClick={() => {
-                    // Placeholder - no action yet
-                    alert('Basic export coming soon!');
-                  }}
-                  className="w-full p-4 rounded-lg border-2 border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600 transition-all"
+                  onClick={exportBasicTransactions}
+                  disabled={exportingData}
+                  className="w-full p-4 rounded-lg border-2 border-blue-500 dark:border-blue-400 bg-white dark:bg-blink-dark hover:border-blue-600 dark:hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-left">
@@ -1481,10 +1661,14 @@ export default function Dashboard() {
                         Basic
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Simple transaction summary (coming soon)
+                        {exportingData ? 'Exporting simplified transaction summary...' : 'Simplified transaction summary (CSV)'}
                       </p>
                     </div>
-                    <div className="text-gray-400 text-xl">›</div>
+                    {exportingData ? (
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 dark:border-blue-400"></div>
+                    ) : (
+                      <div className="text-blue-600 dark:text-blue-400 text-xl">↓</div>
+                    )}
                   </div>
                 </button>
 
@@ -1514,8 +1698,13 @@ export default function Dashboard() {
               
               {/* Info Text */}
               <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                  <strong>Basic Export:</strong> Simplified CSV with 9 essential columns (timestamp, type, credit, debit, fee, currency, status, memo, username).
+                </p>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  <strong>Full Export</strong> will download all transaction history as a CSV file. 
+                  <strong>Full Export:</strong> Complete transaction data with all 24 fields matching Blink's official format.
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
                   On mobile devices, you'll have the option to save or share the file with other apps.
                 </p>
               </div>

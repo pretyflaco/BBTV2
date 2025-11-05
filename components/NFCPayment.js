@@ -35,6 +35,10 @@ const SOUND_THEMES = {
     nfc: '/free_connect.mp3',
     payment: '/free_success.mp3',
   },
+  retro: {
+    nfc: '/retro_connect.mp3',
+    payment: '/retro_success.mp3',
+  },
 };
 
 // Hook to manage NFC state and functionality

@@ -1,5 +1,5 @@
 // Service Worker for Blink POS
-const CACHE_NAME = 'blink-tracker-v7-2025-11-04-free-theme'; // Update this version when deploying changes
+const CACHE_NAME = 'blink-tracker-v8-2025-11-05-retro-theme'; // Update this version when deploying changes
 const urlsToCache = [
   '/',
   '/manifest.json',
@@ -12,6 +12,8 @@ const urlsToCache = [
   '/botw_shrine.mp3',
   '/free_connect.mp3',
   '/free_success.mp3',
+  '/retro_connect.mp3',
+  '/retro_success.mp3',
   '/click.mp3'
 ];
 

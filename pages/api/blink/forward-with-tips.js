@@ -7,8 +7,13 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  let hybridStore = null;
+  let paymentHash = null;
+  let claimSucceeded = false;
+
   try {
-    const { paymentHash, totalAmount, memo = '' } = req.body;
+    const { paymentHash: reqPaymentHash, totalAmount, memo = '' } = req.body;
+    paymentHash = reqPaymentHash;
     
     // CRITICAL: Log all tip forwarding attempts for security audit
     console.log('🎯 TIP FORWARDING REQUEST:', {
@@ -25,20 +30,48 @@ export default async function handler(req, res) {
       });
     }
 
-    // Get tip metadata from hybrid store
-    const hybridStore = await getHybridStore();
-    const tipData = await hybridStore.getTipData(paymentHash);
+    // CRITICAL FIX: Use atomic claim to prevent duplicate payouts
+    // This ensures only ONE request can process this payment
+    hybridStore = await getHybridStore();
+    const claimResult = await hybridStore.claimPaymentForProcessing(paymentHash);
     
-    if (!tipData) {
-      console.log('❌ No tip data found for payment hash:', paymentHash);
-      const stats = await hybridStore.getStats();
-      console.log('📊 Current storage stats:', stats);
-      return res.status(400).json({ 
-        error: 'No tip data found for this payment',
-        paymentHash: paymentHash,
-        storageStats: stats
-      });
+    if (!claimResult.claimed) {
+      // Payment already being processed or completed - this is NOT an error
+      // Return success to prevent client retries (idempotent behavior)
+      console.log(`🔒 DUPLICATE PREVENTION: Payment ${paymentHash?.substring(0, 16)}... ${claimResult.reason}`);
+      
+      if (claimResult.reason === 'already_completed') {
+        // Already successfully processed - return success (idempotent)
+        return res.status(200).json({
+          success: true,
+          message: 'Payment already processed',
+          alreadyProcessed: true,
+          details: { paymentHash, status: 'completed' }
+        });
+      } else if (claimResult.reason === 'already_processing') {
+        // Another request is processing - client should wait
+        return res.status(409).json({
+          error: 'Payment is being processed by another request',
+          retryable: false,
+          details: { paymentHash, status: 'processing' }
+        });
+      } else {
+        // Not found
+        const stats = await hybridStore.getStats();
+        console.log('📊 Current storage stats:', stats);
+        return res.status(400).json({ 
+          error: 'No tip data found for this payment',
+          paymentHash: paymentHash,
+          storageStats: stats
+        });
+      }
     }
+
+    // Successfully claimed - we are the only process handling this payment
+    claimSucceeded = true;
+    const tipData = claimResult.paymentData;
+    
+    console.log(`✅ CLAIMED payment ${paymentHash?.substring(0, 16)}... for processing`);
 
     // CRITICAL: Validate tip data contains proper user credentials
     if (!tipData.userApiKey || !tipData.userWalletId) {
@@ -49,6 +82,9 @@ export default async function handler(req, res) {
         userWalletId: tipData.userWalletId,
         timestamp: new Date().toISOString()
       });
+      // Release the claim so it can be retried after fixing data
+      await hybridStore.releaseFailedClaim(paymentHash, 'Missing user credentials');
+      claimSucceeded = false;
       return res.status(400).json({ 
         error: 'Invalid tip data: missing user credentials' 
       });
@@ -160,7 +196,17 @@ export default async function handler(req, res) {
 
     // Step 3: Send tip to tip recipient if there's a tip
     let tipResult = null;
-    if (tipData.tipAmount > 0 && tipData.tipRecipient) {
+    // Ensure tipAmount is a proper number for comparison
+    const tipAmountNum = Number(tipData.tipAmount) || 0;
+    console.log('🎯 TIP CHECK:', {
+      tipAmount: tipData.tipAmount,
+      tipAmountNum,
+      tipAmountType: typeof tipData.tipAmount,
+      tipRecipient: tipData.tipRecipient,
+      condition: tipAmountNum > 0 && tipData.tipRecipient
+    });
+    
+    if (tipAmountNum > 0 && tipData.tipRecipient) {
       try {
         console.log('💡 Processing tip payment:', {
           tipAmount: tipData.tipAmount,
@@ -172,14 +218,19 @@ export default async function handler(req, res) {
           if (displayCurrency === 'BTC') {
             return `BlinkPOS Tip received: ${tipAmountSats} sats`;
           } else {
+            // Ensure tipAmountInDisplayCurrency is a number for formatting
+            const tipAmountNum = Number(tipAmountInDisplayCurrency) || 0;
+            
             // Format the amount based on currency
             let formattedAmount;
             if (displayCurrency === 'USD') {
-              formattedAmount = `$${tipAmountInDisplayCurrency.toFixed(2)}`;
+              formattedAmount = `$${tipAmountNum.toFixed(2)}`;
             } else if (displayCurrency === 'KES') {
-              formattedAmount = `${tipAmountInDisplayCurrency.toFixed(2)} Ksh`;
+              formattedAmount = `${tipAmountNum.toFixed(2)} Ksh`;
+            } else if (displayCurrency === 'HUF') {
+              formattedAmount = `Ft ${tipAmountNum.toFixed(0)}`; // HUF has no decimals
             } else {
-              formattedAmount = `${tipAmountInDisplayCurrency.toFixed(2)} ${displayCurrency}`;
+              formattedAmount = `${tipAmountNum.toFixed(2)} ${displayCurrency}`;
             }
             
             return `BlinkPOS Tip received: ${formattedAmount} (${tipAmountSats} sats)`;
@@ -187,9 +238,18 @@ export default async function handler(req, res) {
         };
 
         // Get tip amounts - use stored display amounts if available
-        const tipAmountSats = Math.round(tipData.tipAmount);
+        // Ensure tipAmount is a number (PostgreSQL bigint might come as string)
+        const tipAmountSats = Math.round(Number(tipData.tipAmount));
         const displayCurrency = tipData.displayCurrency || 'BTC';
-        const tipAmountInDisplayCurrency = tipData.tipAmountDisplay || tipAmountSats;
+        // Ensure tipAmountInDisplayCurrency is a number (JSONB stores as string)
+        const tipAmountInDisplayCurrency = Number(tipData.tipAmountDisplay) || tipAmountSats;
+        
+        console.log('💡 Tip amount calculation:', {
+          rawTipAmount: tipData.tipAmount,
+          tipAmountSats,
+          displayCurrency,
+          tipAmountInDisplayCurrency
+        });
 
         const tipMemo = generateTipMemo(tipAmountInDisplayCurrency, tipAmountSats, displayCurrency);
 
@@ -216,12 +276,24 @@ export default async function handler(req, res) {
             recipient: `${tipData.tipRecipient}@blink.sv`,
             status: tipPaymentResult.status
           };
+          // Log successful tip event
+          await hybridStore.logEvent(paymentHash, 'tip_sent', 'success', {
+            tipAmount: tipData.tipAmount,
+            tipRecipient: tipData.tipRecipient,
+            paymentHash: tipPaymentResult.paymentHash
+          });
         } else {
           console.error('❌ Tip payment failed:', tipPaymentResult.status);
           tipResult = {
             success: false,
             error: `Tip payment failed: ${tipPaymentResult.status}`
           };
+          // Log failed tip event
+          await hybridStore.logEvent(paymentHash, 'tip_sent', 'failure', {
+            tipAmount: tipData.tipAmount,
+            tipRecipient: tipData.tipRecipient,
+            status: tipPaymentResult.status
+          });
         }
       } catch (tipError) {
         console.error('❌ Tip payment error:', tipError);
@@ -229,13 +301,22 @@ export default async function handler(req, res) {
           success: false,
           error: tipError.message
         };
+        // Log tip error event
+        await hybridStore.logEvent(paymentHash, 'tip_sent', 'failure', {
+          tipAmount: tipData.tipAmount,
+          tipRecipient: tipData.tipRecipient
+        }, tipError.message);
       }
+    } else {
+      console.log('ℹ️ No tip to process:', {
+        tipAmount: tipData.tipAmount,
+        tipRecipient: tipData.tipRecipient,
+        reason: !tipData.tipAmount ? 'no tip amount' : !tipData.tipRecipient ? 'no tip recipient' : 'unknown'
+      });
     }
 
-    // Step 4: Update payment status and clean up
-    await hybridStore.updatePaymentStatus(paymentHash, 'processing');
-    
-    // Log forwarding event
+    // Step 4: Log forwarding event and mark as completed
+    // Note: Status was already set to 'processing' by claimPaymentForProcessing()
     await hybridStore.logEvent(paymentHash, 'forwarded', 'success', {
       forwardedAmount: userAmount,
       tipAmount: tipData.tipAmount,
@@ -244,6 +325,9 @@ export default async function handler(req, res) {
     
     // Mark as completed (removes from hot storage)
     await hybridStore.removeTipData(paymentHash);
+    claimSucceeded = false; // Payment completed, no need to release on error
+
+    console.log(`✅ COMPLETED payment ${paymentHash?.substring(0, 16)}... forwarding`);
 
     // Return success response
     res.status(200).json({
@@ -269,6 +353,13 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('❌ Payment forwarding with tips error:', error);
     
+    // CRITICAL: Release the claim if we claimed but failed before completing
+    // This allows the payment to be retried
+    if (claimSucceeded && hybridStore && paymentHash) {
+      console.log(`🔓 Releasing claim for failed payment ${paymentHash?.substring(0, 16)}...`);
+      await hybridStore.releaseFailedClaim(paymentHash, error.message);
+    }
+    
     // Handle specific error cases
     let errorMessage = 'Failed to forward payment with tips';
     if (error.message.includes('invoice')) {
@@ -281,6 +372,7 @@ export default async function handler(req, res) {
 
     res.status(500).json({ 
       error: errorMessage,
+      retryable: claimSucceeded, // If we had the claim, it's now released and retryable
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }

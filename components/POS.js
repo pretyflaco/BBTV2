@@ -306,8 +306,9 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
     
     // Special handling for '.' as first digit: treat same as '0' (i.e., "0." for fiat)
     if (amount === '' && digit === '.') {
-      if (displayCurrency === 'BTC') {
-        // Don't allow decimal points for BTC (sats are integers)
+      // Don't allow decimal points for zero-decimal currencies (BTC, JPY, XOF, etc.)
+      const currency = getCurrentCurrency();
+      if (displayCurrency === 'BTC' || currency?.fractionDigits === 0) {
         return;
       } else {
         setAmount('0.');
@@ -320,12 +321,12 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
     } else if (digit === '.' && amount.includes('.')) {
       // Don't add multiple decimal points
       return;
-    } else if (displayCurrency === 'BTC' && digit === '.') {
-      // Don't allow decimal points for BTC (sats are integers)
-      return;
-    } else if (digit === '.' && amount.includes('.')) {
-      // Already has a decimal point
-      return;
+    } else if (digit === '.') {
+      // Don't allow decimal points for zero-decimal currencies (BTC, JPY, XOF, HUF, etc.)
+      const currency = getCurrentCurrency();
+      if (displayCurrency === 'BTC' || currency?.fractionDigits === 0) {
+        return;
+      }
     } else if (amount.includes('.')) {
       // Check decimal places based on currency fractionDigits
       const currency = getCurrentCurrency();
@@ -609,7 +610,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
                     {amount && <span className="text-4xl text-gray-600 dark:text-gray-400"> + {amount}</span>}
                   </div>
                 ) : (
-                  (amount === '0' || amount === '0.') ? (displayCurrency === 'BTC' ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency))
+                  (amount === '0' || amount === '0.') ? (displayCurrency === 'BTC' || getCurrencyById(displayCurrency, currencies)?.fractionDigits === 0 ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency))
                 )}
               </div>
               {selectedTipPercent > 0 && (
@@ -811,7 +812,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
                 ? getDynamicFontSize(formatDisplayAmount(total + (parseFloat(amount) || 0), displayCurrency))
                 : total > 0 
                   ? getDynamicFontSize(formatDisplayAmount(total, displayCurrency) + (amount ? ' + ' + amount : ''))
-                  : getDynamicFontSize((amount === '0' || amount === '0.') ? (displayCurrency === 'BTC' ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency)))
+                  : getDynamicFontSize((amount === '0' || amount === '0.') ? (displayCurrency === 'BTC' || getCurrencyById(displayCurrency, currencies)?.fractionDigits === 0 ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency)))
             }`} style={{fontFamily: "'Source Sans Pro', sans-serif", wordBreak: 'keep-all', overflowWrap: 'normal'}}>
               {showTipDialog ? (
                 // When tip dialog is showing, show the combined total in white/black (not orange)
@@ -835,7 +836,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
                 </div>
               ) : (
                 <div className="max-w-full">
-                  {(amount === '0' || amount === '0.') ? (displayCurrency === 'BTC' ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency))}
+                  {(amount === '0' || amount === '0.') ? (displayCurrency === 'BTC' || getCurrencyById(displayCurrency, currencies)?.fractionDigits === 0 ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency))}
                 </div>
               )}
             </div>
@@ -968,7 +969,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
           </button>
           <button
             onClick={() => handleDigitPress('.')}
-            disabled={displayCurrency === 'BTC'}
+            disabled={displayCurrency === 'BTC' || (getCurrentCurrency()?.fractionDigits === 0)}
             className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >

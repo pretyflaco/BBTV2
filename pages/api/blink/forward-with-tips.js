@@ -214,25 +214,12 @@ export default async function handler(req, res) {
         });
 
         // Generate tip memo based on display currency and amounts
+        // Uses formatCurrencyServer which handles all currencies properly (including zero-decimal currencies)
         const generateTipMemo = (tipAmountInDisplayCurrency, tipAmountSats, displayCurrency) => {
           if (displayCurrency === 'BTC') {
             return `BlinkPOS Tip received: ${tipAmountSats} sats`;
           } else {
-            // Ensure tipAmountInDisplayCurrency is a number for formatting
-            const tipAmountNum = Number(tipAmountInDisplayCurrency) || 0;
-            
-            // Format the amount based on currency
-            let formattedAmount;
-            if (displayCurrency === 'USD') {
-              formattedAmount = `$${tipAmountNum.toFixed(2)}`;
-            } else if (displayCurrency === 'KES') {
-              formattedAmount = `${tipAmountNum.toFixed(2)} Ksh`;
-            } else if (displayCurrency === 'HUF') {
-              formattedAmount = `Ft ${tipAmountNum.toFixed(0)}`; // HUF has no decimals
-            } else {
-              formattedAmount = `${tipAmountNum.toFixed(2)} ${displayCurrency}`;
-            }
-            
+            const formattedAmount = formatCurrencyServer(tipAmountInDisplayCurrency, displayCurrency);
             return `BlinkPOS Tip received: ${formattedAmount} (${tipAmountSats} sats)`;
           }
         };

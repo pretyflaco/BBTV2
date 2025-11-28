@@ -24,11 +24,15 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Determine auth method from username format
+    const authMethod = session.username.startsWith('nostr:') ? 'nostr' : 'legacy';
+    
     res.status(200).json({
       success: true,
       user: {
         username: session.username,
-        lastLogin: userData.lastLogin
+        lastLogin: userData.lastLogin,
+        authMethod  // Include auth method so client knows how user authenticated
       }
     });
 

@@ -64,6 +64,7 @@ export default function Dashboard() {
   const [showSoundThemes, setShowSoundThemes] = useState(false);
   const [showTipSettings, setShowTipSettings] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
+  const [showCurrencySettings, setShowCurrencySettings] = useState(false);
   const [showAddAccountForm, setShowAddAccountForm] = useState(false);
   const [newAccountApiKey, setNewAccountApiKey] = useState('');
   const [newAccountLabel, setNewAccountLabel] = useState('');
@@ -1025,37 +1026,34 @@ export default function Dashboard() {
                 />
               </div>
               
-              {/* Right Side: Dark Mode Toggle + Menu Button */}
-              <div className="flex items-center gap-3">
-                {/* Dark Mode Toggle */}
-                <button
-                  onClick={toggleDarkMode}
-                  className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:ring-offset-2 rounded"
-                  aria-label="Toggle dark mode"
-                >
-                  <span
-                    className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
-                      darkMode ? 'bg-blue-600 dark:bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
-                    }`}
-                  />
-                  <span
-                    className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
-                      darkMode ? 'bg-gray-300 dark:bg-gray-600' : 'bg-blink-accent'
-                    }`}
-                  />
-                </button>
-                
-                {/* Menu Button */}
-                <button
-                  onClick={() => setSideMenuOpen(!sideMenuOpen)}
-                  className="p-2 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-blink-dark focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
-                  aria-label="Open menu"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                </button>
-              </div>
+              {/* Center: Dark Mode Toggle */}
+              <button
+                onClick={toggleDarkMode}
+                className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:ring-offset-2 rounded"
+                aria-label="Toggle dark mode"
+              >
+                <span
+                  className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
+                    darkMode ? 'bg-blue-600 dark:bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
+                  }`}
+                />
+                <span
+                  className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
+                    darkMode ? 'bg-gray-300 dark:bg-gray-600' : 'bg-blink-accent'
+                  }`}
+                />
+              </button>
+              
+              {/* Right Side: Menu Button */}
+              <button
+                onClick={() => setSideMenuOpen(!sideMenuOpen)}
+                className="p-2 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-blink-dark focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+                aria-label="Open menu"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
             </div>
           </div>
         </header>
@@ -1116,9 +1114,6 @@ export default function Dashboard() {
                           ? (nostrProfile?.display_name || nostrProfile?.name || user?.username || 'Nostr User')
                           : (user?.username || 'User')}
                       </p>
-                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {authMode === 'nostr' ? 'Nostr Identity' : 'Legacy Account'}
-                      </p>
                     </div>
                   </div>
                 </div>
@@ -1139,31 +1134,22 @@ export default function Dashboard() {
 
                 {/* Currency Selection */}
                 <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-                  <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
-                    Display Currency
-                  </label>
-                  <select
-                    value={displayCurrency}
-                    onChange={(e) => setDisplayCurrency(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent text-sm"
-                    disabled={currenciesLoading}
-                  >
-                    {currenciesLoading ? (
-                      <option>Loading...</option>
-                    ) : (
-                      getAllCurrencies().map((currency) => (
-                        <option key={currency.id} value={currency.id}>
-                          {currency.flag ? `${currency.flag} ` : ''}{currency.id} - {currency.name}
-                        </option>
-                      ))
-                    )}
-                  </select>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Display Currency</span>
+                    <button
+                      onClick={() => setShowCurrencySettings(true)}
+                      className="flex items-center text-sm text-gray-500 dark:text-gray-400 hover:text-blink-accent"
+                    >
+                      <span>{displayCurrency}</span>
+                      <span className="ml-1">›</span>
+                    </button>
+                  </div>
                 </div>
 
-                {/* Payment Split */}
+                {/* Payment Splits */}
                 <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">Payment Split</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Payment Splits</span>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => setTipsEnabled(!tipsEnabled)}
@@ -1180,7 +1166,7 @@ export default function Dashboard() {
                       onClick={() => setShowTipSettings(true)}
                       className="w-full flex items-center justify-between px-3 py-2 text-sm bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-md transition-colors"
                     >
-                      <span>Payment Split Settings</span>
+                      <span>Split Settings</span>
                       <span className="text-gray-500 dark:text-gray-400">›</span>
                     </button>
                   )}
@@ -1188,28 +1174,16 @@ export default function Dashboard() {
 
                 {/* Sound Effects */}
                 <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Sound Effects</span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setSoundEnabled(!soundEnabled)}
-                        className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
-                      >
-                        <span className={`w-5 h-5 transition-colors ${soundEnabled ? 'bg-blue-500' : 'bg-gray-300'}`} />
-                        <span className={`w-5 h-5 transition-colors ${soundEnabled ? 'bg-gray-600' : 'bg-blink-accent'}`} />
-                      </button>
-                      <span className="text-sm text-gray-700 dark:text-white w-8">{soundEnabled ? 'ON' : 'OFF'}</span>
-                    </div>
-                  </div>
-                  {soundEnabled && (
                     <button
                       onClick={() => setShowSoundThemes(true)}
-                      className="w-full flex items-center justify-between px-3 py-2 text-sm bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-md transition-colors"
+                      className="flex items-center text-sm text-gray-500 dark:text-gray-400 hover:text-blink-accent"
                     >
-                      <span>Sound Themes</span>
-                      <span className="text-gray-500 dark:text-gray-400">›</span>
+                      <span>{!soundEnabled ? 'None' : soundTheme === 'success' ? 'Success' : soundTheme === 'zelda' ? 'Zelda' : soundTheme === 'free' ? 'Free' : soundTheme === 'retro' ? 'Retro' : 'None'}</span>
+                      <span className="ml-1">›</span>
                     </button>
-                  )}
+                  </div>
                 </div>
 
                 {/* Action Buttons */}
@@ -1245,7 +1219,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Sound Themes Overlay */}
+      {/* Themes Overlay */}
       {showSoundThemes && (
         <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
           <div className="min-h-screen">
@@ -1261,24 +1235,52 @@ export default function Dashboard() {
                     <span className="text-lg">Back</span>
                   </button>
                   <h1 className="text-xl font-bold text-gray-900 dark:text-white" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-                    Sound Themes
+                    Themes
                   </h1>
                   <div className="w-16"></div>
                 </div>
               </div>
             </div>
 
-            {/* Sound Themes List */}
+            {/* Themes List */}
             <div className="max-w-md mx-auto px-4 py-6">
               <div className="space-y-3">
+                {/* None Option */}
+                <button
+                  onClick={() => {
+                    setSoundEnabled(false);
+                    setShowSoundThemes(false);
+                  }}
+                  className={`w-full p-4 rounded-lg border-2 transition-all ${
+                    !soundEnabled
+                      ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-left">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                        None
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Sound effects disabled
+                      </p>
+                    </div>
+                    {!soundEnabled && (
+                      <div className="text-blue-600 dark:text-blue-400 text-2xl">✓</div>
+                    )}
+                  </div>
+                </button>
+
                 {/* Success Theme */}
                 <button
                   onClick={() => {
+                    setSoundEnabled(true);
                     setSoundTheme('success');
                     setShowSoundThemes(false);
                   }}
                   className={`w-full p-4 rounded-lg border-2 transition-all ${
-                    soundTheme === 'success'
+                    soundEnabled && soundTheme === 'success'
                       ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                       : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
                   }`}
@@ -1292,7 +1294,7 @@ export default function Dashboard() {
                         Classic payment sounds
                       </p>
                     </div>
-                    {soundTheme === 'success' && (
+                    {soundEnabled && soundTheme === 'success' && (
                       <div className="text-blue-600 dark:text-blue-400 text-2xl">✓</div>
                     )}
                   </div>
@@ -1301,11 +1303,12 @@ export default function Dashboard() {
                 {/* Zelda Theme */}
                 <button
                   onClick={() => {
+                    setSoundEnabled(true);
                     setSoundTheme('zelda');
                     setShowSoundThemes(false);
                   }}
                   className={`w-full p-4 rounded-lg border-2 transition-all ${
-                    soundTheme === 'zelda'
+                    soundEnabled && soundTheme === 'zelda'
                       ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                       : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
                   }`}
@@ -1319,7 +1322,7 @@ export default function Dashboard() {
                         Breath of the Wild sounds
                       </p>
                     </div>
-                    {soundTheme === 'zelda' && (
+                    {soundEnabled && soundTheme === 'zelda' && (
                       <div className="text-blue-600 dark:text-blue-400 text-2xl">✓</div>
                     )}
                   </div>
@@ -1328,11 +1331,12 @@ export default function Dashboard() {
                 {/* Free Theme */}
                 <button
                   onClick={() => {
+                    setSoundEnabled(true);
                     setSoundTheme('free');
                     setShowSoundThemes(false);
                   }}
                   className={`w-full p-4 rounded-lg border-2 transition-all ${
-                    soundTheme === 'free'
+                    soundEnabled && soundTheme === 'free'
                       ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                       : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
                   }`}
@@ -1346,7 +1350,7 @@ export default function Dashboard() {
                         Freedom sounds
                       </p>
                     </div>
-                    {soundTheme === 'free' && (
+                    {soundEnabled && soundTheme === 'free' && (
                       <div className="text-blue-600 dark:text-blue-400 text-2xl">✓</div>
                     )}
                   </div>
@@ -1355,11 +1359,12 @@ export default function Dashboard() {
                 {/* Retro Theme */}
                 <button
                   onClick={() => {
+                    setSoundEnabled(true);
                     setSoundTheme('retro');
                     setShowSoundThemes(false);
                   }}
                   className={`w-full p-4 rounded-lg border-2 transition-all ${
-                    soundTheme === 'retro'
+                    soundEnabled && soundTheme === 'retro'
                       ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                       : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
                   }`}
@@ -1373,7 +1378,7 @@ export default function Dashboard() {
                         Classic 8-bit sounds
                       </p>
                     </div>
-                    {soundTheme === 'retro' && (
+                    {soundEnabled && soundTheme === 'retro' && (
                       <div className="text-blue-600 dark:text-blue-400 text-2xl">✓</div>
                     )}
                   </div>
@@ -1384,7 +1389,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Payment Split Settings Overlay */}
+      {/* Split Settings Overlay */}
       {showTipSettings && (
         <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
           <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
@@ -1400,7 +1405,7 @@ export default function Dashboard() {
                     <span className="text-lg">Back</span>
                   </button>
                   <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                    Payment Split
+                    Split Settings
                   </h1>
                   <div className="w-16"></div>
                 </div>
@@ -1507,7 +1512,70 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Blink Accounts Overlay */}
+      {/* Currency Settings Overlay */}
+      {showCurrencySettings && (
+        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+            {/* Header */}
+            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center h-16">
+                  <button
+                    onClick={() => setShowCurrencySettings(false)}
+                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
+                  >
+                    <span className="text-2xl mr-2">‹</span>
+                    <span className="text-lg">Back</span>
+                  </button>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Currency
+                  </h1>
+                  <div className="w-16"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Currency List */}
+            <div className="max-w-md mx-auto px-4 py-6">
+              <div className="space-y-2">
+                {currenciesLoading ? (
+                  <div className="text-center py-4 text-gray-500">Loading...</div>
+                ) : (
+                  getAllCurrencies().map((currency) => (
+                    <button
+                      key={currency.id}
+                      onClick={() => {
+                        setDisplayCurrency(currency.id);
+                        setShowCurrencySettings(false);
+                      }}
+                      className={`w-full p-3 rounded-lg text-left transition-all ${
+                        displayCurrency === currency.id
+                          ? 'bg-blink-accent/20 border-2 border-blink-accent'
+                          : darkMode
+                            ? 'bg-gray-900 hover:bg-gray-800 border-2 border-transparent'
+                            : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {currency.flag ? `${currency.flag} ` : ''}{currency.id} - {currency.name}
+                        </span>
+                        {displayCurrency === currency.id && (
+                          <svg className="w-5 h-5 text-blink-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Wallets Overlay */}
       {showAccountSettings && (
         <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
           <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
@@ -1529,7 +1597,7 @@ export default function Dashboard() {
                     <span className="text-lg">Back</span>
                   </button>
                   <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                    Blink Accounts
+                    Wallets
                   </h1>
                   <div className="w-16"></div>
                 </div>

@@ -23,23 +23,45 @@ export default function NostrLoginForm() {
 
   const [signingIn, setSigningIn] = useState(false);
   const [localError, setLocalError] = useState(null);
+  const [checkingReturn, setCheckingReturn] = useState(true);
 
-  // Check for pending signer flow on focus (user returning from Amber)
+  // Check for pending signer flow on mount and focus (user returning from Amber)
   useEffect(() => {
-    const handleFocus = async () => {
+    const checkSignerReturn = async () => {
       const result = await checkPendingSignerFlow();
       if (result.success) {
         // Sign-in completed successfully
         console.log('Signed in via external signer');
+      } else if (result.error && result.pending !== false) {
+        // Show error only if there was a pending flow that failed
+        setLocalError(result.error);
       }
+      setCheckingReturn(false);
+    };
+
+    // Check immediately on mount (handles redirect return)
+    checkSignerReturn();
+
+    // Also check on focus (handles manual app switch)
+    const handleFocus = () => {
+      checkSignerReturn();
     };
 
     window.addEventListener('focus', handleFocus);
     
-    // Also check on mount
-    handleFocus();
+    // Also listen for visibility change (more reliable on mobile)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkSignerReturn();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    return () => window.removeEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [checkPendingSignerFlow]);
 
   const handleExtensionSignIn = async () => {
@@ -82,12 +104,14 @@ export default function NostrLoginForm() {
 
   const displayError = localError || error;
 
-  if (loading) {
+  if (loading || checkingReturn) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-black">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blink-accent mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Checking authentication...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">
+            {checkingReturn ? 'Completing sign-in...' : 'Checking authentication...'}
+          </p>
         </div>
       </div>
     );

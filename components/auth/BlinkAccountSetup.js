@@ -114,20 +114,29 @@ export default function BlinkAccountSetup({ onComplete, onSkip }) {
       defaultCurrency: validation.defaultCurrency
     });
 
-    // Also store on server if we have a NIP-98 session
-    // This enables secure server-side API calls
-    if (result.success && hasServerSession) {
-      try {
-        const serverResult = await storeBlinkAccountOnServer(
-          apiKey.trim(), 
-          validation.defaultCurrency
-        );
-        if (!serverResult.success) {
-          console.warn('Failed to store Blink account on server:', serverResult.error);
-          // Don't fail the whole process, local storage is still good
+    // Also store on server for cross-device sync
+    // This enables secure server-side API calls and syncing across devices
+    if (result.success) {
+      console.log('[BlinkAccountSetup] Has server session:', hasServerSession);
+      
+      if (hasServerSession) {
+        try {
+          console.log('[BlinkAccountSetup] Storing Blink account on server...');
+          const serverResult = await storeBlinkAccountOnServer(
+            apiKey.trim(), 
+            validation.defaultCurrency
+          );
+          if (serverResult.success) {
+            console.log('[BlinkAccountSetup] ✓ Blink account stored on server for cross-device sync');
+          } else {
+            console.warn('[BlinkAccountSetup] Failed to store on server:', serverResult.error);
+          }
+        } catch (serverError) {
+          console.warn('[BlinkAccountSetup] Server storage error:', serverError);
         }
-      } catch (serverError) {
-        console.warn('Server storage error:', serverError);
+      } else {
+        console.warn('[BlinkAccountSetup] ⚠ No server session - Blink account saved locally only');
+        console.warn('[BlinkAccountSetup] Cross-device sync will not work without server session');
       }
     }
 

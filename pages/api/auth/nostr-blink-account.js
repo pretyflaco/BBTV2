@@ -136,11 +136,10 @@ async function handlePost(req, res, pubkey, username) {
     });
   }
   
-  // Store encrypted API key
-  const encryptedApiKey = AuthManager.encryptApiKey(apiKey);
-  
+  // Store API key - StorageManager.saveUserData will encrypt it
+  // Don't double-encrypt!
   await StorageManager.saveUserData(username, {
-    apiKey: encryptedApiKey,
+    apiKey: apiKey,  // Will be encrypted by saveUserData
     blinkUsername: userInfo.username,
     blinkUserId: userInfo.id,
     preferredCurrency,

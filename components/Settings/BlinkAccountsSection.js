@@ -10,11 +10,11 @@ export default function BlinkAccountsSection() {
   const { 
     authMode,
     blinkAccounts,
-    activeBlinkAccount,
     addBlinkAccount,
     setActiveBlinkAccount,
     hasServerSession,
-    storeBlinkAccountOnServer
+    storeBlinkAccountOnServer,
+    publicKey
   } = useCombinedAuth();
   
   const { darkMode } = useDarkMode();
@@ -27,7 +27,7 @@ export default function BlinkAccountsSection() {
   const handleAddAccount = async (e) => {
     e.preventDefault();
     if (!apiKey.trim()) {
-      setError('Please enter an API key');
+      setError('Enter an API key');
       return;
     }
 
@@ -35,7 +35,6 @@ export default function BlinkAccountsSection() {
     setError(null);
 
     try {
-      // Validate API key with Blink
       const response = await fetch('https://api.blink.sv/graphql', {
         method: 'POST',
         headers: {
@@ -56,7 +55,6 @@ export default function BlinkAccountsSection() {
         throw new Error('Invalid API key');
       }
 
-      // Add to local storage
       const result = await addBlinkAccount({
         label: label.trim() || 'Blink Account',
         apiKey: apiKey.trim(),
@@ -68,16 +66,15 @@ export default function BlinkAccountsSection() {
         throw new Error(result.error || 'Failed to add account');
       }
 
-      // Also store on server if we have a session
-      if (hasServerSession) {
+      // Store on server for cross-device sync
+      if (authMode === 'nostr') {
         await storeBlinkAccountOnServer(
           apiKey.trim(), 
           data.data.me.defaultAccount?.displayCurrency || 'BTC',
-          label || data.data.me.username  // Pass user-defined label
+          label || data.data.me.username
         );
       }
 
-      // Reset form
       setApiKey('');
       setLabel('');
       setShowAddForm(false);
@@ -97,55 +94,43 @@ export default function BlinkAccountsSection() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-start">
-        <div>
-          <h3 className={`text-lg font-semibold mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-            Blink Accounts
-          </h3>
-          <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            Manage your connected Blink accounts.
-          </p>
-        </div>
-        {authMode === 'nostr' && !showAddForm && (
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="px-4 py-2 bg-blink-accent text-black text-sm font-medium rounded-lg hover:bg-blink-accent/90 transition-colors flex items-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-            </svg>
-            Add Account
-          </button>
-        )}
-      </div>
+    <div className="space-y-4">
+      {/* Header with Add button */}
+      {authMode === 'nostr' && !showAddForm && (
+        <button
+          onClick={() => setShowAddForm(true)}
+          className="w-full py-2 text-sm font-medium bg-blink-accent text-black rounded-md hover:bg-blink-accent/90 transition-colors flex items-center justify-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+          </svg>
+          Add Account
+        </button>
+      )}
 
       {/* Add Account Form */}
       {showAddForm && (
-        <div className={`rounded-xl p-4 ${darkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
-          <h4 className={`font-medium mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-            Add New Blink Account
-          </h4>
-          <form onSubmit={handleAddAccount} className="space-y-4">
+        <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+          <form onSubmit={handleAddAccount} className="space-y-3">
             <div>
               <label className={`block text-sm mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                Account Label
+                Label
               </label>
               <input
                 type="text"
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
-                placeholder="My Blink Account"
-                className={`w-full px-3 py-2 rounded-lg border ${
+                placeholder="My Account"
+                className={`w-full px-3 py-2 rounded-md border text-sm ${
                   darkMode 
-                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                } focus:outline-none focus:ring-2 focus:ring-blink-accent`}
+                    ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
               />
             </div>
             <div>
               <label className={`block text-sm mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                API Key <span className="text-gray-500">(READ + RECEIVE scopes)</span>
+                API Key
               </label>
               <input
                 type="password"
@@ -153,11 +138,11 @@ export default function BlinkAccountsSection() {
                 onChange={(e) => setApiKey(e.target.value)}
                 placeholder="blink_..."
                 required
-                className={`w-full px-3 py-2 rounded-lg border ${
+                className={`w-full px-3 py-2 rounded-md border text-sm ${
                   darkMode 
-                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                } focus:outline-none focus:ring-2 focus:ring-blink-accent`}
+                    ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
               />
             </div>
             
@@ -165,13 +150,13 @@ export default function BlinkAccountsSection() {
               <p className="text-sm text-red-500">{error}</p>
             )}
 
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               <button
                 type="submit"
                 disabled={loading}
-                className="px-4 py-2 bg-blink-accent text-black text-sm font-medium rounded-lg hover:bg-blink-accent/90 disabled:opacity-50 transition-colors"
+                className="flex-1 py-2 bg-blink-accent text-black text-sm font-medium rounded-md hover:bg-blink-accent/90 disabled:opacity-50 transition-colors"
               >
-                {loading ? 'Validating...' : 'Add Account'}
+                {loading ? 'Validating...' : 'Add'}
               </button>
               <button
                 type="button"
@@ -181,9 +166,9 @@ export default function BlinkAccountsSection() {
                   setLabel('');
                   setError(null);
                 }}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
                   darkMode 
-                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                    ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
               >
@@ -195,54 +180,56 @@ export default function BlinkAccountsSection() {
       )}
 
       {/* Accounts List */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         {blinkAccounts && blinkAccounts.length > 0 ? (
           blinkAccounts.map((account) => (
             <div
               key={account.id}
-              className={`rounded-xl p-4 border transition-colors ${
+              className={`rounded-lg p-3 border transition-colors ${
                 account.isActive
                   ? darkMode
                     ? 'bg-blink-accent/10 border-blink-accent'
                     : 'bg-blink-accent/5 border-blink-accent'
                   : darkMode
-                    ? 'bg-gray-800 border-gray-700 hover:border-gray-600'
-                    : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                    ? 'bg-gray-900 border-gray-700'
+                    : 'bg-gray-50 border-gray-200'
               }`}
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${
                     account.isActive 
-                      ? 'bg-blink-accent/20 text-blink-accent' 
-                      : darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'
+                      ? 'bg-blink-accent/20' 
+                      : darkMode ? 'bg-gray-800' : 'bg-gray-200'
                   }`}>
-                    💳
+                    <svg className={`w-5 h-5 ${account.isActive ? 'text-blink-accent' : darkMode ? 'text-gray-400' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
                   </div>
-                  <div>
-                    <h5 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  <div className="min-w-0">
+                    <h5 className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                       {account.label || 'Blink Account'}
                     </h5>
-                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    <p className={`text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                       @{account.username || 'Unknown'}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex-shrink-0 ml-2">
                   {account.isActive ? (
-                    <span className="px-3 py-1 text-xs font-medium bg-blink-accent/20 text-blink-accent rounded-full">
+                    <span className="px-2 py-1 text-xs font-medium bg-blink-accent/20 text-blink-accent rounded">
                       Active
                     </span>
                   ) : (
                     <button
                       onClick={() => handleSetActive(account.id)}
-                      className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                      className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
                         darkMode 
-                          ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                          ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
                           : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                       }`}
                     >
-                      Set Active
+                      Use
                     </button>
                   )}
                 </div>
@@ -250,37 +237,29 @@ export default function BlinkAccountsSection() {
             </div>
           ))
         ) : (
-          <div className={`rounded-xl p-8 text-center ${darkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
-            <div className="text-4xl mb-3">💳</div>
-            <h4 className={`font-medium mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              No Blink Accounts
-            </h4>
+          <div className={`rounded-lg p-6 text-center ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+            <svg className={`w-10 h-10 mx-auto mb-2 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
             <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              {authMode === 'nostr' 
-                ? 'Add a Blink account to start accepting payments.'
-                : 'Your Blink account is connected via API key.'
-              }
+              No accounts connected
             </p>
           </div>
         )}
       </div>
 
-      {/* Help Text */}
-      <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-        <p>
-          Get your API key from{' '}
-          <a 
-            href="https://dashboard.blink.sv" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-blink-accent hover:underline"
-          >
-            Blink Dashboard
-          </a>
-          . Use READ and RECEIVE scopes for POS functionality.
-        </p>
-      </div>
+      {/* Help link */}
+      <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+        Get API key from{' '}
+        <a 
+          href="https://dashboard.blink.sv" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-blink-accent hover:underline"
+        >
+          dashboard.blink.sv
+        </a>
+      </p>
     </div>
   );
 }
-

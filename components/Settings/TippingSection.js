@@ -21,7 +21,6 @@ export default function TippingSection() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  // Update local state when tippingSettings changes
   useEffect(() => {
     if (tippingSettings) {
       setEnabled(tippingSettings.enabled ?? true);
@@ -44,11 +43,9 @@ export default function TippingSection() {
       if (result?.success) {
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
-      } else {
-        console.error('Failed to save tipping settings:', result?.error);
       }
     } catch (err) {
-      console.error('Failed to save tipping settings:', err);
+      console.error('Failed to save:', err);
     } finally {
       setSaving(false);
     }
@@ -62,87 +59,81 @@ export default function TippingSection() {
     }
   };
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h3 className={`text-lg font-semibold mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-          Tipping Settings
-        </h3>
-        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-          Configure how tips are handled in the POS.
-        </p>
-      </div>
+  // Toggle switch component matching Dashboard style
+  const Toggle = ({ value, onChange }) => (
+    <button
+      onClick={onChange}
+      className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:ring-offset-2 rounded"
+    >
+      <span className={`w-5 h-5 transition-colors ${
+        value ? 'bg-blue-600 dark:bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
+      }`} />
+      <span className={`w-5 h-5 transition-colors ${
+        value ? 'bg-gray-300 dark:bg-gray-600' : 'bg-blink-accent'
+      }`} />
+    </button>
+  );
 
-      {/* Enable Tipping Toggle */}
-      <div className={`rounded-xl p-4 ${darkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
+  return (
+    <div className="space-y-4">
+      {/* Enable Tipping */}
+      <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="flex items-center justify-between">
           <div>
-            <h4 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+            <h4 className={`font-medium text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>
               Enable Tipping
             </h4>
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Show tip options during checkout
-            </p>
           </div>
-          <button
-            onClick={() => setEnabled(!enabled)}
-            className={`relative w-12 h-6 rounded-full transition-colors ${
-              enabled ? 'bg-blink-accent' : darkMode ? 'bg-gray-600' : 'bg-gray-300'
-            }`}
-          >
-            <span
-              className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                enabled ? 'left-7' : 'left-1'
-              }`}
-            />
-          </button>
+          <div className="flex items-center gap-2">
+            <Toggle value={enabled} onChange={() => setEnabled(!enabled)} />
+            <span className={`text-sm ${darkMode ? 'text-white' : 'text-gray-700'}`}>
+              {enabled ? 'ON' : 'OFF'}
+            </span>
+          </div>
         </div>
       </div>
 
       {enabled && (
         <>
-          {/* Default Tip Percentage */}
-          <div className={`rounded-xl p-4 ${darkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
-            <h4 className={`font-medium mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              Default Tip Percentage
+          {/* Default Percentage */}
+          <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+            <h4 className={`font-medium text-sm mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Default Tip
             </h4>
             <div className="flex flex-wrap gap-2">
               {PRESET_PERCENTAGES.map((percentage) => (
                 <button
                   key={percentage}
                   onClick={() => setDefaultPercentage(percentage)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
                     defaultPercentage === percentage
                       ? 'bg-blink-accent text-black'
                       : darkMode
-                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                         : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                   }`}
                 >
-                  {percentage === 0 ? 'No tip' : `${percentage}%`}
+                  {percentage === 0 ? 'None' : `${percentage}%`}
                 </button>
               ))}
             </div>
           </div>
 
           {/* Quick Tip Options */}
-          <div className={`rounded-xl p-4 ${darkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
-            <h4 className={`font-medium mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              Quick Tip Options
+          <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+            <h4 className={`font-medium text-sm mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Quick Options
             </h4>
-            <p className={`text-sm mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Select which percentages to show as quick options
-            </p>
             <div className="flex flex-wrap gap-2">
               {PRESET_PERCENTAGES.filter(p => p > 0).map((percentage) => (
                 <button
                   key={percentage}
                   onClick={() => handlePercentageToggle(percentage)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
                     customPercentages.includes(percentage)
                       ? 'bg-blink-accent text-black'
                       : darkMode
-                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                         : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                   }`}
                 >
@@ -152,49 +143,35 @@ export default function TippingSection() {
             </div>
           </div>
 
-          {/* Allow Custom Amount */}
-          <div className={`rounded-xl p-4 ${darkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
+          {/* Custom Amount */}
+          <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
             <div className="flex items-center justify-between">
-              <div>
-                <h4 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Allow Custom Tip Amount
-                </h4>
-                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Let customers enter a custom tip amount
-                </p>
+              <h4 className={`font-medium text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                Allow Custom Amount
+              </h4>
+              <div className="flex items-center gap-2">
+                <Toggle value={allowCustomAmount} onChange={() => setAllowCustomAmount(!allowCustomAmount)} />
+                <span className={`text-sm ${darkMode ? 'text-white' : 'text-gray-700'}`}>
+                  {allowCustomAmount ? 'ON' : 'OFF'}
+                </span>
               </div>
-              <button
-                onClick={() => setAllowCustomAmount(!allowCustomAmount)}
-                className={`relative w-12 h-6 rounded-full transition-colors ${
-                  allowCustomAmount ? 'bg-blink-accent' : darkMode ? 'bg-gray-600' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                    allowCustomAmount ? 'left-7' : 'left-1'
-                  }`}
-                />
-              </button>
             </div>
           </div>
         </>
       )}
 
       {/* Save Button */}
-      <div className="flex justify-end">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className={`px-6 py-2 rounded-lg text-sm font-medium transition-colors ${
-            saved
-              ? 'bg-green-500 text-white'
-              : 'bg-blink-accent text-black hover:bg-blink-accent/90'
-          } disabled:opacity-50`}
-        >
-          {saving ? 'Saving...' : saved ? '✓ Saved' : 'Save Changes'}
-        </button>
-      </div>
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className={`w-full py-2 rounded-md text-sm font-medium transition-colors ${
+          saved
+            ? 'bg-green-500 text-white'
+            : 'bg-blink-accent text-black hover:bg-blink-accent/90'
+        } disabled:opacity-50`}
+      >
+        {saving ? 'Saving...' : saved ? 'Saved' : 'Save Changes'}
+      </button>
     </div>
   );
 }
-

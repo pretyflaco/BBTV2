@@ -18,7 +18,6 @@ export default function PreferencesSection() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  // Update local state when preferences changes
   useEffect(() => {
     if (preferences) {
       setDefaultCurrency(preferences.defaultCurrency ?? 'USD');
@@ -39,21 +38,17 @@ export default function PreferencesSection() {
       if (result?.success) {
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
-      } else {
-        console.error('Failed to save preferences:', result?.error);
       }
     } catch (err) {
-      console.error('Failed to save preferences:', err);
+      console.error('Failed to save:', err);
     } finally {
       setSaving(false);
     }
   };
 
-  // Popular currencies to show first
   const popularCurrencies = ['USD', 'EUR', 'GBP', 'BTC', 'SAT'];
   const allCurrencies = currencies ? getAllCurrencies() : [];
   
-  // Sort currencies: popular first, then alphabetically
   const sortedCurrencies = allCurrencies.sort((a, b) => {
     const aPopular = popularCurrencies.indexOf(a.code);
     const bPopular = popularCurrencies.indexOf(b.code);
@@ -63,59 +58,51 @@ export default function PreferencesSection() {
     return a.code.localeCompare(b.code);
   });
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h3 className={`text-lg font-semibold mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-          Preferences
-        </h3>
-        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-          Customize your BlinkPOS experience.
-        </p>
-      </div>
+  // Toggle switch component matching Dashboard style
+  const Toggle = ({ value, onChange }) => (
+    <button
+      onClick={onChange}
+      className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:ring-offset-2 rounded"
+    >
+      <span className={`w-5 h-5 transition-colors ${
+        value ? 'bg-blue-600 dark:bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
+      }`} />
+      <span className={`w-5 h-5 transition-colors ${
+        value ? 'bg-gray-300 dark:bg-gray-600' : 'bg-blink-accent'
+      }`} />
+    </button>
+  );
 
-      {/* Theme */}
-      <div className={`rounded-xl p-4 ${darkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
+  return (
+    <div className="space-y-4">
+      {/* Dark Mode */}
+      <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="flex items-center justify-between">
-          <div>
-            <h4 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              Dark Mode
-            </h4>
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Use dark theme for the interface
-            </p>
+          <h4 className={`font-medium text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+            Dark Mode
+          </h4>
+          <div className="flex items-center gap-2">
+            <Toggle value={darkMode} onChange={toggleDarkMode} />
+            <span className={`text-sm ${darkMode ? 'text-white' : 'text-gray-700'}`}>
+              {darkMode ? 'ON' : 'OFF'}
+            </span>
           </div>
-          <button
-            onClick={toggleDarkMode}
-            className={`relative w-12 h-6 rounded-full transition-colors ${
-              darkMode ? 'bg-blink-accent' : 'bg-gray-300'
-            }`}
-          >
-            <span
-              className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                darkMode ? 'left-7' : 'left-1'
-              }`}
-            />
-          </button>
         </div>
       </div>
 
       {/* Default Currency */}
-      <div className={`rounded-xl p-4 ${darkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
-        <h4 className={`font-medium mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+      <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+        <h4 className={`font-medium text-sm mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
           Default Currency
         </h4>
-        <p className={`text-sm mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-          Currency to display amounts in by default
-        </p>
         <select
           value={defaultCurrency}
           onChange={(e) => setDefaultCurrency(e.target.value)}
-          className={`w-full px-3 py-2 rounded-lg border ${
+          className={`w-full px-3 py-2 rounded-md border text-sm ${
             darkMode 
-              ? 'bg-gray-700 border-gray-600 text-white' 
+              ? 'bg-gray-800 border-gray-600 text-white' 
               : 'bg-white border-gray-300 text-gray-900'
-          } focus:outline-none focus:ring-2 focus:ring-blink-accent`}
+          } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
         >
           {sortedCurrencies.length > 0 ? (
             sortedCurrencies.map((currency) => (
@@ -136,90 +123,62 @@ export default function PreferencesSection() {
       </div>
 
       {/* Show Sats First */}
-      <div className={`rounded-xl p-4 ${darkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
+      <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="flex items-center justify-between">
-          <div>
-            <h4 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              Show Sats First
-            </h4>
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Display satoshi amounts before fiat in transaction history
-            </p>
+          <h4 className={`font-medium text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+            Show Sats First
+          </h4>
+          <div className="flex items-center gap-2">
+            <Toggle value={showSatsFirst} onChange={() => setShowSatsFirst(!showSatsFirst)} />
+            <span className={`text-sm ${darkMode ? 'text-white' : 'text-gray-700'}`}>
+              {showSatsFirst ? 'ON' : 'OFF'}
+            </span>
           </div>
-          <button
-            onClick={() => setShowSatsFirst(!showSatsFirst)}
-            className={`relative w-12 h-6 rounded-full transition-colors ${
-              showSatsFirst ? 'bg-blink-accent' : darkMode ? 'bg-gray-600' : 'bg-gray-300'
-            }`}
-          >
-            <span
-              className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                showSatsFirst ? 'left-7' : 'left-1'
-              }`}
-            />
-          </button>
         </div>
       </div>
 
       {/* Sound Effects */}
-      <div className={`rounded-xl p-4 ${darkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
+      <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="flex items-center justify-between">
-          <div>
-            <h4 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              Sound Effects
-            </h4>
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Play sounds for payment notifications
-            </p>
+          <h4 className={`font-medium text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+            Sound Effects
+          </h4>
+          <div className="flex items-center gap-2">
+            <Toggle value={soundEnabled} onChange={() => setSoundEnabled(!soundEnabled)} />
+            <span className={`text-sm ${darkMode ? 'text-white' : 'text-gray-700'}`}>
+              {soundEnabled ? 'ON' : 'OFF'}
+            </span>
           </div>
-          <button
-            onClick={() => setSoundEnabled(!soundEnabled)}
-            className={`relative w-12 h-6 rounded-full transition-colors ${
-              soundEnabled ? 'bg-blink-accent' : darkMode ? 'bg-gray-600' : 'bg-gray-300'
-            }`}
-          >
-            <span
-              className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                soundEnabled ? 'left-7' : 'left-1'
-              }`}
-            />
-          </button>
         </div>
       </div>
 
       {/* Save Button */}
-      <div className="flex justify-end">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className={`px-6 py-2 rounded-lg text-sm font-medium transition-colors ${
-            saved
-              ? 'bg-green-500 text-white'
-              : 'bg-blink-accent text-black hover:bg-blink-accent/90'
-          } disabled:opacity-50`}
-        >
-          {saving ? 'Saving...' : saved ? '✓ Saved' : 'Save Changes'}
-        </button>
-      </div>
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className={`w-full py-2 rounded-md text-sm font-medium transition-colors ${
+          saved
+            ? 'bg-green-500 text-white'
+            : 'bg-blink-accent text-black hover:bg-blink-accent/90'
+        } disabled:opacity-50`}
+      >
+        {saving ? 'Saving...' : saved ? 'Saved' : 'Save Changes'}
+      </button>
 
       {/* App Info */}
-      <div className={`pt-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-        <div className={`text-center text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-          <p className="mb-1">BlinkPOS v5 (Nostr Auth)</p>
-          <p>
-            Powered by{' '}
-            <a 
-              href="https://blink.sv" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-blink-accent hover:underline"
-            >
-              Blink
-            </a>
-          </p>
-        </div>
+      <div className={`pt-4 border-t text-center ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+        <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+          BlinkPOS v5 &middot; Powered by{' '}
+          <a 
+            href="https://blink.sv" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-blink-accent hover:underline"
+          >
+            Blink
+          </a>
+        </p>
       </div>
     </div>
   );
 }
-

@@ -130,9 +130,11 @@ async function handlePost(req, res, pubkey, username) {
   let userInfo;
   
   try {
-    userInfo = await blinkApi.getUserInfo();
+    const result = await blinkApi.getUserInfo();
+    // getUserInfo returns { me: { id, username, defaultAccount: { id } } }
+    userInfo = result?.me;
     if (!userInfo?.id) {
-      console.log('[nostr-blink-account] Invalid API key - no user ID');
+      console.log('[nostr-blink-account] Invalid API key - no user ID. Result:', result);
       return res.status(400).json({ error: 'Invalid Blink API key' });
     }
     console.log('[nostr-blink-account] API key valid for user:', userInfo.username);

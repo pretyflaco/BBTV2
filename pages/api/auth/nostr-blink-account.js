@@ -46,6 +46,8 @@ function verifyNostrSession(req) {
 }
 
 export default async function handler(req, res) {
+  console.log('[nostr-blink-account] Request method:', req.method);
+  
   // For GET requests, allow pubkey-based lookup (for external signers)
   // This is safe because the pubkey was verified during sign-in
   if (req.method === 'GET' && req.query.pubkey) {

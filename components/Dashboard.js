@@ -10,19 +10,12 @@ import POS from './POS';
 import { SettingsPage } from './Settings';
 
 export default function Dashboard() {
-  const { user, logout, authMode, getApiKey, hasServerSession, activeBlinkAccount, canMigrateToNostr, tippingSettings: profileTippingSettings, updateTippingSettings: updateProfileTippingSettings } = useCombinedAuth();
+  const { user, logout, authMode, getApiKey, hasServerSession, activeBlinkAccount, tippingSettings: profileTippingSettings, updateTippingSettings: updateProfileTippingSettings } = useCombinedAuth();
   const { currencies, loading: currenciesLoading, getAllCurrencies } = useCurrencies();
   const { darkMode, toggleDarkMode } = useDarkMode();
   const [apiKey, setApiKey] = useState(null);
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showMigrationBanner, setShowMigrationBanner] = useState(() => {
-    // Check if user has dismissed the banner before
-    if (typeof localStorage !== 'undefined') {
-      return !localStorage.getItem('migration_banner_dismissed');
-    }
-    return true;
-  });
   const [expandedMonths, setExpandedMonths] = useState(new Set());
   const [monthlyTransactions, setMonthlyTransactions] = useState({});
   const [hasMoreTransactions, setHasMoreTransactions] = useState(false);
@@ -1614,48 +1607,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Migration Banner for Legacy Users */}
-        {canMigrateToNostr && showMigrationBanner && (
-          <div className="mb-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow-lg overflow-hidden">
-            <div className="px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">🔗</span>
-                <div className="text-white">
-                  <p className="font-medium">Upgrade to Nostr Sign-In</p>
-                  <p className="text-sm text-white/80">Link your Nostr identity for passwordless authentication</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    setShowSettings(true);
-                    // Navigate to migration section
-                    setTimeout(() => {
-                      const migrationTab = document.querySelector('[data-section="migration"]');
-                      if (migrationTab) migrationTab.click();
-                    }, 100);
-                  }}
-                  className="px-4 py-2 bg-white text-purple-600 font-medium rounded-lg hover:bg-gray-100 transition-colors text-sm"
-                >
-                  Link Now
-                </button>
-                <button
-                  onClick={() => {
-                    setShowMigrationBanner(false);
-                    localStorage.setItem('migration_banner_dismissed', 'true');
-                  }}
-                  className="p-1 text-white/60 hover:text-white transition-colors"
-                  aria-label="Dismiss"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Dot Navigation - Consistent position on all pages */}
         {!showingInvoice && (
           <div className="flex justify-center mt-4 mb-4 gap-2">
@@ -1691,7 +1642,7 @@ export default function Dashboard() {
                 className="w-2 h-2"
               />
               <span className="text-blue-600 dark:text-blue-400 font-semibold" style={{fontSize: '11.2px'}}>
-                {user?.username || 'owner'}
+                {activeBlinkAccount?.username || activeBlinkAccount?.label || 'owner'}
               </span>
             </div>
             

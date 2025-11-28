@@ -16,7 +16,6 @@ import ProfileSection from './ProfileSection';
 import BlinkAccountsSection from './BlinkAccountsSection';
 import TippingSection from './TippingSection';
 import PreferencesSection from './PreferencesSection';
-import MigrationSection from './MigrationSection';
 
 export default function SettingsPage({ onClose }) {
   const { 
@@ -30,11 +29,9 @@ export default function SettingsPage({ onClose }) {
   const { darkMode } = useDarkMode();
   const [activeSection, setActiveSection] = useState('profile');
 
-  // Build sections based on auth mode
+  // Build sections
   const sections = [
     { id: 'profile', label: 'Profile', icon: '👤' },
-    // Show migration option for legacy users
-    ...(authMode === 'legacy' ? [{ id: 'migration', label: 'Link Nostr', icon: '🔗' }] : []),
     { id: 'accounts', label: 'Blink Accounts', icon: '💳' },
     { id: 'tipping', label: 'Tipping', icon: '💰' },
     { id: 'preferences', label: 'Preferences', icon: '⚙️' },
@@ -121,14 +118,6 @@ export default function SettingsPage({ onClose }) {
                 publicKey={publicKey}
                 hasServerSession={hasServerSession}
               />
-            )}
-            {activeSection === 'migration' && (
-              <div className="space-y-6">
-                <h3 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Upgrade to Nostr Authentication
-                </h3>
-                <MigrationSection />
-              </div>
             )}
             {activeSection === 'accounts' && (
               <BlinkAccountsSection />

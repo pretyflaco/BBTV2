@@ -1,6 +1,4 @@
-import { useState, useEffect } from 'react';
 import { useCombinedAuth } from '../lib/hooks/useCombinedAuth';
-import LoginForm from '../components/LoginForm';
 import NostrLoginForm from '../components/auth/NostrLoginForm';
 import BlinkAccountSetup from '../components/auth/BlinkAccountSetup';
 import Dashboard from '../components/Dashboard';
@@ -10,9 +8,7 @@ import Dashboard from '../components/Dashboard';
  * 
  * Authentication States:
  * 1. Loading: Show spinner while checking auth
- * 2. Not authenticated: Show login options
- *    - New users: NostrLoginForm (default)
- *    - Legacy option: API key LoginForm
+ * 2. Not authenticated: Show Nostr login
  * 3. Nostr auth but no Blink: Show BlinkAccountSetup
  * 4. Fully authenticated: Show Dashboard
  */
@@ -24,9 +20,6 @@ export default function Home() {
     needsBlinkSetup,
     user 
   } = useCombinedAuth();
-
-  // Track which login view to show (nostr vs legacy)
-  const [loginView, setLoginView] = useState('nostr');
 
   console.log('Home render - loading:', loading, 'authenticated:', isAuthenticated, 'authMode:', authMode, 'needsBlinkSetup:', needsBlinkSetup);
 
@@ -43,38 +36,9 @@ export default function Home() {
     );
   }
 
-  // Not authenticated - show login form
+  // Not authenticated - show Nostr login
   if (!isAuthenticated) {
-    if (loginView === 'legacy') {
-      return (
-        <div>
-          <LoginForm />
-          <div className="fixed bottom-4 left-0 right-0 text-center">
-            <button 
-              onClick={() => setLoginView('nostr')}
-              className="text-sm text-gray-500 dark:text-gray-400 hover:text-blink-accent dark:hover:text-blink-accent underline"
-            >
-              ← Sign in with Nostr instead
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    // Default: Nostr login with option to switch to legacy
-    return (
-      <div>
-        <NostrLoginForm />
-        <div className="fixed bottom-4 left-0 right-0 text-center">
-          <button 
-            onClick={() => setLoginView('legacy')}
-            className="text-sm text-gray-500 dark:text-gray-400 hover:text-blink-accent dark:hover:text-blink-accent underline"
-          >
-            Sign in with API key instead →
-          </button>
-        </div>
-      </div>
-    );
+    return <NostrLoginForm />;
   }
 
   // Nostr authenticated but needs Blink account setup

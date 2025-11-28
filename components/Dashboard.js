@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useAuth } from '../lib/hooks/useAuth';
+import { useCombinedAuth } from '../lib/hooks/useCombinedAuth';
 import { useBlinkWebSocket } from '../lib/hooks/useBlinkWebSocket';
 import { useBlinkPOSWebSocket } from '../lib/hooks/useBlinkPOSWebSocket';
 import { useCurrencies } from '../lib/hooks/useCurrencies';
@@ -7,13 +7,22 @@ import { useDarkMode } from '../lib/hooks/useDarkMode';
 import { useNFC } from './NFCPayment';
 import PaymentAnimation from './PaymentAnimation';
 import POS from './POS';
+import { SettingsPage } from './Settings';
 
 export default function Dashboard() {
-  const { user, logout } = useAuth();
+  const { user, logout, authMode, getApiKey, hasServerSession, activeBlinkAccount, canMigrateToNostr, tippingSettings: profileTippingSettings, updateTippingSettings: updateProfileTippingSettings } = useCombinedAuth();
   const { currencies, loading: currenciesLoading, getAllCurrencies } = useCurrencies();
   const { darkMode, toggleDarkMode } = useDarkMode();
   const [apiKey, setApiKey] = useState(null);
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showMigrationBanner, setShowMigrationBanner] = useState(() => {
+    // Check if user has dismissed the banner before
+    if (typeof localStorage !== 'undefined') {
+      return !localStorage.getItem('migration_banner_dismissed');
+    }
+    return true;
+  });
   const [expandedMonths, setExpandedMonths] = useState(new Set());
   const [monthlyTransactions, setMonthlyTransactions] = useState({});
   const [hasMoreTransactions, setHasMoreTransactions] = useState(false);
@@ -199,19 +208,22 @@ export default function Dashboard() {
   }, [tipRecipient]);
 
   // Get user's API key for direct WebSocket connection
+  // Works with both legacy (API key) and Nostr (profile-based) auth
+  // Re-fetches when user changes OR when active Blink account changes (after account switch in Settings)
   useEffect(() => {
     if (user) {
-      // Get the API key from local storage or make an API call
       fetchApiKey();
     }
-  }, [user]);
+  }, [user, activeBlinkAccount]);
 
   const fetchApiKey = async () => {
     try {
-      const response = await fetch('/api/auth/get-api-key');
-      if (response.ok) {
-        const data = await response.json();
-        setApiKey(data.apiKey);
+      // useCombinedAuth.getApiKey() handles both auth methods:
+      // - Legacy: fetches from server (/api/auth/get-api-key)
+      // - Nostr: decrypts from local profile storage
+      const key = await getApiKey();
+      if (key) {
+        setApiKey(key);
       }
     } catch (error) {
       console.error('Failed to get API key:', error);
@@ -353,24 +365,35 @@ export default function Dashboard() {
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
       
       try {
-      // Fetch transactions only (no balance for employee privacy)
+        // Build request headers
+        // - With server session: rely on auth-token cookie (more secure)
+        // - Without server session: include API key in header (fallback)
+        const headers = {};
+        if (apiKey && !hasServerSession) {
+          headers['X-API-KEY'] = apiKey;
+        }
+
+        // Fetch transactions only (no balance for employee privacy)
         const transactionsRes = await fetch('/api/blink/transactions?first=100', {
-          signal: controller.signal
+          signal: controller.signal,
+          headers,
+          credentials: 'include' // Include cookies for session-based auth
         });
         
         clearTimeout(timeoutId);
 
-      if (transactionsRes.ok) {
-        const transactionsData = await transactionsRes.json();
-        
-        setTransactions(transactionsData.transactions);
-        setHasMoreTransactions(transactionsData.pageInfo?.hasNextPage || false);
-        setError('');
-        
-        // Don't automatically load past transactions - user must click "Show" button
-        // This saves bandwidth and respects user's data plan
-      } else {
-        throw new Error('Failed to fetch transactions');
+        if (transactionsRes.ok) {
+          const transactionsData = await transactionsRes.json();
+          
+          setTransactions(transactionsData.transactions);
+          setHasMoreTransactions(transactionsData.pageInfo?.hasNextPage || false);
+          setError('');
+          
+          // Don't automatically load past transactions - user must click "Show" button
+          // This saves bandwidth and respects user's data plan
+        } else {
+          const errorData = await transactionsRes.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Failed to fetch transactions');
         }
       } catch (fetchErr) {
         clearTimeout(timeoutId);
@@ -428,8 +451,15 @@ export default function Dashboard() {
       let batchCount = 0;
       const maxBatches = 5; // Load up to 5 more batches (500 more transactions)
       
+      // Build request headers
+      // With server session: rely on cookie; without: include API key
+      const headers = {};
+      if (apiKey && !hasServerSession) {
+        headers['X-API-KEY'] = apiKey;
+      }
+      
       while (hasMore && batchCount < maxBatches) {
-        const response = await fetch(`/api/blink/transactions?first=100&after=${nextCursor}`);
+        const response = await fetch(`/api/blink/transactions?first=100&after=${nextCursor}`, { headers, credentials: 'include' });
         
         if (response.ok) {
           const data = await response.json();
@@ -482,8 +512,14 @@ export default function Dashboard() {
     
     setLoadingMore(true);
     try {
+      // Build request headers
+      const headers = {};
+      if (apiKey && !hasServerSession) {
+        headers['X-API-KEY'] = apiKey;
+      }
+      
       const lastTransaction = transactions[transactions.length - 1];
-      const response = await fetch(`/api/blink/transactions?first=100&after=${lastTransaction?.cursor || ''}`);
+      const response = await fetch(`/api/blink/transactions?first=100&after=${lastTransaction?.cursor || ''}`, { headers, credentials: 'include' });
       
       if (response.ok) {
         const data = await response.json();
@@ -522,12 +558,19 @@ export default function Dashboard() {
       
       console.log(`Exporting CSV for wallets: ${walletIds.join(', ')}`);
       
+      // Build request headers
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      if (apiKey && !hasServerSession) {
+        headers['X-API-KEY'] = apiKey;
+      }
+      
       // Call the CSV export API
       const response = await fetch('/api/blink/csv-export', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
+        credentials: 'include',
         body: JSON.stringify({ walletIds })
       });
       
@@ -576,6 +619,12 @@ export default function Dashboard() {
     try {
       console.log('Starting basic transaction export...');
       
+      // Build request headers
+      const headers = {};
+      if (apiKey && !hasServerSession) {
+        headers['X-API-KEY'] = apiKey;
+      }
+      
       // Fetch ALL transactions by paginating through all pages
       let allTransactions = [];
       let hasMore = true;
@@ -590,7 +639,7 @@ export default function Dashboard() {
         
         console.log(`Fetching page ${pageCount}, cursor: ${cursor ? cursor.substring(0, 20) + '...' : 'none'}`);
         
-        const response = await fetch(url);
+        const response = await fetch(url, { headers, credentials: 'include' });
         
         if (!response.ok) {
           const errorText = await response.text();
@@ -1287,6 +1336,23 @@ export default function Dashboard() {
                           </button>
                         )}
                         
+                        {/* Settings Button */}
+                        <button
+                          onClick={() => {
+                            setShowSettings(true);
+                            setSideMenuOpen(false);
+                          }}
+                          className="w-full h-12 bg-white dark:bg-black border-2 border-gray-300 dark:border-gray-600 hover:border-blink-accent dark:hover:border-blink-accent hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-blink-accent rounded-lg text-lg font-normal transition-colors shadow-md flex items-center justify-center gap-2"
+                          style={{fontFamily: "'Source Sans Pro', sans-serif"}}
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          Settings
+                        </button>
+
+                        {/* Logout Button */}
                         <button
                           onClick={() => {
                             handleLogout();
@@ -1545,6 +1611,48 @@ export default function Dashboard() {
         {error && (
           <div className="mb-4 bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 px-4 py-3 rounded">
             {error}
+          </div>
+        )}
+
+        {/* Migration Banner for Legacy Users */}
+        {canMigrateToNostr && showMigrationBanner && (
+          <div className="mb-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow-lg overflow-hidden">
+            <div className="px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🔗</span>
+                <div className="text-white">
+                  <p className="font-medium">Upgrade to Nostr Sign-In</p>
+                  <p className="text-sm text-white/80">Link your Nostr identity for passwordless authentication</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setShowSettings(true);
+                    // Navigate to migration section
+                    setTimeout(() => {
+                      const migrationTab = document.querySelector('[data-section="migration"]');
+                      if (migrationTab) migrationTab.click();
+                    }, 100);
+                  }}
+                  className="px-4 py-2 bg-white text-purple-600 font-medium rounded-lg hover:bg-gray-100 transition-colors text-sm"
+                >
+                  Link Now
+                </button>
+                <button
+                  onClick={() => {
+                    setShowMigrationBanner(false);
+                    localStorage.setItem('migration_banner_dismissed', 'true');
+                  }}
+                  className="p-1 text-white/60 hover:text-white transition-colors"
+                  aria-label="Dismiss"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1848,6 +1956,11 @@ export default function Dashboard() {
           </>
         )}
       </main>
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <SettingsPage onClose={() => setShowSettings(false)} />
+      )}
     </div>
   );
 }

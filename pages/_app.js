@@ -1,8 +1,28 @@
 import '../styles/globals.css';
 import { AuthProvider } from '../lib/hooks/useAuth';
+import { NostrAuthProvider } from '../lib/hooks/useNostrAuth';
+import { ProfileProvider } from '../lib/hooks/useProfile';
 import { useEffect } from 'react';
 import Head from 'next/head';
 
+/**
+ * BlinkPOS App - Supports dual authentication methods:
+ * 
+ * 1. Legacy Auth (AuthProvider): API key-based authentication
+ *    - Used by existing users who signed up with Blink API key
+ *    - Stored server-side with encrypted credentials
+ * 
+ * 2. Nostr Auth (NostrAuthProvider + ProfileProvider): Nostr-based authentication
+ *    - Sign in with browser extension (keys.band, Alby) or external signer (Amber)
+ *    - Credentials encrypted and stored locally (device-key encryption)
+ *    - Supports multiple Blink accounts and NWC connections per profile
+ * 
+ * Provider Hierarchy:
+ *   AuthProvider (legacy) 
+ *     └── NostrAuthProvider (new)
+ *           └── ProfileProvider (profile/credential management)
+ *                 └── Component
+ */
 function MyApp({ Component, pageProps }) {
   useEffect(() => {
     // Only run on client side to prevent hydration mismatch
@@ -40,7 +60,7 @@ function MyApp({ Component, pageProps }) {
 
     // Force reload for mobile browsers if this is a cached version (preserve PWA cache)
     const lastUpdate = localStorage.getItem('lastUpdate');
-    const currentVersion = '2025-09-16-v4-pwa-restored'; // Update this when you deploy
+    const currentVersion = '2025-11-27-v5-nostr-auth'; // Update this when you deploy
     
     if (lastUpdate !== currentVersion) {
       localStorage.setItem('lastUpdate', currentVersion);
@@ -69,8 +89,15 @@ function MyApp({ Component, pageProps }) {
         <meta httpEquiv="Expires" content="0" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
       </Head>
+      {/* Legacy auth provider for existing API-key users */}
       <AuthProvider>
-        <Component {...pageProps} />
+        {/* New Nostr auth provider for extension/signer login */}
+        <NostrAuthProvider>
+          {/* Profile management (Blink accounts, NWC, settings) */}
+          <ProfileProvider>
+            <Component {...pageProps} />
+          </ProfileProvider>
+        </NostrAuthProvider>
       </AuthProvider>
     </>
   );

@@ -51,21 +51,36 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
     }
   }, [pendingTipSelection]);
 
-  // Set default wallet when wallets are loaded
+  // Set default wallet when wallets are loaded or account is switched
   useEffect(() => {
     console.log('Wallets changed:', wallets);
     if (wallets && wallets.length > 0) {
       // Always use BTC wallet for POS
       const btcWallet = wallets.find(w => w.walletCurrency === 'BTC');
-      if (btcWallet && !selectedWallet) {
-        setSelectedWallet(btcWallet);
-        console.log('Selected BTC wallet:', btcWallet);
-      } else if (!btcWallet) {
+      
+      if (!btcWallet) {
         console.error('No BTC wallet found in:', wallets);
         setError('No BTC wallet available for invoice generation');
+        return;
+      }
+
+      // Update wallet if:
+      // 1. No wallet is selected yet (initial load)
+      // 2. Current wallet is from a different account (account switched)
+      //    Detected by checking if current wallet ID exists in new wallets list
+      const currentWalletStillValid = selectedWallet && 
+        wallets.some(w => w.id === selectedWallet.id);
+      
+      if (!selectedWallet || !currentWalletStillValid) {
+        console.log('Updating selected wallet:', { 
+          reason: !selectedWallet ? 'initial load' : 'account switched',
+          oldWallet: selectedWallet?.id,
+          newWallet: btcWallet.id 
+        });
+        setSelectedWallet(btcWallet);
       }
     }
-  }, [wallets, selectedWallet]);
+  }, [wallets]);
 
   // Fetch exchange rate when currency changes
   useEffect(() => {

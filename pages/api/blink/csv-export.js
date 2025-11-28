@@ -2,24 +2,48 @@ const AuthManager = require('../../../lib/auth');
 const StorageManager = require('../../../lib/storage');
 const BlinkAPI = require('../../../lib/blink-api');
 
+/**
+ * CSV Export API - Supports both legacy and Nostr authentication
+ * 
+ * Authentication methods:
+ * 1. Legacy: auth-token cookie (JWT session)
+ * 2. Nostr: X-API-KEY header (secure header-based auth)
+ * 
+ * Note: API keys should NEVER be accepted in request body
+ * as bodies are commonly logged by proxies, CDNs, and WAFs.
+ */
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    // Verify authentication
-    const token = req.cookies['auth-token'];
-    const session = AuthManager.verifySession(token);
-    
-    if (!session) {
-      return res.status(401).json({ error: 'Unauthorized' });
+    let apiKey = null;
+
+    // Method 1: Check for API key in header (Nostr auth)
+    const headerApiKey = req.headers['x-api-key'];
+    if (headerApiKey) {
+      apiKey = headerApiKey;
+    } 
+    // Method 2: Legacy cookie-based auth
+    else {
+      const token = req.cookies['auth-token'];
+      const session = AuthManager.verifySession(token);
+      
+      if (!session) {
+        return res.status(401).json({ error: 'Unauthorized - no valid session or API key' });
+      }
+
+      // Get user's API key from server storage
+      const userData = await StorageManager.loadUserData(session.username);
+      if (!userData?.apiKey) {
+        return res.status(400).json({ error: 'No API key found' });
+      }
+      apiKey = userData.apiKey;
     }
 
-    // Get user's API key
-    const userData = await StorageManager.loadUserData(session.username);
-    if (!userData?.apiKey) {
-      return res.status(400).json({ error: 'No API key found' });
+    if (!apiKey) {
+      return res.status(401).json({ error: 'No API key available' });
     }
 
     // Get wallet IDs from request body
@@ -30,7 +54,7 @@ export default async function handler(req, res) {
     }
 
     // Create Blink API instance
-    const blink = new BlinkAPI(userData.apiKey);
+    const blink = new BlinkAPI(apiKey);
     
     // Get CSV data from Blink (base64 encoded)
     const csvBase64 = await blink.getCsvTransactions(walletIds);

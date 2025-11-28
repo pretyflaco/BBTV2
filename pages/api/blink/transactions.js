@@ -2,31 +2,51 @@ const AuthManager = require('../../../lib/auth');
 const StorageManager = require('../../../lib/storage');
 const BlinkAPI = require('../../../lib/blink-api');
 
+/**
+ * Transactions API - Supports both legacy and Nostr authentication
+ * 
+ * Authentication methods:
+ * 1. Legacy: auth-token cookie (JWT session)
+ * 2. Nostr: X-API-KEY header (passed directly from client)
+ */
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    // Verify authentication
-    const token = req.cookies['auth-token'];
-    const session = AuthManager.verifySession(token);
-    
-    if (!session) {
-      return res.status(401).json({ error: 'Unauthorized' });
+    let apiKey = null;
+
+    // Method 1: Check for API key in header (Nostr auth)
+    const headerApiKey = req.headers['x-api-key'];
+    if (headerApiKey) {
+      apiKey = headerApiKey;
+    } else {
+      // Method 2: Legacy cookie-based auth
+      const token = req.cookies['auth-token'];
+      const session = AuthManager.verifySession(token);
+      
+      if (!session) {
+        return res.status(401).json({ error: 'Unauthorized - no valid session or API key' });
+      }
+
+      // Get user's API key from server storage
+      const userData = await StorageManager.loadUserData(session.username);
+      if (!userData?.apiKey) {
+        return res.status(400).json({ error: 'No API key found' });
+      }
+      apiKey = userData.apiKey;
     }
 
-    // Get user's API key
-    const userData = await StorageManager.loadUserData(session.username);
-    if (!userData?.apiKey) {
-      return res.status(400).json({ error: 'No API key found' });
+    if (!apiKey) {
+      return res.status(401).json({ error: 'No API key available' });
     }
 
     // Parse query parameters
     const { first = 100, after } = req.query;
 
     // Create Blink API instance
-    const blink = new BlinkAPI(userData.apiKey);
+    const blink = new BlinkAPI(apiKey);
     
     // Get transactions
     const transactionData = await blink.getTransactions(parseInt(first), after);

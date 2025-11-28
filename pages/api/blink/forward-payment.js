@@ -54,21 +54,40 @@ export default async function handler(req, res) {
       });
     }
 
+    // Calculate the amount to forward to user (base amount = total - tip)
+    // The tip will be sent separately to the tip recipient
+    const numericTipAmount = parseFloat(tipAmount) || 0;
+
+    // Validate tip amount doesn't exceed total amount
+    if (numericTipAmount >= numericAmount) {
+      console.error('Invalid tip amount:', { tipAmount: numericTipAmount, totalAmount: numericAmount });
+      return res.status(400).json({
+        error: 'Invalid tip amount',
+        message: 'Tip amount cannot be equal to or greater than the total payment amount',
+        details: { tipAmount: numericTipAmount, totalAmount: numericAmount }
+      });
+    }
+
+    const userAmount = numericAmount - numericTipAmount;
+
     console.log('🔄 Starting payment forwarding process:', {
-      amount: numericAmount,
+      totalAmount: numericAmount,
+      tipAmount: numericTipAmount,
+      userAmount: userAmount,
       fromWallet: blinkposBtcWalletId,
       toUserWallet: userWalletId,
+      tipRecipient: tipRecipient || 'none',
       userApiKeyPrefix: userApiKey?.substring(0, 10) + '...',
       timestamp: new Date().toISOString(),
       memo: memo
     });
 
-    // Step 1: Create an invoice from the user's account for the amount
+    // Step 1: Create an invoice from the user's account for the BASE amount (not including tip)
     const userBlinkAPI = new BlinkAPI(userApiKey);
     const forwardingMemo = memo ? `BlinkPOS: ${memo}` : 'BlinkPOS: Payment forwarded';
     
-    console.log('💳 Creating invoice from user account...');
-    const userInvoice = await userBlinkAPI.createLnInvoice(userWalletId, Math.round(numericAmount), forwardingMemo);
+    console.log('💳 Creating invoice from user account for base amount...');
+    const userInvoice = await userBlinkAPI.createLnInvoice(userWalletId, Math.round(userAmount), forwardingMemo);
     
     if (!userInvoice || !userInvoice.paymentRequest) {
       throw new Error('Failed to create user invoice for forwarding');
@@ -134,7 +153,9 @@ export default async function handler(req, res) {
       success: true,
       message: 'Payment successfully forwarded to user account',
       details: {
-        forwardedAmount: numericAmount,
+        totalAmount: numericAmount,
+        forwardedAmount: userAmount,
+        tipAmount: numericTipAmount,
         userWalletId: userWalletId,
         paymentStatus: paymentResult.status,
         invoiceHash: userInvoice.paymentHash,

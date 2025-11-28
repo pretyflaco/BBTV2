@@ -92,35 +92,50 @@ export default async function handler(req, res) {
 
 /**
  * GET - Retrieve Blink account info
+ * For cross-device sync, also returns the API key (user is already authenticated)
  */
 async function handleGet(req, res, pubkey, username) {
+  console.log('[nostr-blink-account] GET for user:', username);
+  
   const userData = await StorageManager.loadUserData(username);
   
   if (!userData?.apiKey) {
+    console.log('[nostr-blink-account] No account found for:', username);
     return res.status(200).json({
       hasAccount: false,
       pubkey
     });
   }
   
-  // Get user info from Blink (without exposing API key)
+  console.log('[nostr-blink-account] Found account with apiKey:', userData.apiKey ? 'yes' : 'no');
+  
+  // Get user info from Blink
   try {
     const blinkApi = new BlinkAPI(userData.apiKey);
-    const userInfo = await blinkApi.getUserInfo();
+    const result = await blinkApi.getUserInfo();
+    const userInfo = result?.me;
     
+    console.log('[nostr-blink-account] Blink user info:', userInfo?.username);
+    
+    // Return account info INCLUDING the API key for cross-device sync
+    // This is safe because user is already authenticated via NIP-98 or pubkey verification
     return res.status(200).json({
       hasAccount: true,
       pubkey,
-      blinkUsername: userInfo?.username || null,
-      preferredCurrency: userData.preferredCurrency || 'BTC'
+      blinkUsername: userInfo?.username || userData.blinkUsername || null,
+      preferredCurrency: userData.preferredCurrency || 'BTC',
+      // Include API key for cross-device sync
+      apiKey: userData.apiKey
     });
   } catch (error) {
-    // API key might be invalid
+    console.error('[nostr-blink-account] Blink API error:', error);
+    // API key might be invalid, but still return it so user can update
     return res.status(200).json({
       hasAccount: true,
       pubkey,
-      blinkUsername: null,
+      blinkUsername: userData.blinkUsername || null,
       preferredCurrency: userData.preferredCurrency || 'BTC',
+      apiKey: userData.apiKey,
       error: 'Failed to fetch Blink account info'
     });
   }

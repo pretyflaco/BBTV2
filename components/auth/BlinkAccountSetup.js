@@ -124,7 +124,8 @@ export default function BlinkAccountSetup({ onComplete, onSkip }) {
           console.log('[BlinkAccountSetup] Storing Blink account on server...');
           const serverResult = await storeBlinkAccountOnServer(
             apiKey.trim(), 
-            validation.defaultCurrency
+            validation.defaultCurrency,
+            label  // Pass user-defined label for cross-device sync
           );
           if (serverResult.success) {
             console.log('[BlinkAccountSetup] ✓ Blink account stored on server for cross-device sync');

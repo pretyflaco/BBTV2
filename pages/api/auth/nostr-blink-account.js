@@ -123,6 +123,7 @@ async function handleGet(req, res, pubkey, username) {
       hasAccount: true,
       pubkey,
       blinkUsername: userInfo?.username || userData.blinkUsername || null,
+      accountLabel: userData.accountLabel || userInfo?.username || userData.blinkUsername || null,
       preferredCurrency: userData.preferredCurrency || 'BTC',
       // Include API key for cross-device sync
       apiKey: userData.apiKey
@@ -134,6 +135,7 @@ async function handleGet(req, res, pubkey, username) {
       hasAccount: true,
       pubkey,
       blinkUsername: userData.blinkUsername || null,
+      accountLabel: userData.accountLabel || userData.blinkUsername || null,
       preferredCurrency: userData.preferredCurrency || 'BTC',
       apiKey: userData.apiKey,
       error: 'Failed to fetch Blink account info'
@@ -147,7 +149,7 @@ async function handleGet(req, res, pubkey, username) {
 async function handlePost(req, res, pubkey, username) {
   console.log('[nostr-blink-account] POST request for:', username);
   
-  const { apiKey, preferredCurrency = 'BTC' } = req.body;
+  const { apiKey, preferredCurrency = 'BTC', label } = req.body;
   
   if (!apiKey) {
     console.log('[nostr-blink-account] Missing API key');
@@ -185,6 +187,7 @@ async function handlePost(req, res, pubkey, username) {
     blinkUsername: userInfo.username,
     blinkUserId: userInfo.id,
     preferredCurrency,
+    accountLabel: label || userInfo.username,  // Store user-defined label
     pubkey,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()

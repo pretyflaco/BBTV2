@@ -70,7 +70,11 @@ export default function BlinkAccountsSection() {
 
       // Also store on server if we have a session
       if (hasServerSession) {
-        await storeBlinkAccountOnServer(apiKey.trim(), data.data.me.defaultAccount?.displayCurrency || 'BTC');
+        await storeBlinkAccountOnServer(
+          apiKey.trim(), 
+          data.data.me.defaultAccount?.displayCurrency || 'BTC',
+          label || data.data.me.username  // Pass user-defined label
+        );
       }
 
       // Reset form

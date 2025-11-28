@@ -3,12 +3,10 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   output: 'standalone',
-  // ESM packages that need special handling
+  // Enable ESM external resolution for pure ESM packages
   experimental: {
-    serverComponentsExternalPackages: ['@noble/secp256k1', '@noble/hashes'],
+    esmExternals: 'loose',
   },
-  // Transpile ESM packages
-  transpilePackages: ['@noble/secp256k1', '@noble/hashes'],
   async headers() {
     return [
       {

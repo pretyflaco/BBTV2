@@ -1123,6 +1123,20 @@ export default function Dashboard() {
                   </div>
                 </div>
 
+                {/* Wallet */}
+                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Wallet</span>
+                    <button
+                      onClick={() => setShowAccountSettings(true)}
+                      className="flex items-center text-sm text-gray-500 dark:text-gray-400 hover:text-blink-accent"
+                    >
+                      <span>{activeBlinkAccount?.label || activeBlinkAccount?.username || 'None'}</span>
+                      <span className="ml-1">›</span>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Currency Selection */}
                 <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
                   <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
@@ -1144,20 +1158,6 @@ export default function Dashboard() {
                       ))
                     )}
                   </select>
-                </div>
-
-                {/* Blink Accounts */}
-                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">Blink Accounts</span>
-                    <button
-                      onClick={() => setShowAccountSettings(true)}
-                      className="flex items-center text-sm text-gray-500 dark:text-gray-400 hover:text-blink-accent"
-                    >
-                      <span>{activeBlinkAccount?.label || activeBlinkAccount?.username || 'None'}</span>
-                      <span className="ml-1">›</span>
-                    </button>
-                  </div>
                 </div>
 
                 {/* Payment Split */}
@@ -1184,23 +1184,6 @@ export default function Dashboard() {
                       <span className="text-gray-500 dark:text-gray-400">›</span>
                     </button>
                   )}
-                </div>
-
-                {/* Dark Mode */}
-                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">Dark Mode</span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={toggleDarkMode}
-                        className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
-                      >
-                        <span className={`w-5 h-5 transition-colors ${darkMode ? 'bg-blue-500' : 'bg-gray-300'}`} />
-                        <span className={`w-5 h-5 transition-colors ${darkMode ? 'bg-gray-600' : 'bg-blink-accent'}`} />
-                      </button>
-                      <span className="text-sm text-gray-700 dark:text-white w-8">{darkMode ? 'ON' : 'OFF'}</span>
-                    </div>
-                  </div>
                 </div>
 
                 {/* Sound Effects */}
@@ -1888,6 +1871,32 @@ export default function Dashboard() {
                 }`}
               aria-label="History"
             />
+          </div>
+        )}
+
+        {/* Dark Mode Toggle - Center top on POS view */}
+        {!showingInvoice && currentView === 'pos' && (
+          <div className="flex justify-center mb-3">
+            <button
+              onClick={toggleDarkMode}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-colors ${
+                darkMode 
+                  ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+              aria-label="Toggle dark mode"
+            >
+              {darkMode ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+              )}
+              <span className="text-xs font-medium">{darkMode ? 'Dark' : 'Light'}</span>
+            </button>
           </div>
         )}
 

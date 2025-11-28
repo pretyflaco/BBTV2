@@ -114,11 +114,16 @@ async function handleGet(req, res, pubkey, username) {
  * POST - Add/update Blink account
  */
 async function handlePost(req, res, pubkey, username) {
+  console.log('[nostr-blink-account] POST request for:', username);
+  
   const { apiKey, preferredCurrency = 'BTC' } = req.body;
   
   if (!apiKey) {
+    console.log('[nostr-blink-account] Missing API key');
     return res.status(400).json({ error: 'API key is required' });
   }
+  
+  console.log('[nostr-blink-account] Validating API key with Blink...');
   
   // Validate the API key with Blink
   const blinkApi = new BlinkAPI(apiKey);
@@ -127,9 +132,12 @@ async function handlePost(req, res, pubkey, username) {
   try {
     userInfo = await blinkApi.getUserInfo();
     if (!userInfo?.id) {
+      console.log('[nostr-blink-account] Invalid API key - no user ID');
       return res.status(400).json({ error: 'Invalid Blink API key' });
     }
+    console.log('[nostr-blink-account] API key valid for user:', userInfo.username);
   } catch (error) {
+    console.error('[nostr-blink-account] API validation error:', error);
     return res.status(400).json({ 
       error: 'Failed to validate API key',
       details: error.message 
@@ -138,7 +146,8 @@ async function handlePost(req, res, pubkey, username) {
   
   // Store API key - StorageManager.saveUserData will encrypt it
   // Don't double-encrypt!
-  await StorageManager.saveUserData(username, {
+  console.log('[nostr-blink-account] Storing user data...');
+  const saveResult = await StorageManager.saveUserData(username, {
     apiKey: apiKey,  // Will be encrypted by saveUserData
     blinkUsername: userInfo.username,
     blinkUserId: userInfo.id,
@@ -147,6 +156,15 @@ async function handlePost(req, res, pubkey, username) {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   });
+  
+  console.log('[nostr-blink-account] Save result:', saveResult);
+  
+  if (!saveResult) {
+    console.error('[nostr-blink-account] Failed to save user data');
+    return res.status(500).json({ error: 'Failed to save account data' });
+  }
+  
+  console.log('[nostr-blink-account] ✓ Account stored successfully');
   
   return res.status(200).json({
     success: true,

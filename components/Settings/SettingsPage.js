@@ -1,34 +1,12 @@
 /**
- * SettingsPage - Profile and settings management UI
- * Mobile-optimized with bottom navigation
+ * SettingsPage - Profile settings
  */
 
-import { useState } from 'react';
-import { useCombinedAuth } from '../../lib/hooks/useCombinedAuth';
 import { useDarkMode } from '../../lib/hooks/useDarkMode';
 import ProfileSection from './ProfileSection';
-import BlinkAccountsSection from './BlinkAccountsSection';
-import TippingSection from './TippingSection';
-import PreferencesSection from './PreferencesSection';
 
 export default function SettingsPage({ onClose }) {
-  const { logout } = useCombinedAuth();
   const { darkMode } = useDarkMode();
-  const [activeSection, setActiveSection] = useState('profile');
-
-  const sections = [
-    { id: 'profile', label: 'Profile' },
-    { id: 'accounts', label: 'Accounts' },
-    { id: 'tipping', label: 'Tipping' },
-    { id: 'preferences', label: 'Settings' },
-  ];
-
-  const handleSignOut = async () => {
-    if (confirm('Sign out?')) {
-      await logout();
-      onClose?.();
-    }
-  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center">
@@ -43,7 +21,7 @@ export default function SettingsPage({ onClose }) {
           darkMode ? 'border-gray-700' : 'border-gray-200'
         }`}>
           <h2 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-            Settings
+            Profile
           </h2>
           <button
             onClick={onClose}
@@ -59,43 +37,9 @@ export default function SettingsPage({ onClose }) {
           </button>
         </div>
 
-        {/* Tab Navigation - Horizontal scrollable on mobile */}
-        <div className={`flex border-b overflow-x-auto scrollbar-hide ${
-          darkMode ? 'border-gray-700' : 'border-gray-200'
-        }`}>
-          {sections.map((section) => (
-            <button
-              key={section.id}
-              onClick={() => setActiveSection(section.id)}
-              className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                activeSection === section.id
-                  ? 'border-blink-accent text-blink-accent'
-                  : darkMode
-                    ? 'border-transparent text-gray-400 hover:text-gray-300'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              {section.label}
-            </button>
-          ))}
-        </div>
-
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-4">
-          {activeSection === 'profile' && <ProfileSection />}
-          {activeSection === 'accounts' && <BlinkAccountsSection />}
-          {activeSection === 'tipping' && <TippingSection />}
-          {activeSection === 'preferences' && <PreferencesSection />}
-        </div>
-
-        {/* Footer - Sign Out */}
-        <div className={`px-4 py-3 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-          <button
-            onClick={handleSignOut}
-            className="w-full py-2 text-sm font-medium text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
-          >
-            Sign Out
-          </button>
+          <ProfileSection />
         </div>
       </div>
     </div>

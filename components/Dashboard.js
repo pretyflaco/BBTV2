@@ -7,15 +7,13 @@ import { useDarkMode } from '../lib/hooks/useDarkMode';
 import { useNFC } from './NFCPayment';
 import PaymentAnimation from './PaymentAnimation';
 import POS from './POS';
-import { SettingsPage } from './Settings';
 
 export default function Dashboard() {
-  const { user, logout, authMode, getApiKey, hasServerSession, activeBlinkAccount, tippingSettings: profileTippingSettings, updateTippingSettings: updateProfileTippingSettings } = useCombinedAuth();
+  const { user, logout, authMode, getApiKey, hasServerSession, activeBlinkAccount, blinkAccounts, addBlinkAccount, setActiveBlinkAccount, storeBlinkAccountOnServer, tippingSettings: profileTippingSettings, updateTippingSettings: updateProfileTippingSettings, nostrProfile } = useCombinedAuth();
   const { currencies, loading: currenciesLoading, getAllCurrencies } = useCurrencies();
   const { darkMode, toggleDarkMode } = useDarkMode();
   const [apiKey, setApiKey] = useState(null);
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [expandedMonths, setExpandedMonths] = useState(new Set());
   const [monthlyTransactions, setMonthlyTransactions] = useState({});
   const [hasMoreTransactions, setHasMoreTransactions] = useState(false);
@@ -64,6 +62,20 @@ export default function Dashboard() {
   const [usernameValidation, setUsernameValidation] = useState({ status: null, message: '', isValidating: false });
   const [showingInvoice, setShowingInvoice] = useState(false);
   const [showSoundThemes, setShowSoundThemes] = useState(false);
+  const [showTipSettings, setShowTipSettings] = useState(false);
+  const [showAccountSettings, setShowAccountSettings] = useState(false);
+  const [showAddAccountForm, setShowAddAccountForm] = useState(false);
+  const [newAccountApiKey, setNewAccountApiKey] = useState('');
+  const [newAccountLabel, setNewAccountLabel] = useState('');
+  const [addAccountLoading, setAddAccountLoading] = useState(false);
+  const [addAccountError, setAddAccountError] = useState(null);
+  const [allowCustomTip, setAllowCustomTip] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('blinkpos-allow-custom-tip');
+      return saved !== null ? JSON.parse(saved) : true;
+    }
+    return true;
+  });
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
   
@@ -93,6 +105,12 @@ export default function Dashboard() {
       localStorage.setItem('blinkpos-tip-presets', JSON.stringify(tipPresets));
     }
   }, [tipPresets]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('blinkpos-allow-custom-tip', JSON.stringify(allowCustomTip));
+    }
+  }, [allowCustomTip]);
 
   // Clear tip recipient when user changes (no persistence across sessions)
   useEffect(() => {
@@ -1043,322 +1061,200 @@ export default function Dashboard() {
         </header>
       )}
 
-      {/* Side Menu Overlay */}
+      {/* Full Screen Menu */}
       {sideMenuOpen && (
-        <div className="fixed inset-0 z-50 overflow-hidden" aria-labelledby="slide-over-title" role="dialog" aria-modal="true">
-          <div className="absolute inset-0 overflow-hidden">
-            {/* Background overlay */}
-            <div 
-              className="absolute inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-              onClick={() => setSideMenuOpen(false)}
-            ></div>
-            
-            {/* Side menu panel */}
-            <div className="pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-10">
-              <div className="pointer-events-auto relative w-screen max-w-md side-menu-panel">
-                <div className="flex h-full flex-col overflow-y-scroll bg-white dark:bg-black py-6 shadow-xl side-menu-slide-in" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-                  <div className="px-4 sm:px-6">
-                    <div className="flex items-start justify-between">
-                      {/* Logo */}
-                      <div className="flex items-center">
-                        <img 
-                          src={darkMode ? '/logos/blink-icon-dark.svg' : '/logos/blink-icon-light.svg'}
-                          alt="Blink Logo"
-                          className="h-8 w-8"
-                        />
-                      </div>
-                      <div className="ml-3 flex h-7 items-center">
-                        <button
-                          type="button"
-                          className="rounded-md bg-white dark:bg-black text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600 dark:focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-black"
-                          onClick={() => setSideMenuOpen(false)}
-                        >
-                          <span className="sr-only">Close panel</span>
-                          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
+        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+            {/* Header */}
+            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center h-16">
+                  <button
+                    onClick={() => setSideMenuOpen(false)}
+                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
+                  >
+                    <span className="text-2xl mr-2">‹</span>
+                    <span className="text-lg">Back</span>
+                  </button>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Menu
+                  </h1>
+                  <div className="w-16"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Menu Content */}
+            <div className="max-w-md mx-auto px-4 py-6">
+              <div className="space-y-4">
+                {/* Profile Info */}
+                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                  <div className="flex items-center gap-3">
+                    {/* Avatar */}
+                    {authMode === 'nostr' && nostrProfile?.picture ? (
+                      <img 
+                        src={nostrProfile.picture} 
+                        alt="Profile"
+                        className="w-10 h-10 rounded-full object-cover ring-2 ring-purple-500/30"
+                        onError={(e) => {
+                          // Fallback to default avatar on error
+                          e.target.style.display = 'none';
+                          e.target.nextElementSibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      authMode === 'nostr' ? 'bg-purple-500/20' : 'bg-blink-accent/20'
+                    }`} style={{ display: (authMode === 'nostr' && nostrProfile?.picture) ? 'none' : 'flex' }}>
+                      <svg className={`w-5 h-5 ${authMode === 'nostr' ? 'text-purple-400' : 'text-blink-accent'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-base font-medium text-blink-accent truncate">
+                        {authMode === 'nostr' 
+                          ? (nostrProfile?.display_name || nostrProfile?.name || user?.username || 'Nostr User')
+                          : (user?.username || 'User')}
+                      </p>
+                      <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {authMode === 'nostr' ? 'Nostr Identity' : 'Legacy Account'}
+                      </p>
                     </div>
                   </div>
-                  <div className="relative mt-6 flex-1 px-4 sm:px-6">
-                    {/* Menu content */}
-                    <div className="space-y-6">
-                      {/* Welcome message */}
-                      <div className="border-b border-gray-300 dark:border-gray-700 pb-4">
-                        <p className="text-sm text-gray-600 dark:text-white">Welcome, {user?.username}</p>
-                      </div>
-                      
-                      {/* Currency Selection */}
-                      <div className="border-b border-gray-300 dark:border-gray-700 pb-4">
-                        <label className="block text-sm font-bold text-gray-900 dark:text-white mb-2">
-                          Display Currency
-                        </label>
-                        <select
-                          value={displayCurrency}
-                          onChange={(e) => setDisplayCurrency(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-blink-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-transparent text-sm"
-                          disabled={currenciesLoading}
-                        >
-                          {currenciesLoading ? (
-                            <option>Loading currencies...</option>
-                          ) : (
-                            getAllCurrencies().map((currency) => (
-                              <option key={currency.id} value={currency.id}>
-                                {currency.flag ? `${currency.flag} ` : ''}{currency.id} - {currency.name}
-                              </option>
-                            ))
-                          )}
-                        </select>
-                      </div>
+                </div>
 
-                      {/* Dark Mode Toggle */}
-                      <div className="border-b border-gray-300 dark:border-gray-700 pb-4">
-                        <label className="block text-sm font-bold text-gray-900 dark:text-white mb-2">
-                          Dark Mode
-                        </label>
-                        <div className="flex items-center">
-                          <button
-                            onClick={toggleDarkMode}
-                            className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:ring-offset-2 rounded"
-                          >
-                            <span
-                              className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
-                                darkMode ? 'bg-blue-600 dark:bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
-                              }`}
-                            />
-                            <span
-                              className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
-                                darkMode ? 'bg-gray-300 dark:bg-gray-600' : 'bg-blink-accent'
-                              }`}
-                            />
-                          </button>
-                          <span className="ml-3 text-sm text-gray-700 dark:text-white">
-                            {darkMode ? 'ON' : 'OFF'}
-                          </span>
-                        </div>
-                      </div>
+                {/* Currency Selection */}
+                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                  <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+                    Display Currency
+                  </label>
+                  <select
+                    value={displayCurrency}
+                    onChange={(e) => setDisplayCurrency(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent text-sm"
+                    disabled={currenciesLoading}
+                  >
+                    {currenciesLoading ? (
+                      <option>Loading...</option>
+                    ) : (
+                      getAllCurrencies().map((currency) => (
+                        <option key={currency.id} value={currency.id}>
+                          {currency.flag ? `${currency.flag} ` : ''}{currency.id} - {currency.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
 
-                      {/* Sound Settings */}
-                      <div className="border-b border-gray-300 dark:border-gray-700 pb-4">
-                        <label className="block text-sm font-bold text-gray-900 dark:text-white mb-2">
-                          Sound Effects
-                        </label>
-                        <div className="flex items-center mb-3">
-                          <button
-                            onClick={() => setSoundEnabled(!soundEnabled)}
-                            className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:ring-offset-2 rounded"
-                          >
-                            <span
-                              className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
-                                soundEnabled ? 'bg-blue-600 dark:bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
-                              }`}
-                            />
-                            <span
-                              className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
-                                soundEnabled ? 'bg-gray-300 dark:bg-gray-600' : 'bg-blink-accent'
-                              }`}
-                            />
-                          </button>
-                          <span className="ml-3 text-sm text-gray-700 dark:text-white">
-                            {soundEnabled ? 'ON' : 'OFF'}
-                          </span>
-                        </div>
-                        
-                        {/* Sound Themes button (only show when sound is ON) */}
-                        {soundEnabled && (
-                          <button
-                            onClick={() => setShowSoundThemes(true)}
-                            className="w-full flex items-center justify-between px-3 py-2 text-sm bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-md transition-colors"
-                          >
-                            <span>Sound Themes</span>
-                            <span className="text-gray-500 dark:text-gray-400">›</span>
-                          </button>
-                        )}
-                      </div>
+                {/* Blink Accounts */}
+                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Blink Accounts</span>
+                    <button
+                      onClick={() => setShowAccountSettings(true)}
+                      className="flex items-center text-sm text-gray-500 dark:text-gray-400 hover:text-blink-accent"
+                    >
+                      <span>{activeBlinkAccount?.label || activeBlinkAccount?.username || 'None'}</span>
+                      <span className="ml-1">›</span>
+                    </button>
+                  </div>
+                </div>
 
-                      {/* Tip Settings */}
-                      <div className="border-b border-gray-300 dark:border-gray-700 pb-4">
-                        <label className="block text-sm font-bold text-gray-900 dark:text-white mb-2">
-                          Tips
-                        </label>
-                        
-                        <div className="space-y-4">
-                          {/* Enable Tips Toggle */}
-                          <div className="flex items-center">
-                            <button
-                              onClick={() => setTipsEnabled(!tipsEnabled)}
-                              className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:ring-offset-2 rounded"
-                            >
-                              <span
-                                className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
-                                  tipsEnabled ? 'bg-blue-600 dark:bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
-                                }`}
-                              />
-                              <span
-                                className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
-                                  tipsEnabled ? 'bg-gray-300 dark:bg-gray-600' : 'bg-blink-accent'
-                                }`}
-                              />
-                            </button>
-                            <span className="ml-3 text-sm text-gray-700 dark:text-white">
-                              {tipsEnabled ? 'ON' : 'OFF'}
-                            </span>
-                          </div>
-
-                          {/* Tip Settings (only show when enabled) */}
-                          {tipsEnabled && (
-                            <>
-                              <div>
-                                <label className="block text-xs font-medium text-gray-700 dark:text-white mb-1">
-                                  Recipient
-                                </label>
-                                <div className="relative">
-                                  <input
-                                    type="text"
-                                    value={tipRecipient}
-                                    onChange={(e) => setTipRecipient(e.target.value)}
-                                    placeholder="Enter Blink username"
-                                    className={`w-full px-2 py-1 text-sm border rounded-md bg-white dark:bg-blink-dark text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-transparent ${
-                                      usernameValidation.status === 'success' ? 'border-green-500' :
-                                      usernameValidation.status === 'error' ? 'border-red-500' :
-                                      'border-gray-300 dark:border-gray-600'
-                                    }`}
-                                  />
-                                  {usernameValidation.isValidating && (
-                                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
-                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                                    </div>
-                                  )}
-                                  {usernameValidation.status === 'success' && (
-                                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-green-500">
-                                      ✓
-                                    </div>
-                                  )}
-                                </div>
-                                
-                                {/* Validation message - only show errors */}
-                                {usernameValidation.message && usernameValidation.status === 'error' && (
-                                  <div className="text-xs mt-1 text-red-600 dark:text-red-400">
-                                    {usernameValidation.message}
-                                  </div>
-                                )}
-                              </div>
-
-                              <div>
-                                <label className="block text-xs font-medium text-gray-700 dark:text-white mb-1">
-                                  Tip Presets (%)
-                                </label>
-                                <div className="flex gap-1 mb-2">
-                                  {tipPresets.map((preset, index) => (
-                                    <div key={index} className="flex items-center">
-                                      <input
-                                        type="number"
-                                        value={preset}
-                                        onChange={(e) => {
-                                          const newPresets = [...tipPresets];
-                                          newPresets[index] = parseFloat(e.target.value) || 0;
-                                          setTipPresets(newPresets);
-                                        }}
-                                        className="w-12 px-1 py-1 text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-blink-dark text-gray-900 dark:text-white rounded text-center"
-                                        min="0"
-                                        max="100"
-                                        step="0.5"
-                                      />
-                                      {index === tipPresets.length - 1 && tipPresets.length > 1 && (
-                                        <button
-                                          onClick={() => setTipPresets(tipPresets.filter((_, i) => i !== index))}
-                                          className="ml-1 text-red-500 hover:text-red-700 text-xs"
-                                        >
-                                          ×
-                                        </button>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                                <button
-                                  onClick={() => setTipPresets([...tipPresets, 5])}
-                                  className="text-xs bg-blink-accent hover:bg-orange-500 text-white px-2 py-1 rounded transition-colors"
-                                >
-                                  Add
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Account Status */}
-                      <div className="border-b border-gray-300 dark:border-gray-700 pb-4">
-                        <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Account Status</h3>
-                        <div className="flex items-center">
-                          <div className={`w-3 h-3 rounded-full mr-2 ${user ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                          <span className="text-sm text-gray-700 dark:text-white">
-                            {user?.username && (
-                              <div>
-                                <span className="text-blink-accent font-medium">
-                                  Logged in as {user.username}
-                                </span>
-                                {tipsEnabled && tipRecipient && (
-                                  <div className="mt-1 text-gray-700 dark:text-white">
-                                    Tips: <span className="text-green-600 font-medium">{tipRecipient}@blink.sv</span>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      {/* Action buttons */}
-                      <div className="space-y-3">
-                        {/* Install App Button */}
-                        {showInstallPrompt && (
-                          <button
-                            onClick={() => {
-                              handleInstallApp();
-                              setSideMenuOpen(false);
-                            }}
-                            className="w-full h-16 bg-white dark:bg-black border-2 border-green-500 hover:border-green-600 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 rounded-lg text-lg font-normal transition-colors shadow-md flex items-center justify-center"
-                            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-                          >
-                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                            </svg>
-                            Install App
-                          </button>
-                        )}
-                        
-                        {/* Settings Button */}
-                        <button
-                          onClick={() => {
-                            setShowSettings(true);
-                            setSideMenuOpen(false);
-                          }}
-                          className="w-full h-12 bg-white dark:bg-black border-2 border-gray-300 dark:border-gray-600 hover:border-blink-accent dark:hover:border-blink-accent hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-blink-accent rounded-lg text-lg font-normal transition-colors shadow-md flex items-center justify-center gap-2"
-                          style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                          Settings
-                        </button>
-
-                        {/* Logout Button */}
-                        <button
-                          onClick={() => {
-                            handleLogout();
-                            setSideMenuOpen(false);
-                          }}
-                          className="w-full h-12 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-lg font-normal transition-colors shadow-md"
-                          style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-                        >
-                          Logout
-                        </button>
-                      </div>
+                {/* Payment Split */}
+                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Payment Split</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setTipsEnabled(!tipsEnabled)}
+                        className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
+                      >
+                        <span className={`w-5 h-5 transition-colors ${tipsEnabled ? 'bg-blue-500' : 'bg-gray-300'}`} />
+                        <span className={`w-5 h-5 transition-colors ${tipsEnabled ? 'bg-gray-600' : 'bg-blink-accent'}`} />
+                      </button>
+                      <span className="text-sm text-gray-700 dark:text-white w-8">{tipsEnabled ? 'ON' : 'OFF'}</span>
                     </div>
                   </div>
+                  {tipsEnabled && (
+                    <button
+                      onClick={() => setShowTipSettings(true)}
+                      className="w-full flex items-center justify-between px-3 py-2 text-sm bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-md transition-colors"
+                    >
+                      <span>Payment Split Settings</span>
+                      <span className="text-gray-500 dark:text-gray-400">›</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Dark Mode */}
+                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Dark Mode</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={toggleDarkMode}
+                        className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
+                      >
+                        <span className={`w-5 h-5 transition-colors ${darkMode ? 'bg-blue-500' : 'bg-gray-300'}`} />
+                        <span className={`w-5 h-5 transition-colors ${darkMode ? 'bg-gray-600' : 'bg-blink-accent'}`} />
+                      </button>
+                      <span className="text-sm text-gray-700 dark:text-white w-8">{darkMode ? 'ON' : 'OFF'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sound Effects */}
+                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Sound Effects</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setSoundEnabled(!soundEnabled)}
+                        className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
+                      >
+                        <span className={`w-5 h-5 transition-colors ${soundEnabled ? 'bg-blue-500' : 'bg-gray-300'}`} />
+                        <span className={`w-5 h-5 transition-colors ${soundEnabled ? 'bg-gray-600' : 'bg-blink-accent'}`} />
+                      </button>
+                      <span className="text-sm text-gray-700 dark:text-white w-8">{soundEnabled ? 'ON' : 'OFF'}</span>
+                    </div>
+                  </div>
+                  {soundEnabled && (
+                    <button
+                      onClick={() => setShowSoundThemes(true)}
+                      className="w-full flex items-center justify-between px-3 py-2 text-sm bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-md transition-colors"
+                    >
+                      <span>Sound Themes</span>
+                      <span className="text-gray-500 dark:text-gray-400">›</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="space-y-3 pt-4">
+                  {showInstallPrompt && (
+                    <button
+                      onClick={() => {
+                        handleInstallApp();
+                        setSideMenuOpen(false);
+                      }}
+                      className="w-full py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg text-base font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                      Install App
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      handleLogout();
+                      setSideMenuOpen(false);
+                    }}
+                    className="w-full py-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-base font-medium transition-colors"
+                  >
+                    Sign Out
+                  </button>
                 </div>
               </div>
             </div>
@@ -1499,6 +1395,370 @@ export default function Dashboard() {
                     )}
                   </div>
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Split Settings Overlay */}
+      {showTipSettings && (
+        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+            {/* Header */}
+            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center h-16">
+                  <button
+                    onClick={() => setShowTipSettings(false)}
+                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
+                  >
+                    <span className="text-2xl mr-2">‹</span>
+                    <span className="text-lg">Back</span>
+                  </button>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Payment Split
+                  </h1>
+                  <div className="w-16"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Settings Content */}
+            <div className="max-w-md mx-auto px-4 py-6">
+              <div className="space-y-4">
+                {/* Recipient */}
+                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                  <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+                    Tip Recipient
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={tipRecipient}
+                      onChange={(e) => setTipRecipient(e.target.value)}
+                      placeholder="Blink username"
+                      className={`w-full px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent ${
+                        usernameValidation.status === 'success' ? 'border-green-500' :
+                        usernameValidation.status === 'error' ? 'border-red-500' :
+                        'border-gray-300 dark:border-gray-600'
+                      }`}
+                    />
+                    {usernameValidation.isValidating && (
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blink-accent"></div>
+                      </div>
+                    )}
+                    {usernameValidation.status === 'success' && (
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-green-500">✓</div>
+                    )}
+                  </div>
+                  {usernameValidation.message && usernameValidation.status === 'error' && (
+                    <p className="text-xs mt-1 text-red-500">{usernameValidation.message}</p>
+                  )}
+                  {usernameValidation.status === 'success' && tipRecipient && (
+                    <p className="text-xs mt-1 text-green-500">{tipRecipient}@blink.sv</p>
+                  )}
+                </div>
+
+                {/* Quick Options */}
+                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                  <label className="block text-sm font-medium text-gray-900 dark:text-white mb-3">
+                    Quick Options
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {tipPresets.map((preset, index) => (
+                      <div key={index} className="flex items-center">
+                        <input
+                          type="number"
+                          value={preset}
+                          onChange={(e) => {
+                            const newPresets = [...tipPresets];
+                            newPresets[index] = parseFloat(e.target.value) || 0;
+                            setTipPresets(newPresets);
+                          }}
+                          className="w-16 px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-center"
+                          min="0"
+                          max="100"
+                          step="0.5"
+                        />
+                        <span className="ml-1 text-gray-500 dark:text-gray-400">%</span>
+                        {tipPresets.length > 1 && (
+                          <button
+                            onClick={() => setTipPresets(tipPresets.filter((_, i) => i !== index))}
+                            className="ml-2 text-red-500 hover:text-red-700"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => setTipPresets([...tipPresets, 5])}
+                    className="mt-3 px-4 py-2 text-sm bg-blink-accent hover:bg-orange-500 text-white rounded transition-colors"
+                  >
+                    Add Option
+                  </button>
+                </div>
+
+                {/* Allow Custom Amount */}
+                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Allow Custom Amount</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setAllowCustomTip(!allowCustomTip)}
+                        className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
+                      >
+                        <span className={`w-5 h-5 transition-colors ${allowCustomTip ? 'bg-blue-500' : 'bg-gray-300'}`} />
+                        <span className={`w-5 h-5 transition-colors ${allowCustomTip ? 'bg-gray-600' : 'bg-blink-accent'}`} />
+                      </button>
+                      <span className="text-sm text-gray-700 dark:text-white w-8">{allowCustomTip ? 'ON' : 'OFF'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Blink Accounts Overlay */}
+      {showAccountSettings && (
+        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+            {/* Header */}
+            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center h-16">
+                  <button
+                    onClick={() => {
+                      setShowAccountSettings(false);
+                      setShowAddAccountForm(false);
+                      setNewAccountApiKey('');
+                      setNewAccountLabel('');
+                      setAddAccountError(null);
+                    }}
+                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
+                  >
+                    <span className="text-2xl mr-2">‹</span>
+                    <span className="text-lg">Back</span>
+                  </button>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Blink Accounts
+                  </h1>
+                  <div className="w-16"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="max-w-md mx-auto px-4 py-6">
+              <div className="space-y-4">
+                {/* Add Account Button */}
+                {authMode === 'nostr' && !showAddAccountForm && (
+                  <button
+                    onClick={() => setShowAddAccountForm(true)}
+                    className="w-full py-3 text-sm font-medium bg-blink-accent text-black rounded-lg hover:bg-blink-accent/90 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Account
+                  </button>
+                )}
+
+                {/* Add Account Form */}
+                {showAddAccountForm && (
+                  <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                    <form onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (!newAccountApiKey.trim()) {
+                        setAddAccountError('Enter an API key');
+                        return;
+                      }
+                      setAddAccountLoading(true);
+                      setAddAccountError(null);
+                      try {
+                        const response = await fetch('https://api.blink.sv/graphql', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'X-API-KEY': newAccountApiKey.trim()
+                          },
+                          body: JSON.stringify({
+                            query: 'query { me { id username defaultAccount { displayCurrency } } }'
+                          })
+                        });
+                        if (!response.ok) throw new Error('Invalid API key');
+                        const data = await response.json();
+                        if (data.errors || !data.data?.me?.id) throw new Error('Invalid API key');
+                        const result = await addBlinkAccount({
+                          label: newAccountLabel.trim() || 'Blink Account',
+                          apiKey: newAccountApiKey.trim(),
+                          username: data.data.me.username,
+                          defaultCurrency: data.data.me.defaultAccount?.displayCurrency || 'BTC'
+                        });
+                        if (!result.success) throw new Error(result.error || 'Failed to add account');
+                        if (authMode === 'nostr') {
+                          await storeBlinkAccountOnServer(
+                            newAccountApiKey.trim(),
+                            data.data.me.defaultAccount?.displayCurrency || 'BTC',
+                            newAccountLabel || data.data.me.username
+                          );
+                        }
+                        setNewAccountApiKey('');
+                        setNewAccountLabel('');
+                        setShowAddAccountForm(false);
+                      } catch (err) {
+                        setAddAccountError(err.message);
+                      } finally {
+                        setAddAccountLoading(false);
+                      }
+                    }} className="space-y-3">
+                      <div>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Label</label>
+                        <input
+                          type="text"
+                          value={newAccountLabel}
+                          onChange={(e) => setNewAccountLabel(e.target.value)}
+                          placeholder="My Account"
+                          className={`w-full px-3 py-2 rounded-md border text-sm ${
+                            darkMode 
+                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
+                              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                          } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">API Key</label>
+                        <input
+                          type="password"
+                          value={newAccountApiKey}
+                          onChange={(e) => setNewAccountApiKey(e.target.value)}
+                          placeholder="blink_..."
+                          required
+                          className={`w-full px-3 py-2 rounded-md border text-sm ${
+                            darkMode 
+                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
+                              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                          } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
+                        />
+                      </div>
+                      {addAccountError && (
+                        <p className="text-sm text-red-500">{addAccountError}</p>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          type="submit"
+                          disabled={addAccountLoading}
+                          className="flex-1 py-2 bg-blink-accent text-black text-sm font-medium rounded-md hover:bg-blink-accent/90 disabled:opacity-50 transition-colors"
+                        >
+                          {addAccountLoading ? 'Validating...' : 'Add'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAddAccountForm(false);
+                            setNewAccountApiKey('');
+                            setNewAccountLabel('');
+                            setAddAccountError(null);
+                          }}
+                          className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
+                            darkMode 
+                              ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+                {/* Accounts List */}
+                <div className="space-y-2">
+                  {blinkAccounts && blinkAccounts.length > 0 ? (
+                    blinkAccounts.map((account) => (
+                      <div
+                        key={account.id}
+                        className={`rounded-lg p-4 border transition-colors ${
+                          account.isActive
+                            ? darkMode
+                              ? 'bg-blink-accent/10 border-blink-accent'
+                              : 'bg-blink-accent/5 border-blink-accent'
+                            : darkMode
+                              ? 'bg-gray-900 border-gray-700'
+                              : 'bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${
+                              account.isActive 
+                                ? 'bg-blink-accent/20' 
+                                : darkMode ? 'bg-gray-800' : 'bg-gray-200'
+                            }`}>
+                              <svg className={`w-5 h-5 ${account.isActive ? 'text-blink-accent' : darkMode ? 'text-gray-400' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                              </svg>
+                            </div>
+                            <div className="min-w-0">
+                              <h5 className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                {account.label || 'Blink Account'}
+                              </h5>
+                              <p className={`text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                @{account.username || 'Unknown'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex-shrink-0 ml-2">
+                            {account.isActive ? (
+                              <span className="px-3 py-1 text-xs font-medium bg-blink-accent/20 text-blink-accent rounded">
+                                Active
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => setActiveBlinkAccount(account.id)}
+                                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                                  darkMode 
+                                    ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                }`}
+                              >
+                                Use
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className={`rounded-lg p-8 text-center ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                      <svg className={`w-12 h-12 mx-auto mb-3 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                      </svg>
+                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        No accounts connected
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Help link */}
+                <p className={`text-xs text-center ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                  Get API key from{' '}
+                  <a 
+                    href="https://dashboard.blink.sv" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blink-accent hover:underline"
+                  >
+                    dashboard.blink.sv
+                  </a>
+                </p>
               </div>
             </div>
           </div>
@@ -1909,9 +2169,6 @@ export default function Dashboard() {
       </main>
 
       {/* Settings Modal */}
-      {showSettings && (
-        <SettingsPage onClose={() => setShowSettings(false)} />
-      )}
     </div>
   );
 }

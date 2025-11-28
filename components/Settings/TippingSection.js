@@ -6,14 +6,13 @@ import { useState, useEffect } from 'react';
 import { useCombinedAuth } from '../../lib/hooks/useCombinedAuth';
 import { useDarkMode } from '../../lib/hooks/useDarkMode';
 
-const PRESET_PERCENTAGES = [0, 5, 10, 15, 20, 25];
+const PRESET_PERCENTAGES = [5, 10, 15, 20, 25];
 
 export default function TippingSection() {
   const { tippingSettings, updateTippingSettings } = useCombinedAuth();
   const { darkMode } = useDarkMode();
   
   const [enabled, setEnabled] = useState(tippingSettings?.enabled ?? true);
-  const [defaultPercentage, setDefaultPercentage] = useState(tippingSettings?.defaultPercentage ?? 15);
   const [customPercentages, setCustomPercentages] = useState(
     tippingSettings?.customPercentages ?? [10, 15, 20]
   );
@@ -24,7 +23,6 @@ export default function TippingSection() {
   useEffect(() => {
     if (tippingSettings) {
       setEnabled(tippingSettings.enabled ?? true);
-      setDefaultPercentage(tippingSettings.defaultPercentage ?? 15);
       setCustomPercentages(tippingSettings.customPercentages ?? [10, 15, 20]);
       setAllowCustomAmount(tippingSettings.allowCustomAmount ?? true);
     }
@@ -35,7 +33,6 @@ export default function TippingSection() {
     try {
       const result = updateTippingSettings({
         enabled,
-        defaultPercentage,
         customPercentages,
         allowCustomAmount
       });
@@ -95,37 +92,13 @@ export default function TippingSection() {
 
       {enabled && (
         <>
-          {/* Default Percentage */}
-          <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-            <h4 className={`font-medium text-sm mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              Default Tip
-            </h4>
-            <div className="flex flex-wrap gap-2">
-              {PRESET_PERCENTAGES.map((percentage) => (
-                <button
-                  key={percentage}
-                  onClick={() => setDefaultPercentage(percentage)}
-                  className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                    defaultPercentage === percentage
-                      ? 'bg-blink-accent text-black'
-                      : darkMode
-                        ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  {percentage === 0 ? 'None' : `${percentage}%`}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Quick Tip Options */}
           <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
             <h4 className={`font-medium text-sm mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
               Quick Options
             </h4>
             <div className="flex flex-wrap gap-2">
-              {PRESET_PERCENTAGES.filter(p => p > 0).map((percentage) => (
+              {PRESET_PERCENTAGES.map((percentage) => (
                 <button
                   key={percentage}
                   onClick={() => handlePercentageToggle(percentage)}

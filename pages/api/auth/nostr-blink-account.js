@@ -46,7 +46,23 @@ function verifyNostrSession(req) {
 }
 
 export default async function handler(req, res) {
-  // Verify Nostr session
+  // For GET requests, allow pubkey-based lookup (for external signers)
+  // This is safe because the pubkey was verified during sign-in
+  if (req.method === 'GET' && req.query.pubkey) {
+    const pubkey = req.query.pubkey.toLowerCase();
+    console.log('[nostr-blink-account] GET by pubkey:', pubkey);
+    
+    // Validate pubkey format
+    if (!/^[0-9a-f]{64}$/.test(pubkey)) {
+      return res.status(400).json({ error: 'Invalid pubkey format' });
+    }
+    
+    // Lookup by pubkey (construct the username format)
+    const username = `nostr:${pubkey}`;
+    return handleGet(req, res, pubkey, username);
+  }
+  
+  // For POST/DELETE, require full session verification
   const verification = verifyNostrSession(req);
   if (!verification.valid) {
     return res.status(401).json({ error: verification.error });

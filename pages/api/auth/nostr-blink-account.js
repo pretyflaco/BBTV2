@@ -64,7 +64,23 @@ export default async function handler(req, res) {
     return handleGet(req, res, pubkey, username);
   }
   
-  // For POST/DELETE, require full session verification
+  // For POST requests, allow pubkey-based storage (for external signers like Amber)
+  // The pubkey was verified during sign-in flow
+  if (req.method === 'POST' && req.body?.pubkey) {
+    const pubkey = req.body.pubkey.toLowerCase();
+    console.log('[nostr-blink-account] POST by pubkey:', pubkey);
+    
+    // Validate pubkey format
+    if (!/^[0-9a-f]{64}$/.test(pubkey)) {
+      return res.status(400).json({ error: 'Invalid pubkey format' });
+    }
+    
+    // Store by pubkey (construct the username format)
+    const username = `nostr:${pubkey}`;
+    return handlePost(req, res, pubkey, username);
+  }
+  
+  // For session-based requests, require full session verification
   const verification = verifyNostrSession(req);
   if (!verification.valid) {
     return res.status(401).json({ error: verification.error });

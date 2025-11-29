@@ -3,7 +3,7 @@ import QRCode from 'react-qr-code';
 import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
 import { useNFC } from './NFCPayment';
 
-const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipient, soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState }) => {
+const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState }) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -448,7 +448,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
     }
 
     // Show tip overlay if tips are enabled and we haven't skipped it
-    if (tipsEnabled && tipRecipient && tipRecipient.length > 0 && !shouldSkipTipDialog && effectiveTipPercent === 0) {
+    if (tipsEnabled && tipRecipients && tipRecipients.length > 0 && !shouldSkipTipDialog && effectiveTipPercent === 0) {
       setShowTipDialog(true);
       return;
     }
@@ -542,7 +542,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
         baseAmount: convertToSatoshis(finalTotal, displayCurrency !== 'BTC' ? displayCurrency : 'BTC'),
         tipAmount: effectiveTipPercent > 0 ? convertToSatoshis(tipAmount, displayCurrency !== 'BTC' ? displayCurrency : 'BTC') : 0,
         tipPercent: effectiveTipPercent,
-        tipRecipient: tipRecipient || null,
+        tipRecipients: tipRecipients || [],
         // Display currency amounts for memo calculation
         baseAmountDisplay: finalTotal,
         tipAmountDisplay: tipAmount

@@ -7,14 +7,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { amount, currency, memo, walletId, apiKey, userWalletId, displayCurrency, baseAmount, tipAmount, tipPercent, tipRecipient, baseAmountDisplay, tipAmountDisplay } = req.body;
+    const { amount, currency, memo, walletId, apiKey, userWalletId, displayCurrency, baseAmount, tipAmount, tipPercent, tipRecipients = [], baseAmountDisplay, tipAmountDisplay } = req.body;
 
     console.log('📥 Create invoice request received:', {
       amount,
       currency,
       displayCurrency,
       tipAmount,
-      tipRecipient,
+      tipRecipients: tipRecipients?.length || 0,
       hasBaseAmountDisplay: !!baseAmountDisplay,
       hasTipAmountDisplay: !!tipAmountDisplay
     });
@@ -58,7 +58,7 @@ export default async function handler(req, res) {
       blinkposWallet: blinkposBtcWalletId,
       userWallet: userWalletId,
       hasTip: tipAmount > 0,
-      tipRecipient
+      tipRecipientsCount: tipRecipients?.length || 0
     });
 
     // Always use BlinkPOS API and BTC wallet for invoice creation
@@ -81,13 +81,13 @@ export default async function handler(req, res) {
       }
 
       // Store tip metadata if there's a tip (using hybrid storage)
-      if (tipAmount > 0 && tipRecipient) {
+      if (tipAmount > 0 && tipRecipients && tipRecipients.length > 0) {
         const hybridStore = await getHybridStore();
         await hybridStore.storeTipData(invoice.paymentHash, {
           baseAmount: baseAmount || numericAmount,
           tipAmount: tipAmount,
           tipPercent: tipPercent,
-          tipRecipient: tipRecipient,
+          tipRecipients: tipRecipients, // Array of { username, share }
           userApiKey: apiKey,
           userWalletId: userWalletId || walletId,
           displayCurrency: displayCurrency || 'BTC', // Store display currency for tip memo
@@ -112,7 +112,7 @@ export default async function handler(req, res) {
           userWalletId: userWalletId || walletId, // Store user's wallet for forwarding
           hasTip: tipAmount > 0,
           tipAmount: tipAmount || 0,
-          tipRecipient: tipRecipient || null
+          tipRecipients: tipRecipients || []
         }
       });
 

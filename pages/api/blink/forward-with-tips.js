@@ -91,12 +91,16 @@ export default async function handler(req, res) {
     }
 
     // CRITICAL: Log the user wallet being used for payment forwarding
+    // Support both old single tipRecipient and new tipRecipients array
+    const tipRecipients = tipData.tipRecipients || (tipData.tipRecipient ? [{ username: tipData.tipRecipient, share: 100 }] : []);
+    
     console.log('🔍 TIP FORWARDING USER CONTEXT:', {
       paymentHash: paymentHash?.substring(0, 16) + '...',
       userWalletId: tipData.userWalletId,
       apiKeyPrefix: tipData.userApiKey?.substring(0, 10) + '...',
       tipAmount: tipData.tipAmount,
-      tipRecipient: tipData.tipRecipient,
+      tipRecipientsCount: tipRecipients.length,
+      tipRecipients: tipRecipients.map(r => r.username),
       timestamp: new Date().toISOString()
     });
 
@@ -116,7 +120,8 @@ export default async function handler(req, res) {
       totalAmount,
       baseAmount: tipData.baseAmount,
       tipAmount: tipData.tipAmount,
-      tipRecipient: tipData.tipRecipient
+      tipRecipientsCount: tipRecipients.length,
+      tipRecipients: tipRecipients.map(r => `${r.username} (${r.share}%)`)
     });
 
     // Calculate the amount to forward to user (total - tip)
@@ -127,7 +132,9 @@ export default async function handler(req, res) {
     
     // Enhanced memo with tip information
     let forwardingMemo;
-    if (memo && tipData.tipAmount > 0 && tipData.tipRecipient) {
+    const recipientNames = tipRecipients.map(r => r.username).join(', ');
+    
+    if (memo && tipData.tipAmount > 0 && tipRecipients.length > 0) {
       // Extract the base amount and tip details for enhanced memo
       const displayCurrency = tipData.displayCurrency || 'BTC';
       const tipAmountDisplay = tipData.tipAmountDisplay || tipData.tipAmount;
@@ -143,20 +150,21 @@ export default async function handler(req, res) {
       
       // Convert original memo format to enhanced format
       // From: "$0.80 + 10% tip = $0.88 (757 sats)" 
-      // To: "BlinkPOS: $0.80 + 10% tip = $0.88 (757 sats) | $0.08 (69 sat) tip received to username"
+      // To: "BlinkPOS: $0.80 + 10% tip = $0.88 (757 sats) | $0.08 (69 sat) tip split to user1, user2"
       const enhancedMemo = memo.replace(
         /([^+]+?)\s*\+\s*(\d+)%\s*tip\s*=\s*(.+)/,
         (match, baseAmount, tipPercent, total) => {
           // Clean up baseAmount - remove extra spaces and ensure proper formatting
           const cleanBaseAmount = baseAmount.trim();
-          return `${cleanBaseAmount} + ${tipPercent}% tip = ${total} | ${tipAmountText} tip received to ${tipData.tipRecipient}`;
+          const splitText = tipRecipients.length > 1 ? 'split to' : 'to';
+          return `${cleanBaseAmount} + ${tipPercent}% tip = ${total} | ${tipAmountText} tip ${splitText} ${recipientNames}`;
         }
       );
       
       forwardingMemo = `BlinkPOS: ${enhancedMemo !== memo ? enhancedMemo : memo}`;
-    } else if (memo && tipData.tipRecipient && tipData.tipAmount === 0) {
+    } else if (memo && tipRecipients.length > 0 && tipData.tipAmount === 0) {
       // Tips enabled but customer chose "No Tip" - still show proper memo with recipient info
-      forwardingMemo = `BlinkPOS: ${memo} | No tip (recipient: ${tipData.tipRecipient})`;
+      forwardingMemo = `BlinkPOS: ${memo} | No tip (recipients: ${recipientNames})`;
     } else {
       // Standard payment without tip system or no memo provided
       forwardingMemo = memo ? `BlinkPOS: ${memo}` : 'BlinkPOS: Payment forwarded';
@@ -194,7 +202,7 @@ export default async function handler(req, res) {
 
     console.log('✅ Base amount successfully forwarded to user account');
 
-    // Step 3: Send tip to tip recipient if there's a tip
+    // Step 3: Send tip to tip recipients if there's a tip
     let tipResult = null;
     // Ensure tipAmount is a proper number for comparison
     const tipAmountNum = Number(tipData.tipAmount) || 0;
@@ -202,86 +210,134 @@ export default async function handler(req, res) {
       tipAmount: tipData.tipAmount,
       tipAmountNum,
       tipAmountType: typeof tipData.tipAmount,
-      tipRecipient: tipData.tipRecipient,
-      condition: tipAmountNum > 0 && tipData.tipRecipient
+      tipRecipientsCount: tipRecipients.length,
+      condition: tipAmountNum > 0 && tipRecipients.length > 0
     });
     
-    if (tipAmountNum > 0 && tipData.tipRecipient) {
+    if (tipAmountNum > 0 && tipRecipients.length > 0) {
       try {
-        console.log('💡 Processing tip payment:', {
-          tipAmount: tipData.tipAmount,
-          tipRecipient: `${tipData.tipRecipient}@blink.sv`
+        // Calculate tip amount per recipient (split evenly)
+        const totalTipSats = Math.round(Number(tipData.tipAmount));
+        const tipPerRecipient = Math.floor(totalTipSats / tipRecipients.length);
+        const remainder = totalTipSats - (tipPerRecipient * tipRecipients.length);
+        
+        console.log('💡 Processing tip payment to multiple recipients:', {
+          totalTipSats,
+          recipientCount: tipRecipients.length,
+          tipPerRecipient,
+          remainder,
+          recipients: tipRecipients.map(r => r.username)
         });
 
         // Generate tip memo based on display currency and amounts
-        // Uses formatCurrencyServer which handles all currencies properly (including zero-decimal currencies)
-        const generateTipMemo = (tipAmountInDisplayCurrency, tipAmountSats, displayCurrency) => {
+        const generateTipMemo = (tipAmountInDisplayCurrency, tipAmountSats, displayCurrency, isMultiple, recipientIndex, totalRecipients) => {
+          const splitInfo = isMultiple ? ` (${recipientIndex + 1}/${totalRecipients})` : '';
           if (displayCurrency === 'BTC') {
-            return `BlinkPOS Tip received: ${tipAmountSats} sats`;
+            return `BlinkPOS Tip${splitInfo}: ${tipAmountSats} sats`;
           } else {
             const formattedAmount = formatCurrencyServer(tipAmountInDisplayCurrency, displayCurrency);
-            return `BlinkPOS Tip received: ${formattedAmount} (${tipAmountSats} sats)`;
+            return `BlinkPOS Tip${splitInfo}: ${formattedAmount} (${tipAmountSats} sats)`;
           }
         };
 
-        // Get tip amounts - use stored display amounts if available
-        // Ensure tipAmount is a number (PostgreSQL bigint might come as string)
-        const tipAmountSats = Math.round(Number(tipData.tipAmount));
         const displayCurrency = tipData.displayCurrency || 'BTC';
-        // Ensure tipAmountInDisplayCurrency is a number (JSONB stores as string)
-        const tipAmountInDisplayCurrency = Number(tipData.tipAmountDisplay) || tipAmountSats;
+        const tipAmountInDisplayCurrency = Number(tipData.tipAmountDisplay) || totalTipSats;
+        const tipPerRecipientDisplay = tipAmountInDisplayCurrency / tipRecipients.length;
         
-        console.log('💡 Tip amount calculation:', {
-          rawTipAmount: tipData.tipAmount,
-          tipAmountSats,
-          displayCurrency,
-          tipAmountInDisplayCurrency
-        });
-
-        const tipMemo = generateTipMemo(tipAmountInDisplayCurrency, tipAmountSats, displayCurrency);
-
-        console.log('💡 Tip memo generated:', {
-          displayCurrency,
-          tipAmountInDisplayCurrency,
-          tipAmountSats,
-          tipMemo
-        });
-
-        // Send tip using invoice creation on behalf of recipient (supports custom memo)
-        const tipPaymentResult = await blinkposAPI.sendTipViaInvoice(
-          blinkposBtcWalletId,
-          tipData.tipRecipient,
-          tipAmountSats,
-          tipMemo
-        );
-
-        if (tipPaymentResult.status === 'SUCCESS') {
-          console.log('💰 Tip successfully sent to recipient');
-          tipResult = {
-            success: true,
-            amount: tipData.tipAmount,
-            recipient: `${tipData.tipRecipient}@blink.sv`,
-            status: tipPaymentResult.status
-          };
-          // Log successful tip event
-          await hybridStore.logEvent(paymentHash, 'tip_sent', 'success', {
-            tipAmount: tipData.tipAmount,
-            tipRecipient: tipData.tipRecipient,
-            paymentHash: tipPaymentResult.paymentHash
+        // Send tips to all recipients
+        const tipResults = [];
+        const isMultiple = tipRecipients.length > 1;
+        
+        for (let i = 0; i < tipRecipients.length; i++) {
+          const recipient = tipRecipients[i];
+          // First recipient gets any remainder from rounding
+          const recipientTipAmount = i === 0 ? tipPerRecipient + remainder : tipPerRecipient;
+          
+          console.log(`💡 Sending tip to ${recipient.username}:`, {
+            amount: recipientTipAmount,
+            index: i + 1,
+            total: tipRecipients.length
           });
-        } else {
-          console.error('❌ Tip payment failed:', tipPaymentResult.status);
-          tipResult = {
-            success: false,
-            error: `Tip payment failed: ${tipPaymentResult.status}`
-          };
-          // Log failed tip event
-          await hybridStore.logEvent(paymentHash, 'tip_sent', 'failure', {
-            tipAmount: tipData.tipAmount,
-            tipRecipient: tipData.tipRecipient,
-            status: tipPaymentResult.status
-          });
+
+          const tipMemo = generateTipMemo(
+            tipPerRecipientDisplay, 
+            recipientTipAmount, 
+            displayCurrency,
+            isMultiple,
+            i,
+            tipRecipients.length
+          );
+
+          try {
+            const tipPaymentResult = await blinkposAPI.sendTipViaInvoice(
+              blinkposBtcWalletId,
+              recipient.username,
+              recipientTipAmount,
+              tipMemo
+            );
+
+            if (tipPaymentResult.status === 'SUCCESS') {
+              console.log(`💰 Tip successfully sent to ${recipient.username}`);
+              tipResults.push({
+                success: true,
+                amount: recipientTipAmount,
+                recipient: `${recipient.username}@blink.sv`,
+                status: tipPaymentResult.status
+              });
+              // Log successful tip event
+              await hybridStore.logEvent(paymentHash, 'tip_sent', 'success', {
+                tipAmount: recipientTipAmount,
+                tipRecipient: recipient.username,
+                paymentHash: tipPaymentResult.paymentHash,
+                recipientIndex: i + 1,
+                totalRecipients: tipRecipients.length
+              });
+            } else {
+              console.error(`❌ Tip payment to ${recipient.username} failed:`, tipPaymentResult.status);
+              tipResults.push({
+                success: false,
+                recipient: `${recipient.username}@blink.sv`,
+                error: `Tip payment failed: ${tipPaymentResult.status}`
+              });
+              // Log failed tip event
+              await hybridStore.logEvent(paymentHash, 'tip_sent', 'failure', {
+                tipAmount: recipientTipAmount,
+                tipRecipient: recipient.username,
+                status: tipPaymentResult.status
+              });
+            }
+          } catch (recipientTipError) {
+            console.error(`❌ Tip payment to ${recipient.username} error:`, recipientTipError);
+            tipResults.push({
+              success: false,
+              recipient: `${recipient.username}@blink.sv`,
+              error: recipientTipError.message
+            });
+            // Log tip error event
+            await hybridStore.logEvent(paymentHash, 'tip_sent', 'failure', {
+              tipAmount: recipientTipAmount,
+              tipRecipient: recipient.username
+            }, recipientTipError.message);
+          }
         }
+        
+        // Summarize results
+        const successCount = tipResults.filter(r => r.success).length;
+        tipResult = {
+          success: successCount === tipRecipients.length,
+          partialSuccess: successCount > 0 && successCount < tipRecipients.length,
+          totalAmount: tipData.tipAmount,
+          recipients: tipResults,
+          successCount,
+          totalCount: tipRecipients.length
+        };
+        
+        console.log('💡 Tip distribution complete:', {
+          successCount,
+          totalCount: tipRecipients.length,
+          partialSuccess: tipResult.partialSuccess
+        });
+        
       } catch (tipError) {
         console.error('❌ Tip payment error:', tipError);
         tipResult = {
@@ -291,14 +347,14 @@ export default async function handler(req, res) {
         // Log tip error event
         await hybridStore.logEvent(paymentHash, 'tip_sent', 'failure', {
           tipAmount: tipData.tipAmount,
-          tipRecipient: tipData.tipRecipient
+          tipRecipients: tipRecipients.map(r => r.username)
         }, tipError.message);
       }
     } else {
       console.log('ℹ️ No tip to process:', {
         tipAmount: tipData.tipAmount,
-        tipRecipient: tipData.tipRecipient,
-        reason: !tipData.tipAmount ? 'no tip amount' : !tipData.tipRecipient ? 'no tip recipient' : 'unknown'
+        tipRecipientsCount: tipRecipients.length,
+        reason: !tipData.tipAmount ? 'no tip amount' : tipRecipients.length === 0 ? 'no tip recipients' : 'unknown'
       });
     }
 
@@ -307,7 +363,7 @@ export default async function handler(req, res) {
     await hybridStore.logEvent(paymentHash, 'forwarded', 'success', {
       forwardedAmount: userAmount,
       tipAmount: tipData.tipAmount,
-      tipRecipient: tipData.tipRecipient
+      tipRecipients: tipRecipients.map(r => r.username)
     });
     
     // Mark as completed (removes from hot storage)
@@ -332,7 +388,7 @@ export default async function handler(req, res) {
           baseAmount: tipData.baseAmount,
           tipAmount: tipData.tipAmount,
           tipPercent: tipData.tipPercent,
-          tipRecipient: tipData.tipRecipient
+          tipRecipients: tipRecipients
         }
       }
     });

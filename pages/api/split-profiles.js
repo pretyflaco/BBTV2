@@ -122,15 +122,10 @@ async function handlePost(req, res, pubkey, username) {
     if (!recipient.username || typeof recipient.username !== 'string') {
       return res.status(400).json({ error: 'Recipient username is required' });
     }
-    if (typeof recipient.share !== 'number' || recipient.share < 0 || recipient.share > 100) {
+    // Share is optional now since we split evenly, but validate if provided
+    if (recipient.share !== undefined && (typeof recipient.share !== 'number' || recipient.share < 0 || recipient.share > 100)) {
       return res.status(400).json({ error: 'Recipient share must be a number between 0 and 100' });
     }
-  }
-  
-  // Validate that shares sum to 100
-  const totalShare = profile.recipients.reduce((sum, r) => sum + r.share, 0);
-  if (Math.abs(totalShare - 100) > 0.01) {
-    return res.status(400).json({ error: 'Recipient shares must sum to 100%' });
   }
   
   // Load existing data

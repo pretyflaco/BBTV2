@@ -85,7 +85,8 @@ export default function Dashboard() {
   const [showCreateSplitProfile, setShowCreateSplitProfile] = useState(false);
   const [editingSplitProfile, setEditingSplitProfile] = useState(null);
   const [newSplitProfileLabel, setNewSplitProfileLabel] = useState('');
-  const [newSplitProfileRecipient, setNewSplitProfileRecipient] = useState('');
+  const [newSplitProfileRecipients, setNewSplitProfileRecipients] = useState([]); // Array of { username, validated }
+  const [newRecipientInput, setNewRecipientInput] = useState(''); // Current input for adding a recipient
   const [splitProfileError, setSplitProfileError] = useState(null);
   const [recipientValidation, setRecipientValidation] = useState({ status: null, message: '', isValidating: false });
   
@@ -682,14 +683,37 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Debounced recipient username validation
+  // Debounced recipient username validation for current input
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      validateRecipientUsername(newSplitProfileRecipient);
+      validateRecipientUsername(newRecipientInput);
     }, 500); // 500ms delay
 
     return () => clearTimeout(timeoutId);
-  }, [newSplitProfileRecipient, validateRecipientUsername]);
+  }, [newRecipientInput, validateRecipientUsername]);
+
+  // Add a validated recipient to the list
+  const addRecipientToProfile = useCallback(() => {
+    if (recipientValidation.status !== 'success' || !newRecipientInput.trim()) return;
+    
+    const username = newRecipientInput.trim().toLowerCase();
+    
+    // Check if already added
+    if (newSplitProfileRecipients.some(r => r.username === username)) {
+      setSplitProfileError('This recipient is already added');
+      return;
+    }
+    
+    setNewSplitProfileRecipients(prev => [...prev, { username, validated: true }]);
+    setNewRecipientInput('');
+    setRecipientValidation({ status: null, message: '', isValidating: false });
+    setSplitProfileError(null);
+  }, [recipientValidation.status, newRecipientInput, newSplitProfileRecipients]);
+
+  // Remove a recipient from the list
+  const removeRecipientFromProfile = useCallback((username) => {
+    setNewSplitProfileRecipients(prev => prev.filter(r => r.username !== username));
+  }, []);
 
   // Fetch split profiles when user is authenticated
   useEffect(() => {
@@ -1640,7 +1664,8 @@ export default function Dashboard() {
                     onClick={() => {
                       setEditingSplitProfile(null);
                       setNewSplitProfileLabel('');
-                      setNewSplitProfileRecipient('');
+                      setNewSplitProfileRecipients([]);
+                      setNewRecipientInput('');
                       setRecipientValidation({ status: null, message: '', isValidating: false });
                       setSplitProfileError(null);
                       setShowCreateSplitProfile(true);
@@ -1723,8 +1748,12 @@ export default function Dashboard() {
                         onClick={() => {
                           setEditingSplitProfile(profile);
                           setNewSplitProfileLabel(profile.label);
-                          setNewSplitProfileRecipient(profile.recipients[0]?.username || '');
-                          setRecipientValidation({ status: 'success', message: '', isValidating: false });
+                          // Initialize recipients array from profile
+                          setNewSplitProfileRecipients(
+                            profile.recipients?.map(r => ({ username: r.username, validated: true })) || []
+                          );
+                          setNewRecipientInput('');
+                          setRecipientValidation({ status: null, message: '', isValidating: false });
                           setSplitProfileError(null);
                           setShowCreateSplitProfile(true);
                         }}
@@ -1883,20 +1912,50 @@ export default function Dashboard() {
                   />
                 </div>
 
-                {/* Recipient */}
+                {/* Recipients */}
                 <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
                   <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
-                    Recipient
+                    Recipients
                   </label>
+                  
+                  {/* Added Recipients List */}
+                  {newSplitProfileRecipients.length > 0 && (
+                    <div className="mb-3 space-y-2">
+                      {newSplitProfileRecipients.map((recipient, index) => (
+                        <div key={recipient.username} className="flex items-center justify-between px-3 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
+                          <span className="text-sm text-green-700 dark:text-green-400">
+                            {recipient.username}@blink.sv
+                          </span>
+                          <button
+                            onClick={() => removeRecipientFromProfile(recipient.username)}
+                            className="text-red-500 hover:text-red-700 text-lg font-bold"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Split will be divided evenly ({(100 / newSplitProfileRecipients.length).toFixed(1)}% each)
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Add New Recipient Input */}
                   <div className="relative">
                     <input
                       type="text"
-                      value={newSplitProfileRecipient}
+                      value={newRecipientInput}
                       onChange={(e) => {
                         const value = e.target.value.replace(/@blink\.sv$/, '');
-                        setNewSplitProfileRecipient(value);
+                        setNewRecipientInput(value);
                       }}
-                      placeholder="Blink username"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && recipientValidation.status === 'success') {
+                          e.preventDefault();
+                          addRecipientToProfile();
+                        }
+                      }}
+                      placeholder="Enter Blink username"
                       className={`w-full px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent ${
                         recipientValidation.status === 'success' ? 'border-green-500' :
                         recipientValidation.status === 'error' ? 'border-red-500' :
@@ -1915,12 +1974,19 @@ export default function Dashboard() {
                   {recipientValidation.message && recipientValidation.status === 'error' && (
                     <p className="text-xs mt-1 text-red-500">{recipientValidation.message}</p>
                   )}
-                  {recipientValidation.status === 'success' && newSplitProfileRecipient && (
-                    <p className="text-xs mt-1 text-green-500">{newSplitProfileRecipient}@blink.sv</p>
+                  {recipientValidation.status === 'success' && newRecipientInput && (
+                    <button
+                      onClick={addRecipientToProfile}
+                      className="mt-2 w-full py-2 text-sm font-medium bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
+                    >
+                      Add {newRecipientInput}@blink.sv
+                    </button>
                   )}
-                  <p className="text-xs mt-2 text-gray-500 dark:text-gray-400">
-                    This user will receive 100% of the split amount
-                  </p>
+                  {newSplitProfileRecipients.length === 0 && (
+                    <p className="text-xs mt-2 text-gray-500 dark:text-gray-400">
+                      Add at least one recipient for the split
+                    </p>
+                  )}
                 </div>
 
                 {/* Save Button */}
@@ -1930,22 +1996,21 @@ export default function Dashboard() {
                       setSplitProfileError('Please enter a profile name');
                       return;
                     }
-                    if (!newSplitProfileRecipient.trim()) {
-                      setSplitProfileError('Please enter a recipient username');
+                    if (newSplitProfileRecipients.length === 0) {
+                      setSplitProfileError('Please add at least one recipient');
                       return;
                     }
-                    if (recipientValidation.status !== 'success') {
-                      setSplitProfileError('Please enter a valid Blink username');
-                      return;
-                    }
+                    
+                    // Calculate equal shares
+                    const sharePerRecipient = 100 / newSplitProfileRecipients.length;
                     
                     const profile = {
                       id: editingSplitProfile?.id,
                       label: newSplitProfileLabel.trim(),
-                      recipients: [{
-                        username: newSplitProfileRecipient.trim(),
-                        share: 100
-                      }]
+                      recipients: newSplitProfileRecipients.map(r => ({
+                        username: r.username,
+                        share: sharePerRecipient
+                      }))
                     };
                     
                     const saved = await saveSplitProfile(profile, true);
@@ -1955,7 +2020,7 @@ export default function Dashboard() {
                       setShowTipSettings(false);
                     }
                   }}
-                  disabled={!newSplitProfileLabel.trim() || !newSplitProfileRecipient.trim() || recipientValidation.status !== 'success'}
+                  disabled={!newSplitProfileLabel.trim() || newSplitProfileRecipients.length === 0}
                   className="w-full py-3 text-sm font-medium bg-blink-accent text-black rounded-lg hover:bg-blink-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {editingSplitProfile ? 'Save Changes' : 'Create Profile'}
@@ -2446,7 +2511,7 @@ export default function Dashboard() {
             blinkposReconnectAttempts={blinkposReconnectAttempts}
             tipsEnabled={tipsEnabled}
             tipPresets={tipPresets}
-            tipRecipient={tipRecipient}
+            tipRecipients={activeSplitProfile?.recipients || []}
             soundEnabled={soundEnabled}
             onInvoiceStateChange={setShowingInvoice}
             onInvoiceChange={setCurrentInvoice}

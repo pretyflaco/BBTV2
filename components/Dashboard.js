@@ -604,14 +604,14 @@ export default function Dashboard() {
   };
 
   // Validate recipient username (Blink username validation) - uses same logic as validateBlinkUsername
-  const validateRecipientUsername = async (username) => {
+  const validateRecipientUsername = useCallback(async (username) => {
     if (!username || username.trim() === '') {
       setRecipientValidation({ status: null, message: '', isValidating: false });
       return;
     }
 
-    // Clean username input
-    let cleanedUsername = username.trim().toLowerCase();
+    // Clean username input - strip @blink.sv if user enters full Lightning Address
+    let cleanedUsername = username.trim();
     if (cleanedUsername.includes('@blink.sv')) {
       cleanedUsername = cleanedUsername.replace('@blink.sv', '').trim();
     }
@@ -640,34 +640,35 @@ export default function Dashboard() {
         body: JSON.stringify({ query, variables }),
       });
 
-      const result = await response.json();
-
-      if (result.errors) {
-        // GraphQL errors (invalid username format, etc.)
-        setRecipientValidation({ 
-          status: 'error', 
-          message: result.errors[0]?.message || 'Invalid username', 
-          isValidating: false 
-        });
-        return;
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const isAvailable = result.data?.usernameAvailable;
-      
-      if (isAvailable === false) {
-        // Username exists (not available = taken = valid recipient)
+      const data = await response.json();
+
+      if (data.errors) {
+        const errorMessage = data.errors[0].message;
+        if (errorMessage.includes('Invalid value for Username')) {
+          setRecipientValidation({ 
+            status: 'error', 
+            message: 'Invalid username format', 
+            isValidating: false 
+          });
+          return;
+        }
+        throw new Error(errorMessage);
+      }
+
+      // usernameAvailable: true means username does NOT exist
+      // usernameAvailable: false means username DOES exist
+      const usernameExists = !data.data.usernameAvailable;
+
+      if (usernameExists) {
         setRecipientValidation({ status: 'success', message: '', isValidating: false });
-      } else if (isAvailable === true) {
-        // Username is available (not taken = doesn't exist = invalid recipient)
-        setRecipientValidation({ 
-          status: 'error', 
-          message: 'Username not found', 
-          isValidating: false 
-        });
       } else {
         setRecipientValidation({ 
           status: 'error', 
-          message: 'Unable to verify username', 
+          message: 'Username not found', 
           isValidating: false 
         });
       }
@@ -679,7 +680,16 @@ export default function Dashboard() {
         isValidating: false 
       });
     }
-  };
+  }, []);
+
+  // Debounced recipient username validation
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      validateRecipientUsername(newSplitProfileRecipient);
+    }, 500); // 500ms delay
+
+    return () => clearTimeout(timeoutId);
+  }, [newSplitProfileRecipient, validateRecipientUsername]);
 
   // Fetch split profiles when user is authenticated
   useEffect(() => {
@@ -1883,9 +1893,8 @@ export default function Dashboard() {
                       type="text"
                       value={newSplitProfileRecipient}
                       onChange={(e) => {
-                        const value = e.target.value.toLowerCase().replace(/@blink\.sv$/, '');
+                        const value = e.target.value.replace(/@blink\.sv$/, '');
                         setNewSplitProfileRecipient(value);
-                        validateRecipientUsername(value);
                       }}
                       placeholder="Blink username"
                       className={`w-full px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent ${

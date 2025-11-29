@@ -603,26 +603,81 @@ export default function Dashboard() {
     }
   };
 
-  // Validate recipient username (Blink username validation)
+  // Validate recipient username (Blink username validation) - uses same logic as validateBlinkUsername
   const validateRecipientUsername = async (username) => {
-    if (!username || username.length < 2) {
+    if (!username || username.trim() === '') {
       setRecipientValidation({ status: null, message: '', isValidating: false });
       return;
     }
-    
+
+    // Clean username input
+    let cleanedUsername = username.trim().toLowerCase();
+    if (cleanedUsername.includes('@blink.sv')) {
+      cleanedUsername = cleanedUsername.replace('@blink.sv', '').trim();
+    }
+    if (cleanedUsername.includes('@')) {
+      cleanedUsername = cleanedUsername.split('@')[0].trim();
+    }
+
     setRecipientValidation({ status: null, message: '', isValidating: true });
-    
+
+    const query = `
+      query Query($username: Username!) {
+        usernameAvailable(username: $username)
+      }
+    `;
+
+    const variables = {
+      username: cleanedUsername
+    };
+
     try {
-      // Use the LNURL proxy to check if username exists
-      const response = await fetch(`/api/lnurl-proxy?username=${encodeURIComponent(username)}`);
+      const response = await fetch('https://api.blink.sv/graphql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query, variables }),
+      });
+
+      const result = await response.json();
+
+      if (result.errors) {
+        // GraphQL errors (invalid username format, etc.)
+        setRecipientValidation({ 
+          status: 'error', 
+          message: result.errors[0]?.message || 'Invalid username', 
+          isValidating: false 
+        });
+        return;
+      }
+
+      const isAvailable = result.data?.usernameAvailable;
       
-      if (response.ok) {
+      if (isAvailable === false) {
+        // Username exists (not available = taken = valid recipient)
         setRecipientValidation({ status: 'success', message: '', isValidating: false });
+      } else if (isAvailable === true) {
+        // Username is available (not taken = doesn't exist = invalid recipient)
+        setRecipientValidation({ 
+          status: 'error', 
+          message: 'Username not found', 
+          isValidating: false 
+        });
       } else {
-        setRecipientValidation({ status: 'error', message: 'Username not found', isValidating: false });
+        setRecipientValidation({ 
+          status: 'error', 
+          message: 'Unable to verify username', 
+          isValidating: false 
+        });
       }
     } catch (err) {
-      setRecipientValidation({ status: 'error', message: 'Validation failed', isValidating: false });
+      console.error('Recipient validation error:', err);
+      setRecipientValidation({ 
+        status: 'error', 
+        message: 'Validation failed', 
+        isValidating: false 
+      });
     }
   };
 

@@ -9,7 +9,7 @@ import PaymentAnimation from './PaymentAnimation';
 import POS from './POS';
 
 export default function Dashboard() {
-  const { user, logout, authMode, getApiKey, hasServerSession, activeBlinkAccount, blinkAccounts, addBlinkAccount, setActiveBlinkAccount, storeBlinkAccountOnServer, tippingSettings: profileTippingSettings, updateTippingSettings: updateProfileTippingSettings, nostrProfile } = useCombinedAuth();
+  const { user, logout, authMode, getApiKey, hasServerSession, publicKey, activeBlinkAccount, blinkAccounts, addBlinkAccount, setActiveBlinkAccount, storeBlinkAccountOnServer, tippingSettings: profileTippingSettings, updateTippingSettings: updateProfileTippingSettings, nostrProfile } = useCombinedAuth();
   const { currencies, loading: currenciesLoading, getAllCurrencies } = useCurrencies();
   const { darkMode, toggleDarkMode } = useDarkMode();
   const [apiKey, setApiKey] = useState(null);

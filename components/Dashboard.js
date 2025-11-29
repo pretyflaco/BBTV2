@@ -8,6 +8,17 @@ import { useNFC } from './NFCPayment';
 import PaymentAnimation from './PaymentAnimation';
 import POS from './POS';
 
+// Predefined Tip Profiles for different regions
+const TIP_PROFILES = [
+  { id: 'na', name: 'North America (US/CA)', tipOptions: [18, 20, 25] },
+  { id: 'eu', name: 'Western Europe (Standard)', tipOptions: [5, 10, 15] },
+  { id: 'africa', name: 'Africa (Standard/South)', tipOptions: [10, 12, 15] },
+  { id: 'africa-low', name: 'Africa (Low/Round Up)', tipOptions: [5, 10] },
+  { id: 'asia', name: 'Asia & Oceania (Low)', tipOptions: [2, 5, 10] },
+  { id: 'latam', name: 'Latin America (Included)', tipOptions: [10, 12, 15] },
+  { id: 'mena', name: 'Middle East (Variable)', tipOptions: [5, 10, 15] },
+];
+
 export default function Dashboard() {
   const { user, logout, authMode, getApiKey, hasServerSession, publicKey, activeBlinkAccount, blinkAccounts, addBlinkAccount, setActiveBlinkAccount, storeBlinkAccountOnServer, tippingSettings: profileTippingSettings, updateTippingSettings: updateProfileTippingSettings, nostrProfile } = useCombinedAuth();
   const { currencies, loading: currenciesLoading, getAllCurrencies } = useCurrencies();
@@ -78,6 +89,16 @@ export default function Dashboard() {
     return true;
   });
   
+  // Tip Profile state
+  const [showTipProfileSettings, setShowTipProfileSettings] = useState(false);
+  const [activeTipProfile, setActiveTipProfile] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('blinkpos-active-tip-profile');
+      return saved ? JSON.parse(saved) : null;
+    }
+    return null;
+  });
+  
   // Split Profiles state
   const [splitProfiles, setSplitProfiles] = useState([]);
   const [activeSplitProfile, setActiveSplitProfile] = useState(null);
@@ -125,6 +146,19 @@ export default function Dashboard() {
       localStorage.setItem('blinkpos-allow-custom-tip', JSON.stringify(allowCustomTip));
     }
   }, [allowCustomTip]);
+
+  // Persist active tip profile and update tipPresets when profile changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (activeTipProfile) {
+        localStorage.setItem('blinkpos-active-tip-profile', JSON.stringify(activeTipProfile));
+        // Update tipPresets to match the profile's tip options
+        setTipPresets(activeTipProfile.tipOptions);
+      } else {
+        localStorage.removeItem('blinkpos-active-tip-profile');
+      }
+    }
+  }, [activeTipProfile]);
 
   // Clear tip recipient when user changes (no persistence across sessions)
   useEffect(() => {
@@ -1415,6 +1449,20 @@ export default function Dashboard() {
                   </div>
                 </button>
 
+                {/* Tip Settings */}
+                <button
+                  onClick={() => setShowTipProfileSettings(true)}
+                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Tip Settings</span>
+                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                      <span>{activeTipProfile?.name || 'Custom'}</span>
+                      <span className="ml-1">›</span>
+                    </div>
+                  </div>
+                </button>
+
                 {/* Sound Effects */}
                 <button
                   onClick={() => setShowSoundThemes(true)}
@@ -1626,6 +1674,98 @@ export default function Dashboard() {
                     )}
                   </div>
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tip Profile Settings Overlay */}
+      {showTipProfileSettings && (
+        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+            {/* Header */}
+            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center h-16">
+                  <button
+                    onClick={() => setShowTipProfileSettings(false)}
+                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
+                  >
+                    <span className="text-2xl mr-2">‹</span>
+                    <span className="text-lg">Back</span>
+                  </button>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Tip Settings
+                  </h1>
+                  <div className="w-16"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="max-w-md mx-auto px-4 py-6">
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Select a tip profile based on your region. This determines the tip percentages shown to customers.
+                </p>
+
+                {/* Custom Option (No Profile) */}
+                <button
+                  onClick={() => {
+                    setActiveTipProfile(null);
+                    setShowTipProfileSettings(false);
+                  }}
+                  className={`w-full p-4 rounded-lg border-2 transition-all ${
+                    !activeTipProfile
+                      ? 'border-blink-accent bg-blink-accent/10'
+                      : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-left">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+                        Custom
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Use custom tip percentages ({tipPresets.join('%, ')}%)
+                      </p>
+                    </div>
+                    {!activeTipProfile && (
+                      <div className="text-blink-accent text-2xl">✓</div>
+                    )}
+                  </div>
+                </button>
+
+                {/* Predefined Profiles */}
+                {TIP_PROFILES.map((profile) => (
+                  <button
+                    key={profile.id}
+                    onClick={() => {
+                      setActiveTipProfile(profile);
+                      setShowTipProfileSettings(false);
+                    }}
+                    className={`w-full p-4 rounded-lg border-2 transition-all ${
+                      activeTipProfile?.id === profile.id
+                        ? 'border-blink-accent bg-blink-accent/10'
+                        : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="text-left">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+                          {profile.name}
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {profile.tipOptions.join('%, ')}%
+                        </p>
+                      </div>
+                      {activeTipProfile?.id === profile.id && (
+                        <div className="text-blink-accent text-2xl">✓</div>
+                      )}
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
           </div>

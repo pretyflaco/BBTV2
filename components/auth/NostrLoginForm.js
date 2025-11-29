@@ -204,7 +204,7 @@ export default function NostrLoginForm() {
             </div>
           )}
 
-          {/* External Signer (Amber) */}
+          {/* External Signer (Amber/Nowser) */}
           <button
             onClick={handleExternalSignerSignIn}
             disabled={signingIn}
@@ -223,7 +223,7 @@ export default function NostrLoginForm() {
                 <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
                 </svg>
-                Sign in with Amber
+                Sign in with Mobile Signer
               </>
             )}
           </button>
@@ -231,15 +231,25 @@ export default function NostrLoginForm() {
           {/* Mobile hint */}
           {isMobile && (
             <p className="text-xs text-center text-gray-500 dark:text-gray-400">
-              Don't have Amber?{' '}
+              Works with{' '}
               <a 
                 href="https://github.com/greenart7c3/Amber" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="text-amber-600 dark:text-amber-400 underline"
               >
-                Get it here
+                Amber
               </a>
+              {' '}(Android) or{' '}
+              <a 
+                href="https://testflight.apple.com/join/b4zVVxaM" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-amber-600 dark:text-amber-400 underline"
+              >
+                Nowser
+              </a>
+              {' '}(iOS)
             </p>
           )}
         </div>
@@ -278,7 +288,7 @@ export default function NostrLoginForm() {
                 <strong>Browser extensions</strong> (keys.band, Alby) keep your keys secure on desktop.
               </p>
               <p className="mt-2">
-                <strong>Amber</strong> is a mobile app that securely manages your Nostr keys on Android.
+                <strong>Mobile signers</strong> like Amber (Android) and Nowser (iOS) securely manage your Nostr keys on mobile.
               </p>
             </div>
           </details>

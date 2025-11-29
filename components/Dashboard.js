@@ -2407,7 +2407,7 @@ export default function Dashboard() {
                 className="w-2 h-2"
               />
               <span className="text-blue-600 dark:text-blue-400 font-semibold" style={{fontSize: '11.2px'}}>
-                {activeBlinkAccount?.username || activeBlinkAccount?.label || 'owner'}
+                {activeBlinkAccount?.label || activeBlinkAccount?.username || 'Wallet'}
               </span>
             </div>
             

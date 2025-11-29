@@ -77,6 +77,18 @@ export default function Dashboard() {
     }
     return true;
   });
+  
+  // Split Profiles state
+  const [splitProfiles, setSplitProfiles] = useState([]);
+  const [activeSplitProfile, setActiveSplitProfile] = useState(null);
+  const [splitProfilesLoading, setSplitProfilesLoading] = useState(false);
+  const [showCreateSplitProfile, setShowCreateSplitProfile] = useState(false);
+  const [editingSplitProfile, setEditingSplitProfile] = useState(null);
+  const [newSplitProfileLabel, setNewSplitProfileLabel] = useState('');
+  const [newSplitProfileRecipient, setNewSplitProfileRecipient] = useState('');
+  const [splitProfileError, setSplitProfileError] = useState(null);
+  const [recipientValidation, setRecipientValidation] = useState({ status: null, message: '', isValidating: false });
+  
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
   
@@ -459,6 +471,167 @@ export default function Dashboard() {
       console.error('Failed to fetch wallets:', err);
     }
   }, [apiKey]);
+
+  // Fetch split profiles from server
+  const fetchSplitProfiles = useCallback(async () => {
+    if (!publicKey) {
+      console.log('[SplitProfiles] No public key available');
+      return;
+    }
+    
+    setSplitProfilesLoading(true);
+    try {
+      console.log('[SplitProfiles] Fetching profiles for:', publicKey);
+      const response = await fetch(`/api/split-profiles?pubkey=${publicKey}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSplitProfiles(data.splitProfiles || []);
+        
+        // Set active profile
+        if (data.activeSplitProfileId && data.splitProfiles) {
+          const active = data.splitProfiles.find(p => p.id === data.activeSplitProfileId);
+          setActiveSplitProfile(active || null);
+          
+          // If we have an active profile, enable tips and set the recipient
+          if (active && active.recipients?.length > 0) {
+            setTipsEnabled(true);
+            setTipRecipient(active.recipients[0].username);
+          }
+        } else {
+          setActiveSplitProfile(null);
+        }
+        
+        console.log('[SplitProfiles] Loaded', data.splitProfiles?.length || 0, 'profiles');
+      } else {
+        console.error('[SplitProfiles] Failed to fetch:', response.status);
+      }
+    } catch (err) {
+      console.error('[SplitProfiles] Error:', err);
+    } finally {
+      setSplitProfilesLoading(false);
+    }
+  }, [publicKey]);
+
+  // Save split profile to server
+  const saveSplitProfile = async (profile, setActive = false) => {
+    if (!publicKey) return null;
+    
+    setSplitProfileError(null);
+    try {
+      const response = await fetch('/api/split-profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pubkey: publicKey,
+          profile,
+          setActive
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        await fetchSplitProfiles(); // Refresh the list
+        return data.profile;
+      } else {
+        const error = await response.json();
+        setSplitProfileError(error.error || 'Failed to save profile');
+        return null;
+      }
+    } catch (err) {
+      console.error('[SplitProfiles] Save error:', err);
+      setSplitProfileError('Failed to save profile');
+      return null;
+    }
+  };
+
+  // Delete split profile
+  const deleteSplitProfile = async (profileId) => {
+    if (!publicKey) return false;
+    
+    try {
+      const response = await fetch('/api/split-profiles', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pubkey: publicKey,
+          profileId
+        })
+      });
+      
+      if (response.ok) {
+        await fetchSplitProfiles(); // Refresh the list
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('[SplitProfiles] Delete error:', err);
+      return false;
+    }
+  };
+
+  // Set active split profile
+  const setActiveSplitProfileById = async (profileId) => {
+    if (!publicKey) return;
+    
+    if (!profileId) {
+      // Deactivate - set to None
+      setActiveSplitProfile(null);
+      setTipsEnabled(false);
+      setTipRecipient('');
+      
+      // Save null active profile to server
+      const userData = await fetch(`/api/split-profiles?pubkey=${publicKey}`).then(r => r.json());
+      await fetch('/api/split-profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pubkey: publicKey,
+          profile: splitProfiles[0], // Need at least one profile to update activeSplitProfileId
+          setActive: false
+        })
+      });
+      return;
+    }
+    
+    const profile = splitProfiles.find(p => p.id === profileId);
+    if (profile) {
+      // Update server with new active profile
+      await saveSplitProfile(profile, true);
+      
+      // Local state update will happen via fetchSplitProfiles in saveSplitProfile
+    }
+  };
+
+  // Validate recipient username (Blink username validation)
+  const validateRecipientUsername = async (username) => {
+    if (!username || username.length < 2) {
+      setRecipientValidation({ status: null, message: '', isValidating: false });
+      return;
+    }
+    
+    setRecipientValidation({ status: null, message: '', isValidating: true });
+    
+    try {
+      // Use the LNURL proxy to check if username exists
+      const response = await fetch(`/api/lnurl-proxy?username=${encodeURIComponent(username)}`);
+      
+      if (response.ok) {
+        setRecipientValidation({ status: 'success', message: '', isValidating: false });
+      } else {
+        setRecipientValidation({ status: 'error', message: 'Username not found', isValidating: false });
+      }
+    } catch (err) {
+      setRecipientValidation({ status: 'error', message: 'Validation failed', isValidating: false });
+    }
+  };
+
+  // Fetch split profiles when user is authenticated
+  useEffect(() => {
+    if (publicKey && authMode === 'nostr') {
+      fetchSplitProfiles();
+    }
+  }, [publicKey, authMode, fetchSplitProfiles]);
 
   // Load more historical transactions to populate older months
   const loadMoreHistoricalTransactions = async (cursor, currentTransactions) => {
@@ -1112,60 +1285,60 @@ export default function Dashboard() {
                 </div>
 
                 {/* Wallet */}
-                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                <button
+                  onClick={() => setShowAccountSettings(true)}
+                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Wallet</span>
-                    <button
-                      onClick={() => setShowAccountSettings(true)}
-                      className="flex items-center text-sm text-gray-500 dark:text-gray-400 hover:text-blink-accent"
-                    >
+                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                       <span>{activeBlinkAccount?.label || activeBlinkAccount?.username || 'None'}</span>
                       <span className="ml-1">›</span>
-                    </button>
+                    </div>
                   </div>
-                </div>
+                </button>
 
                 {/* Currency Selection */}
-                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                <button
+                  onClick={() => setShowCurrencySettings(true)}
+                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Display Currency</span>
-                    <button
-                      onClick={() => setShowCurrencySettings(true)}
-                      className="flex items-center text-sm text-gray-500 dark:text-gray-400 hover:text-blink-accent"
-                    >
+                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                       <span>{displayCurrency}</span>
                       <span className="ml-1">›</span>
-                    </button>
+                    </div>
                   </div>
-                </div>
+                </button>
 
                 {/* Payment Splits */}
-                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                <button
+                  onClick={() => setShowTipSettings(true)}
+                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Payment Splits</span>
-                    <button
-                      onClick={() => setShowTipSettings(true)}
-                      className="flex items-center text-sm text-gray-500 dark:text-gray-400 hover:text-blink-accent"
-                    >
-                      <span>{tipRecipient && usernameValidation.status === 'success' ? `${tipRecipient}@blink.sv` : 'None'}</span>
+                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                      <span>{activeSplitProfile?.label || 'None'}</span>
                       <span className="ml-1">›</span>
-                    </button>
+                    </div>
                   </div>
-                </div>
+                </button>
 
                 {/* Sound Effects */}
-                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                <button
+                  onClick={() => setShowSoundThemes(true)}
+                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Sound Effects</span>
-                    <button
-                      onClick={() => setShowSoundThemes(true)}
-                      className="flex items-center text-sm text-gray-500 dark:text-gray-400 hover:text-blink-accent"
-                    >
+                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                       <span>{!soundEnabled ? 'None' : soundTheme === 'success' ? 'Success' : soundTheme === 'zelda' ? 'Zelda' : soundTheme === 'free' ? 'Free' : soundTheme === 'retro' ? 'Retro' : 'None'}</span>
                       <span className="ml-1">›</span>
-                    </button>
+                    </div>
                   </div>
-                </div>
+                </button>
 
                 {/* Action Buttons */}
                 <div className="space-y-3 pt-4">
@@ -1371,7 +1544,7 @@ export default function Dashboard() {
       )}
 
       {/* Split Settings Overlay */}
-      {showTipSettings && (
+      {showTipSettings && !showCreateSplitProfile && (
         <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
           <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
             {/* Header */}
@@ -1386,82 +1559,156 @@ export default function Dashboard() {
                     <span className="text-lg">Back</span>
                   </button>
                   <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                    Split Settings
+                    Payment Splits
                   </h1>
                   <div className="w-16"></div>
                 </div>
               </div>
             </div>
 
-            {/* Settings Content */}
+            {/* Content */}
             <div className="max-w-md mx-auto px-4 py-6">
               <div className="space-y-4">
+                {/* Create New Profile Button */}
+                {authMode === 'nostr' && (
+                  <button
+                    onClick={() => {
+                      setEditingSplitProfile(null);
+                      setNewSplitProfileLabel('');
+                      setNewSplitProfileRecipient('');
+                      setRecipientValidation({ status: null, message: '', isValidating: false });
+                      setSplitProfileError(null);
+                      setShowCreateSplitProfile(true);
+                    }}
+                    className="w-full py-3 text-sm font-medium bg-blink-accent text-black rounded-lg hover:bg-blink-accent/90 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <span className="text-lg">+</span>
+                    <span>New Split Profile</span>
+                  </button>
+                )}
+
                 {/* None Option */}
                 <button
                   onClick={() => {
-                    setTipRecipient('');
-                    setTipsEnabled(false);
+                    setActiveSplitProfileById(null);
                     setShowTipSettings(false);
                   }}
                   className={`w-full p-4 rounded-lg border-2 transition-all ${
-                    !tipRecipient || usernameValidation.status !== 'success'
+                    !activeSplitProfile
                       ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                       : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-left">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
                         None
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
                         Payment splits disabled
                       </p>
                     </div>
-                    {(!tipRecipient || usernameValidation.status !== 'success') && (
+                    {!activeSplitProfile && (
                       <div className="text-blue-600 dark:text-blue-400 text-2xl">✓</div>
                     )}
                   </div>
                 </button>
 
-                {/* Recipient */}
-                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-                  <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
-                    Tip Recipient
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={tipRecipient}
-                      onChange={(e) => setTipRecipient(e.target.value)}
-                      placeholder="Blink username"
-                      className={`w-full px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent ${
-                        usernameValidation.status === 'success' ? 'border-green-500' :
-                        usernameValidation.status === 'error' ? 'border-red-500' :
-                        'border-gray-300 dark:border-gray-600'
-                      }`}
-                    />
-                    {usernameValidation.isValidating && (
-                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blink-accent"></div>
-                      </div>
-                    )}
-                    {usernameValidation.status === 'success' && (
-                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-green-500">✓</div>
-                    )}
+                {/* Loading State */}
+                {splitProfilesLoading && (
+                  <div className="flex justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blink-accent"></div>
                   </div>
-                  {usernameValidation.message && usernameValidation.status === 'error' && (
-                    <p className="text-xs mt-1 text-red-500">{usernameValidation.message}</p>
-                  )}
-                  {usernameValidation.status === 'success' && tipRecipient && (
-                    <p className="text-xs mt-1 text-green-500">{tipRecipient}@blink.sv</p>
-                  )}
-                </div>
+                )}
 
-                {/* Quick Options */}
+                {/* Split Profiles List */}
+                {!splitProfilesLoading && splitProfiles.map((profile) => (
+                  <div
+                    key={profile.id}
+                    className={`w-full p-4 rounded-lg border-2 transition-all ${
+                      activeSplitProfile?.id === profile.id
+                        ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                        : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark'
+                    }`}
+                  >
+                    <button
+                      onClick={() => {
+                        setActiveSplitProfileById(profile.id);
+                        setShowTipSettings(false);
+                      }}
+                      className="w-full"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="text-left">
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+                            {profile.label}
+                          </h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            {profile.recipients.map(r => `${r.username}@blink.sv`).join(', ')}
+                          </p>
+                        </div>
+                        {activeSplitProfile?.id === profile.id && (
+                          <div className="text-blue-600 dark:text-blue-400 text-2xl">✓</div>
+                        )}
+                      </div>
+                    </button>
+                    {/* Edit/Delete Actions */}
+                    <div className="flex gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                      <button
+                        onClick={() => {
+                          setEditingSplitProfile(profile);
+                          setNewSplitProfileLabel(profile.label);
+                          setNewSplitProfileRecipient(profile.recipients[0]?.username || '');
+                          setRecipientValidation({ status: 'success', message: '', isValidating: false });
+                          setSplitProfileError(null);
+                          setShowCreateSplitProfile(true);
+                        }}
+                        className="flex-1 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-blink-accent border border-gray-300 dark:border-gray-600 rounded"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (confirm('Delete this split profile?')) {
+                            await deleteSplitProfile(profile.id);
+                          }
+                        }}
+                        className="flex-1 py-2 text-sm text-red-500 hover:text-red-700 border border-gray-300 dark:border-gray-600 rounded"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {/* No Profiles Yet Message */}
+                {!splitProfilesLoading && splitProfiles.length === 0 && authMode === 'nostr' && (
+                  <div className={`rounded-lg p-6 text-center ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                    <p className="text-gray-600 dark:text-gray-400 mb-2">
+                      No split profiles yet
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-500">
+                      Create a split profile to automatically share a portion of payments with another Blink user.
+                    </p>
+                  </div>
+                )}
+
+                {/* Not Signed In Message */}
+                {authMode !== 'nostr' && (
+                  <div className={`rounded-lg p-6 text-center ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                    <p className="text-gray-600 dark:text-gray-400 mb-2">
+                      Sign in with Nostr to use split profiles
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-500">
+                      Split profiles are synced across devices and require Nostr authentication.
+                    </p>
+                  </div>
+                )}
+
+                {/* Quick Options (always visible) */}
                 <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
                   <label className="block text-sm font-medium text-gray-900 dark:text-white mb-3">
-                    Quick Options
+                    Split Percentages
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {tipPresets.map((preset, index) => (
@@ -1493,7 +1740,7 @@ export default function Dashboard() {
                   </div>
                   <button
                     onClick={() => setTipPresets([...tipPresets, 5])}
-                    className="mt-3 px-4 py-2 text-sm bg-blink-accent hover:bg-orange-500 text-white rounded transition-colors"
+                    className="mt-3 px-4 py-2 text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded transition-colors"
                   >
                     Add Option
                   </button>
@@ -1515,6 +1762,140 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create/Edit Split Profile Overlay */}
+      {showCreateSplitProfile && (
+        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+            {/* Header */}
+            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center h-16">
+                  <button
+                    onClick={() => {
+                      setShowCreateSplitProfile(false);
+                      setEditingSplitProfile(null);
+                    }}
+                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
+                  >
+                    <span className="text-2xl mr-2">‹</span>
+                    <span className="text-lg">Back</span>
+                  </button>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                    {editingSplitProfile ? 'Edit Profile' : 'New Profile'}
+                  </h1>
+                  <div className="w-16"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Form Content */}
+            <div className="max-w-md mx-auto px-4 py-6">
+              <div className="space-y-4">
+                {/* Error Message */}
+                {splitProfileError && (
+                  <div className="p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg">
+                    <p className="text-sm text-red-700 dark:text-red-400">{splitProfileError}</p>
+                  </div>
+                )}
+
+                {/* Profile Label */}
+                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                  <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+                    Profile Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newSplitProfileLabel}
+                    onChange={(e) => setNewSplitProfileLabel(e.target.value)}
+                    placeholder="e.g., Staff Tips, Partner Split"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent"
+                  />
+                </div>
+
+                {/* Recipient */}
+                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                  <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+                    Recipient
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={newSplitProfileRecipient}
+                      onChange={(e) => {
+                        const value = e.target.value.toLowerCase().replace(/@blink\.sv$/, '');
+                        setNewSplitProfileRecipient(value);
+                        validateRecipientUsername(value);
+                      }}
+                      placeholder="Blink username"
+                      className={`w-full px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent ${
+                        recipientValidation.status === 'success' ? 'border-green-500' :
+                        recipientValidation.status === 'error' ? 'border-red-500' :
+                        'border-gray-300 dark:border-gray-600'
+                      }`}
+                    />
+                    {recipientValidation.isValidating && (
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blink-accent"></div>
+                      </div>
+                    )}
+                    {recipientValidation.status === 'success' && (
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-green-500">✓</div>
+                    )}
+                  </div>
+                  {recipientValidation.message && recipientValidation.status === 'error' && (
+                    <p className="text-xs mt-1 text-red-500">{recipientValidation.message}</p>
+                  )}
+                  {recipientValidation.status === 'success' && newSplitProfileRecipient && (
+                    <p className="text-xs mt-1 text-green-500">{newSplitProfileRecipient}@blink.sv</p>
+                  )}
+                  <p className="text-xs mt-2 text-gray-500 dark:text-gray-400">
+                    This user will receive 100% of the split amount
+                  </p>
+                </div>
+
+                {/* Save Button */}
+                <button
+                  onClick={async () => {
+                    if (!newSplitProfileLabel.trim()) {
+                      setSplitProfileError('Please enter a profile name');
+                      return;
+                    }
+                    if (!newSplitProfileRecipient.trim()) {
+                      setSplitProfileError('Please enter a recipient username');
+                      return;
+                    }
+                    if (recipientValidation.status !== 'success') {
+                      setSplitProfileError('Please enter a valid Blink username');
+                      return;
+                    }
+                    
+                    const profile = {
+                      id: editingSplitProfile?.id,
+                      label: newSplitProfileLabel.trim(),
+                      recipients: [{
+                        username: newSplitProfileRecipient.trim(),
+                        share: 100
+                      }]
+                    };
+                    
+                    const saved = await saveSplitProfile(profile, true);
+                    if (saved) {
+                      setShowCreateSplitProfile(false);
+                      setEditingSplitProfile(null);
+                      setShowTipSettings(false);
+                    }
+                  }}
+                  disabled={!newSplitProfileLabel.trim() || !newSplitProfileRecipient.trim() || recipientValidation.status !== 'success'}
+                  className="w-full py-3 text-sm font-medium bg-blink-accent text-black rounded-lg hover:bg-blink-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {editingSplitProfile ? 'Save Changes' : 'Create Profile'}
+                </button>
               </div>
             </div>
           </div>

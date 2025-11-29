@@ -671,8 +671,12 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
         <div className="bg-white dark:bg-blink-dark border-b border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-black">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between py-4">
-              {/* Blink Logo - Left */}
-              <div className="flex items-center">
+              {/* Blink Logo - Left (tap to toggle dark mode) */}
+              <button 
+                onClick={toggleDarkMode}
+                className="flex items-center focus:outline-none"
+                aria-label="Toggle dark mode"
+              >
                 <img 
                   src="/logos/blink-icon-light.svg" 
                   alt="Blink" 
@@ -683,7 +687,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
                   alt="Blink" 
                   className="h-12 w-12 hidden dark:block"
                 />
-              </div>
+              </button>
               
               {/* NFC Icon - Center (only if supported) */}
               {nfcState && nfcState.isNfcSupported && (
@@ -704,25 +708,8 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
                 </div>
               )}
               
-              {/* Dark Mode Toggle - Right */}
-              <div className="flex items-center">
-                <button
-                  onClick={toggleDarkMode}
-                  className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:ring-offset-2 rounded"
-                  aria-label="Toggle dark mode"
-                >
-                  <span
-                    className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
-                      darkMode ? 'bg-blue-600 dark:bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
-                    }`}
-                  />
-                  <span
-                    className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
-                      darkMode ? 'bg-gray-300 dark:bg-gray-600' : 'bg-blink-accent'
-                    }`}
-                  />
-                </button>
-              </div>
+              {/* Spacer for layout balance */}
+              <div className="w-12"></div>
             </div>
           </div>
         </div>

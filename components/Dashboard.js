@@ -219,6 +219,13 @@ export default function Dashboard() {
     return () => clearTimeout(timeoutId);
   }, [tipRecipient]);
 
+  // Auto-enable tipsEnabled when a valid recipient is set
+  useEffect(() => {
+    if (tipRecipient && usernameValidation.status === 'success') {
+      setTipsEnabled(true);
+    }
+  }, [tipRecipient, usernameValidation.status]);
+
   // Get user's API key for direct WebSocket connection
   // Works with both legacy (API key) and Nostr (profile-based) auth
   // Re-fetches when user changes OR when active Blink account changes (after account switch in Settings)
@@ -1012,8 +1019,12 @@ export default function Dashboard() {
         <header className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between py-4">
-              {/* Blink Logo - Left */}
-              <div className="flex items-center">
+              {/* Blink Logo - Left (tap to toggle dark mode) */}
+              <button 
+                onClick={toggleDarkMode}
+                className="flex items-center focus:outline-none"
+                aria-label="Toggle dark mode"
+              >
                 <img 
                   src="/logos/blink-icon-light.svg" 
                   alt="Blink" 
@@ -1023,24 +1034,6 @@ export default function Dashboard() {
                   src="/logos/blink-icon-dark.svg" 
                   alt="Blink" 
                   className="h-12 w-12 hidden dark:block"
-                />
-              </div>
-              
-              {/* Center: Dark Mode Toggle */}
-              <button
-                onClick={toggleDarkMode}
-                className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:ring-offset-2 rounded"
-                aria-label="Toggle dark mode"
-              >
-                <span
-                  className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
-                    darkMode ? 'bg-blue-600 dark:bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
-                  }`}
-                />
-                <span
-                  className={`w-5 h-5 transition-colors duration-200 ease-in-out ${
-                    darkMode ? 'bg-gray-300 dark:bg-gray-600' : 'bg-blink-accent'
-                  }`}
                 />
               </button>
               
@@ -1148,28 +1141,16 @@ export default function Dashboard() {
 
                 {/* Payment Splits */}
                 <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Payment Splits</span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setTipsEnabled(!tipsEnabled)}
-                        className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
-                      >
-                        <span className={`w-5 h-5 transition-colors ${tipsEnabled ? 'bg-blue-500' : 'bg-gray-300'}`} />
-                        <span className={`w-5 h-5 transition-colors ${tipsEnabled ? 'bg-gray-600' : 'bg-blink-accent'}`} />
-                      </button>
-                      <span className="text-sm text-gray-700 dark:text-white w-8">{tipsEnabled ? 'ON' : 'OFF'}</span>
-                    </div>
-                  </div>
-                  {tipsEnabled && (
                     <button
                       onClick={() => setShowTipSettings(true)}
-                      className="w-full flex items-center justify-between px-3 py-2 text-sm bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-md transition-colors"
+                      className="flex items-center text-sm text-gray-500 dark:text-gray-400 hover:text-blink-accent"
                     >
-                      <span>Split Settings</span>
-                      <span className="text-gray-500 dark:text-gray-400">›</span>
+                      <span>{tipRecipient && usernameValidation.status === 'success' ? `${tipRecipient}@blink.sv` : 'None'}</span>
+                      <span className="ml-1">›</span>
                     </button>
-                  )}
+                  </div>
                 </div>
 
                 {/* Sound Effects */}
@@ -1415,6 +1396,34 @@ export default function Dashboard() {
             {/* Settings Content */}
             <div className="max-w-md mx-auto px-4 py-6">
               <div className="space-y-4">
+                {/* None Option */}
+                <button
+                  onClick={() => {
+                    setTipRecipient('');
+                    setTipsEnabled(false);
+                    setShowTipSettings(false);
+                  }}
+                  className={`w-full p-4 rounded-lg border-2 transition-all ${
+                    !tipRecipient || usernameValidation.status !== 'success'
+                      ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-left">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                        None
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Payment splits disabled
+                      </p>
+                    </div>
+                    {(!tipRecipient || usernameValidation.status !== 'success') && (
+                      <div className="text-blue-600 dark:text-blue-400 text-2xl">✓</div>
+                    )}
+                  </div>
+                </button>
+
                 {/* Recipient */}
                 <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
                   <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">

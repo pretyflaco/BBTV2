@@ -81,14 +81,6 @@ export default function Dashboard() {
   const [newAccountLabel, setNewAccountLabel] = useState('');
   const [addAccountLoading, setAddAccountLoading] = useState(false);
   const [addAccountError, setAddAccountError] = useState(null);
-  const [allowCustomTip, setAllowCustomTip] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('blinkpos-allow-custom-tip');
-      return saved !== null ? JSON.parse(saved) : true;
-    }
-    return true;
-  });
-  
   // Tip Profile state
   const [showTipProfileSettings, setShowTipProfileSettings] = useState(false);
   const [activeTipProfile, setActiveTipProfile] = useState(() => {
@@ -140,12 +132,6 @@ export default function Dashboard() {
       localStorage.setItem('blinkpos-tip-presets', JSON.stringify(tipPresets));
     }
   }, [tipPresets]);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('blinkpos-allow-custom-tip', JSON.stringify(allowCustomTip));
-    }
-  }, [allowCustomTip]);
 
   // Persist active tip profile and update tipPresets when profile changes
   useEffect(() => {
@@ -1711,31 +1697,77 @@ export default function Dashboard() {
                 </p>
 
                 {/* Custom Option (No Profile) */}
-                <button
-                  onClick={() => {
-                    setActiveTipProfile(null);
-                    setShowTipProfileSettings(false);
-                  }}
+                <div
                   className={`w-full p-4 rounded-lg border-2 transition-all ${
                     !activeTipProfile
                       ? 'border-blink-accent bg-blink-accent/10'
-                      : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
+                      : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="text-left">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                        Custom
-                      </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Use custom tip percentages ({tipPresets.join('%, ')}%)
-                      </p>
+                  <button
+                    onClick={() => {
+                      setActiveTipProfile(null);
+                    }}
+                    className="w-full"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="text-left">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+                          Custom
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          Set your own tip percentages
+                        </p>
+                      </div>
+                      {!activeTipProfile && (
+                        <div className="text-blink-accent text-2xl">✓</div>
+                      )}
                     </div>
-                    {!activeTipProfile && (
-                      <div className="text-blink-accent text-2xl">✓</div>
-                    )}
-                  </div>
-                </button>
+                  </button>
+
+                  {/* Custom Tip Percentages Editor (only visible when Custom is selected) */}
+                  {!activeTipProfile && (
+                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                        Custom Tip Percentages
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {tipPresets.map((preset, index) => (
+                          <div key={index} className="flex items-center">
+                            <input
+                              type="number"
+                              value={preset}
+                              onChange={(e) => {
+                                const newPresets = [...tipPresets];
+                                newPresets[index] = parseFloat(e.target.value) || 0;
+                                setTipPresets(newPresets);
+                              }}
+                              className="w-16 px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-center"
+                              min="0"
+                              max="100"
+                              step="0.5"
+                            />
+                            <span className="ml-1 text-gray-500 dark:text-gray-400">%</span>
+                            {tipPresets.length > 1 && (
+                              <button
+                                onClick={() => setTipPresets(tipPresets.filter((_, i) => i !== index))}
+                                className="ml-2 text-red-500 hover:text-red-700"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => setTipPresets([...tipPresets, 5])}
+                        className="mt-3 px-4 py-2 text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded transition-colors"
+                      >
+                        Add Option
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 {/* Predefined Profiles */}
                 {TIP_PROFILES.map((profile) => (
@@ -1939,63 +1971,6 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                {/* Quick Options (always visible) */}
-                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-                  <label className="block text-sm font-medium text-gray-900 dark:text-white mb-3">
-                    Split Percentages
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {tipPresets.map((preset, index) => (
-                      <div key={index} className="flex items-center">
-                        <input
-                          type="number"
-                          value={preset}
-                          onChange={(e) => {
-                            const newPresets = [...tipPresets];
-                            newPresets[index] = parseFloat(e.target.value) || 0;
-                            setTipPresets(newPresets);
-                          }}
-                          className="w-16 px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-center"
-                          min="0"
-                          max="100"
-                          step="0.5"
-                        />
-                        <span className="ml-1 text-gray-500 dark:text-gray-400">%</span>
-                        {tipPresets.length > 1 && (
-                          <button
-                            onClick={() => setTipPresets(tipPresets.filter((_, i) => i !== index))}
-                            className="ml-2 text-red-500 hover:text-red-700"
-                          >
-                            ×
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  <button
-                    onClick={() => setTipPresets([...tipPresets, 5])}
-                    className="mt-3 px-4 py-2 text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded transition-colors"
-                  >
-                    Add Option
-                  </button>
-                </div>
-
-                {/* Allow Custom Amount */}
-                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">Allow Custom Amount</span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setAllowCustomTip(!allowCustomTip)}
-                        className="inline-flex gap-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
-                      >
-                        <span className={`w-5 h-5 transition-colors ${allowCustomTip ? 'bg-blue-500' : 'bg-gray-300'}`} />
-                        <span className={`w-5 h-5 transition-colors ${allowCustomTip ? 'bg-gray-600' : 'bg-blink-accent'}`} />
-                      </button>
-                      <span className="text-sm text-gray-700 dark:text-white w-8">{allowCustomTip ? 'ON' : 'OFF'}</span>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           </div>

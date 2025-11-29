@@ -2411,16 +2411,16 @@ export default function Dashboard() {
               </span>
             </div>
             
-            {/* Agent Display - Show when agent is added and username is valid */}
-            {tipsEnabled && tipRecipient && usernameValidation.status === 'success' && (
+            {/* Agent Display - Show when split profile is active */}
+            {activeSplitProfile && (
               <div className="flex items-center gap-2">
                 <img 
                   src="/greendot.svg" 
-                  alt="Agent" 
+                  alt="Split Active" 
                   className="w-2 h-2"
                 />
                 <span className="text-green-600 dark:text-green-400 font-semibold" style={{fontSize: '11.2px'}}>
-                  {tipRecipient}
+                  {activeSplitProfile.label}
                 </span>
               </div>
             )}

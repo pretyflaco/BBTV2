@@ -342,6 +342,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
       if (displayCurrency === 'BTC' || currency?.fractionDigits === 0) {
         return;
       }
+      setAmount(amount + digit);
     } else if (amount.includes('.')) {
       // Check decimal places based on currency fractionDigits
       const currency = getCurrentCurrency();

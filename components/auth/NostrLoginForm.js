@@ -4,11 +4,13 @@
  * Supports:
  * - Browser extension (keys.band, Alby) - Desktop
  * - External signer (Amber) - Mobile
+ * - In-app key generation with password protection
  */
 
 import { useState, useEffect } from 'react';
 import { useNostrAuth } from '../../lib/hooks/useNostrAuth';
 import NostrAuthService from '../../lib/nostr/NostrAuthService';
+import CryptoUtils from '../../lib/storage/CryptoUtils';
 
 export default function NostrLoginForm() {
   const {
@@ -28,6 +30,17 @@ export default function NostrLoginForm() {
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualPubkey, setManualPubkey] = useState('');
   const [isIOS] = useState(() => typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent));
+  
+  // In-app key generation state
+  const [authMode, setAuthMode] = useState('main'); // 'main', 'create', 'password'
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [hasStoredAccount, setHasStoredAccount] = useState(false);
+  
+  // Check for stored account on mount
+  useEffect(() => {
+    setHasStoredAccount(NostrAuthService.hasStoredEncryptedNsec());
+  }, []);
 
   // Check for pending signer flow on mount and focus (user returning from Amber)
   useEffect(() => {
@@ -136,6 +149,107 @@ export default function NostrLoginForm() {
     }
   };
 
+  // Handle create new account with password
+  const handleCreateAccount = async (e) => {
+    e.preventDefault();
+    setSigningIn(true);
+    setLocalError(null);
+
+    try {
+      // Validate password
+      if (password.length < 8) {
+        setLocalError('Password must be at least 8 characters');
+        setSigningIn(false);
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        setLocalError('Passwords do not match');
+        setSigningIn(false);
+        return;
+      }
+
+      // Generate new keypair
+      const { privateKey, publicKey } = NostrAuthService.generateKeypair();
+      console.log('[NostrLoginForm] Generated new keypair, pubkey:', publicKey.slice(0, 8) + '...');
+
+      // Encrypt private key with password
+      const encryptedNsec = await CryptoUtils.encryptWithPassword(privateKey, password);
+      
+      // Store encrypted nsec locally
+      NostrAuthService.storeEncryptedNsec(encryptedNsec);
+      console.log('[NostrLoginForm] Stored encrypted nsec');
+
+      // Sign in with the new keys
+      const result = NostrAuthService.signInWithGeneratedKeys(publicKey, privateKey);
+      
+      if (!result.success) {
+        setLocalError(result.error);
+        setSigningIn(false);
+        return;
+      }
+
+      // Reload to complete sign-in
+      window.location.reload();
+    } catch (err) {
+      console.error('Create account failed:', err);
+      setLocalError(err.message || 'Failed to create account');
+      setSigningIn(false);
+    }
+  };
+
+  // Handle sign in with password (existing account)
+  const handlePasswordSignIn = async (e) => {
+    e.preventDefault();
+    setSigningIn(true);
+    setLocalError(null);
+
+    try {
+      // Get stored encrypted nsec
+      const encryptedNsec = NostrAuthService.getStoredEncryptedNsec();
+      
+      if (!encryptedNsec) {
+        setLocalError('No account found on this device. Please create a new account.');
+        setSigningIn(false);
+        return;
+      }
+
+      // Decrypt with password
+      let privateKey;
+      try {
+        privateKey = await CryptoUtils.decryptWithPassword(encryptedNsec, password);
+      } catch (decryptError) {
+        setLocalError('Incorrect password');
+        setSigningIn(false);
+        return;
+      }
+
+      // Sign in with decrypted key
+      const result = NostrAuthService.signInWithDecryptedKey(privateKey);
+      
+      if (!result.success) {
+        setLocalError(result.error);
+        setSigningIn(false);
+        return;
+      }
+
+      // Reload to complete sign-in
+      window.location.reload();
+    } catch (err) {
+      console.error('Password sign in failed:', err);
+      setLocalError(err.message || 'Failed to sign in');
+      setSigningIn(false);
+    }
+  };
+
+  // Reset to main view
+  const handleBackToMain = () => {
+    setAuthMode('main');
+    setPassword('');
+    setConfirmPassword('');
+    setLocalError(null);
+  };
+
   const displayError = localError || error;
 
   if (loading || checkingReturn) {
@@ -151,6 +265,194 @@ export default function NostrLoginForm() {
     );
   }
 
+  // Create Account View
+  if (authMode === 'create') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-black">
+        <div className="max-w-md w-full space-y-8 p-8">
+          {/* Header */}
+          <div className="text-center">
+            <div className="flex justify-center mb-6">
+              <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-600 rounded-2xl flex items-center justify-center">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                </svg>
+              </div>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+              Create New Account
+            </h2>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              Your private key will be encrypted with this password
+            </p>
+          </div>
+
+          {/* Create Account Form */}
+          <form onSubmit={handleCreateAccount} className="space-y-4">
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter a strong password"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                required
+                minLength={8}
+                autoFocus
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Minimum 8 characters
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Confirm Password
+              </label>
+              <input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm your password"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                required
+                minLength={8}
+              />
+            </div>
+
+            {/* Error Display */}
+            {displayError && (
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  {displayError}
+                </p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={signingIn || password.length < 8 || password !== confirmPassword}
+              className="w-full flex justify-center items-center py-4 px-6 border border-transparent text-lg font-medium rounded-xl text-white bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              {signingIn ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Creating Account...
+                </>
+              ) : (
+                'Create Account'
+              )}
+            </button>
+          </form>
+
+          {/* Back Button */}
+          <button
+            onClick={handleBackToMain}
+            className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+          >
+            ← Back to sign-in options
+          </button>
+
+          {/* Warning */}
+          <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              ⚠️ <strong>Important:</strong> Remember your password! It's the only way to access your account. We cannot recover it.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Password Sign-In View (returning users)
+  if (authMode === 'password') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-black">
+        <div className="max-w-md w-full space-y-8 p-8">
+          {/* Header */}
+          <div className="text-center">
+            <div className="flex justify-center mb-6">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-2xl flex items-center justify-center">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                </svg>
+              </div>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+              Welcome Back
+            </h2>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              Enter your password to sign in
+            </p>
+          </div>
+
+          {/* Password Sign-In Form */}
+          <form onSubmit={handlePasswordSignIn} className="space-y-4">
+            <div>
+              <label htmlFor="loginPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Password
+              </label>
+              <input
+                id="loginPassword"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+                autoFocus
+              />
+            </div>
+
+            {/* Error Display */}
+            {displayError && (
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  {displayError}
+                </p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={signingIn || !password}
+              className="w-full flex justify-center items-center py-4 px-6 border border-transparent text-lg font-medium rounded-xl text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              {signingIn ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Signing In...
+                </>
+              ) : (
+                'Sign In'
+              )}
+            </button>
+          </form>
+
+          {/* Back Button */}
+          <button
+            onClick={handleBackToMain}
+            className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+          >
+            ← Back to sign-in options
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Main View (default)
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-black">
       <div className="max-w-md w-full space-y-8 p-8">
@@ -173,6 +475,32 @@ export default function NostrLoginForm() {
 
         {/* Sign-in Methods */}
         <div className="space-y-4">
+          {/* Password Sign-In (if account exists) */}
+          {hasStoredAccount && (
+            <>
+              <button
+                onClick={() => setAuthMode('password')}
+                disabled={signingIn}
+                className="group relative w-full flex justify-center items-center py-4 px-6 border border-transparent text-lg font-medium rounded-xl text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                </svg>
+                Sign in with Password
+              </button>
+              
+              {/* Divider */}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300 dark:border-gray-700"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-gray-50 dark:bg-black text-gray-500">or use another method</span>
+                </div>
+              </div>
+            </>
+          )}
+
           {/* Extension Sign-In (Desktop) */}
           {hasExtension && (
             <button
@@ -200,7 +528,7 @@ export default function NostrLoginForm() {
           )}
 
           {/* Show extension install hint if not available on desktop */}
-          {!hasExtension && !isMobile && (
+          {!hasExtension && !isMobile && !hasStoredAccount && (
             <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
               <p className="text-sm text-blue-700 dark:text-blue-300">
                 💡 Install a Nostr extension like{' '}
@@ -226,8 +554,8 @@ export default function NostrLoginForm() {
             </div>
           )}
 
-          {/* Divider */}
-          {hasExtension && (
+          {/* Divider before mobile signer */}
+          {(hasExtension || hasStoredAccount) && (
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-300 dark:border-gray-700"></div>
@@ -260,6 +588,18 @@ export default function NostrLoginForm() {
                 Sign in with Mobile Signer
               </>
             )}
+          </button>
+
+          {/* Create New Account Button */}
+          <button
+            onClick={() => setAuthMode('create')}
+            disabled={signingIn}
+            className="group relative w-full flex justify-center items-center py-4 px-6 border-2 border-emerald-500 text-lg font-medium rounded-xl text-emerald-600 dark:text-emerald-400 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+            </svg>
+            Create New Account
           </button>
 
           {/* iOS Manual Entry Fallback */}
@@ -364,6 +704,9 @@ export default function NostrLoginForm() {
               </p>
               <p className="mt-2">
                 <strong>Mobile signers</strong> like Amber (Android) and Nowser (iOS) securely manage your Nostr keys on mobile.
+              </p>
+              <p className="mt-2">
+                <strong>Create New Account</strong> generates a Nostr identity protected by your password - works everywhere!
               </p>
             </div>
           </details>

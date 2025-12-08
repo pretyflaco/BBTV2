@@ -4,6 +4,7 @@
 
 import { useDarkMode } from '../../lib/hooks/useDarkMode';
 import ProfileSection from './ProfileSection';
+import KeyManagementSection from './KeyManagementSection';
 
 export default function SettingsPage({ onClose }) {
   const { darkMode } = useDarkMode();
@@ -38,8 +39,9 @@ export default function SettingsPage({ onClose }) {
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
           <ProfileSection />
+          <KeyManagementSection />
         </div>
       </div>
     </div>

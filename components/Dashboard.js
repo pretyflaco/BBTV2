@@ -7,6 +7,7 @@ import { useDarkMode } from '../lib/hooks/useDarkMode';
 import { useNFC } from './NFCPayment';
 import PaymentAnimation from './PaymentAnimation';
 import POS from './POS';
+import KeyManagementSection from './Settings/KeyManagementSection';
 
 // Predefined Tip Profiles for different regions
 const TIP_PROFILES = [
@@ -75,6 +76,7 @@ export default function Dashboard() {
   const [showSoundThemes, setShowSoundThemes] = useState(false);
   const [showTipSettings, setShowTipSettings] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
+  const [showKeyManagement, setShowKeyManagement] = useState(false);
   const [showCurrencySettings, setShowCurrencySettings] = useState(false);
   const [showAddAccountForm, setShowAddAccountForm] = useState(false);
   const [newAccountApiKey, setNewAccountApiKey] = useState('');
@@ -1463,6 +1465,27 @@ export default function Dashboard() {
                   </div>
                 </button>
 
+                {/* Key Management (for generated accounts) */}
+                {authMode === 'nostr' && (
+                  <button
+                    onClick={() => {
+                      setShowKeyManagement(true);
+                      setSideMenuOpen(false);
+                    }}
+                    className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Key Management</span>
+                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                        </svg>
+                        <span className="ml-1">›</span>
+                      </div>
+                    </div>
+                  </button>
+                )}
+
                 {/* Action Buttons */}
                 <div className="space-y-3 pt-4">
                   {showInstallPrompt && (
@@ -1491,6 +1514,36 @@ export default function Dashboard() {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Key Management Overlay */}
+      {showKeyManagement && (
+        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+          <div className="min-h-screen">
+            {/* Header */}
+            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+              <div className="max-w-md mx-auto px-4 py-4">
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => setShowKeyManagement(false)}
+                    className="flex items-center text-gray-600 dark:text-gray-400 text-base"
+                  >
+                    <svg className="w-6 h-6 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Back
+                  </button>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Key Management</h2>
+                  <div className="w-16"></div>
+                </div>
+              </div>
+            </div>
+            {/* Content */}
+            <div className="max-w-md mx-auto px-4 py-6">
+              <KeyManagementSection />
             </div>
           </div>
         </div>

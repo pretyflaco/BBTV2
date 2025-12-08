@@ -10,7 +10,6 @@
 import { useState, useEffect } from 'react';
 import { useNostrAuth } from '../../lib/hooks/useNostrAuth';
 import NostrAuthService from '../../lib/nostr/NostrAuthService';
-import CryptoUtils from '../../lib/storage/CryptoUtils';
 
 export default function NostrLoginForm() {
   const {
@@ -21,7 +20,9 @@ export default function NostrLoginForm() {
     availableMethods,
     signInWithExtension,
     signInWithExternalSigner,
-    checkPendingSignerFlow
+    checkPendingSignerFlow,
+    createAccountWithPassword,
+    signInWithPassword
   } = useNostrAuth();
 
   const [signingIn, setSigningIn] = useState(false);
@@ -169,19 +170,8 @@ export default function NostrLoginForm() {
         return;
       }
 
-      // Generate new keypair
-      const { privateKey, publicKey } = NostrAuthService.generateKeypair();
-      console.log('[NostrLoginForm] Generated new keypair, pubkey:', publicKey.slice(0, 8) + '...');
-
-      // Encrypt private key with password
-      const encryptedNsec = await CryptoUtils.encryptWithPassword(privateKey, password);
-      
-      // Store encrypted nsec locally
-      NostrAuthService.storeEncryptedNsec(encryptedNsec);
-      console.log('[NostrLoginForm] Stored encrypted nsec');
-
-      // Sign in with the new keys
-      const result = NostrAuthService.signInWithGeneratedKeys(publicKey, privateKey);
+      // Use the hook method which handles everything including state update
+      const result = await createAccountWithPassword(password);
       
       if (!result.success) {
         setLocalError(result.error);
@@ -189,8 +179,9 @@ export default function NostrLoginForm() {
         return;
       }
 
-      // Reload to complete sign-in
-      window.location.reload();
+      // Success! State is already updated by the hook - no reload needed
+      console.log('[NostrLoginForm] Account created successfully');
+      setSigningIn(false);
     } catch (err) {
       console.error('Create account failed:', err);
       setLocalError(err.message || 'Failed to create account');
@@ -205,27 +196,8 @@ export default function NostrLoginForm() {
     setLocalError(null);
 
     try {
-      // Get stored encrypted nsec
-      const encryptedNsec = NostrAuthService.getStoredEncryptedNsec();
-      
-      if (!encryptedNsec) {
-        setLocalError('No account found on this device. Please create a new account.');
-        setSigningIn(false);
-        return;
-      }
-
-      // Decrypt with password
-      let privateKey;
-      try {
-        privateKey = await CryptoUtils.decryptWithPassword(encryptedNsec, password);
-      } catch (decryptError) {
-        setLocalError('Incorrect password');
-        setSigningIn(false);
-        return;
-      }
-
-      // Sign in with decrypted key
-      const result = NostrAuthService.signInWithDecryptedKey(privateKey);
+      // Use the hook method which handles everything including state update
+      const result = await signInWithPassword(password);
       
       if (!result.success) {
         setLocalError(result.error);
@@ -233,8 +205,9 @@ export default function NostrLoginForm() {
         return;
       }
 
-      // Reload to complete sign-in
-      window.location.reload();
+      // Success! State is already updated by the hook - no reload needed
+      console.log('[NostrLoginForm] Signed in with password successfully');
+      setSigningIn(false);
     } catch (err) {
       console.error('Password sign in failed:', err);
       setLocalError(err.message || 'Failed to sign in');

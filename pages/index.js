@@ -1,6 +1,7 @@
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useCombinedAuth } from '../lib/hooks/useCombinedAuth';
 import NostrLoginForm from '../components/auth/NostrLoginForm';
-import BlinkAccountSetup from '../components/auth/BlinkAccountSetup';
+import WalletSetup from '../components/wallet/WalletSetup';
 import Dashboard from '../components/Dashboard';
 
 /**
@@ -9,19 +10,38 @@ import Dashboard from '../components/Dashboard';
  * Authentication States:
  * 1. Loading: Show spinner while checking auth
  * 2. Not authenticated: Show Nostr login
- * 3. Nostr auth but no Blink: Show BlinkAccountSetup
- * 4. Fully authenticated: Show Dashboard
+ * 3. Nostr auth but no wallet (Blink or NWC): Show WalletSetup
+ * 4. Fully authenticated with wallet: Show Dashboard
  */
 export default function Home() {
   const { 
     loading, 
     isAuthenticated, 
     authMode, 
-    needsBlinkSetup,
-    user 
+    needsWalletSetup,
+    hasNWC,
+    hasBlinkAccount,
+    user,
+    publicKey
   } = useCombinedAuth();
+  
+  // Track wallet setup completion to force re-render
+  // This is needed because useNWC state is per-component
+  const [walletSetupComplete, setWalletSetupComplete] = useState(false);
+  
+  // Track the previous user to detect user changes
+  const prevUserRef = useRef(publicKey);
+  
+  // Reset walletSetupComplete when user changes (including logout/login)
+  useEffect(() => {
+    if (prevUserRef.current !== publicKey) {
+      console.log('[Home] User changed from', prevUserRef.current?.slice(0, 8), 'to', publicKey?.slice(0, 8), '- resetting walletSetupComplete');
+      setWalletSetupComplete(false);
+      prevUserRef.current = publicKey;
+    }
+  }, [publicKey]);
 
-  console.log('Home render - loading:', loading, 'authenticated:', isAuthenticated, 'authMode:', authMode, 'needsBlinkSetup:', needsBlinkSetup);
+  console.log('Home render - loading:', loading, 'authenticated:', isAuthenticated, 'authMode:', authMode, 'needsWalletSetup:', needsWalletSetup, 'hasNWC:', hasNWC, 'walletSetupComplete:', walletSetupComplete);
 
   // Loading state
   if (loading) {
@@ -41,22 +61,27 @@ export default function Home() {
     return <NostrLoginForm />;
   }
 
-  // Nostr authenticated but needs Blink account setup
-  if (needsBlinkSetup) {
+  // Nostr authenticated but needs wallet setup (Blink OR NWC)
+  // Check both needsWalletSetup AND !walletSetupComplete to handle state update race condition
+  if (needsWalletSetup && !walletSetupComplete) {
     return (
-      <BlinkAccountSetup 
-        onComplete={() => {
-          // Profile will be updated automatically via ProfileProvider
-          console.log('Blink account added successfully');
-        }}
-        onSkip={() => {
-          // Allow skipping - user can add later from settings
-          console.log('User skipped Blink account setup');
-        }}
-      />
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-black p-4">
+        <WalletSetup 
+          onComplete={(result) => {
+            console.log('Wallet added successfully:', result.type);
+            // Force re-render to show Dashboard
+            setWalletSetupComplete(true);
+          }}
+          onSkip={() => {
+            // Allow skipping - user can add later from settings
+            console.log('User skipped wallet setup');
+            setWalletSetupComplete(true);
+          }}
+        />
+      </div>
     );
   }
 
-  // Fully authenticated - show dashboard
+  // Fully authenticated with wallet - show dashboard
   return <Dashboard />;
 }

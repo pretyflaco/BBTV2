@@ -3,7 +3,7 @@ import QRCode from 'react-qr-code';
 import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
 import { useNFC } from './NFCPayment';
 
-const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState }) => {
+const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice }) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -83,13 +83,14 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
   }, [wallets]);
 
   // Fetch exchange rate when currency changes
+  // For NWC-only users (no apiKey), use BlinkPOS credentials via useBlinkpos flag
   useEffect(() => {
-    if (displayCurrency !== 'BTC' && apiKey) {
+    if (displayCurrency !== 'BTC' && (apiKey || activeNWC)) {
       fetchExchangeRate();
     } else if (displayCurrency === 'BTC') {
       setExchangeRate({ satPriceInCurrency: 1, currency: 'BTC' });
     }
-  }, [displayCurrency, apiKey]);
+  }, [displayCurrency, apiKey, activeNWC]);
 
   // Clear invoice when payment is received
   useEffect(() => {
@@ -135,7 +136,9 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
         },
         body: JSON.stringify({
           apiKey: apiKey,
-          currency: displayCurrency
+          currency: displayCurrency,
+          // For NWC-only users, use BlinkPOS credentials to fetch exchange rate
+          useBlinkpos: !apiKey && !!activeNWC
         }),
       });
       
@@ -406,6 +409,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
     setError('');
   };
 
+
   // Create invoice with specific tip percentage (bypasses state timing issues)
   const createInvoiceWithTip = async (tipPercent) => {
     return createInvoice(true, tipPercent);
@@ -453,13 +457,15 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
       return;
     }
 
-    if (!selectedWallet) {
-      setError('No BTC wallet available. Please try refreshing.');
-      return;
-    }
-
-    if (!apiKey) {
-      setError('No API key available. Please log in again.');
+    // Invoices are always created via Blink's blinkpos account
+    // Payments are forwarded to either:
+    // - User's Blink wallet (if they have one), OR
+    // - User's NWC wallet (if active)
+    const hasBlinkWallet = selectedWallet && apiKey;
+    const hasNwcWallet = activeNWC && nwcClientReady;
+    
+    if (!hasBlinkWallet && !hasNwcWallet) {
+      setError('No wallet available. Please connect a Blink or NWC wallet.');
       return;
     }
 
@@ -530,13 +536,12 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
         finalTotalInSats = Math.round(totalWithTip);
       }
 
+      // Create invoice via Blink API (always through blinkpos account)
+      // For NWC-only users, Blink wallet fields are optional
       const requestBody = {
         amount: finalTotalInSats,
         currency: 'BTC', // Always create BTC invoices
         memo: memo, // Show calculation in memo
-        walletId: selectedWallet.id, // This will be ignored in the new flow
-        userWalletId: selectedWallet.id, // User's wallet for payment forwarding
-        apiKey: apiKey, // Pass user's API key for payment forwarding
         displayCurrency: displayCurrency, // Pass the actual display currency for tip memo
         // Tip information for payment splitting
         baseAmount: convertToSatoshis(finalTotal, displayCurrency !== 'BTC' ? displayCurrency : 'BTC'),
@@ -545,43 +550,52 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
         tipRecipients: tipRecipients || [],
         // Display currency amounts for memo calculation
         baseAmountDisplay: finalTotal,
-        tipAmountDisplay: tipAmount
+        tipAmountDisplay: tipAmount,
+        // Include Blink wallet info only if available (for Blink forwarding)
+        // NWC-only users won't have these, forwarding handled by WebSocket
+        ...(selectedWallet && {
+          walletId: selectedWallet.id,
+          userWalletId: selectedWallet.id
+        }),
+        ...(apiKey && { apiKey }),
+        // Flag to indicate if NWC is active (for forwarding logic)
+        nwcActive: !!activeNWC && nwcClientReady
       };
 
-      console.log('Creating invoice with request body:', requestBody);
+        console.log('Creating invoice with request body:', requestBody);
 
-      const response = await fetch('/api/blink/create-invoice', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
+        const response = await fetch('/api/blink/create-invoice', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        });
 
-      const data = await response.json();
+        const data = await response.json();
 
-      console.log('Invoice response:', data);
+        console.log('Invoice response:', data);
 
-      if (!response.ok) {
-        throw new Error(data.error || `Server error: ${response.status}`);
-      }
-
-      if (data.success && data.invoice) {
-        // Enhance invoice with display currency information
-        const enhancedInvoice = {
-          ...data.invoice,
-          displayAmount: totalWithTip, // Use totalWithTip to include tip amount
-          displayCurrency: displayCurrency,
-          satAmount: finalTotalInSats
-        };
-        setInvoice(enhancedInvoice);
-        // Notify parent of invoice creation for NFC scanning
-        if (onInvoiceChange) {
-          onInvoiceChange(data.invoice.paymentRequest);
+        if (!response.ok) {
+          throw new Error(data.error || `Server error: ${response.status}`);
         }
-      } else {
-        throw new Error('Invalid response from server');
-      }
+
+        if (data.success && data.invoice) {
+          // Enhance invoice with display currency information
+          const enhancedInvoice = {
+            ...data.invoice,
+            displayAmount: totalWithTip, // Use totalWithTip to include tip amount
+            displayCurrency: displayCurrency,
+            satAmount: finalTotalInSats
+          };
+          setInvoice(enhancedInvoice);
+          // Notify parent of invoice creation for NFC scanning
+          if (onInvoiceChange) {
+            onInvoiceChange(data.invoice.paymentRequest);
+          }
+        } else {
+          throw new Error('Invalid response from server');
+        }
 
     } catch (err) {
       console.error('Invoice creation error:', err);
@@ -925,7 +939,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
           </button>
           <button
             onClick={() => createInvoice()}
-            disabled={!hasValidAmount() || loading || !selectedWallet || !apiKey || (displayCurrency !== 'BTC' && !exchangeRate) || loadingRate}
+            disabled={!hasValidAmount() || loading || (!selectedWallet && !activeNWC) || (displayCurrency !== 'BTC' && !exchangeRate) || loadingRate}
             className={`h-[136px] ${!hasValidAmount() || loading ? 'bg-gray-200 dark:bg-blink-dark border-2 border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500' : 'bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'} disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-lg text-lg font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center row-span-2`}
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >

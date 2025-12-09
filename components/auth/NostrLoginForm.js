@@ -276,6 +276,7 @@ export default function NostrLoginForm() {
                 required
                 minLength={8}
                 autoFocus
+                autoComplete="new-password"
               />
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Minimum 8 characters
@@ -295,6 +296,7 @@ export default function NostrLoginForm() {
                 className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 required
                 minLength={8}
+                autoComplete="new-password"
               />
             </div>
 
@@ -382,6 +384,7 @@ export default function NostrLoginForm() {
                 className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
                 autoFocus
+                autoComplete="current-password"
               />
             </div>
 

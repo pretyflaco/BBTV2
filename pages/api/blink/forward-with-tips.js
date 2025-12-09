@@ -194,7 +194,8 @@ export default async function handler(req, res) {
     const blinkposAPI = new BlinkAPI(blinkposApiKey);
     
     console.log('💰 Paying user invoice from BlinkPOS...');
-    const paymentResult = await blinkposAPI.payLnInvoice(blinkposBtcWalletId, userInvoice.paymentRequest);
+    // Pass the memo to the payment so it shows in the receiver's Blink wallet
+    const paymentResult = await blinkposAPI.payLnInvoice(blinkposBtcWalletId, userInvoice.paymentRequest, forwardingMemo);
     
     if (paymentResult.status !== 'SUCCESS') {
       throw new Error(`Payment forwarding failed: ${paymentResult.status}`);

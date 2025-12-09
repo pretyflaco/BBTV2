@@ -204,8 +204,8 @@ export default function BlinkAccountSetup({ onComplete, onSkip }) {
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="blink_..."
               required
-              autoComplete="new-password"
-              data-1p-ignore
+              autoComplete="off"
+              data-1p-ignore="true"
               data-lpignore="true"
               className="block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent"
             />

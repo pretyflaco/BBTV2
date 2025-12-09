@@ -138,6 +138,9 @@ export default function BlinkAccountsSection() {
                 onChange={(e) => setApiKey(e.target.value)}
                 placeholder="blink_..."
                 required
+                autoComplete="off"
+                data-1p-ignore="true"
+                data-lpignore="true"
                 className={`w-full px-3 py-2 rounded-md border text-sm ${
                   darkMode 
                     ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 

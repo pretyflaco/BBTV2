@@ -278,6 +278,7 @@ export default function KeyManagementSection() {
                       : 'bg-white border-gray-200 text-gray-900'
                   }`}
                   autoFocus
+                  autoComplete="current-password"
                 />
                 
                 {error && (

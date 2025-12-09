@@ -8,6 +8,7 @@ import { useNFC } from './NFCPayment';
 import PaymentAnimation from './PaymentAnimation';
 import POS from './POS';
 import KeyManagementSection from './Settings/KeyManagementSection';
+import NWCClient from '../lib/nwc/NWCClient';
 
 // Predefined Tip Profiles for different regions
 const TIP_PROFILES = [
@@ -21,7 +22,15 @@ const TIP_PROFILES = [
 ];
 
 export default function Dashboard() {
-  const { user, logout, authMode, getApiKey, hasServerSession, publicKey, activeBlinkAccount, blinkAccounts, addBlinkAccount, setActiveBlinkAccount, storeBlinkAccountOnServer, tippingSettings: profileTippingSettings, updateTippingSettings: updateProfileTippingSettings, nostrProfile } = useCombinedAuth();
+  const { 
+    user, logout, authMode, getApiKey, hasServerSession, publicKey, 
+    activeBlinkAccount, blinkAccounts, addBlinkAccount, removeBlinkAccount, setActiveBlinkAccount, 
+    storeBlinkAccountOnServer, tippingSettings: profileTippingSettings, updateTippingSettings: updateProfileTippingSettings, 
+    nostrProfile,
+    // NWC data from useCombinedAuth (user-scoped)
+    nwcConnections, activeNWC, addNWCConnection, removeNWCConnection, setActiveNWC, 
+    nwcMakeInvoice, nwcLookupInvoice, nwcListTransactions, nwcHasCapability, nwcClientReady
+  } = useCombinedAuth();
   const { currencies, loading: currenciesLoading, getAllCurrencies } = useCurrencies();
   const { darkMode, toggleDarkMode } = useDarkMode();
   const [apiKey, setApiKey] = useState(null);
@@ -81,8 +90,13 @@ export default function Dashboard() {
   const [showAddAccountForm, setShowAddAccountForm] = useState(false);
   const [newAccountApiKey, setNewAccountApiKey] = useState('');
   const [newAccountLabel, setNewAccountLabel] = useState('');
+  const [newAccountNwcUri, setNewAccountNwcUri] = useState('');
+  const [newAccountType, setNewAccountType] = useState(null); // null | 'blink' | 'nwc'
   const [addAccountLoading, setAddAccountLoading] = useState(false);
   const [addAccountError, setAddAccountError] = useState(null);
+  const [nwcValidating, setNwcValidating] = useState(false);
+  const [nwcValidated, setNwcValidated] = useState(null); // { walletPubkey, relays, capabilities }
+  const [confirmDeleteWallet, setConfirmDeleteWallet] = useState(null); // { type: 'blink'|'nwc', id: string }
   // Tip Profile state
   const [showTipProfileSettings, setShowTipProfileSettings] = useState(false);
   const [activeTipProfile, setActiveTipProfile] = useState(() => {
@@ -309,7 +323,8 @@ export default function Dashboard() {
         amount: forwardedPayment.amount,
         currency: forwardedPayment.currency || 'BTC',
         memo: forwardedPayment.memo || `BlinkPOS: ${forwardedPayment.amount} sats`,
-        isForwarded: true
+        isForwarded: true,
+        isNwc: forwardedPayment.isNwc
       });
       
       // Note: Sound is played by PaymentAnimation component, not here
@@ -325,6 +340,11 @@ export default function Dashboard() {
       
       // Refresh data to show the forwarded payment
       fetchData();
+    },
+    // NWC options for forwarding to NWC wallets
+    {
+      isActive: !!activeNWC && nwcClientReady,
+      makeInvoice: nwcMakeInvoice
     }
   );
 
@@ -373,6 +393,40 @@ export default function Dashboard() {
     }
   }, [currentView]);
 
+  // Refresh transaction data when active wallet changes (NWC or Blink)
+  // This ensures we show the correct wallet's transactions
+  const prevActiveNWCRef = useRef(activeNWC?.id);
+  const prevActiveBlinkRef = useRef(activeBlinkAccount?.id);
+  
+  useEffect(() => {
+    const nwcChanged = activeNWC?.id !== prevActiveNWCRef.current;
+    const blinkChanged = activeBlinkAccount?.id !== prevActiveBlinkRef.current;
+    
+    if (nwcChanged || blinkChanged) {
+      console.log('[Dashboard] Active wallet changed:', {
+        nwcFrom: prevActiveNWCRef.current?.substring(0, 8),
+        nwcTo: activeNWC?.id?.substring(0, 8),
+        blinkFrom: prevActiveBlinkRef.current?.substring(0, 8),
+        blinkTo: activeBlinkAccount?.id?.substring(0, 8)
+      });
+      
+      prevActiveNWCRef.current = activeNWC?.id;
+      prevActiveBlinkRef.current = activeBlinkAccount?.id;
+      
+      // Clear existing transactions to prevent showing old wallet's data
+      setTransactions([]);
+      
+      // If we're viewing transactions, refresh the data for the new active wallet
+      if (currentView === 'transactions') {
+        // Small delay to ensure the NWC client is ready after switching
+        setTimeout(() => {
+          console.log('[Dashboard] Refreshing transactions for new active wallet');
+          fetchData();
+        }, 100);
+      }
+    }
+  }, [activeNWC?.id, activeBlinkAccount?.id, currentView]);
+
   // Fetch wallets when API key becomes available
   useEffect(() => {
     if (apiKey) {
@@ -411,6 +465,111 @@ export default function Dashboard() {
   }, [lastPayment]);
 
   const fetchData = async () => {
+    // Check if NWC wallet is ACTIVE (user chose to use NWC for this session)
+    const isNwcActive = activeNWC && nwcClientReady;
+    const hasBlinkAccount = blinkAccounts && blinkAccounts.length > 0;
+    
+    // If NWC wallet is ACTIVE, fetch NWC transactions (even if user also has Blink account)
+    // This respects the user's choice of which wallet to use
+    if (isNwcActive && nwcHasCapability('list_transactions')) {
+      console.log('Fetching NWC transaction history for ACTIVE NWC wallet:', activeNWC?.label);
+      setLoading(true);
+      try {
+        const result = await nwcListTransactions({ limit: 100 });
+        console.log('NWC list_transactions raw result:', JSON.stringify(result, null, 2));
+        if (result.success && result.transactions) {
+          // Convert NWC transactions to our format
+          // NIP-47 fields: type, amount (msats), description, payment_hash, created_at, settled_at
+          // Load locally stored memos for NWC transactions
+          // (needed because long memos are hashed in BOLT11 and NWC returns description_hash, not the text)
+          let storedMemos = {};
+          try {
+            storedMemos = JSON.parse(localStorage.getItem('blinkpos_nwc_memos') || '{}');
+          } catch (e) {
+            console.warn('Failed to load stored NWC memos:', e);
+          }
+          
+          const formattedTransactions = result.transactions.map((tx, index) => {
+            console.log(`NWC Transaction ${index}:`, JSON.stringify(tx, null, 2));
+            // Convert millisats to sats
+            const satsAmount = Math.round((tx.amount || 0) / 1000);
+            // Format date like Blink API does
+            const txDate = tx.created_at 
+              ? new Date(tx.created_at * 1000).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })
+              : new Date().toLocaleDateString();
+            
+            // Try to find the memo:
+            // 1. First check if we have it stored locally (for BlinkPOS-created invoices with long memos)
+            // 2. Then try the NWC response fields
+            // 3. Fall back to a descriptive default
+            const localMemo = tx.payment_hash && storedMemos[tx.payment_hash]?.memo;
+            const memo = localMemo
+              || tx.description 
+              || tx.memo 
+              || tx.metadata?.description 
+              || tx.metadata?.memo
+              || tx.invoice_description
+              || (tx.type === 'incoming' ? `Received ${satsAmount} sats` : `Sent ${satsAmount} sats`);
+            
+            if (localMemo) {
+              console.log(`✓ Found stored memo for ${tx.payment_hash?.substring(0, 16)}:`, localMemo.substring(0, 50) + '...');
+            }
+            
+            return {
+              id: tx.payment_hash || tx.preimage || `nwc-${Date.now()}-${index}`,
+              direction: tx.type === 'incoming' ? 'RECEIVE' : 'SEND',
+              status: tx.settled_at ? 'SUCCESS' : 'PENDING',
+              // Format amount like Blink: "21 sats" or "-21 sats"
+              amount: tx.type === 'incoming' ? `${satsAmount} sats` : `-${satsAmount} sats`,
+              settlementAmount: satsAmount,
+              currency: 'BTC',
+              date: txDate,
+              createdAt: tx.created_at ? new Date(tx.created_at * 1000).toISOString() : new Date().toISOString(),
+              memo: memo,
+              isNwc: true
+            };
+          });
+          console.log('Formatted NWC transactions:', formattedTransactions);
+          setTransactions(formattedTransactions);
+          setError('');
+        } else {
+          console.log('NWC transaction fetch failed:', result.error);
+          setTransactions([]);
+        }
+      } catch (err) {
+        console.error('NWC transaction error:', err);
+        setTransactions([]);
+      } finally {
+        setLoading(false);
+      }
+      return; // NWC transactions fetched, don't continue to Blink
+    }
+    
+    // NWC is active but doesn't support list_transactions
+    if (isNwcActive) {
+      console.log('NWC wallet active but doesn\'t support list_transactions capability');
+      setLoading(false);
+      setTransactions([]);
+      return;
+    }
+    
+    // NWC is not active - check if we can fetch Blink transactions
+    // Skip if no Blink credentials available
+    if (!apiKey && !hasServerSession) {
+      console.log('No wallet credentials available for transaction fetch');
+      setLoading(false);
+      setTransactions([]);
+      return;
+    }
+    
+    console.log('Fetching Blink transaction history for active Blink wallet');
+    
     try {
       setLoading(true);
       
@@ -1403,7 +1562,7 @@ export default function Dashboard() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Wallet</span>
                     <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                      <span>{activeBlinkAccount?.label || activeBlinkAccount?.username || 'None'}</span>
+                      <span>{activeNWC ? activeNWC.label : (activeBlinkAccount?.label || activeBlinkAccount?.username || 'None')}</span>
                       <span className="ml-1">›</span>
                     </div>
                   </div>
@@ -2276,7 +2435,11 @@ export default function Dashboard() {
                       setShowAddAccountForm(false);
                       setNewAccountApiKey('');
                       setNewAccountLabel('');
+                      setNewAccountNwcUri('');
+                      setNewAccountType(null);
                       setAddAccountError(null);
+                      setNwcValidated(null);
+                      setConfirmDeleteWallet(null);
                     }}
                     className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
                   >
@@ -2294,7 +2457,7 @@ export default function Dashboard() {
             {/* Content */}
             <div className="max-w-md mx-auto px-4 py-6">
               <div className="space-y-4">
-                {/* Add Account Button */}
+                {/* Add Wallet Button */}
                 {authMode === 'nostr' && !showAddAccountForm && (
                   <button
                     onClick={() => setShowAddAccountForm(true)}
@@ -2303,13 +2466,103 @@ export default function Dashboard() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
                     </svg>
-                    Add Account
+                    Add Wallet
                   </button>
                 )}
 
-                {/* Add Account Form */}
-                {showAddAccountForm && (
+                {/* Add Wallet Form - Step 1: Label */}
+                {showAddAccountForm && !newAccountType && (
                   <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                    <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      Step 1: Name Your Wallet
+                    </h3>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Label</label>
+                        <input
+                          type="text"
+                          value={newAccountLabel}
+                          onChange={(e) => setNewAccountLabel(e.target.value)}
+                          placeholder="My Wallet"
+                          className={`w-full px-3 py-2 rounded-md border text-sm ${
+                            darkMode 
+                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
+                              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                          } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
+                        />
+                      </div>
+                      
+                      <h3 className={`text-sm font-medium pt-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        Step 2: Choose Wallet Type
+                      </h3>
+                      
+                      {/* Wallet Type Selection */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setNewAccountType('blink')}
+                          className={`p-4 rounded-lg border-2 text-center transition-all hover:scale-[1.02] ${
+                            darkMode 
+                              ? 'border-amber-500/30 bg-amber-900/10 hover:border-amber-500/50' 
+                              : 'border-amber-200 bg-amber-50 hover:border-amber-300'
+                          }`}
+                        >
+                          <span className="text-2xl mb-2 block">⚡</span>
+                          <span className={`font-medium text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>Blink</span>
+                          <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>API Key</p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNewAccountType('nwc')}
+                          className={`p-4 rounded-lg border-2 text-center transition-all hover:scale-[1.02] ${
+                            darkMode 
+                              ? 'border-purple-500/30 bg-purple-900/10 hover:border-purple-500/50' 
+                              : 'border-purple-200 bg-purple-50 hover:border-purple-300'
+                          }`}
+                        >
+                          <svg className="w-7 h-7 mx-auto mb-1 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                          <span className={`font-medium text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>NWC</span>
+                          <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Nostr Connect</p>
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddAccountForm(false);
+                          setNewAccountLabel('');
+                          setAddAccountError(null);
+                        }}
+                        className={`w-full py-2 text-sm font-medium rounded-md transition-colors ${
+                          darkMode 
+                            ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Add Wallet Form - Step 2: Blink API Key */}
+                {showAddAccountForm && newAccountType === 'blink' && (
+                  <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <button
+                        onClick={() => { setNewAccountType(null); setAddAccountError(null); }}
+                        className={`p-1 rounded ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      <h3 className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        Add Blink Wallet
+                      </h3>
+                    </div>
                     <form onSubmit={async (e) => {
                       e.preventDefault();
                       if (!newAccountApiKey.trim()) {
@@ -2333,12 +2586,12 @@ export default function Dashboard() {
                         const data = await response.json();
                         if (data.errors || !data.data?.me?.id) throw new Error('Invalid API key');
                         const result = await addBlinkAccount({
-                          label: newAccountLabel.trim() || 'Blink Account',
+                          label: newAccountLabel.trim() || 'Blink Wallet',
                           apiKey: newAccountApiKey.trim(),
                           username: data.data.me.username,
                           defaultCurrency: data.data.me.defaultAccount?.displayCurrency || 'BTC'
                         });
-                        if (!result.success) throw new Error(result.error || 'Failed to add account');
+                        if (!result.success) throw new Error(result.error || 'Failed to add wallet');
                         if (authMode === 'nostr') {
                           await storeBlinkAccountOnServer(
                             newAccountApiKey.trim(),
@@ -2346,8 +2599,10 @@ export default function Dashboard() {
                             newAccountLabel || data.data.me.username
                           );
                         }
+                        // Reset form
                         setNewAccountApiKey('');
                         setNewAccountLabel('');
+                        setNewAccountType(null);
                         setShowAddAccountForm(false);
                       } catch (err) {
                         setAddAccountError(err.message);
@@ -2355,34 +2610,30 @@ export default function Dashboard() {
                         setAddAccountLoading(false);
                       }
                     }} className="space-y-3">
-                      <div>
-                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Label</label>
-                        <input
-                          type="text"
-                          value={newAccountLabel}
-                          onChange={(e) => setNewAccountLabel(e.target.value)}
-                          placeholder="My Account"
-                          className={`w-full px-3 py-2 rounded-md border text-sm ${
-                            darkMode 
-                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
-                              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
-                          } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
-                        />
+                      <div className={`p-2 rounded text-xs ${darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
+                        Label: <span className="font-medium">{newAccountLabel || 'Blink Wallet'}</span>
                       </div>
                       <div>
-                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">API Key</label>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Blink API Key</label>
                         <input
                           type="password"
                           value={newAccountApiKey}
                           onChange={(e) => setNewAccountApiKey(e.target.value)}
                           placeholder="blink_..."
                           required
+                          autoFocus
+                          autoComplete="off"
+                          data-1p-ignore="true"
+                          data-lpignore="true"
                           className={`w-full px-3 py-2 rounded-md border text-sm ${
                             darkMode 
                               ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
                               : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
                           } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
                         />
+                        <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                          Get from <a href="https://dashboard.blink.sv" target="_blank" rel="noopener noreferrer" className="text-blink-accent hover:underline">dashboard.blink.sv</a>
+                        </p>
                       </div>
                       {addAccountError && (
                         <p className="text-sm text-red-500">{addAccountError}</p>
@@ -2393,7 +2644,7 @@ export default function Dashboard() {
                           disabled={addAccountLoading}
                           className="flex-1 py-2 bg-blink-accent text-black text-sm font-medium rounded-md hover:bg-blink-accent/90 disabled:opacity-50 transition-colors"
                         >
-                          {addAccountLoading ? 'Validating...' : 'Add'}
+                          {addAccountLoading ? 'Validating...' : 'Add Wallet'}
                         </button>
                         <button
                           type="button"
@@ -2401,6 +2652,7 @@ export default function Dashboard() {
                             setShowAddAccountForm(false);
                             setNewAccountApiKey('');
                             setNewAccountLabel('');
+                            setNewAccountType(null);
                             setAddAccountError(null);
                           }}
                           className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
@@ -2416,87 +2668,365 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                {/* Accounts List */}
-                <div className="space-y-2">
-                  {blinkAccounts && blinkAccounts.length > 0 ? (
-                    blinkAccounts.map((account) => (
-                      <div
-                        key={account.id}
-                        className={`rounded-lg p-4 border transition-colors ${
-                          account.isActive
-                            ? darkMode
-                              ? 'bg-blink-accent/10 border-blink-accent'
-                              : 'bg-blink-accent/5 border-blink-accent'
-                            : darkMode
-                              ? 'bg-gray-900 border-gray-700'
-                              : 'bg-gray-50 border-gray-200'
-                        }`}
+                {/* Add Wallet Form - Step 2: NWC Connection */}
+                {showAddAccountForm && newAccountType === 'nwc' && (
+                  <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <button
+                        onClick={() => { setNewAccountType(null); setAddAccountError(null); setNwcValidated(null); setNewAccountNwcUri(''); }}
+                        className={`p-1 rounded ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${
-                              account.isActive 
-                                ? 'bg-blink-accent/20' 
-                                : darkMode ? 'bg-gray-800' : 'bg-gray-200'
-                            }`}>
-                              <svg className={`w-5 h-5 ${account.isActive ? 'text-blink-accent' : darkMode ? 'text-gray-400' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                              </svg>
-                            </div>
-                            <div className="min-w-0">
-                              <h5 className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                {account.label || 'Blink Account'}
-                              </h5>
-                              <p className={`text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                                @{account.username || 'Unknown'}
-                              </p>
-                            </div>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      <h3 className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        Add NWC Wallet
+                      </h3>
+                    </div>
+                    <form onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (!nwcValidated) {
+                        // Validate first
+                        if (!newAccountNwcUri.trim()) {
+                          setAddAccountError('Enter a connection string');
+                          return;
+                        }
+                        setNwcValidating(true);
+                        setAddAccountError(null);
+                        try {
+                          const validation = await NWCClient.validate(newAccountNwcUri.trim());
+                          if (!validation.valid) {
+                            setAddAccountError(validation.error || 'Invalid connection string');
+                            setNwcValidating(false);
+                            return;
+                          }
+                          const tempClient = new NWCClient(newAccountNwcUri.trim());
+                          setNwcValidated({
+                            walletPubkey: tempClient.getWalletPubkey(),
+                            relays: tempClient.getRelays(),
+                            capabilities: validation.info?.methods || []
+                          });
+                          tempClient.close();
+                        } catch (err) {
+                          setAddAccountError(err.message || 'Invalid connection string');
+                        } finally {
+                          setNwcValidating(false);
+                        }
+                        return;
+                      }
+                      // Add the wallet
+                      setAddAccountLoading(true);
+                      setAddAccountError(null);
+                      try {
+                        const result = await addNWCConnection(newAccountNwcUri.trim(), newAccountLabel.trim() || 'NWC Wallet');
+                        if (!result.success) throw new Error(result.error || 'Failed to add wallet');
+                        // Reset form
+                        setNewAccountNwcUri('');
+                        setNewAccountLabel('');
+                        setNewAccountType(null);
+                        setNwcValidated(null);
+                        setShowAddAccountForm(false);
+                      } catch (err) {
+                        setAddAccountError(err.message);
+                      } finally {
+                        setAddAccountLoading(false);
+                      }
+                    }} className="space-y-3">
+                      <div className={`p-2 rounded text-xs ${darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
+                        Label: <span className="font-medium">{newAccountLabel || 'NWC Wallet'}</span>
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">NWC Connection String</label>
+                        <textarea
+                          value={newAccountNwcUri}
+                          onChange={(e) => { setNewAccountNwcUri(e.target.value); setNwcValidated(null); }}
+                          placeholder="nostr+walletconnect://..."
+                          rows={3}
+                          autoFocus
+                          autoComplete="off"
+                          data-1p-ignore="true"
+                          data-lpignore="true"
+                          className={`w-full px-3 py-2 rounded-md border text-sm font-mono resize-none ${
+                            darkMode 
+                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
+                              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                          } focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
+                        />
+                        <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                          Get from your wallet app (Alby, Phoenix, Zeus, etc.)
+                        </p>
+                      </div>
+                      
+                      {/* NWC Validation Result */}
+                      {nwcValidated && (
+                        <div className={`p-3 rounded-lg ${darkMode ? 'bg-green-900/20 border border-green-500/30' : 'bg-green-50 border border-green-200'}`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span className={`text-sm font-medium ${darkMode ? 'text-green-400' : 'text-green-700'}`}>Valid Connection</span>
                           </div>
-                          <div className="flex-shrink-0 ml-2">
-                            {account.isActive ? (
-                              <span className="px-3 py-1 text-xs font-medium bg-blink-accent/20 text-blink-accent rounded">
-                                Active
-                              </span>
-                            ) : (
-                              <button
-                                onClick={() => setActiveBlinkAccount(account.id)}
-                                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-                                  darkMode 
-                                    ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
-                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                }`}
-                              >
-                                Use
-                              </button>
-                            )}
+                          <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            Wallet: {nwcValidated.walletPubkey.slice(0, 8)}...{nwcValidated.walletPubkey.slice(-8)}
+                          </p>
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {nwcValidated.capabilities.slice(0, 4).map((cap, i) => (
+                              <span key={i} className={`px-2 py-0.5 rounded text-xs ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'}`}>{cap}</span>
+                            ))}
                           </div>
                         </div>
+                      )}
+
+                      {addAccountError && (
+                        <p className="text-sm text-red-500">{addAccountError}</p>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          type="submit"
+                          disabled={addAccountLoading || nwcValidating}
+                          className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors disabled:opacity-50 ${
+                            nwcValidated
+                              ? 'bg-purple-600 text-white hover:bg-purple-700'
+                              : 'bg-purple-600 text-white hover:bg-purple-700'
+                          }`}
+                        >
+                          {nwcValidating ? 'Validating...' : addAccountLoading ? 'Adding...' : nwcValidated ? 'Add Wallet' : 'Validate'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAddAccountForm(false);
+                            setNewAccountNwcUri('');
+                            setNewAccountLabel('');
+                            setNewAccountType(null);
+                            setNwcValidated(null);
+                            setAddAccountError(null);
+                          }}
+                          className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
+                            darkMode 
+                              ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                        >
+                          Cancel
+                        </button>
                       </div>
-                    ))
-                  ) : (
+                    </form>
+                  </div>
+                )}
+
+                {/* Wallets List */}
+                <div className="space-y-2">
+                  {/* Blink Accounts */}
+                  {blinkAccounts && blinkAccounts.map((account) => (
+                    <div
+                      key={`blink-${account.id}`}
+                      className={`rounded-lg p-4 border transition-colors ${
+                        account.isActive && !activeNWC
+                          ? darkMode
+                            ? 'bg-blink-accent/10 border-blink-accent'
+                            : 'bg-blink-accent/5 border-blink-accent'
+                          : darkMode
+                            ? 'bg-gray-900 border-gray-700'
+                            : 'bg-gray-50 border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${
+                            account.isActive && !activeNWC
+                              ? 'bg-blink-accent/20' 
+                              : darkMode ? 'bg-gray-800' : 'bg-gray-200'
+                          }`}>
+                            <span className="text-lg">⚡</span>
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h5 className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                {account.label || 'Blink Wallet'}
+                              </h5>
+                              <span className={`px-1.5 py-0.5 text-xs rounded ${darkMode ? 'bg-amber-900/30 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>Blink</span>
+                            </div>
+                            <p className={`text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              @{account.username || 'Unknown'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0 ml-2 flex items-center gap-2">
+                          {account.isActive && !activeNWC ? (
+                            <span className="px-3 py-1 text-xs font-medium bg-blink-accent/20 text-blink-accent rounded">
+                              Active
+                            </span>
+                          ) : (
+                            <button
+                              onClick={async () => {
+                                // Deactivate any active NWC first
+                                if (activeNWC) {
+                                  await setActiveNWC(null);
+                                }
+                                setActiveBlinkAccount(account.id);
+                              }}
+                              className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                                darkMode 
+                                  ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
+                            >
+                              Use
+                            </button>
+                          )}
+                          {/* Delete button */}
+                          {confirmDeleteWallet?.type === 'blink' && confirmDeleteWallet?.id === account.id ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => { removeBlinkAccount(account.id); setConfirmDeleteWallet(null); }}
+                                className="px-2 py-1 text-xs font-medium bg-red-600 text-white rounded hover:bg-red-700"
+                              >
+                                Delete
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteWallet(null)}
+                                className={`px-2 py-1 text-xs rounded ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmDeleteWallet({ type: 'blink', id: account.id })}
+                              className={`p-1.5 rounded transition-colors ${darkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'}`}
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* NWC Connections */}
+                  {nwcConnections && nwcConnections.map((conn) => (
+                    <div
+                      key={`nwc-${conn.id}`}
+                      className={`rounded-lg p-4 border transition-colors ${
+                        activeNWC?.id === conn.id
+                          ? darkMode
+                            ? 'bg-purple-900/20 border-purple-500'
+                            : 'bg-purple-50 border-purple-400'
+                          : darkMode
+                            ? 'bg-gray-900 border-gray-700'
+                            : 'bg-gray-50 border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${
+                            activeNWC?.id === conn.id
+                              ? 'bg-purple-500/20' 
+                              : darkMode ? 'bg-gray-800' : 'bg-gray-200'
+                          }`}>
+                            <svg className={`w-5 h-5 ${activeNWC?.id === conn.id ? 'text-purple-400' : darkMode ? 'text-gray-400' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h5 className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                {conn.label || 'NWC Wallet'}
+                              </h5>
+                              <span className={`px-1.5 py-0.5 text-xs rounded ${darkMode ? 'bg-purple-900/30 text-purple-400' : 'bg-purple-100 text-purple-700'}`}>NWC</span>
+                            </div>
+                            <p className={`text-xs font-mono truncate ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                              {conn.walletPubkey?.slice(0, 8)}...{conn.walletPubkey?.slice(-8)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0 ml-2 flex items-center gap-2">
+                          {activeNWC?.id === conn.id ? (
+                            <span className="px-3 py-1 text-xs font-medium bg-purple-500/20 text-purple-400 rounded">
+                              Active
+                            </span>
+                          ) : (
+                            <button
+                              onClick={async () => {
+                                // Deactivate any active Blink account first
+                                if (activeBlinkAccount) {
+                                  // Note: We can't easily deactivate Blink accounts, but we set NWC as active
+                                }
+                                await setActiveNWC(conn.id);
+                              }}
+                              className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                                darkMode 
+                                  ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
+                            >
+                              Use
+                            </button>
+                          )}
+                          {/* Delete button */}
+                          {confirmDeleteWallet?.type === 'nwc' && confirmDeleteWallet?.id === conn.id ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => { removeNWCConnection(conn.id); setConfirmDeleteWallet(null); }}
+                                className="px-2 py-1 text-xs font-medium bg-red-600 text-white rounded hover:bg-red-700"
+                              >
+                                Delete
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteWallet(null)}
+                                className={`px-2 py-1 text-xs rounded ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmDeleteWallet({ type: 'nwc', id: conn.id })}
+                              className={`p-1.5 rounded transition-colors ${darkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'}`}
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Empty state */}
+                  {(!blinkAccounts || blinkAccounts.length === 0) && (!nwcConnections || nwcConnections.length === 0) && (
                     <div className={`rounded-lg p-8 text-center ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
                       <svg className={`w-12 h-12 mx-auto mb-3 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                       </svg>
                       <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                        No accounts connected
+                        No wallets connected
+                      </p>
+                      <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                        Add a Blink or NWC wallet to get started
                       </p>
                     </div>
                   )}
                 </div>
 
-                {/* Help link */}
-                <p className={`text-xs text-center ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                  Get API key from{' '}
-                  <a 
-                    href="https://dashboard.blink.sv" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-blink-accent hover:underline"
-                  >
-                    dashboard.blink.sv
-                  </a>
-                </p>
+                {/* Help links */}
+                <div className={`text-xs text-center space-y-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                  <p>
+                    <span className="text-amber-500">Blink:</span>{' '}
+                    <a href="https://dashboard.blink.sv" target="_blank" rel="noopener noreferrer" className="hover:underline">dashboard.blink.sv</a>
+                  </p>
+                  <p>
+                    <span className="text-purple-500">NWC:</span>{' '}
+                    <a href="https://nwc.dev" target="_blank" rel="noopener noreferrer" className="hover:underline">nwc.dev</a>
+                    {' · '}
+                    Alby, Phoenix, Zeus, Mutiny
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -2635,12 +3165,12 @@ export default function Dashboard() {
             {/* Owner Display - Always show when logged in */}
             <div className="flex items-center gap-2">
               <img 
-                src="/bluedot.svg" 
+                src={activeNWC ? "/purpledot.svg" : "/bluedot.svg"} 
                 alt="Owner" 
                 className="w-2 h-2"
               />
-              <span className="text-blue-600 dark:text-blue-400 font-semibold" style={{fontSize: '11.2px'}}>
-                {activeBlinkAccount?.label || activeBlinkAccount?.username || 'Wallet'}
+              <span className={`font-semibold ${activeNWC ? 'text-purple-600 dark:text-purple-400' : 'text-blue-600 dark:text-blue-400'}`} style={{fontSize: '11.2px'}}>
+                {activeNWC ? activeNWC.label : (activeBlinkAccount?.label || activeBlinkAccount?.username || 'Wallet')}
               </span>
             </div>
             
@@ -2686,6 +3216,10 @@ export default function Dashboard() {
             darkMode={darkMode}
             toggleDarkMode={toggleDarkMode}
             nfcState={nfcState}
+            activeNWC={activeNWC}
+            nwcClientReady={nwcClientReady}
+            nwcMakeInvoice={nwcMakeInvoice}
+            nwcLookupInvoice={nwcLookupInvoice}
           />
         ) : (
           <>

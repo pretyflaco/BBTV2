@@ -6,19 +6,29 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { apiKey, currency } = req.body;
-
-    // Validate required fields
-    if (!apiKey) {
-      return res.status(400).json({ error: 'API key is required' });
-    }
+    const { apiKey, currency, useBlinkpos } = req.body;
 
     if (!currency) {
       return res.status(400).json({ error: 'Currency parameter is required' });
     }
 
+    // Determine which API key to use
+    let effectiveApiKey = apiKey;
+    
+    // For NWC-only users (no user API key), use BlinkPOS credentials
+    if (!effectiveApiKey && useBlinkpos) {
+      effectiveApiKey = process.env.BLINKPOS_API_KEY;
+      if (!effectiveApiKey) {
+        return res.status(500).json({ error: 'BlinkPOS credentials not configured' });
+      }
+    }
+
+    if (!effectiveApiKey) {
+      return res.status(400).json({ error: 'API key is required (or set useBlinkpos=true)' });
+    }
+
     // Use the API key to fetch exchange rate
-    const blinkAPI = new BlinkAPI(apiKey);
+    const blinkAPI = new BlinkAPI(effectiveApiKey);
     const exchangeRate = await blinkAPI.getExchangeRate(currency);
 
     if (!exchangeRate) {

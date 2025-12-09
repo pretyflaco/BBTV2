@@ -76,8 +76,8 @@ export default function LoginForm() {
                 name="apiKey"
                 type="password"
                 required
-                autoComplete="new-password"
-                data-1p-ignore
+                autoComplete="off"
+                data-1p-ignore="true"
                 data-lpignore="true"
                 className="relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-gray-100 bg-white dark:bg-blink-dark rounded-md focus:outline-none focus:ring-blink-accent focus:border-blink-accent focus:z-10 sm:text-sm"
                 placeholder="Blink API Key"

@@ -175,6 +175,132 @@ export default function Dashboard() {
     }
   }, [user?.username]);
 
+  // Server sync for preferences (cross-device sync)
+  // Fetch preferences from server on login and sync when changed
+  const serverSyncTimerRef = useRef(null);
+  const lastSyncedPrefsRef = useRef(null);
+  
+  // Sync preferences to server (debounced)
+  const syncPreferencesToServer = useCallback(async (prefs) => {
+    if (!publicKey) return;
+    
+    // Clear existing timer
+    if (serverSyncTimerRef.current) {
+      clearTimeout(serverSyncTimerRef.current);
+    }
+    
+    // Debounce the sync (2 seconds)
+    serverSyncTimerRef.current = setTimeout(async () => {
+      try {
+        console.log('[Dashboard] Syncing preferences to server...');
+        
+        const response = await fetch('/api/user/sync', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pubkey: publicKey,
+            field: 'preferences',
+            data: prefs
+          })
+        });
+        
+        if (response.ok) {
+          console.log('[Dashboard] ✓ Preferences synced to server');
+          lastSyncedPrefsRef.current = JSON.stringify(prefs);
+        }
+      } catch (err) {
+        console.error('[Dashboard] Server sync error:', err);
+      }
+    }, 2000);
+  }, [publicKey]);
+
+  // Fetch preferences from server on login
+  useEffect(() => {
+    if (!publicKey) return;
+    
+    const fetchServerPreferences = async () => {
+      try {
+        console.log('[Dashboard] Fetching preferences from server...');
+        const response = await fetch(`/api/user/sync?pubkey=${publicKey}`);
+        
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        const serverPrefs = data.preferences;
+        
+        if (serverPrefs) {
+          console.log('[Dashboard] Loaded preferences from server');
+          
+          // Apply server preferences to local state
+          if (serverPrefs.soundEnabled !== undefined) {
+            setSoundEnabled(serverPrefs.soundEnabled);
+            localStorage.setItem('soundEnabled', JSON.stringify(serverPrefs.soundEnabled));
+          }
+          if (serverPrefs.soundTheme) {
+            setSoundTheme(serverPrefs.soundTheme);
+            localStorage.setItem('soundTheme', serverPrefs.soundTheme);
+          }
+          if (serverPrefs.tipsEnabled !== undefined) {
+            setTipsEnabled(serverPrefs.tipsEnabled);
+            localStorage.setItem('blinkpos-tips-enabled', serverPrefs.tipsEnabled.toString());
+          }
+          if (serverPrefs.tipPresets) {
+            setTipPresets(serverPrefs.tipPresets);
+            localStorage.setItem('blinkpos-tip-presets', JSON.stringify(serverPrefs.tipPresets));
+          }
+          if (serverPrefs.displayCurrency) {
+            setDisplayCurrency(serverPrefs.displayCurrency);
+          }
+          
+          lastSyncedPrefsRef.current = JSON.stringify(serverPrefs);
+        } else {
+          // No server preferences - sync current local to server
+          const currentPrefs = {
+            soundEnabled,
+            soundTheme,
+            tipsEnabled,
+            tipPresets,
+            displayCurrency
+          };
+          syncPreferencesToServer(currentPrefs);
+        }
+      } catch (err) {
+        console.error('[Dashboard] Failed to fetch server preferences:', err);
+      }
+    };
+    
+    fetchServerPreferences();
+  }, [publicKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync preferences to server when they change
+  useEffect(() => {
+    if (!publicKey) return;
+    
+    const currentPrefs = {
+      soundEnabled,
+      soundTheme,
+      tipsEnabled,
+      tipPresets,
+      displayCurrency
+    };
+    
+    const currentPrefsStr = JSON.stringify(currentPrefs);
+    
+    // Only sync if preferences actually changed (avoid initial sync loop)
+    if (lastSyncedPrefsRef.current && lastSyncedPrefsRef.current !== currentPrefsStr) {
+      syncPreferencesToServer(currentPrefs);
+    }
+  }, [publicKey, soundEnabled, soundTheme, tipsEnabled, tipPresets, displayCurrency, syncPreferencesToServer]);
+
+  // Cleanup server sync timer on unmount
+  useEffect(() => {
+    return () => {
+      if (serverSyncTimerRef.current) {
+        clearTimeout(serverSyncTimerRef.current);
+      }
+    };
+  }, []);
+
   // Validate Blink username function
   const validateBlinkUsername = async (username) => {
     if (!username || username.trim() === '') {

@@ -97,7 +97,43 @@ export default async function handler(req, res) {
       forwardingMemo = `BlinkPOS: ${baseAmount} sats`;
     }
 
-    // Step 1: Create invoice on behalf of recipient using public Blink API
+    // Step 1: Look up recipient's BTC wallet (required for lnInvoiceCreateOnBehalfOfRecipient)
+    // The stored walletId might be a USD wallet, which doesn't support this operation
+    console.log('🔍 Looking up BTC wallet for recipient:', recipientUsername);
+    
+    const walletLookupQuery = `
+      query getRecipientBtcWallet($username: Username!) {
+        accountDefaultWallet(username: $username, walletCurrency: BTC) {
+          id
+          walletCurrency
+        }
+      }
+    `;
+
+    const walletLookupResponse = await fetch('https://api.blink.sv/graphql', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query: walletLookupQuery,
+        variables: { username: recipientUsername }
+      })
+    });
+
+    const walletLookupData = await walletLookupResponse.json();
+    
+    let btcWalletId = recipientWalletId; // Fallback to stored wallet
+    
+    if (walletLookupData.data?.accountDefaultWallet?.id && 
+        walletLookupData.data?.accountDefaultWallet?.walletCurrency === 'BTC') {
+      btcWalletId = walletLookupData.data.accountDefaultWallet.id;
+      console.log('✅ Found BTC wallet:', btcWalletId.substring(0, 16) + '...');
+    } else {
+      console.log('⚠️ Could not find BTC wallet, using stored wallet:', recipientWalletId?.substring(0, 16) + '...');
+    }
+
+    // Step 2: Create invoice on behalf of recipient using public Blink API
     console.log('📝 Creating invoice on behalf of recipient:', recipientUsername);
     
     const createInvoiceQuery = `
@@ -125,7 +161,7 @@ export default async function handler(req, res) {
         query: createInvoiceQuery,
         variables: {
           input: {
-            recipientWalletId: recipientWalletId,
+            recipientWalletId: btcWalletId,
             amount: Math.round(baseAmount),
             memo: forwardingMemo
           }

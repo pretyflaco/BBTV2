@@ -46,10 +46,12 @@ export default async function handler(req, res) {
       });
     }
 
-    // Query Blink public API to get account default wallet
-    const query = `
+    // Query Blink public API to get account's BTC wallet
+    // We specifically request the BTC wallet because lnInvoiceCreateOnBehalfOfRecipient
+    // only works with BTC wallets (not USD wallets)
+    const btcWalletQuery = `
       query accountDefaultWallet($username: Username!) {
-        accountDefaultWallet(username: $username) {
+        accountDefaultWallet(username: $username, walletCurrency: BTC) {
           __typename
           id
           walletCurrency
@@ -57,29 +59,29 @@ export default async function handler(req, res) {
       }
     `;
 
-    const response = await fetch('https://api.blink.sv/graphql', {
+    const btcResponse = await fetch('https://api.blink.sv/graphql', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        query,
+        query: btcWalletQuery,
         variables: { username }
       })
     });
 
-    if (!response.ok) {
-      console.error('Blink API error:', response.status, response.statusText);
+    if (!btcResponse.ok) {
+      console.error('Blink API error:', btcResponse.status, btcResponse.statusText);
       return res.status(502).json({ error: 'Failed to validate lightning address' });
     }
 
-    const data = await response.json();
+    const btcData = await btcResponse.json();
 
-    if (data.errors && data.errors.length > 0) {
-      console.error('Blink GraphQL errors:', data.errors);
+    // Check for account not found error
+    if (btcData.errors && btcData.errors.length > 0) {
+      console.error('Blink GraphQL errors:', btcData.errors);
       
-      // Check for "account not found" error
-      const notFoundError = data.errors.find(e => 
+      const notFoundError = btcData.errors.find(e => 
         e.message?.toLowerCase().includes('not found') ||
         e.message?.toLowerCase().includes('no account') ||
         e.message?.toLowerCase().includes('no user')
@@ -91,23 +93,63 @@ export default async function handler(req, res) {
         });
       }
       
-      return res.status(400).json({ error: data.errors[0].message || 'Validation failed' });
+      return res.status(400).json({ error: btcData.errors[0].message || 'Validation failed' });
     }
 
-    const wallet = data.data?.accountDefaultWallet;
+    const btcWallet = btcData.data?.accountDefaultWallet;
 
-    if (!wallet || !wallet.id) {
-      return res.status(404).json({ 
-        error: 'Blink account not found. Please check the username.' 
+    if (!btcWallet || !btcWallet.id) {
+      // Try to get any wallet (user might only have USD wallet)
+      const anyWalletQuery = `
+        query accountDefaultWallet($username: Username!) {
+          accountDefaultWallet(username: $username) {
+            __typename
+            id
+            walletCurrency
+          }
+        }
+      `;
+
+      const anyResponse = await fetch('https://api.blink.sv/graphql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: anyWalletQuery,
+          variables: { username }
+        })
+      });
+
+      const anyData = await anyResponse.json();
+      const anyWallet = anyData.data?.accountDefaultWallet;
+
+      if (!anyWallet || !anyWallet.id) {
+        return res.status(404).json({ 
+          error: 'Blink account not found. Please check the username.' 
+        });
+      }
+
+      // User has an account but no BTC wallet - return with warning
+      console.log(`User ${username} has no BTC wallet, defaulting to ${anyWallet.walletCurrency} wallet`);
+      
+      return res.status(200).json({
+        success: true,
+        username,
+        walletId: anyWallet.id,
+        walletCurrency: anyWallet.walletCurrency || 'USD',
+        lightningAddress: `${username}@blink.sv`,
+        warning: 'This account does not have a BTC wallet. Payments may fail.'
       });
     }
 
-    // Return validated wallet info
+    // Return validated BTC wallet info
+    console.log(`Validated ${username} with BTC wallet: ${btcWallet.id}`);
     res.status(200).json({
       success: true,
       username,
-      walletId: wallet.id,
-      walletCurrency: wallet.walletCurrency || 'BTC',
+      walletId: btcWallet.id,
+      walletCurrency: 'BTC',
       lightningAddress: `${username}@blink.sv`
     });
 

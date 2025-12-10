@@ -22,6 +22,9 @@ services:
       BLINKPOS_BTC_WALLET_ID: ${BLINKPOS_BTC_WALLET_ID}
       JWT_SECRET: ${JWT_SECRET}
       ENABLE_HYBRID_STORAGE: "true"
+    volumes:
+      # Persist user data (profiles, split settings, API keys) across container rebuilds
+      - app-data:/app/.data
     depends_on:
       redis:
         condition: service_healthy
@@ -120,6 +123,10 @@ services:
   #     - blinkpos-network
 
 volumes:
+  app-data:
+    driver: local
+    # Contains user profiles, split payment settings, synced credentials
+    # DO NOT DELETE - this is critical user data!
   redis-data:
     driver: local
   postgres-data:

@@ -2,12 +2,12 @@
  * User Sync API
  * 
  * Unified endpoint for cross-device sync of all user data:
+ * - Blink API Key wallets (encrypted) - NEW
  * - Blink Lightning Address wallets
  * - NWC connections (encrypted)
  * - UI preferences
  * 
  * This complements the existing endpoints:
- * - /api/auth/nostr-blink-account (Blink API Key wallets)
  * - /api/split-profiles (Split Payment Profiles)
  * 
  * Endpoints:
@@ -54,20 +54,24 @@ function extractPubkey(req) {
 }
 
 /**
- * Encrypt sensitive data (NWC URIs)
+ * Encrypt sensitive data (NWC URIs, API keys)
  */
-function encryptNWCUri(uri) {
-  if (!uri) return null;
-  return AuthManager.encryptApiKey(uri); // Reuse existing encryption
+function encryptSensitiveData(data) {
+  if (!data) return null;
+  return AuthManager.encryptApiKey(data);
 }
 
 /**
- * Decrypt sensitive data (NWC URIs)
+ * Decrypt sensitive data (NWC URIs, API keys)
  */
-function decryptNWCUri(encrypted) {
+function decryptSensitiveData(encrypted) {
   if (!encrypted) return null;
   return AuthManager.decryptApiKey(encrypted);
 }
+
+// Aliases for backwards compatibility
+const encryptNWCUri = encryptSensitiveData;
+const decryptNWCUri = decryptSensitiveData;
 
 export default async function handler(req, res) {
   console.log('[user/sync] Request method:', req.method);
@@ -112,11 +116,18 @@ async function handleGet(req, res, pubkey, username) {
   if (!userData) {
     return res.status(200).json({
       pubkey,
+      blinkApiAccounts: [],
       blinkLnAddressWallets: [],
       nwcConnections: [],
       preferences: getDefaultPreferences()
     });
   }
+  
+  // Decrypt Blink API account API keys for the client
+  const blinkApiAccounts = (userData.blinkApiAccounts || []).map(account => ({
+    ...account,
+    apiKey: decryptSensitiveData(account.apiKey)
+  }));
   
   // Decrypt NWC connection URIs for the client
   const nwcConnections = (userData.nwcConnections || []).map(conn => ({
@@ -126,6 +137,7 @@ async function handleGet(req, res, pubkey, username) {
   
   return res.status(200).json({
     pubkey,
+    blinkApiAccounts,
     blinkLnAddressWallets: userData.blinkLnAddressWallets || [],
     nwcConnections,
     preferences: userData.preferences || getDefaultPreferences(),
@@ -139,10 +151,22 @@ async function handleGet(req, res, pubkey, username) {
 async function handlePost(req, res, pubkey, username) {
   console.log('[user/sync] POST for user:', username);
   
-  const { blinkLnAddressWallets, nwcConnections, preferences } = req.body;
+  const { blinkApiAccounts, blinkLnAddressWallets, nwcConnections, preferences } = req.body;
   
   // Load existing data to preserve non-synced fields
   const existingData = await StorageManager.loadUserData(username) || {};
+  
+  // Encrypt Blink API account API keys before storage
+  const encryptedBlinkApiAccounts = (blinkApiAccounts || []).map(account => ({
+    id: account.id,
+    label: account.label,
+    username: account.username,
+    apiKey: encryptSensitiveData(account.apiKey),
+    defaultCurrency: account.defaultCurrency || 'BTC',
+    isActive: !!account.isActive,
+    createdAt: account.createdAt || new Date().toISOString(),
+    lastUsed: account.lastUsed
+  }));
   
   // Encrypt NWC connection URIs before storage
   const encryptedNWCConnections = (nwcConnections || []).map(conn => ({
@@ -170,6 +194,7 @@ async function handlePost(req, res, pubkey, username) {
   
   const saveResult = await StorageManager.saveUserData(username, {
     ...existingData,
+    blinkApiAccounts: encryptedBlinkApiAccounts,
     blinkLnAddressWallets: sanitizedLnAddressWallets,
     nwcConnections: encryptedNWCConnections,
     preferences: mergedPreferences,
@@ -196,14 +221,29 @@ async function handlePatch(req, res, pubkey, username) {
   
   const { field, data } = req.body;
   
-  if (!field || !['blinkLnAddressWallets', 'nwcConnections', 'preferences'].includes(field)) {
-    return res.status(400).json({ error: 'Invalid field. Must be: blinkLnAddressWallets, nwcConnections, or preferences' });
+  const validFields = ['blinkApiAccounts', 'blinkLnAddressWallets', 'nwcConnections', 'preferences'];
+  if (!field || !validFields.includes(field)) {
+    return res.status(400).json({ error: `Invalid field. Must be one of: ${validFields.join(', ')}` });
   }
   
   // Load existing data
   const existingData = await StorageManager.loadUserData(username) || {};
   
   let processedData = data;
+  
+  // Special handling for Blink API accounts - encrypt API keys
+  if (field === 'blinkApiAccounts' && Array.isArray(data)) {
+    processedData = data.map(account => ({
+      id: account.id,
+      label: account.label,
+      username: account.username,
+      apiKey: encryptSensitiveData(account.apiKey),
+      defaultCurrency: account.defaultCurrency || 'BTC',
+      isActive: !!account.isActive,
+      createdAt: account.createdAt || new Date().toISOString(),
+      lastUsed: account.lastUsed
+    }));
+  }
   
   // Special handling for NWC connections - encrypt URIs
   if (field === 'nwcConnections' && Array.isArray(data)) {

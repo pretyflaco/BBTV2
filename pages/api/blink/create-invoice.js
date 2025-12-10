@@ -7,7 +7,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { amount, currency, memo, walletId, apiKey, userWalletId, displayCurrency, baseAmount, tipAmount, tipPercent, tipRecipients = [], baseAmountDisplay, tipAmountDisplay, nwcActive } = req.body;
+    const { 
+      amount, currency, memo, walletId, apiKey, userWalletId, displayCurrency, 
+      baseAmount, tipAmount, tipPercent, tipRecipients = [], baseAmountDisplay, tipAmountDisplay, 
+      nwcActive, 
+      // Blink Lightning Address wallet fields (no API key required)
+      blinkLnAddress, blinkLnAddressWalletId, blinkLnAddressUsername
+    } = req.body;
 
     console.log('📥 Create invoice request received:', {
       amount,
@@ -18,21 +24,23 @@ export default async function handler(req, res) {
       hasBaseAmountDisplay: !!baseAmountDisplay,
       hasTipAmountDisplay: !!tipAmountDisplay,
       nwcActive: !!nwcActive,
-      hasApiKey: !!apiKey
+      hasApiKey: !!apiKey,
+      blinkLnAddress: !!blinkLnAddress,
+      blinkLnAddressUsername
     });
 
     // Validate required fields
-    // For NWC-only users, apiKey is not required (forwarding happens via NWC)
+    // For NWC-only or LN Address users, apiKey is not required
     if (!amount || !currency) {
       return res.status(400).json({ 
         error: 'Missing required fields: amount, currency' 
       });
     }
     
-    // Either apiKey (for Blink forwarding) OR nwcActive (for NWC forwarding) must be present
-    if (!apiKey && !nwcActive) {
+    // Either apiKey (for Blink API forwarding) OR nwcActive (for NWC forwarding) OR blinkLnAddress (for LN Address forwarding) must be present
+    if (!apiKey && !nwcActive && !blinkLnAddress) {
       return res.status(400).json({ 
-        error: 'Missing payment forwarding: either apiKey or nwcActive required' 
+        error: 'Missing payment forwarding: either apiKey, nwcActive, or blinkLnAddress required' 
       });
     }
 
@@ -68,7 +76,9 @@ export default async function handler(req, res) {
       blinkposWallet: blinkposBtcWalletId,
       userWallet: userWalletId,
       hasTip: tipAmount > 0,
-      tipRecipientsCount: tipRecipients?.length || 0
+      tipRecipientsCount: tipRecipients?.length || 0,
+      blinkLnAddress: !!blinkLnAddress,
+      blinkLnAddressUsername
     });
 
     // Always use BlinkPOS API and BTC wallet for invoice creation
@@ -91,7 +101,7 @@ export default async function handler(req, res) {
       }
 
       // Store tip metadata if there's a tip (using hybrid storage)
-      // For NWC-only users, apiKey/userWalletId may be empty - forwarding uses NWC instead
+      // For NWC-only or LN Address users, apiKey/userWalletId may be empty
       if (tipAmount > 0 && tipRecipients && tipRecipients.length > 0) {
         const hybridStore = await getHybridStore();
         await hybridStore.storeTipData(invoice.paymentHash, {
@@ -99,13 +109,17 @@ export default async function handler(req, res) {
           tipAmount: tipAmount,
           tipPercent: tipPercent,
           tipRecipients: tipRecipients, // Array of { username, share }
-          userApiKey: apiKey || null, // May be null for NWC-only users
-          userWalletId: userWalletId || walletId || null, // May be null for NWC-only users
+          userApiKey: apiKey || null, // May be null for NWC-only or LN Address users
+          userWalletId: userWalletId || walletId || null, // May be null for NWC-only or LN Address users
           displayCurrency: displayCurrency || 'BTC', // Store display currency for tip memo
           baseAmountDisplay: baseAmountDisplay, // Base amount in display currency
           tipAmountDisplay: tipAmountDisplay, // Tip amount in display currency
           memo: memo,
-          nwcActive: !!nwcActive // Flag for NWC forwarding
+          nwcActive: !!nwcActive, // Flag for NWC forwarding
+          // Lightning Address wallet info
+          blinkLnAddress: !!blinkLnAddress,
+          blinkLnAddressWalletId: blinkLnAddressWalletId || null,
+          blinkLnAddressUsername: blinkLnAddressUsername || null
         });
       }
 
@@ -120,12 +134,16 @@ export default async function handler(req, res) {
           currency: currency,
           memo: memo || '',
           walletId: blinkposBtcWalletId, // This is now the BlinkPOS wallet
-          userApiKey: apiKey || null, // May be null for NWC-only users
-          userWalletId: userWalletId || walletId || null, // May be null for NWC-only users
+          userApiKey: apiKey || null, // May be null for NWC-only or LN Address users
+          userWalletId: userWalletId || walletId || null, // May be null for NWC-only or LN Address users
           hasTip: tipAmount > 0,
           tipAmount: tipAmount || 0,
           tipRecipients: tipRecipients || [],
-          nwcActive: !!nwcActive // Flag for NWC forwarding
+          nwcActive: !!nwcActive, // Flag for NWC forwarding
+          // Lightning Address wallet info
+          blinkLnAddress: !!blinkLnAddress,
+          blinkLnAddressWalletId: blinkLnAddressWalletId || null,
+          blinkLnAddressUsername: blinkLnAddressUsername || null
         }
       });
 

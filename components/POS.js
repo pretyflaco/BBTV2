@@ -3,7 +3,7 @@ import QRCode from 'react-qr-code';
 import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
 import { useNFC } from './NFCPayment';
 
-const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice }) => {
+const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, activeBlinkAccount }) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -82,15 +82,18 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
     }
   }, [wallets]);
 
+  // Check if we have a Blink Lightning Address wallet (no API key required)
+  const hasBlinkLnAddressWallet = activeBlinkAccount?.type === 'ln-address';
+
   // Fetch exchange rate when currency changes
-  // For NWC-only users (no apiKey), use BlinkPOS credentials via useBlinkpos flag
+  // For NWC-only or LN Address users (no apiKey), use BlinkPOS credentials via useBlinkpos flag
   useEffect(() => {
-    if (displayCurrency !== 'BTC' && (apiKey || activeNWC)) {
+    if (displayCurrency !== 'BTC' && (apiKey || activeNWC || hasBlinkLnAddressWallet)) {
       fetchExchangeRate();
     } else if (displayCurrency === 'BTC') {
       setExchangeRate({ satPriceInCurrency: 1, currency: 'BTC' });
     }
-  }, [displayCurrency, apiKey, activeNWC]);
+  }, [displayCurrency, apiKey, activeNWC, hasBlinkLnAddressWallet]);
 
   // Clear invoice when payment is received
   useEffect(() => {
@@ -137,8 +140,8 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
         body: JSON.stringify({
           apiKey: apiKey,
           currency: displayCurrency,
-          // For NWC-only users, use BlinkPOS credentials to fetch exchange rate
-          useBlinkpos: !apiKey && !!activeNWC
+          // For NWC-only or LN Address users, use BlinkPOS credentials to fetch exchange rate
+          useBlinkpos: !apiKey && (!!activeNWC || hasBlinkLnAddressWallet)
         }),
       });
       
@@ -459,12 +462,13 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
 
     // Invoices are always created via Blink's blinkpos account
     // Payments are forwarded to either:
-    // - User's Blink wallet (if they have one), OR
+    // - User's Blink wallet via API key (if they have one), OR
+    // - User's Blink wallet via Lightning Address (if they have one), OR
     // - User's NWC wallet (if active)
-    const hasBlinkWallet = selectedWallet && apiKey;
+    const hasBlinkApiKeyWallet = selectedWallet && apiKey;
     const hasNwcWallet = activeNWC && nwcClientReady;
     
-    if (!hasBlinkWallet && !hasNwcWallet) {
+    if (!hasBlinkApiKeyWallet && !hasNwcWallet && !hasBlinkLnAddressWallet) {
       setError('No wallet available. Please connect a Blink or NWC wallet.');
       return;
     }
@@ -537,7 +541,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
       }
 
       // Create invoice via Blink API (always through blinkpos account)
-      // For NWC-only users, Blink wallet fields are optional
+      // For NWC-only or LN Address users, Blink wallet fields are optional
       const requestBody = {
         amount: finalTotalInSats,
         currency: 'BTC', // Always create BTC invoices
@@ -551,15 +555,21 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
         // Display currency amounts for memo calculation
         baseAmountDisplay: finalTotal,
         tipAmountDisplay: tipAmount,
-        // Include Blink wallet info only if available (for Blink forwarding)
-        // NWC-only users won't have these, forwarding handled by WebSocket
+        // Include Blink wallet info only if available (for Blink API key forwarding)
+        // NWC-only or LN Address users won't have these
         ...(selectedWallet && {
           walletId: selectedWallet.id,
           userWalletId: selectedWallet.id
         }),
         ...(apiKey && { apiKey }),
         // Flag to indicate if NWC is active (for forwarding logic)
-        nwcActive: !!activeNWC && nwcClientReady
+        nwcActive: !!activeNWC && nwcClientReady,
+        // Flag and data for Blink Lightning Address wallet (no API key required)
+        ...(hasBlinkLnAddressWallet && {
+          blinkLnAddress: true,
+          blinkLnAddressWalletId: activeBlinkAccount.walletId,
+          blinkLnAddressUsername: activeBlinkAccount.username
+        })
       };
 
         console.log('Creating invoice with request body:', requestBody);
@@ -939,7 +949,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
           </button>
           <button
             onClick={() => createInvoice()}
-            disabled={!hasValidAmount() || loading || (!selectedWallet && !activeNWC) || (displayCurrency !== 'BTC' && !exchangeRate) || loadingRate}
+            disabled={!hasValidAmount() || loading || (!selectedWallet && !activeNWC && !hasBlinkLnAddressWallet) || (displayCurrency !== 'BTC' && !exchangeRate) || loadingRate}
             className={`h-[136px] ${!hasValidAmount() || loading ? 'bg-gray-200 dark:bg-blink-dark border-2 border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500' : 'bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'} disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-lg text-lg font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center row-span-2`}
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >

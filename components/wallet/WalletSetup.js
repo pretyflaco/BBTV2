@@ -2,21 +2,23 @@
  * WalletSetup - Unified wallet setup component
  * 
  * Allows users to choose between:
- * - Blink API key (existing functionality)
- * - NWC connection (new)
+ * 1. Blink Lightning Address (recommended - simplest)
+ * 2. Blink API key (full features including transaction history)
+ * 3. NWC connection (for non-Blink wallets)
  */
 
 import { useState } from 'react';
 import { useDarkMode } from '../../lib/hooks/useDarkMode';
 import { useCombinedAuth } from '../../lib/hooks/useCombinedAuth';
 import NWCSetup from './NWCSetup';
+import BlinkLnAddressSetup from './BlinkLnAddressSetup';
 import BlinkAccountSetup from '../auth/BlinkAccountSetup';
 
 export default function WalletSetup({ onComplete, onSkip }) {
   const { darkMode } = useDarkMode();
-  const { addNWCConnection: addConnection } = useCombinedAuth();
+  const { addNWCConnection: addConnection, addBlinkLnAddressWallet } = useCombinedAuth();
   
-  const [walletType, setWalletType] = useState(null); // null | 'blink' | 'nwc'
+  const [walletType, setWalletType] = useState(null); // null | 'blink-ln-address' | 'blink-api-key' | 'nwc'
   const [error, setError] = useState(null);
 
   const handleNWCComplete = async (nwcData) => {
@@ -42,7 +44,35 @@ export default function WalletSetup({ onComplete, onSkip }) {
     }
   };
 
-  const handleBlinkComplete = () => {
+  const handleBlinkLnAddressComplete = async (data) => {
+    setError(null);
+    
+    try {
+      const result = await addBlinkLnAddressWallet({
+        username: data.username,
+        walletId: data.walletId,
+        walletCurrency: data.walletCurrency,
+        lightningAddress: data.lightningAddress,
+        label: data.label
+      });
+      
+      if (!result.success) {
+        setError(result.error || 'Failed to add Blink wallet');
+        return;
+      }
+
+      // Success!
+      onComplete?.({
+        type: 'blink-ln-address',
+        account: result.account
+      });
+    } catch (err) {
+      console.error('Blink LN Address setup error:', err);
+      setError(err.message || 'Failed to setup Blink wallet');
+    }
+  };
+
+  const handleBlinkApiKeyComplete = () => {
     onComplete?.({ type: 'blink' });
   };
 
@@ -56,7 +86,16 @@ export default function WalletSetup({ onComplete, onSkip }) {
     );
   }
 
-  if (walletType === 'blink') {
+  if (walletType === 'blink-ln-address') {
+    return (
+      <BlinkLnAddressSetup
+        onComplete={handleBlinkLnAddressComplete}
+        onCancel={() => setWalletType(null)}
+      />
+    );
+  }
+
+  if (walletType === 'blink-api-key') {
     return (
       <div className="relative">
         <button
@@ -72,7 +111,7 @@ export default function WalletSetup({ onComplete, onSkip }) {
           </svg>
         </button>
         <BlinkAccountSetup 
-          onComplete={handleBlinkComplete}
+          onComplete={handleBlinkApiKeyComplete}
           onSkip={onSkip}
         />
       </div>
@@ -92,7 +131,7 @@ export default function WalletSetup({ onComplete, onSkip }) {
           Connect a Wallet
         </h2>
         <p className={`mt-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-          Choose how you want to connect your Lightning wallet
+          Choose how you want to receive payments
         </p>
       </div>
 
@@ -103,7 +142,94 @@ export default function WalletSetup({ onComplete, onSkip }) {
       )}
 
       <div className="space-y-4">
-        {/* NWC Option */}
+        {/* Option 1: Blink Lightning Address (Recommended) */}
+        <button
+          onClick={() => setWalletType('blink-ln-address')}
+          className={`w-full p-4 rounded-xl border-2 text-left transition-all hover:scale-[1.02] ${
+            darkMode 
+              ? 'border-amber-500/30 bg-amber-900/20 hover:border-amber-500/50 hover:bg-amber-900/30' 
+              : 'border-amber-200 bg-amber-50 hover:border-amber-300 hover:bg-amber-100'
+          }`}
+        >
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
+              <span className="text-xl">⚡</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Blink Lightning Address
+                </h3>
+                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-amber-500 text-black">
+                  Recommended
+                </span>
+              </div>
+              <p className={`mt-1 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Connect with your Blink username - quick and easy setup
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {['Simple Setup', 'No API Key', 'Instant'].map((feature) => (
+                  <span 
+                    key={feature}
+                    className={`px-2 py-0.5 rounded text-xs ${
+                      darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'
+                    }`}
+                  >
+                    {feature}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <svg className={`w-5 h-5 flex-shrink-0 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </button>
+
+        {/* Option 2: Blink API Key */}
+        <button
+          onClick={() => setWalletType('blink-api-key')}
+          className={`w-full p-4 rounded-xl border-2 text-left transition-all hover:scale-[1.02] ${
+            darkMode 
+              ? 'border-gray-600 bg-gray-700/50 hover:border-gray-500 hover:bg-gray-700' 
+              : 'border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-gray-100'
+          }`}
+        >
+          <div className="flex items-start gap-4">
+            <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center ${
+              darkMode ? 'bg-gray-600' : 'bg-gray-200'
+            }`}>
+              <svg className={`w-6 h-6 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                Blink API Key
+              </h3>
+              <p className={`mt-1 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Full features including transaction history
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {['Tx History', 'Balance', 'Full Features'].map((feature) => (
+                  <span 
+                    key={feature}
+                    className={`px-2 py-0.5 rounded text-xs ${
+                      darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'
+                    }`}
+                  >
+                    {feature}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <svg className={`w-5 h-5 flex-shrink-0 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </button>
+
+        {/* Option 3: NWC */}
         <button
           onClick={() => setWalletType('nwc')}
           className={`w-full p-4 rounded-xl border-2 text-left transition-all hover:scale-[1.02] ${
@@ -119,58 +245,14 @@ export default function WalletSetup({ onComplete, onSkip }) {
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  Nostr Wallet Connect
-                </h3>
-                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-purple-500 text-white">
-                  Recommended
-                </span>
-              </div>
+              <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                Nostr Wallet Connect
+              </h3>
               <p className={`mt-1 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                 Connect any NWC-compatible wallet (Alby, Phoenix, Zeus, etc.)
               </p>
               <div className="mt-2 flex flex-wrap gap-1">
-                {['pay_invoice', 'get_balance', 'make_invoice'].map((cap) => (
-                  <span 
-                    key={cap}
-                    className={`px-2 py-0.5 rounded text-xs ${
-                      darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'
-                    }`}
-                  >
-                    {cap}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <svg className={`w-5 h-5 flex-shrink-0 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-            </svg>
-          </div>
-        </button>
-
-        {/* Blink Option */}
-        <button
-          onClick={() => setWalletType('blink')}
-          className={`w-full p-4 rounded-xl border-2 text-left transition-all hover:scale-[1.02] ${
-            darkMode 
-              ? 'border-amber-500/30 bg-amber-900/20 hover:border-amber-500/50 hover:bg-amber-900/30' 
-              : 'border-amber-200 bg-amber-50 hover:border-amber-300 hover:bg-amber-100'
-          }`}
-        >
-          <div className="flex items-start gap-4">
-            <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-              <span className="text-xl">⚡</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                Blink Wallet
-              </h3>
-              <p className={`mt-1 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Connect using your Blink API key for full POS features
-              </p>
-              <div className="mt-2 flex flex-wrap gap-1">
-                {['USD Wallet', 'BTC Wallet', 'Real-time'].map((feature) => (
+                {['Any NWC Wallet', 'Flexible', 'Decentralized'].map((feature) => (
                   <span 
                     key={feature}
                     className={`px-2 py-0.5 rounded text-xs ${
@@ -211,13 +293,7 @@ export default function WalletSetup({ onComplete, onSkip }) {
             <svg className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
             </svg>
-            <span>Create invoices and receive payments</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <svg className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-            </svg>
-            <span>Check your balance in real-time</span>
+            <span>Receive payments directly to your wallet</span>
           </li>
           <li className="flex items-start gap-2">
             <svg className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -225,9 +301,14 @@ export default function WalletSetup({ onComplete, onSkip }) {
             </svg>
             <span>Forward tips to employees</span>
           </li>
+          <li className="flex items-start gap-2">
+            <svg className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <span>Track your transactions (API key or NWC only)</span>
+          </li>
         </ul>
       </div>
     </div>
   );
 }
-

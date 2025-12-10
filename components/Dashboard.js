@@ -24,7 +24,7 @@ const TIP_PROFILES = [
 export default function Dashboard() {
   const { 
     user, logout, authMode, getApiKey, hasServerSession, publicKey, 
-    activeBlinkAccount, blinkAccounts, addBlinkAccount, removeBlinkAccount, setActiveBlinkAccount, 
+    activeBlinkAccount, blinkAccounts, addBlinkAccount, addBlinkLnAddressWallet, removeBlinkAccount, setActiveBlinkAccount, 
     storeBlinkAccountOnServer, tippingSettings: profileTippingSettings, updateTippingSettings: updateProfileTippingSettings, 
     nostrProfile,
     // NWC data from useCombinedAuth (user-scoped)
@@ -91,11 +91,14 @@ export default function Dashboard() {
   const [newAccountApiKey, setNewAccountApiKey] = useState('');
   const [newAccountLabel, setNewAccountLabel] = useState('');
   const [newAccountNwcUri, setNewAccountNwcUri] = useState('');
-  const [newAccountType, setNewAccountType] = useState(null); // null | 'blink' | 'nwc'
+  const [newAccountType, setNewAccountType] = useState(null); // null | 'blink' | 'blink-ln-address' | 'nwc'
   const [addAccountLoading, setAddAccountLoading] = useState(false);
   const [addAccountError, setAddAccountError] = useState(null);
   const [nwcValidating, setNwcValidating] = useState(false);
   const [nwcValidated, setNwcValidated] = useState(null); // { walletPubkey, relays, capabilities }
+  const [newAccountLnAddress, setNewAccountLnAddress] = useState('');
+  const [lnAddressValidating, setLnAddressValidating] = useState(false);
+  const [lnAddressValidated, setLnAddressValidated] = useState(null); // { username, walletId, walletCurrency, lightningAddress }
   const [confirmDeleteWallet, setConfirmDeleteWallet] = useState(null); // { type: 'blink'|'nwc', id: string }
   // Tip Profile state
   const [showTipProfileSettings, setShowTipProfileSettings] = useState(false);
@@ -345,6 +348,12 @@ export default function Dashboard() {
     {
       isActive: !!activeNWC && nwcClientReady,
       makeInvoice: nwcMakeInvoice
+    },
+    // Blink Lightning Address options for forwarding without API key
+    {
+      isActive: activeBlinkAccount?.type === 'ln-address',
+      walletId: activeBlinkAccount?.walletId,
+      username: activeBlinkAccount?.username
     }
   );
 
@@ -560,7 +569,15 @@ export default function Dashboard() {
     }
     
     // NWC is not active - check if we can fetch Blink transactions
-    // Skip if no Blink credentials available
+    // Skip if active Blink wallet is a Lightning Address wallet (no transaction history available)
+    if (activeBlinkAccount?.type === 'ln-address') {
+      console.log('Lightning Address wallet active - transaction history not available');
+      setLoading(false);
+      setTransactions([]);
+      return;
+    }
+    
+    // Skip if no Blink API credentials available
     if (!apiKey && !hasServerSession) {
       console.log('No wallet credentials available for transaction fetch');
       setLoading(false);
@@ -2436,9 +2453,11 @@ export default function Dashboard() {
                       setNewAccountApiKey('');
                       setNewAccountLabel('');
                       setNewAccountNwcUri('');
+                      setNewAccountLnAddress('');
                       setNewAccountType(null);
                       setAddAccountError(null);
                       setNwcValidated(null);
+                      setLnAddressValidated(null);
                       setConfirmDeleteWallet(null);
                     }}
                     className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
@@ -2497,35 +2516,64 @@ export default function Dashboard() {
                       </h3>
                       
                       {/* Wallet Type Selection */}
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        {/* Blink Lightning Address - Recommended, first option */}
                         <button
                           type="button"
-                          onClick={() => setNewAccountType('blink')}
-                          className={`p-4 rounded-lg border-2 text-center transition-all hover:scale-[1.02] ${
+                          onClick={() => setNewAccountType('blink-ln-address')}
+                          className={`w-full p-3 rounded-lg border-2 text-left transition-all hover:scale-[1.01] ${
                             darkMode 
-                              ? 'border-amber-500/30 bg-amber-900/10 hover:border-amber-500/50' 
-                              : 'border-amber-200 bg-amber-50 hover:border-amber-300'
+                              ? 'border-amber-500/40 bg-amber-900/20 hover:border-amber-500/60' 
+                              : 'border-amber-300 bg-amber-50 hover:border-amber-400'
                           }`}
                         >
-                          <span className="text-2xl mb-2 block">⚡</span>
-                          <span className={`font-medium text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>Blink</span>
-                          <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>API Key</p>
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl">⚡</span>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`font-medium text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>Blink Lightning Address</span>
+                                <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-amber-500 text-black">Recommended</span>
+                              </div>
+                              <p className={`text-xs mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Simple setup with username</p>
+                            </div>
+                          </div>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setNewAccountType('nwc')}
-                          className={`p-4 rounded-lg border-2 text-center transition-all hover:scale-[1.02] ${
-                            darkMode 
-                              ? 'border-purple-500/30 bg-purple-900/10 hover:border-purple-500/50' 
-                              : 'border-purple-200 bg-purple-50 hover:border-purple-300'
-                          }`}
-                        >
-                          <svg className="w-7 h-7 mx-auto mb-1 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                          </svg>
-                          <span className={`font-medium text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>NWC</span>
-                          <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Nostr Connect</p>
-                        </button>
+                        
+                        <div className="grid grid-cols-2 gap-2">
+                          {/* Blink API Key */}
+                          <button
+                            type="button"
+                            onClick={() => setNewAccountType('blink')}
+                            className={`p-3 rounded-lg border-2 text-center transition-all hover:scale-[1.02] ${
+                              darkMode 
+                                ? 'border-gray-600 bg-gray-800 hover:border-gray-500' 
+                                : 'border-gray-200 bg-gray-50 hover:border-gray-300'
+                            }`}
+                          >
+                            <svg className={`w-6 h-6 mx-auto mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                            </svg>
+                            <span className={`font-medium text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>Blink API</span>
+                            <p className={`text-xs mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Full features</p>
+                          </button>
+                          
+                          {/* NWC */}
+                          <button
+                            type="button"
+                            onClick={() => setNewAccountType('nwc')}
+                            className={`p-3 rounded-lg border-2 text-center transition-all hover:scale-[1.02] ${
+                              darkMode 
+                                ? 'border-purple-500/30 bg-purple-900/10 hover:border-purple-500/50' 
+                                : 'border-purple-200 bg-purple-50 hover:border-purple-300'
+                            }`}
+                          >
+                            <svg className="w-6 h-6 mx-auto mb-1 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                            <span className={`font-medium text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>NWC</span>
+                            <p className={`text-xs mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Any wallet</p>
+                          </button>
+                        </div>
                       </div>
 
                       <button
@@ -2656,6 +2704,167 @@ export default function Dashboard() {
                             setAddAccountError(null);
                           }}
                           className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
+                            darkMode 
+                              ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+                {/* Add Wallet Form - Step 2: Blink Lightning Address */}
+                {showAddAccountForm && newAccountType === 'blink-ln-address' && (
+                  <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <button
+                        onClick={() => { setNewAccountType(null); setAddAccountError(null); setLnAddressValidated(null); setNewAccountLnAddress(''); }}
+                        className={`p-1 rounded ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      <h3 className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        Add Blink Lightning Address
+                      </h3>
+                    </div>
+                    <form onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (!lnAddressValidated) {
+                        // Validate first
+                        if (!newAccountLnAddress.trim()) {
+                          setAddAccountError('Enter a username or lightning address');
+                          return;
+                        }
+                        setLnAddressValidating(true);
+                        setAddAccountError(null);
+                        try {
+                          const response = await fetch('/api/blink/validate-ln-address', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ lnAddress: newAccountLnAddress.trim() })
+                          });
+                          const data = await response.json();
+                          if (!response.ok) {
+                            setAddAccountError(data.error || 'Failed to validate');
+                            setLnAddressValidating(false);
+                            return;
+                          }
+                          setLnAddressValidated(data);
+                        } catch (err) {
+                          setAddAccountError(err.message || 'Validation failed');
+                        } finally {
+                          setLnAddressValidating(false);
+                        }
+                        return;
+                      }
+                      // Add the wallet
+                      setAddAccountLoading(true);
+                      setAddAccountError(null);
+                      try {
+                        const result = await addBlinkLnAddressWallet({
+                          label: newAccountLabel.trim() || `${lnAddressValidated.username}@blink.sv`,
+                          username: lnAddressValidated.username,
+                          walletId: lnAddressValidated.walletId,
+                          walletCurrency: lnAddressValidated.walletCurrency,
+                          lightningAddress: lnAddressValidated.lightningAddress
+                        });
+                        if (!result.success) throw new Error(result.error || 'Failed to add wallet');
+                        // Reset form
+                        setNewAccountLnAddress('');
+                        setNewAccountLabel('');
+                        setNewAccountType(null);
+                        setShowAddAccountForm(false);
+                        setLnAddressValidated(null);
+                      } catch (err) {
+                        setAddAccountError(err.message);
+                      } finally {
+                        setAddAccountLoading(false);
+                      }
+                    }} className="space-y-3">
+                      <div className={`p-2 rounded text-xs ${darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
+                        Label: <span className="font-medium">{newAccountLabel || 'Blink Wallet'}</span>
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Blink Username</label>
+                        <input
+                          type="text"
+                          value={newAccountLnAddress}
+                          onChange={(e) => { setNewAccountLnAddress(e.target.value); setLnAddressValidated(null); setAddAccountError(null); }}
+                          placeholder="username or username@blink.sv"
+                          required
+                          autoFocus
+                          autoComplete="off"
+                          data-1p-ignore="true"
+                          data-lpignore="true"
+                          className={`w-full px-3 py-2 rounded-md border text-sm ${
+                            darkMode 
+                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
+                              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                          } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
+                        />
+                        <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                          Your Blink wallet username
+                        </p>
+                      </div>
+                      
+                      {/* Validated Info */}
+                      {lnAddressValidated && (
+                        <div className={`p-3 rounded-md ${darkMode ? 'bg-green-900/20 border-green-500/30' : 'bg-green-50 border-green-200'} border`}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span className={`text-sm font-medium ${darkMode ? 'text-green-400' : 'text-green-700'}`}>
+                              {lnAddressValidated.lightningAddress}
+                            </span>
+                          </div>
+                          <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            Note: Transaction history not available with this method
+                          </p>
+                        </div>
+                      )}
+                      
+                      {addAccountError && (
+                        <p className="text-sm text-red-500">{addAccountError}</p>
+                      )}
+                      
+                      {/* Validate button */}
+                      {!lnAddressValidated && newAccountLnAddress.trim() && (
+                        <button
+                          type="submit"
+                          disabled={lnAddressValidating}
+                          className="w-full py-2 bg-blink-accent text-black text-sm font-medium rounded-md hover:bg-blink-accent/90 disabled:opacity-50 transition-colors"
+                        >
+                          {lnAddressValidating ? 'Validating...' : 'Validate'}
+                        </button>
+                      )}
+                      
+                      <div className="flex gap-2">
+                        {lnAddressValidated && (
+                          <button
+                            type="submit"
+                            disabled={addAccountLoading}
+                            className="flex-1 py-2 bg-blink-accent text-black text-sm font-medium rounded-md hover:bg-blink-accent/90 disabled:opacity-50 transition-colors"
+                          >
+                            {addAccountLoading ? 'Adding...' : 'Add Wallet'}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAddAccountForm(false);
+                            setNewAccountLnAddress('');
+                            setNewAccountLabel('');
+                            setNewAccountType(null);
+                            setAddAccountError(null);
+                            setLnAddressValidated(null);
+                          }}
+                          className={`${lnAddressValidated ? 'flex-1' : 'w-full'} py-2 text-sm font-medium rounded-md transition-colors ${
                             darkMode 
                               ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
                               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -2846,7 +3055,9 @@ export default function Dashboard() {
                               <h5 className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                                 {account.label || 'Blink Wallet'}
                               </h5>
-                              <span className={`px-1.5 py-0.5 text-xs rounded ${darkMode ? 'bg-amber-900/30 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>Blink</span>
+                              <span className={`px-1.5 py-0.5 text-xs rounded ${darkMode ? 'bg-amber-900/30 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>
+                                {account.type === 'ln-address' ? 'Blink Lightning Address' : 'Blink API Key'}
+                              </span>
                             </div>
                             <p className={`text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                               @{account.username || 'Unknown'}
@@ -3220,6 +3431,7 @@ export default function Dashboard() {
             nwcClientReady={nwcClientReady}
             nwcMakeInvoice={nwcMakeInvoice}
             nwcLookupInvoice={nwcLookupInvoice}
+            activeBlinkAccount={activeBlinkAccount}
           />
         ) : (
           <>

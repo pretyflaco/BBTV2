@@ -120,7 +120,21 @@ export default function NWCSetup({ onComplete, onCancel }) {
                        connectionString.trim().toLowerCase().startsWith('nostrnwc://');
 
   return (
-    <div className={`rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-xl`}>
+    <div className={`rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-xl max-w-md mx-auto`}>
+      {/* Back button */}
+      <button
+        onClick={onCancel}
+        className={`mb-4 p-2 rounded-lg transition-colors ${
+          darkMode 
+            ? 'text-gray-400 hover:text-white hover:bg-gray-700' 
+            : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+        }`}
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+      </button>
+
       <div className="text-center mb-6">
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 mb-4">
           <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -194,6 +208,9 @@ export default function NWCSetup({ onComplete, onCancel }) {
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             placeholder="My Lightning Wallet"
+            autoComplete="off"
+            data-1p-ignore="true"
+            data-lpignore="true"
             className={`w-full px-4 py-3 rounded-xl border-2 text-sm transition-colors ${
               darkMode 
                 ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500 focus:border-purple-500' 
@@ -298,7 +315,7 @@ export default function NWCSetup({ onComplete, onCancel }) {
                 : 'border-gray-300 text-gray-700 hover:bg-gray-50'
             }`}
           >
-            Cancel
+            Back
           </button>
           <button
             type="submit"
@@ -314,7 +331,7 @@ export default function NWCSetup({ onComplete, onCancel }) {
         </div>
       </form>
 
-      {/* Help Section */}
+      {/* Info Section */}
       <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
         <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
           Supported Wallets
@@ -346,4 +363,3 @@ export default function NWCSetup({ onComplete, onCancel }) {
     </div>
   );
 }
-

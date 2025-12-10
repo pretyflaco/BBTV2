@@ -1,0 +1,262 @@
+/**
+ * API endpoint to forward payment to a Blink Lightning Address wallet
+ * 
+ * This endpoint creates an invoice on behalf of the recipient using the
+ * public Blink API and pays it from BlinkPOS.
+ * 
+ * Used when the user's active wallet is connected via Lightning Address
+ * (no API key required).
+ */
+
+import BlinkAPI from '../../../lib/blink-api';
+const { getHybridStore } = require('../../../lib/storage/hybrid-store');
+const { formatCurrencyServer } = require('../../../lib/currency-formatter-server');
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  let hybridStore = null;
+  let paymentHash = null;
+  let claimSucceeded = false;
+
+  try {
+    const { 
+      paymentHash: reqPaymentHash, 
+      totalAmount, 
+      memo,
+      recipientWalletId,
+      recipientUsername
+    } = req.body;
+    
+    paymentHash = reqPaymentHash;
+
+    console.log('📥 Forward to LN Address request:', {
+      paymentHash: paymentHash?.substring(0, 16) + '...',
+      totalAmount,
+      recipientUsername,
+      recipientWalletId: recipientWalletId?.substring(0, 16) + '...'
+    });
+
+    if (!recipientWalletId || !recipientUsername) {
+      return res.status(400).json({ error: 'Missing recipient wallet information' });
+    }
+
+    if (!totalAmount) {
+      return res.status(400).json({ error: 'Missing totalAmount' });
+    }
+
+    // Get BlinkPOS credentials
+    const blinkposApiKey = process.env.BLINKPOS_API_KEY;
+    const blinkposBtcWalletId = process.env.BLINKPOS_BTC_WALLET_ID;
+
+    if (!blinkposApiKey || !blinkposBtcWalletId) {
+      return res.status(500).json({ error: 'BlinkPOS configuration missing' });
+    }
+
+    const blinkposAPI = new BlinkAPI(blinkposApiKey);
+    hybridStore = await getHybridStore();
+
+    // Check for tip data if we have a payment hash
+    let baseAmount = totalAmount;
+    let tipAmount = 0;
+    let tipRecipients = [];
+    let displayCurrency = 'BTC';
+    let baseAmountDisplay = totalAmount;
+    let tipAmountDisplay = 0;
+    let storedMemo = memo;
+
+    if (paymentHash) {
+      const tipData = await hybridStore.getTipData(paymentHash);
+      if (tipData) {
+        baseAmount = tipData.baseAmount || totalAmount;
+        tipAmount = tipData.tipAmount || 0;
+        tipRecipients = tipData.tipRecipients || [];
+        displayCurrency = tipData.displayCurrency || 'BTC';
+        baseAmountDisplay = tipData.baseAmountDisplay || baseAmount;
+        tipAmountDisplay = tipData.tipAmountDisplay || tipAmount;
+        storedMemo = tipData.memo || memo;
+        
+        console.log('📄 Tip data found:', {
+          baseAmount,
+          tipAmount,
+          tipRecipients: tipRecipients.length,
+          displayCurrency
+        });
+      }
+    }
+
+    // Format the forwarding memo
+    let forwardingMemo;
+    if (storedMemo && storedMemo.startsWith('BlinkPOS:')) {
+      forwardingMemo = storedMemo;
+    } else if (storedMemo) {
+      forwardingMemo = `BlinkPOS: ${storedMemo}`;
+    } else {
+      forwardingMemo = `BlinkPOS: ${baseAmount} sats`;
+    }
+
+    // Step 1: Create invoice on behalf of recipient using public Blink API
+    console.log('📝 Creating invoice on behalf of recipient:', recipientUsername);
+    
+    const createInvoiceQuery = `
+      mutation lnInvoiceCreateOnBehalfOfRecipient($input: LnInvoiceCreateOnBehalfOfRecipientInput!) {
+        lnInvoiceCreateOnBehalfOfRecipient(input: $input) {
+          errors {
+            message
+          }
+          invoice {
+            paymentHash
+            paymentRequest
+            paymentSecret
+            satoshis
+          }
+        }
+      }
+    `;
+
+    const invoiceResponse = await fetch('https://api.blink.sv/graphql', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query: createInvoiceQuery,
+        variables: {
+          input: {
+            recipientWalletId: recipientWalletId,
+            amount: Math.round(baseAmount),
+            memo: forwardingMemo
+          }
+        }
+      })
+    });
+
+    const invoiceData = await invoiceResponse.json();
+
+    if (invoiceData.errors || invoiceData.data?.lnInvoiceCreateOnBehalfOfRecipient?.errors?.length > 0) {
+      const errorMsg = invoiceData.errors?.[0]?.message || 
+                       invoiceData.data?.lnInvoiceCreateOnBehalfOfRecipient?.errors?.[0]?.message ||
+                       'Failed to create invoice on behalf of recipient';
+      console.error('❌ Failed to create invoice on behalf:', errorMsg);
+      return res.status(400).json({ error: errorMsg });
+    }
+
+    const recipientInvoice = invoiceData.data?.lnInvoiceCreateOnBehalfOfRecipient?.invoice;
+    if (!recipientInvoice?.paymentRequest) {
+      return res.status(400).json({ error: 'No invoice returned from recipient wallet' });
+    }
+
+    console.log('✅ Invoice created on behalf of recipient:', {
+      paymentHash: recipientInvoice.paymentHash?.substring(0, 16) + '...',
+      satoshis: recipientInvoice.satoshis
+    });
+
+    // Step 2: Pay the invoice from BlinkPOS (base amount FIRST)
+    console.log('💸 Paying invoice from BlinkPOS...');
+    
+    const paymentResult = await blinkposAPI.payLnInvoice(
+      blinkposBtcWalletId,
+      recipientInvoice.paymentRequest,
+      forwardingMemo
+    );
+
+    if (paymentResult.status !== 'SUCCESS') {
+      console.error('❌ Payment failed:', paymentResult);
+      return res.status(400).json({ 
+        error: 'Payment failed', 
+        status: paymentResult.status 
+      });
+    }
+
+    console.log('✅ Base amount forwarded successfully to', recipientUsername);
+
+    // Log the forwarding event
+    if (paymentHash) {
+      await hybridStore.logEvent(paymentHash, 'ln_address_forward', 'success', {
+        recipientUsername,
+        baseAmount,
+        memo: forwardingMemo
+      });
+    }
+
+    // Step 3: Send tips AFTER base amount (TIPS SECOND)
+    let tipResult = null;
+    if (tipAmount > 0 && tipRecipients.length > 0) {
+      console.log('💡 Sending tips to recipients...');
+      
+      const tipPerRecipient = Math.floor(tipAmount / tipRecipients.length);
+      const remainder = tipAmount - (tipPerRecipient * tipRecipients.length);
+      const tipPerRecipientDisplay = tipAmountDisplay / tipRecipients.length;
+      
+      const tipResults = [];
+      const isMultiple = tipRecipients.length > 1;
+
+      for (let i = 0; i < tipRecipients.length; i++) {
+        const recipient = tipRecipients[i];
+        const recipientTipAmount = i === 0 ? tipPerRecipient + remainder : tipPerRecipient;
+
+        const splitInfo = isMultiple ? ` (${i + 1}/${tipRecipients.length})` : '';
+        let tipMemo;
+        if (displayCurrency === 'BTC') {
+          tipMemo = `BlinkPOS Tip${splitInfo}: ${recipientTipAmount} sats`;
+        } else {
+          const formattedAmount = formatCurrencyServer(tipPerRecipientDisplay, displayCurrency);
+          tipMemo = `BlinkPOS Tip${splitInfo}: ${formattedAmount} (${recipientTipAmount} sats)`;
+        }
+
+        try {
+          const tipPaymentResult = await blinkposAPI.sendTipViaInvoice(
+            blinkposBtcWalletId,
+            recipient.username,
+            recipientTipAmount,
+            tipMemo
+          );
+
+          if (tipPaymentResult.status === 'SUCCESS') {
+            tipResults.push({ success: true, amount: recipientTipAmount, recipient: `${recipient.username}@blink.sv` });
+          } else {
+            tipResults.push({ success: false, recipient: `${recipient.username}@blink.sv`, error: `Failed: ${tipPaymentResult.status}` });
+          }
+        } catch (tipError) {
+          tipResults.push({ success: false, recipient: `${recipient.username}@blink.sv`, error: tipError.message });
+        }
+      }
+
+      const successCount = tipResults.filter(r => r.success).length;
+      tipResult = {
+        success: successCount === tipRecipients.length,
+        partialSuccess: successCount > 0 && successCount < tipRecipients.length,
+        totalAmount: tipAmount,
+        recipients: tipResults,
+        successCount,
+        totalCount: tipRecipients.length
+      };
+
+      console.log('✅ Tips sent:', tipResult);
+
+      // Remove tip data after processing
+      if (paymentHash) {
+        await hybridStore.removeTipData(paymentHash);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Payment forwarded to Lightning Address wallet',
+      baseAmount,
+      tipAmount,
+      tipResult,
+      recipientUsername
+    });
+
+  } catch (error) {
+    console.error('❌ Forward to LN Address error:', error);
+    res.status(500).json({ 
+      error: 'Failed to forward payment', 
+      details: error.message 
+    });
+  }
+}
+

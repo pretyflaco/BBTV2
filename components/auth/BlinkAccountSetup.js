@@ -1,23 +1,21 @@
 /**
- * BlinkAccountSetup - Component to add Blink API key after Nostr sign-in
+ * BlinkAccountSetup - Component to add Blink API key
  * 
- * This component is shown when a user has signed in with Nostr
- * but hasn't yet added a Blink account.
- * 
- * The API key is stored:
- * 1. Locally (encrypted) for offline access
- * 2. On server (if NIP-98 session established) for secure API calls
+ * This component is used for connecting a Blink account via API key,
+ * providing full features including transaction history.
  */
 
 import { useState } from 'react';
 import { useProfile } from '../../lib/hooks/useProfile';
 import { useNostrAuth } from '../../lib/hooks/useNostrAuth';
 import { useCombinedAuth } from '../../lib/hooks/useCombinedAuth';
+import { useDarkMode } from '../../lib/hooks/useDarkMode';
 
 export default function BlinkAccountSetup({ onComplete, onSkip }) {
   const { addBlinkAccount, loading, refreshProfile } = useProfile();
   const { refreshProfile: refreshAuthProfile, hasServerSession } = useNostrAuth();
   const { storeBlinkAccountOnServer } = useCombinedAuth();
+  const { darkMode } = useDarkMode();
   
   const [apiKey, setApiKey] = useState('');
   const [label, setLabel] = useState('My Blink Account');
@@ -115,27 +113,16 @@ export default function BlinkAccountSetup({ onComplete, onSkip }) {
     });
 
     // Also store on server for cross-device sync
-    // This enables secure server-side API calls and syncing across devices
     if (result.success) {
-      console.log('[BlinkAccountSetup] Checking server session state...');
-      console.log('[BlinkAccountSetup] hasServerSession (from useNostrAuth):', hasServerSession);
-      
-      // Always try to store on server for Nostr users
-      // storeBlinkAccountOnServer will check the session internally
       try {
-        console.log('[BlinkAccountSetup] Calling storeBlinkAccountOnServer...');
         const serverResult = await storeBlinkAccountOnServer(
           apiKey.trim(), 
           validation.defaultCurrency,
-          label  // Pass user-defined label for cross-device sync
+          label
         );
-        console.log('[BlinkAccountSetup] Server storage result:', serverResult);
         
         if (serverResult.success) {
-          console.log('[BlinkAccountSetup] ✓ Blink account stored on server for cross-device sync');
-        } else {
-          console.warn('[BlinkAccountSetup] Failed to store on server:', serverResult.error);
-          // This is expected if session isn't established yet
+          console.log('[BlinkAccountSetup] ✓ Blink account stored on server');
         }
       } catch (serverError) {
         console.warn('[BlinkAccountSetup] Server storage error:', serverError);
@@ -145,7 +132,6 @@ export default function BlinkAccountSetup({ onComplete, onSkip }) {
     setValidating(false);
 
     if (result.success) {
-      // Refresh profile data to trigger re-render in parent components
       refreshProfile();
       refreshAuthProfile();
       onComplete?.(result.account);
@@ -155,149 +141,170 @@ export default function BlinkAccountSetup({ onComplete, onSkip }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-black">
-      <div className="max-w-md w-full space-y-8 p-8">
-        {/* Header */}
-        <div className="text-center">
-          <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-              <svg className="w-8 h-8 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            Signed in with Nostr!
-          </h2>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Now connect your Blink account to start accepting payments
-          </p>
+    <div className={`rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-xl max-w-md mx-auto`}>
+      {/* Header */}
+      <div className="text-center mb-6">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-gray-500 to-gray-700 mb-4">
+          <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+          </svg>
+        </div>
+        <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+          Connect via API Key
+        </h2>
+        <p className={`mt-2 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+          Full features including transaction history
+        </p>
+      </div>
+
+      {/* Form */}
+      <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
+        {/* Account Label */}
+        <div>
+          <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+            Wallet Name
+          </label>
+          <input
+            type="text"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="My Blink Account"
+            autoComplete="off"
+            data-1p-ignore="true"
+            data-lpignore="true"
+            className={`w-full px-4 py-3 rounded-xl border-2 text-sm transition-colors ${
+              darkMode 
+                ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500 focus:border-gray-400' 
+                : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-gray-400'
+            } focus:outline-none focus:ring-2 focus:ring-gray-400/20`}
+          />
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="mt-8 space-y-6" autoComplete="off">
-          {/* Account Label */}
-          <div>
-            <label htmlFor="label" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Account Label
-            </label>
+        {/* API Key */}
+        <div>
+          <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+            Blink API Key
+            <span className={`font-normal ml-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+              (READ + RECEIVE scopes)
+            </span>
+          </label>
+          <div className="relative">
             <input
-              id="label"
-              type="text"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="My Blink Account"
-              className="block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent"
-            />
-          </div>
-
-          {/* API Key */}
-          <div>
-            <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Blink API Key
-              <span className="text-gray-500 font-normal ml-1">(READ + RECEIVE scopes)</span>
-            </label>
-            <input
-              id="apiKey"
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="blink_..."
               required
-              autoComplete="off"
+              autoComplete="new-password"
               data-1p-ignore="true"
               data-lpignore="true"
-              className="block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent"
+              className={`w-full px-4 py-3 pr-12 rounded-xl border-2 text-sm transition-colors ${
+                darkMode 
+                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500 focus:border-gray-400' 
+                  : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-gray-400'
+              } focus:outline-none focus:ring-2 focus:ring-gray-400/20`}
             />
-          </div>
-
-          {/* Paste Button */}
-          <div className="flex justify-center">
             <button
               type="button"
               onClick={handlePasteFromClipboard}
               disabled={pasting}
-              className="inline-flex items-center px-4 py-2 rounded-full bg-gray-700 text-white text-sm font-medium hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50"
+              className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-colors ${
+                darkMode 
+                  ? 'text-gray-400 hover:text-white hover:bg-gray-600' 
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200'
+              }`}
+              title="Paste from clipboard"
             >
               {pasting ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Pasting...
-                </>
+                <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
               ) : (
-                <>
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                  </svg>
-                  Paste from Clipboard
-                </>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
               )}
             </button>
           </div>
-
-          {/* Error */}
-          {error && (
-            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-            </div>
-          )}
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={loading || validating}
-            className="w-full flex justify-center py-4 px-6 border border-transparent text-xl font-bold rounded-full text-black bg-[#FFAD0D] hover:bg-[#D9930B] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FFAD0D] disabled:opacity-50 shadow-lg transition-colors"
-          >
-            {validating ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-3 h-6 w-6" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Connecting...
-              </>
-            ) : (
-              'Connect Blink Account'
-            )}
-          </button>
-
-          {/* Skip Link */}
-          {onSkip && (
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={onSkip}
-                className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 underline"
-              >
-                Skip for now
-              </button>
-            </div>
-          )}
-        </form>
-
-        {/* Help Section */}
-        <div className="mt-8 text-center text-xs text-gray-500 dark:text-gray-400 space-y-1">
-          <p>🔐 Your API key is encrypted and stored securely</p>
-          {hasServerSession && (
-            <p>✓ Server session established for secure API calls</p>
-          )}
-          <p>
-            Get your API key from{' '}
-            <a
-              href="https://dashboard.blink.sv"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blink-accent hover:underline"
-            >
-              Blink Dashboard
-            </a>
-          </p>
         </div>
+
+        {/* Error */}
+        {error && (
+          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+            <p className="text-sm text-red-500">{error}</p>
+          </div>
+        )}
+
+        {/* Submit Button */}
+        <button
+          type="submit"
+          disabled={loading || validating}
+          className={`w-full py-3 px-4 rounded-xl font-medium transition-all ${
+            loading || validating
+              ? `${darkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-200 text-gray-400'} cursor-not-allowed`
+              : 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white shadow-lg'
+          }`}
+        >
+          {validating ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Connecting...
+            </span>
+          ) : (
+            'Connect Account'
+          )}
+        </button>
+
+        {/* Skip Link */}
+        {onSkip && (
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={onSkip}
+              className={`text-sm ${darkMode ? 'text-gray-500 hover:text-gray-400' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              Skip for now
+            </button>
+          </div>
+        )}
+      </form>
+
+      {/* Info Section */}
+      <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+        <h3 className={`text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+          How to get your API key:
+        </h3>
+        <ol className={`space-y-2 text-sm ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+          <li className="flex items-start gap-2">
+            <span className="font-medium">1.</span>
+            <span>
+              Go to{' '}
+              <a
+                href="https://dashboard.blink.sv"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blink-accent hover:underline"
+              >
+                dashboard.blink.sv
+              </a>
+            </span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="font-medium">2.</span>
+            <span>Navigate to API Keys section</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="font-medium">3.</span>
+            <span>Create a key with READ + RECEIVE scopes</span>
+          </li>
+        </ol>
+        <p className={`mt-3 text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+          🔐 Your API key is encrypted and stored securely on your device
+        </p>
       </div>
     </div>
   );
 }
-

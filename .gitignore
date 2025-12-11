@@ -60,3 +60,7 @@ server.log
 *.sql
 *.rdb
 backup_*
+
+# Local documentation (not for GitHub)
+ROADMAP.md
+NIP46_PORTAL_INTEGRATION.md

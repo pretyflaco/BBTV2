@@ -7,6 +7,7 @@ import { useDarkMode } from '../lib/hooks/useDarkMode';
 import { useNFC } from './NFCPayment';
 import PaymentAnimation from './PaymentAnimation';
 import POS from './POS';
+import ItemCart from './ItemCart';
 import KeyManagementSection from './Settings/KeyManagementSection';
 import NWCClient from '../lib/nwc/NWCClient';
 
@@ -44,7 +45,8 @@ export default function Dashboard() {
   const [exportingData, setExportingData] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
-  const [currentView, setCurrentView] = useState('pos'); // 'transactions' or 'pos'
+  const [currentView, setCurrentView] = useState('pos'); // 'cart', 'pos', or 'transactions'
+  const [cartCheckoutData, setCartCheckoutData] = useState(null); // Data from cart checkout to prefill POS
   const [displayCurrency, setDisplayCurrency] = useState('USD'); // 'USD' or 'BTC'
   const [wallets, setWallets] = useState([]);
   const [soundEnabled, setSoundEnabled] = useState(() => {
@@ -1472,14 +1474,24 @@ export default function Dashboard() {
     const isRightSwipe = distance < -50;
 
     // Only allow swipe navigation when:
+    // - On Cart screen (not showing any overlay)
     // - On POS numpad screen (not showing invoice/tips)
     // - On transactions screen
-    // Left swipe: POS → Transactions (only when not showing invoice/tips)
-    // Right swipe: Transactions → POS
-    if (isLeftSwipe && currentView === 'pos' && !showingInvoice) {
-      setCurrentView('transactions');
-    } else if (isRightSwipe && currentView === 'transactions') {
-      setCurrentView('pos');
+    // Navigation order: Cart ← → POS ← → Transactions
+    // Left swipe: Cart → POS → Transactions
+    // Right swipe: Transactions → POS → Cart
+    if (isLeftSwipe && !showingInvoice) {
+      if (currentView === 'cart') {
+        setCurrentView('pos');
+      } else if (currentView === 'pos') {
+        setCurrentView('transactions');
+      }
+    } else if (isRightSwipe) {
+      if (currentView === 'transactions') {
+        setCurrentView('pos');
+      } else if (currentView === 'pos' && !showingInvoice) {
+        setCurrentView('cart');
+      }
     }
 
     // Reset touch positions
@@ -3476,6 +3488,15 @@ export default function Dashboard() {
         {!showingInvoice && (
           <div className="flex justify-center mt-4 mb-4 gap-2">
               <button
+                onClick={() => setCurrentView('cart')}
+              className={`w-2 h-2 rounded-full transition-colors ${
+                  currentView === 'cart'
+                  ? 'bg-blink-accent'
+                  : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+                }`}
+              aria-label="Cart"
+            />
+              <button
                 onClick={() => setCurrentView('pos')}
               className={`w-2 h-2 rounded-full transition-colors ${
                   currentView === 'pos'
@@ -3496,9 +3517,9 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Owner/Agent Display - Left aligned on POS only */}
-        {!showingInvoice && currentView === 'pos' && (
-          <div className="flex flex-col gap-1 mb-2 bg-white dark:bg-black">
+        {/* Owner/Agent Display - Left aligned on POS and Cart only */}
+        {!showingInvoice && (currentView === 'pos' || currentView === 'cart') && (
+          <div className="flex flex-col gap-1 mb-4 bg-white dark:bg-black">
             {/* Owner Display - Always show when logged in */}
             <div className="flex items-center gap-2">
               <img 
@@ -3528,7 +3549,23 @@ export default function Dashboard() {
         )}
 
         {/* Conditional Content Based on Current View */}
-        {currentView === 'pos' ? (
+        {currentView === 'cart' ? (
+          <div className="h-[calc(100vh-220px)] min-h-[400px]">
+            <ItemCart
+              displayCurrency={displayCurrency}
+              currencies={currencies}
+              publicKey={publicKey}
+              onCheckout={(checkoutData) => {
+                // Store checkout data and switch to POS
+                setCartCheckoutData(checkoutData);
+                setCurrentView('pos');
+              }}
+              soundEnabled={soundEnabled}
+              darkMode={darkMode}
+              toggleDarkMode={toggleDarkMode}
+            />
+          </div>
+        ) : currentView === 'pos' ? (
           <POS 
             apiKey={apiKey}
             user={user}
@@ -3558,6 +3595,8 @@ export default function Dashboard() {
             nwcMakeInvoice={nwcMakeInvoice}
             nwcLookupInvoice={nwcLookupInvoice}
             activeBlinkAccount={activeBlinkAccount}
+            cartCheckoutData={cartCheckoutData}
+            onCartCheckoutProcessed={() => setCartCheckoutData(null)}
           />
         ) : (
           <>

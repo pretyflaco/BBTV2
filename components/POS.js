@@ -3,7 +3,7 @@ import QRCode from 'react-qr-code';
 import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
 import { useNFC } from './NFCPayment';
 
-const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, activeBlinkAccount }) => {
+const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, activeBlinkAccount, cartCheckoutData, onCartCheckoutProcessed }) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -21,6 +21,9 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
   const [pendingTipSelection, setPendingTipSelection] = useState(null);
   const [showCustomTipInput, setShowCustomTipInput] = useState(false);
   const [customTipValue, setCustomTipValue] = useState('');
+  
+  // Cart memo (when coming from item cart)
+  const [cartMemo, setCartMemo] = useState('');
 
   // Helper function to get dynamic font size based on amount length
   const getDynamicFontSize = (displayText) => {
@@ -107,6 +110,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
         setAmount('');
         setTotal(0);
         setItems([]);
+        setCartMemo(''); // Clear cart memo
         setError('');
         setSelectedTipPercent(0);
         setShowTipDialog(false);
@@ -117,6 +121,26 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
       onPaymentReceived.current = clearInvoiceOnPayment;
     }
   }, [onPaymentReceived, onInvoiceChange]);
+
+  // Handle cart checkout data - prefill total when coming from cart
+  useEffect(() => {
+    if (cartCheckoutData && cartCheckoutData.total > 0) {
+      console.log('Cart checkout data received:', cartCheckoutData);
+      // Set the total from cart
+      setTotal(cartCheckoutData.total);
+      setAmount('');
+      // Store the cart memo for invoice creation
+      setCartMemo(cartCheckoutData.memo || '');
+      // We use items array to store numeric values for the calculation display
+      setItems([cartCheckoutData.total]);
+      setError('');
+      
+      // Mark as processed
+      if (onCartCheckoutProcessed) {
+        onCartCheckoutProcessed();
+      }
+    }
+  }, [cartCheckoutData, onCartCheckoutProcessed]);
 
   // Notify parent when invoice or tip dialog state changes
   useEffect(() => {
@@ -376,6 +400,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
     setTotal(0);
     setItems([]);
     setInvoice(null);
+    setCartMemo(''); // Clear cart memo
     if (onInvoiceChange) {
       onInvoiceChange(null);
     }
@@ -513,29 +538,49 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
           return;
         }
         
-        // Build memo showing conversion and tip
-        const allItems = amount ? [...items, parseFloat(amount)] : items;
-        if (effectiveTipPercent > 0) {
-          if (allItems.length > 1) {
-            memo = `${allItems.join(' + ')} + ${effectiveTipPercent}% tip = ${formatDisplayAmount(totalWithTip, displayCurrency)} (${finalTotalInSats} sats)`;
+        // Build memo - use cart memo if available, otherwise show calculation
+        if (cartMemo) {
+          // Cart checkout - show item names with amounts
+          if (effectiveTipPercent > 0) {
+            memo = `${cartMemo} + ${effectiveTipPercent}% tip = ${formatDisplayAmount(totalWithTip, displayCurrency)} (${finalTotalInSats} sats)`;
           } else {
-            memo = `${formatDisplayAmount(finalTotal, displayCurrency)} + ${effectiveTipPercent}% tip = ${formatDisplayAmount(totalWithTip, displayCurrency)} (${finalTotalInSats} sats)`;
+            memo = `${cartMemo} = ${formatDisplayAmount(finalTotal, displayCurrency)} (${finalTotalInSats} sats)`;
           }
         } else {
-          if (allItems.length > 1) {
-            memo = `${allItems.join(' + ')} = ${formatDisplayAmount(finalTotal, displayCurrency)} (${finalTotalInSats} sats)`;
+          // Manual numpad entry - show calculation
+          const allItems = amount ? [...items, parseFloat(amount)] : items;
+          if (effectiveTipPercent > 0) {
+            if (allItems.length > 1) {
+              memo = `${allItems.join(' + ')} + ${effectiveTipPercent}% tip = ${formatDisplayAmount(totalWithTip, displayCurrency)} (${finalTotalInSats} sats)`;
+            } else {
+              memo = `${formatDisplayAmount(finalTotal, displayCurrency)} + ${effectiveTipPercent}% tip = ${formatDisplayAmount(totalWithTip, displayCurrency)} (${finalTotalInSats} sats)`;
+            }
           } else {
-            memo = `${formatDisplayAmount(finalTotal, displayCurrency)} (${finalTotalInSats} sats)`;
+            if (allItems.length > 1) {
+              memo = `${allItems.join(' + ')} = ${formatDisplayAmount(finalTotal, displayCurrency)} (${finalTotalInSats} sats)`;
+            } else {
+              memo = `${formatDisplayAmount(finalTotal, displayCurrency)} (${finalTotalInSats} sats)`;
+            }
           }
         }
       } else {
         // BTC - show calculation in sats
-        const allItems = amount ? [...items, parseFloat(amount)] : items;
-        if (effectiveTipPercent > 0) {
-          memo = allItems.length > 1 ? `${allItems.join(' + ')} + ${effectiveTipPercent}% tip = ${totalWithTip} sats` : `${finalTotal} + ${effectiveTipPercent}% tip = ${totalWithTip} sats`;
+        if (cartMemo) {
+          // Cart checkout - show item names with amounts
+          if (effectiveTipPercent > 0) {
+            memo = `${cartMemo} + ${effectiveTipPercent}% tip = ${totalWithTip} sats`;
+          } else {
+            memo = `${cartMemo} = ${finalTotal} sats`;
+          }
         } else {
-          // Even with no tip, include amount in memo to avoid Blink's default "From $username"
-          memo = allItems.length > 1 ? `${allItems.join(' + ')} = ${finalTotal} sats` : `${finalTotal} sats`;
+          // Manual numpad entry
+          const allItems = amount ? [...items, parseFloat(amount)] : items;
+          if (effectiveTipPercent > 0) {
+            memo = allItems.length > 1 ? `${allItems.join(' + ')} + ${effectiveTipPercent}% tip = ${totalWithTip} sats` : `${finalTotal} + ${effectiveTipPercent}% tip = ${totalWithTip} sats`;
+          } else {
+            // Even with no tip, include amount in memo to avoid Blink's default "From $username"
+            memo = allItems.length > 1 ? `${allItems.join(' + ')} = ${finalTotal} sats` : `${finalTotal} sats`;
+          }
         }
         finalTotalInSats = Math.round(totalWithTip);
       }
@@ -821,18 +866,9 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-black relative" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-      {/* Error Message - Fixed height container to prevent layout shift */}
-      <div className="mx-3 mt-1 min-h-[44px]">
-        {error && (
-          <div className="bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 px-3 py-2 rounded text-sm animate-pulse">
-            {error}
-          </div>
-        )}
-      </div>
-
       {/* Compact Amount Display */}
-      <div className="px-4 pt-2 pb-2">
-        <div className="text-center mb-4">
+      <div className="px-4 pb-2">
+        <div className="text-center mb-2">
           <div className="text-center">
             <div className={`font-semibold text-gray-800 dark:text-gray-100 mb-1 min-h-[96px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${
               showTipDialog 
@@ -887,6 +923,12 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
               )}
             </div>
           </div>
+          {/* Error Message - inline below amount */}
+          {error && (
+            <div className="mt-2 bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 px-3 py-2 rounded text-sm animate-pulse">
+              {error}
+            </div>
+          )}
         </div>
 
       </div>

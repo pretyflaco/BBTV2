@@ -194,7 +194,7 @@ export default function NWCSetup({ onComplete, onCancel }) {
             </button>
           </div>
           <p className={`mt-2 text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-            Get this from your wallet app (Alby, Phoenix, Zeus, etc.)
+            Get this from your wallet app (Alby, Coinos, Zeus, minibits.cash, etc.)
           </p>
         </div>
 
@@ -337,7 +337,7 @@ export default function NWCSetup({ onComplete, onCancel }) {
           Supported Wallets
         </h3>
         <div className="flex flex-wrap gap-2">
-          {['Alby', 'Phoenix', 'Zeus', 'Mutiny', 'Coinos', 'LNbits'].map((wallet) => (
+          {['Alby', 'Coinos', 'Zeus', 'minibits.cash', 'LNbits'].map((wallet) => (
             <span 
               key={wallet}
               className={`px-3 py-1 rounded-full text-xs ${

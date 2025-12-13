@@ -3237,7 +3237,7 @@ export default function Dashboard() {
                           } focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
                         />
                         <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                          Get from your wallet app (Alby, Phoenix, Zeus, etc.)
+                          Get from your wallet app (Alby, Coinos, Zeus, minibits.cash, etc.)
                         </p>
                       </div>
                       
@@ -3751,9 +3751,11 @@ export default function Dashboard() {
                   </p>
                   <p>
                     <span className="text-purple-500">NWC:</span>{' '}
-                    <a href="https://nwc.dev" target="_blank" rel="noopener noreferrer" className="hover:underline">nwc.dev</a>
-                    {' · '}
-                    Alby, Phoenix, Zeus, Mutiny
+                    Alby, Coinos, Zeus, minibits.cash etc.
+                  </p>
+                  <p>
+                    <span className="text-emerald-500">Cashu:</span>{' '}
+                    <a href="https://npub.cash" target="_blank" rel="noopener noreferrer" className="hover:underline">npub.cash</a>
                   </p>
                 </div>
               </div>

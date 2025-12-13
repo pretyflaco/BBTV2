@@ -82,10 +82,7 @@ export default function WalletSetup({ onComplete, onSkip }) {
     
     try {
       const result = await addNpubCashWallet({
-        address: data.address,
-        localpart: data.localpart,
-        isNpub: data.isNpub,
-        pubkey: data.pubkey,
+        lightningAddress: data.address,  // Map address to lightningAddress
         label: data.label
       });
       

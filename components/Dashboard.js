@@ -1635,6 +1635,37 @@ export default function Dashboard() {
                 />
               </button>
               
+              {/* Navigation Dots - Center */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCurrentView('cart')}
+                  className={`w-2 h-2 rounded-full transition-colors ${
+                    currentView === 'cart'
+                      ? 'bg-blink-accent'
+                      : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+                  }`}
+                  aria-label="Cart"
+                />
+                <button
+                  onClick={() => setCurrentView('pos')}
+                  className={`w-2 h-2 rounded-full transition-colors ${
+                    currentView === 'pos'
+                      ? 'bg-blink-accent'
+                      : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+                  }`}
+                  aria-label="POS"
+                />
+                <button
+                  onClick={() => setCurrentView('transactions')}
+                  className={`w-2 h-2 rounded-full transition-colors ${
+                    currentView === 'transactions'
+                      ? 'bg-blink-accent'
+                      : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+                  }`}
+                  aria-label="History"
+                />
+              </div>
+              
               {/* Right Side: Menu Button */}
               <button
                 onClick={() => setSideMenuOpen(!sideMenuOpen)}
@@ -3484,42 +3515,9 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Dot Navigation - Consistent position on all pages */}
-        {!showingInvoice && (
-          <div className="flex justify-center mt-4 mb-4 gap-2">
-              <button
-                onClick={() => setCurrentView('cart')}
-              className={`w-2 h-2 rounded-full transition-colors ${
-                  currentView === 'cart'
-                  ? 'bg-blink-accent'
-                  : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
-                }`}
-              aria-label="Cart"
-            />
-              <button
-                onClick={() => setCurrentView('pos')}
-              className={`w-2 h-2 rounded-full transition-colors ${
-                  currentView === 'pos'
-                  ? 'bg-blink-accent'
-                  : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
-                }`}
-              aria-label="POS"
-            />
-              <button
-                onClick={() => setCurrentView('transactions')}
-              className={`w-2 h-2 rounded-full transition-colors ${
-                  currentView === 'transactions'
-                  ? 'bg-blink-accent'
-                  : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
-                }`}
-              aria-label="History"
-            />
-          </div>
-        )}
-
         {/* Owner/Agent Display - Left aligned on POS and Cart only */}
         {!showingInvoice && (currentView === 'pos' || currentView === 'cart') && (
-          <div className="flex flex-col gap-1 mb-4 bg-white dark:bg-black">
+          <div className="flex flex-col gap-1 mb-2 bg-white dark:bg-black">
             {/* Owner Display - Always show when logged in */}
             <div className="flex items-center gap-2">
               <img 
@@ -3550,7 +3548,7 @@ export default function Dashboard() {
 
         {/* Conditional Content Based on Current View */}
         {currentView === 'cart' ? (
-          <div className="h-[calc(100vh-220px)] min-h-[400px]">
+          <div className="h-[calc(100vh-180px)] min-h-[400px]">
             <ItemCart
               displayCurrency={displayCurrency}
               currencies={currencies}

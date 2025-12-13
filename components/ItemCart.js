@@ -298,11 +298,11 @@ const ItemCart = ({
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-black relative overflow-hidden" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-      {/* Amount Display - Same position as POS */}
-      <div className="flex-shrink-0 px-4 pb-2">
-        <div className="text-center mb-2">
+      {/* Amount Display - Compact */}
+      <div className="flex-shrink-0 px-4">
+        <div className="text-center">
           <div className="text-center">
-            <div className={`font-semibold text-gray-800 dark:text-gray-100 mb-1 min-h-[96px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${getDynamicFontSize(formatDisplayAmount(total, displayCurrency))}`} style={{fontFamily: "'Source Sans Pro', sans-serif", wordBreak: 'keep-all', overflowWrap: 'normal'}}>
+            <div className={`font-semibold text-gray-800 dark:text-gray-100 min-h-[72px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${getDynamicFontSize(formatDisplayAmount(total, displayCurrency))}`} style={{fontFamily: "'Source Sans Pro', sans-serif", wordBreak: 'keep-all', overflowWrap: 'normal'}}>
               {total > 0 ? (
                 <span className="text-blink-accent">{formatDisplayAmount(total, displayCurrency)}</span>
               ) : (

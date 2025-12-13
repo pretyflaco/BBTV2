@@ -867,10 +867,10 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
   return (
     <div className="h-full flex flex-col bg-white dark:bg-black relative" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
       {/* Compact Amount Display */}
-      <div className="px-4 pb-2">
-        <div className="text-center mb-2">
+      <div className="px-4">
+        <div className="text-center">
           <div className="text-center">
-            <div className={`font-semibold text-gray-800 dark:text-gray-100 mb-1 min-h-[96px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${
+            <div className={`font-semibold text-gray-800 dark:text-gray-100 min-h-[72px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${
               showTipDialog 
                 ? getDynamicFontSize(formatDisplayAmount(total + (parseFloat(amount) || 0), displayCurrency))
                 : total > 0 

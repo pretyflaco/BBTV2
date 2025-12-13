@@ -935,6 +935,8 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
 
       {/* Redesigned Numpad */}
       <div className="flex-1 px-4 pb-4 relative">
+        {/* Spacer to align numpad with item list (below Search/Add Item row level) */}
+        <div className="h-16 mb-2"></div>
         <div className="grid grid-cols-4 gap-3 max-w-sm mx-auto" data-1p-ignore data-lpignore="true">
           {/* Row 1: 1, 2, 3, + */}
           <button

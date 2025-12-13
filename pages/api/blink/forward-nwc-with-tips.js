@@ -52,8 +52,8 @@ export default async function handler(req, res) {
     const claimResult = await hybridStore.claimPaymentForProcessing(paymentHash);
     
     if (!claimResult.claimed) {
-      // No tip data found - this is expected for payments without tips
-      console.log(`ℹ️ No tip data for NWC payment: ${paymentHash?.substring(0, 16)}... - ${claimResult.reason}`);
+      // No payment data found
+      console.log(`ℹ️ No payment data for NWC payment: ${paymentHash?.substring(0, 16)}... - ${claimResult.reason}`);
       
       if (claimResult.reason === 'already_completed') {
         return res.status(200).json({
@@ -65,10 +65,15 @@ export default async function handler(req, res) {
         });
       }
       
-      // No tip data - return full amount for NWC forwarding
-      return res.status(404).json({ 
-        error: 'No tip data found',
-        reason: claimResult.reason
+      // No payment data found - this could be a legacy payment or an error
+      // Return success with full amount so the client can still forward to NWC
+      console.log(`⚠️ Payment data not found for ${paymentHash?.substring(0, 16)}... - returning full amount for NWC forwarding`);
+      return res.status(200).json({
+        success: true,
+        baseAmount: totalAmount,
+        tipAmount: 0,
+        enhancedMemo: memo ? `BlinkPOS: ${memo}` : `BlinkPOS: ${totalAmount} sats`,
+        noPaymentData: true
       });
     }
 
@@ -144,32 +149,48 @@ export default async function handler(req, res) {
       deferTips
     });
 
-    // If deferTips=true, return tip data without sending tips
+    // If deferTips=true, return data without processing
     // This allows the caller to forward base amount FIRST, then send tips SECOND
-    if (deferTips && tipAmountNum > 0 && tipRecipients.length > 0) {
-      console.log('⏸️ Deferring tip sending (deferTips=true) - base amount will be forwarded first');
-      
-      // DON'T mark as completed yet - tips still need to be sent
-      // But release the claim so send-nwc-tips can re-claim it
-      // Actually, keep the claim active with a "tips_pending" status
-      
-      return res.status(200).json({
-        success: true,
-        baseAmount,
-        tipAmount: tipAmountNum,
-        enhancedMemo,
-        tipsDeferred: true,
-        tipData: {
-          paymentHash,
+    if (deferTips) {
+      // For payments WITH tips - return tip data for later processing
+      if (tipAmountNum > 0 && tipRecipients.length > 0) {
+        console.log('⏸️ Deferring tip sending (deferTips=true) - base amount will be forwarded first');
+        
+        return res.status(200).json({
+          success: true,
+          baseAmount,
           tipAmount: tipAmountNum,
-          tipRecipients: tipRecipients.map(r => ({
-            username: r.username,
-            share: r.share
-          })),
-          displayCurrency: tipData.displayCurrency || 'BTC',
-          tipAmountDisplay: tipData.tipAmountDisplay
-        }
-      });
+          enhancedMemo,
+          tipsDeferred: true,
+          tipData: {
+            paymentHash,
+            tipAmount: tipAmountNum,
+            tipRecipients: tipRecipients.map(r => ({
+              username: r.username,
+              share: r.share
+            })),
+            displayCurrency: tipData.displayCurrency || 'BTC',
+            tipAmountDisplay: tipData.tipAmountDisplay
+          }
+        });
+      } else {
+        // For payments WITHOUT tips - just return base amount info
+        // Mark as completed since there's nothing more to process
+        console.log('⏸️ No tips to defer, returning base amount for NWC forwarding');
+        
+        await hybridStore.logEvent(paymentHash, 'nwc_no_tips', 'success', { baseAmount });
+        await hybridStore.removeTipData(paymentHash);
+        claimSucceeded = false;
+        
+        return res.status(200).json({
+          success: true,
+          baseAmount,
+          tipAmount: 0,
+          enhancedMemo,
+          tipsDeferred: false,
+          noTips: true
+        });
+      }
     }
 
     // Send tips to recipients if there are any (when deferTips=false)

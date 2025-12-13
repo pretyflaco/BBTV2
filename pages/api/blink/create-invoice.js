@@ -100,15 +100,18 @@ export default async function handler(req, res) {
         throw new Error('Failed to create invoice');
       }
 
-      // Store tip metadata if there's a tip (using hybrid storage)
+      // Store payment metadata (using hybrid storage)
       // For NWC-only or LN Address users, apiKey/userWalletId may be empty
-      if (tipAmount > 0 && tipRecipients && tipRecipients.length > 0) {
+      // Store for ALL NWC payments (even without tips) so forwarding can work
+      const shouldStorePaymentData = (tipAmount > 0 && tipRecipients && tipRecipients.length > 0) || nwcActive;
+      
+      if (shouldStorePaymentData) {
         const hybridStore = await getHybridStore();
         await hybridStore.storeTipData(invoice.paymentHash, {
           baseAmount: baseAmount || numericAmount,
-          tipAmount: tipAmount,
-          tipPercent: tipPercent,
-          tipRecipients: tipRecipients, // Array of { username, share }
+          tipAmount: tipAmount || 0,
+          tipPercent: tipPercent || 0,
+          tipRecipients: tipRecipients || [], // Array of { username, share }
           userApiKey: apiKey || null, // May be null for NWC-only or LN Address users
           userWalletId: userWalletId || walletId || null, // May be null for NWC-only or LN Address users
           displayCurrency: displayCurrency || 'BTC', // Store display currency for tip memo
@@ -121,6 +124,7 @@ export default async function handler(req, res) {
           blinkLnAddressWalletId: blinkLnAddressWalletId || null,
           blinkLnAddressUsername: blinkLnAddressUsername || null
         });
+        console.log(`✅ Stored payment data for ${invoice.paymentHash?.substring(0, 16)}... (nwcActive: ${!!nwcActive}, hasTip: ${tipAmount > 0})`);
       }
 
       // Return invoice details with additional metadata for payment forwarding

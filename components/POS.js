@@ -3,7 +3,7 @@ import QRCode from 'react-qr-code';
 import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
 import { useNFC } from './NFCPayment';
 
-const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, activeBlinkAccount, cartCheckoutData, onCartCheckoutProcessed }) => {
+const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed }) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -87,16 +87,19 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
 
   // Check if we have a Blink Lightning Address wallet (no API key required)
   const hasBlinkLnAddressWallet = activeBlinkAccount?.type === 'ln-address';
+  
+  // Check if we have an npub.cash wallet (no API key required - uses LNURL-pay)
+  const hasNpubCashWallet = activeNpubCashWallet?.type === 'npub-cash' && !!activeNpubCashWallet?.lightningAddress;
 
   // Fetch exchange rate when currency changes
   // For NWC-only or LN Address users (no apiKey), use BlinkPOS credentials via useBlinkpos flag
   useEffect(() => {
-    if (displayCurrency !== 'BTC' && (apiKey || activeNWC || hasBlinkLnAddressWallet)) {
+    if (displayCurrency !== 'BTC' && (apiKey || activeNWC || hasBlinkLnAddressWallet || hasNpubCashWallet)) {
       fetchExchangeRate();
     } else if (displayCurrency === 'BTC') {
       setExchangeRate({ satPriceInCurrency: 1, currency: 'BTC' });
     }
-  }, [displayCurrency, apiKey, activeNWC, hasBlinkLnAddressWallet]);
+  }, [displayCurrency, apiKey, activeNWC, hasBlinkLnAddressWallet, hasNpubCashWallet]);
 
   // Clear invoice when payment is received
   useEffect(() => {
@@ -164,8 +167,8 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
         body: JSON.stringify({
           apiKey: apiKey,
           currency: displayCurrency,
-          // For NWC-only or LN Address users, use BlinkPOS credentials to fetch exchange rate
-          useBlinkpos: !apiKey && (!!activeNWC || hasBlinkLnAddressWallet)
+          // For NWC-only, LN Address, or npub.cash users, use BlinkPOS credentials to fetch exchange rate
+          useBlinkpos: !apiKey && (!!activeNWC || hasBlinkLnAddressWallet || hasNpubCashWallet)
         }),
       });
       
@@ -493,8 +496,8 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
     const hasBlinkApiKeyWallet = selectedWallet && apiKey;
     const hasNwcWallet = activeNWC && nwcClientReady;
     
-    if (!hasBlinkApiKeyWallet && !hasNwcWallet && !hasBlinkLnAddressWallet) {
-      setError('No wallet available. Please connect a Blink or NWC wallet.');
+    if (!hasBlinkApiKeyWallet && !hasNwcWallet && !hasBlinkLnAddressWallet && !hasNpubCashWallet) {
+      setError('No wallet available. Please connect a Blink, NWC, or npub.cash wallet.');
       return;
     }
 
@@ -614,6 +617,11 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
           blinkLnAddress: true,
           blinkLnAddressWalletId: activeBlinkAccount.walletId,
           blinkLnAddressUsername: activeBlinkAccount.username
+        }),
+        // Flag and data for npub.cash wallet (uses LNURL-pay)
+        ...(hasNpubCashWallet && {
+          npubCashActive: true,
+          npubCashLightningAddress: activeNpubCashWallet.lightningAddress
         })
       };
 
@@ -993,7 +1001,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
           </button>
           <button
             onClick={() => createInvoice()}
-            disabled={!hasValidAmount() || loading || (!selectedWallet && !activeNWC && !hasBlinkLnAddressWallet) || (displayCurrency !== 'BTC' && !exchangeRate) || loadingRate}
+            disabled={!hasValidAmount() || loading || (!selectedWallet && !activeNWC && !hasBlinkLnAddressWallet && !hasNpubCashWallet) || (displayCurrency !== 'BTC' && !exchangeRate) || loadingRate}
             className={`h-[136px] ${!hasValidAmount() || loading ? 'bg-gray-200 dark:bg-blink-dark border-2 border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500' : 'bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'} disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-lg text-lg font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center row-span-2`}
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >

@@ -1,4 +1,5 @@
 import BlinkAPI from '../../../lib/blink-api';
+import { getInvoiceFromLightningAddress, isNpubCashAddress } from '../../../lib/lnurl';
 const { getHybridStore } = require('../../../lib/storage/hybrid-store');
 const { formatCurrencyServer } = require('../../../lib/currency-formatter-server');
 
@@ -270,20 +271,47 @@ export default async function handler(req, res) {
           );
 
           try {
-            const tipPaymentResult = await blinkposAPI.sendTipViaInvoice(
-              blinkposBtcWalletId,
-              recipient.username,
-              recipientTipAmount,
-              tipMemo
-            );
+            // Check if recipient is npub.cash address
+            const recipientType = recipient.type || (isNpubCashAddress(recipient.username) ? 'npub_cash' : 'blink');
+            let tipPaymentResult;
+            
+            if (recipientType === 'npub_cash') {
+              // Send tip to npub.cash address via LNURL-pay
+              console.log(`🥜 Sending tip to npub.cash: ${recipient.username}`);
+              
+              const tipInvoiceData = await getInvoiceFromLightningAddress(
+                recipient.username,
+                recipientTipAmount,
+                tipMemo
+              );
+              
+              tipPaymentResult = await blinkposAPI.payLnInvoice(
+                blinkposBtcWalletId,
+                tipInvoiceData.paymentRequest,
+                tipMemo
+              );
+            } else {
+              // Send tip to Blink user (existing method)
+              tipPaymentResult = await blinkposAPI.sendTipViaInvoice(
+                blinkposBtcWalletId,
+                recipient.username,
+                recipientTipAmount,
+                tipMemo
+              );
+            }
+
+            const recipientDisplay = recipientType === 'npub_cash' 
+              ? recipient.username 
+              : `${recipient.username}@blink.sv`;
 
             if (tipPaymentResult.status === 'SUCCESS') {
               console.log(`💰 Tip successfully sent to ${recipient.username}`);
               tipResults.push({
                 success: true,
                 amount: recipientTipAmount,
-                recipient: `${recipient.username}@blink.sv`,
-                status: tipPaymentResult.status
+                recipient: recipientDisplay,
+                status: tipPaymentResult.status,
+                type: recipientType
               });
               // Log successful tip event
               await hybridStore.logEvent(paymentHash, 'tip_sent', 'success', {
@@ -291,33 +319,39 @@ export default async function handler(req, res) {
                 tipRecipient: recipient.username,
                 paymentHash: tipPaymentResult.paymentHash,
                 recipientIndex: i + 1,
-                totalRecipients: tipRecipients.length
+                totalRecipients: tipRecipients.length,
+                type: recipientType
               });
             } else {
               console.error(`❌ Tip payment to ${recipient.username} failed:`, tipPaymentResult.status);
               tipResults.push({
                 success: false,
-                recipient: `${recipient.username}@blink.sv`,
-                error: `Tip payment failed: ${tipPaymentResult.status}`
+                recipient: recipientDisplay,
+                error: `Tip payment failed: ${tipPaymentResult.status}`,
+                type: recipientType
               });
               // Log failed tip event
               await hybridStore.logEvent(paymentHash, 'tip_sent', 'failure', {
                 tipAmount: recipientTipAmount,
                 tipRecipient: recipient.username,
-                status: tipPaymentResult.status
+                status: tipPaymentResult.status,
+                type: recipientType
               });
             }
           } catch (recipientTipError) {
             console.error(`❌ Tip payment to ${recipient.username} error:`, recipientTipError);
+            const recipientType = recipient.type || 'blink';
             tipResults.push({
               success: false,
-              recipient: `${recipient.username}@blink.sv`,
-              error: recipientTipError.message
+              recipient: recipientType === 'npub_cash' ? recipient.username : `${recipient.username}@blink.sv`,
+              error: recipientTipError.message,
+              type: recipientType
             });
             // Log tip error event
             await hybridStore.logEvent(paymentHash, 'tip_sent', 'failure', {
               tipAmount: recipientTipAmount,
-              tipRecipient: recipient.username
+              tipRecipient: recipient.username,
+              type: recipientType
             }, recipientTipError.message);
           }
         }

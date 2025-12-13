@@ -12,13 +12,14 @@ import { useDarkMode } from '../../lib/hooks/useDarkMode';
 import { useCombinedAuth } from '../../lib/hooks/useCombinedAuth';
 import NWCSetup from './NWCSetup';
 import BlinkLnAddressSetup from './BlinkLnAddressSetup';
+import NpubCashSetup from './NpubCashSetup';
 import BlinkAccountSetup from '../auth/BlinkAccountSetup';
 
 export default function WalletSetup({ onComplete, onSkip }) {
   const { darkMode } = useDarkMode();
-  const { addNWCConnection: addConnection, addBlinkLnAddressWallet } = useCombinedAuth();
+  const { addNWCConnection: addConnection, addBlinkLnAddressWallet, addNpubCashWallet } = useCombinedAuth();
   
-  const [walletType, setWalletType] = useState(null); // null | 'blink-ln-address' | 'blink-api-key' | 'nwc'
+  const [walletType, setWalletType] = useState(null); // null | 'blink-ln-address' | 'blink-api-key' | 'nwc' | 'npub-cash'
   const [error, setError] = useState(null);
 
   const handleNWCComplete = async (nwcData) => {
@@ -76,6 +77,34 @@ export default function WalletSetup({ onComplete, onSkip }) {
     onComplete?.({ type: 'blink' });
   };
 
+  const handleNpubCashComplete = async (data) => {
+    setError(null);
+    
+    try {
+      const result = await addNpubCashWallet({
+        address: data.address,
+        localpart: data.localpart,
+        isNpub: data.isNpub,
+        pubkey: data.pubkey,
+        label: data.label
+      });
+      
+      if (!result.success) {
+        setError(result.error || 'Failed to add npub.cash wallet');
+        return;
+      }
+
+      // Success!
+      onComplete?.({
+        type: 'npub-cash',
+        wallet: result.wallet
+      });
+    } catch (err) {
+      console.error('npub.cash setup error:', err);
+      setError(err.message || 'Failed to setup npub.cash wallet');
+    }
+  };
+
   // Show specific setup form if selected
   if (walletType === 'nwc') {
     return (
@@ -115,6 +144,15 @@ export default function WalletSetup({ onComplete, onSkip }) {
           onSkip={onSkip}
         />
       </div>
+    );
+  }
+
+  if (walletType === 'npub-cash') {
+    return (
+      <NpubCashSetup
+        onComplete={handleNpubCashComplete}
+        onCancel={() => setWalletType(null)}
+      />
     );
   }
 
@@ -253,6 +291,50 @@ export default function WalletSetup({ onComplete, onSkip }) {
               </p>
               <div className="mt-2 flex flex-wrap gap-1">
                 {['Any NWC Wallet', 'Flexible', 'Decentralized'].map((feature) => (
+                  <span 
+                    key={feature}
+                    className={`px-2 py-0.5 rounded text-xs ${
+                      darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'
+                    }`}
+                  >
+                    {feature}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <svg className={`w-5 h-5 flex-shrink-0 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </button>
+
+        {/* Option 4: npub.cash */}
+        <button
+          onClick={() => setWalletType('npub-cash')}
+          className={`w-full p-4 rounded-xl border-2 text-left transition-all hover:scale-[1.02] ${
+            darkMode 
+              ? 'border-emerald-500/30 bg-emerald-900/20 hover:border-emerald-500/50 hover:bg-emerald-900/30' 
+              : 'border-emerald-200 bg-emerald-50 hover:border-emerald-300 hover:bg-emerald-100'
+          }`}
+        >
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
+              <span className="text-xl">🥜</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  npub.cash (Cashu)
+                </h3>
+                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-500 text-white">
+                  New
+                </span>
+              </div>
+              <p className={`mt-1 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Receive payments as Cashu ecash tokens
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {['Zero Fees', 'Privacy', 'No API Key'].map((feature) => (
                   <span 
                     key={feature}
                     className={`px-2 py-0.5 rounded text-xs ${

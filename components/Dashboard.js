@@ -10,6 +10,7 @@ import POS from './POS';
 import ItemCart from './ItemCart';
 import KeyManagementSection from './Settings/KeyManagementSection';
 import NWCClient from '../lib/nwc/NWCClient';
+import { isNpubCashAddress, validateNpubCashAddress, probeNpubCashAddress } from '../lib/lnurl';
 
 // Predefined Tip Profiles for different regions
 const TIP_PROFILES = [
@@ -30,7 +31,9 @@ export default function Dashboard() {
     nostrProfile,
     // NWC data from useCombinedAuth (user-scoped)
     nwcConnections, activeNWC, addNWCConnection, removeNWCConnection, setActiveNWC, 
-    nwcMakeInvoice, nwcLookupInvoice, nwcListTransactions, nwcHasCapability, nwcClientReady
+    nwcMakeInvoice, nwcLookupInvoice, nwcListTransactions, nwcHasCapability, nwcClientReady,
+    // npub.cash wallet data
+    activeNpubCashWallet, npubCashWallets, addNpubCashWallet
   } = useCombinedAuth();
   const { currencies, loading: currenciesLoading, getAllCurrencies } = useCurrencies();
   const { darkMode, toggleDarkMode } = useDarkMode();
@@ -93,7 +96,7 @@ export default function Dashboard() {
   const [newAccountApiKey, setNewAccountApiKey] = useState('');
   const [newAccountLabel, setNewAccountLabel] = useState('');
   const [newAccountNwcUri, setNewAccountNwcUri] = useState('');
-  const [newAccountType, setNewAccountType] = useState(null); // null | 'blink' | 'blink-ln-address' | 'nwc'
+  const [newAccountType, setNewAccountType] = useState(null); // null | 'blink' | 'blink-ln-address' | 'nwc' | 'npub-cash'
   const [addAccountLoading, setAddAccountLoading] = useState(false);
   const [addAccountError, setAddAccountError] = useState(null);
   const [nwcValidating, setNwcValidating] = useState(false);
@@ -101,6 +104,9 @@ export default function Dashboard() {
   const [newAccountLnAddress, setNewAccountLnAddress] = useState('');
   const [lnAddressValidating, setLnAddressValidating] = useState(false);
   const [lnAddressValidated, setLnAddressValidated] = useState(null); // { username, walletId, walletCurrency, lightningAddress }
+  const [newNpubCashAddress, setNewNpubCashAddress] = useState('');
+  const [npubCashValidating, setNpubCashValidating] = useState(false);
+  const [npubCashValidated, setNpubCashValidated] = useState(null); // { lightningAddress, minSendable, maxSendable }
   const [confirmDeleteWallet, setConfirmDeleteWallet] = useState(null); // { type: 'blink'|'nwc', id: string }
   // Tip Profile state
   const [showTipProfileSettings, setShowTipProfileSettings] = useState(false);
@@ -482,6 +488,11 @@ export default function Dashboard() {
       isActive: activeBlinkAccount?.type === 'ln-address',
       walletId: activeBlinkAccount?.walletId,
       username: activeBlinkAccount?.username
+    },
+    // npub.cash options for forwarding to Cashu ecash (intraledger via Blink)
+    {
+      isActive: activeNpubCashWallet?.type === 'npub-cash' && !activeNWC,
+      address: activeNpubCashWallet?.lightningAddress
     }
   );
 
@@ -930,15 +941,63 @@ export default function Dashboard() {
     }
   };
 
-  // Validate recipient username (Blink username validation) - uses same logic as validateBlinkUsername
+  // Validate recipient username (Blink username or npub.cash address)
   const validateRecipientUsername = useCallback(async (username) => {
     if (!username || username.trim() === '') {
       setRecipientValidation({ status: null, message: '', isValidating: false });
       return;
     }
 
+    const input = username.trim();
+
+    // Check if this is an npub.cash address
+    if (isNpubCashAddress(input)) {
+      setRecipientValidation({ status: null, message: '', isValidating: true });
+      
+      try {
+        // Validate the npub.cash address format
+        const validation = validateNpubCashAddress(input);
+        if (!validation.valid) {
+          setRecipientValidation({ 
+            status: 'error', 
+            message: validation.error, 
+            isValidating: false 
+          });
+          return;
+        }
+
+        // Probe the endpoint to confirm it responds
+        const probeResult = await probeNpubCashAddress(input);
+        
+        if (probeResult.valid) {
+          setRecipientValidation({ 
+            status: 'success', 
+            message: `Valid npub.cash address (${probeResult.minSats}-${probeResult.maxSats?.toLocaleString()} sats)`,
+            isValidating: false,
+            type: 'npub_cash',
+            address: input
+          });
+        } else {
+          setRecipientValidation({ 
+            status: 'error', 
+            message: probeResult.error || 'Could not reach npub.cash endpoint', 
+            isValidating: false 
+          });
+        }
+      } catch (err) {
+        console.error('npub.cash validation error:', err);
+        setRecipientValidation({ 
+          status: 'error', 
+          message: err.message || 'Failed to validate npub.cash address', 
+          isValidating: false 
+        });
+      }
+      return;
+    }
+
+    // Otherwise, validate as Blink username
     // Clean username input - strip @blink.sv if user enters full Lightning Address
-    let cleanedUsername = username.trim();
+    let cleanedUsername = input;
     if (cleanedUsername.includes('@blink.sv')) {
       cleanedUsername = cleanedUsername.replace('@blink.sv', '').trim();
     }
@@ -991,11 +1050,16 @@ export default function Dashboard() {
       const usernameExists = !data.data.usernameAvailable;
 
       if (usernameExists) {
-        setRecipientValidation({ status: 'success', message: '', isValidating: false });
+        setRecipientValidation({ 
+          status: 'success', 
+          message: 'Blink user found', 
+          isValidating: false,
+          type: 'blink'
+        });
       } else {
         setRecipientValidation({ 
           status: 'error', 
-          message: 'Username not found', 
+          message: 'Blink username not found. For npub.cash, enter full address (e.g., npub1xxx@npub.cash)', 
           isValidating: false 
         });
       }
@@ -1022,19 +1086,27 @@ export default function Dashboard() {
   const addRecipientToProfile = useCallback(() => {
     if (recipientValidation.status !== 'success' || !newRecipientInput.trim()) return;
     
-    const username = newRecipientInput.trim().toLowerCase();
+    // Use the address from validation for npub.cash, or cleaned username for Blink
+    const recipientType = recipientValidation.type || 'blink';
+    const recipientAddress = recipientType === 'npub_cash' 
+      ? recipientValidation.address 
+      : newRecipientInput.trim().toLowerCase().replace('@blink.sv', '');
     
     // Check if already added
-    if (newSplitProfileRecipients.some(r => r.username === username)) {
+    if (newSplitProfileRecipients.some(r => r.username === recipientAddress)) {
       setSplitProfileError('This recipient is already added');
       return;
     }
     
-    setNewSplitProfileRecipients(prev => [...prev, { username, validated: true }]);
+    setNewSplitProfileRecipients(prev => [...prev, { 
+      username: recipientAddress, 
+      validated: true,
+      type: recipientType  // 'blink' or 'npub_cash'
+    }]);
     setNewRecipientInput('');
     setRecipientValidation({ status: null, message: '', isValidating: false });
     setSplitProfileError(null);
-  }, [recipientValidation.status, newRecipientInput, newSplitProfileRecipients]);
+  }, [recipientValidation.status, recipientValidation.type, recipientValidation.address, newRecipientInput, newSplitProfileRecipients]);
 
   // Remove a recipient from the list
   const removeRecipientFromProfile = useCallback((username) => {
@@ -1748,7 +1820,7 @@ export default function Dashboard() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Wallet</span>
                     <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                      <span>{activeNWC ? activeNWC.label : (activeBlinkAccount?.label || activeBlinkAccount?.username || 'None')}</span>
+                      <span>{activeNWC ? activeNWC.label : activeNpubCashWallet ? (activeNpubCashWallet.label || activeNpubCashWallet.lightningAddress) : (activeBlinkAccount?.label || activeBlinkAccount?.username || 'None')}</span>
                       <span className="ml-1">›</span>
                     </div>
                   </div>
@@ -2304,7 +2376,7 @@ export default function Dashboard() {
                             {profile.label}
                           </h3>
                           <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {profile.recipients.map(r => `${r.username}@blink.sv`).join(', ')}
+                            {profile.recipients.map(r => r.type === 'npub_cash' ? r.username : `${r.username}@blink.sv`).join(', ')}
                           </p>
                         </div>
                         {activeSplitProfile?.id === profile.id && (
@@ -2320,7 +2392,7 @@ export default function Dashboard() {
                           setNewSplitProfileLabel(profile.label);
                           // Initialize recipients array from profile
                           setNewSplitProfileRecipients(
-                            profile.recipients?.map(r => ({ username: r.username, validated: true })) || []
+                            profile.recipients?.map(r => ({ username: r.username, validated: true, type: r.type || 'blink' })) || []
                           );
                           setNewRecipientInput('');
                           setRecipientValidation({ status: null, message: '', isValidating: false });
@@ -2437,7 +2509,7 @@ export default function Dashboard() {
                       {newSplitProfileRecipients.map((recipient, index) => (
                         <div key={recipient.username} className="flex items-center justify-between px-3 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
                           <span className="text-sm text-green-700 dark:text-green-400">
-                            {recipient.username}@blink.sv
+                            {recipient.type === 'npub_cash' ? recipient.username : `${recipient.username}@blink.sv`}
                           </span>
                           <button
                             onClick={() => removeRecipientFromProfile(recipient.username)}
@@ -2468,7 +2540,7 @@ export default function Dashboard() {
                           addRecipientToProfile();
                         }
                       }}
-                      placeholder="Enter Blink username"
+                      placeholder="Blink username or npub1...@npub.cash"
                       className={`w-full px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent ${
                         recipientValidation.status === 'success' ? 'border-green-500' :
                         recipientValidation.status === 'error' ? 'border-red-500' :
@@ -2492,7 +2564,7 @@ export default function Dashboard() {
                       onClick={addRecipientToProfile}
                       className="mt-2 w-full py-2 text-sm font-medium bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
                     >
-                      Add {newRecipientInput}@blink.sv
+                      Add {recipientValidation.type === 'npub_cash' ? recipientValidation.address : `${newRecipientInput}@blink.sv`}
                     </button>
                   )}
                   {newSplitProfileRecipients.length === 0 && (
@@ -2522,6 +2594,7 @@ export default function Dashboard() {
                       label: newSplitProfileLabel.trim(),
                       recipients: newSplitProfileRecipients.map(r => ({
                         username: r.username,
+                        type: r.type || 'blink',  // 'blink' or 'npub_cash'
                         share: sharePerRecipient
                       }))
                     };
@@ -2743,6 +2816,28 @@ export default function Dashboard() {
                             <p className={`text-xs mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Any wallet</p>
                           </button>
                         </div>
+                        
+                        {/* npub.cash - Full width below the 2-column grid */}
+                        <button
+                          type="button"
+                          onClick={() => setNewAccountType('npub-cash')}
+                          className={`w-full p-3 rounded-lg border-2 text-left transition-all hover:scale-[1.01] ${
+                            darkMode 
+                              ? 'border-teal-500/40 bg-teal-900/20 hover:border-teal-500/60' 
+                              : 'border-teal-300 bg-teal-50 hover:border-teal-400'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl">🥜</span>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`font-medium text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>npub.cash (Cashu)</span>
+                                <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-teal-500 text-white">Zero Fees</span>
+                              </div>
+                              <p className={`text-xs mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Receive payments as Cashu ecash tokens</p>
+                            </div>
+                          </div>
+                        </button>
                       </div>
 
                       <button
@@ -3194,10 +3289,160 @@ export default function Dashboard() {
                   </div>
                 )}
 
+                {/* Add Wallet Form - Step 2: npub.cash */}
+                {showAddAccountForm && newAccountType === 'npub-cash' && (
+                  <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <button
+                        onClick={() => { setNewAccountType(null); setAddAccountError(null); setNpubCashValidated(null); setNewNpubCashAddress(''); }}
+                        className={`p-1 rounded ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      <h3 className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        Add npub.cash Wallet
+                      </h3>
+                    </div>
+                    <form onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (!npubCashValidated) {
+                        // Validate first
+                        if (!newNpubCashAddress.trim()) {
+                          setAddAccountError('Enter an npub.cash address');
+                          return;
+                        }
+                        if (!isNpubCashAddress(newNpubCashAddress.trim())) {
+                          setAddAccountError('Invalid npub.cash address format. Must be npub1...@npub.cash or username@npub.cash');
+                          return;
+                        }
+                        setNpubCashValidating(true);
+                        setAddAccountError(null);
+                        try {
+                          const probeResult = await probeNpubCashAddress(newNpubCashAddress.trim());
+                          if (probeResult.valid) {
+                            setNpubCashValidated({
+                              lightningAddress: newNpubCashAddress.trim(),
+                              minSendable: probeResult.minSats,
+                              maxSendable: probeResult.maxSats
+                            });
+                          } else {
+                            setAddAccountError(probeResult.error || 'Could not validate npub.cash address');
+                          }
+                        } catch (err) {
+                          setAddAccountError(err.message || 'Validation failed');
+                        } finally {
+                          setNpubCashValidating(false);
+                        }
+                        return;
+                      }
+                      // Add the wallet
+                      setAddAccountLoading(true);
+                      setAddAccountError(null);
+                      try {
+                        const result = await addNpubCashWallet({
+                          label: newAccountLabel.trim() || npubCashValidated.lightningAddress,
+                          lightningAddress: npubCashValidated.lightningAddress
+                        });
+                        if (!result.success) throw new Error(result.error || 'Failed to add wallet');
+                        // Reset form
+                        setNewNpubCashAddress('');
+                        setNewAccountLabel('');
+                        setNewAccountType(null);
+                        setShowAddAccountForm(false);
+                        setNpubCashValidated(null);
+                      } catch (err) {
+                        setAddAccountError(err.message);
+                      } finally {
+                        setAddAccountLoading(false);
+                      }
+                    }} className="space-y-3">
+                      <div className={`p-2 rounded text-xs ${darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
+                        Label: <span className="font-medium">{newAccountLabel || 'npub.cash Wallet'}</span>
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">npub.cash Lightning Address</label>
+                        <input
+                          type="text"
+                          value={newNpubCashAddress}
+                          onChange={(e) => { setNewNpubCashAddress(e.target.value); setNpubCashValidated(null); }}
+                          placeholder="npub1...@npub.cash or username@npub.cash"
+                          autoFocus
+                          autoComplete="off"
+                          data-1p-ignore="true"
+                          data-lpignore="true"
+                          className={`w-full px-3 py-2 rounded-md border text-sm ${
+                            npubCashValidated ? 'border-green-500' : 
+                            darkMode 
+                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
+                              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                          } focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent`}
+                        />
+                        <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                          Your full npub.cash Lightning Address
+                        </p>
+                      </div>
+                      
+                      {/* Validation result */}
+                      {npubCashValidated && (
+                        <div className={`p-3 rounded-md ${darkMode ? 'bg-green-900/20 border-green-500/30' : 'bg-green-50 border-green-200'} border`}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span className={`text-sm font-medium ${darkMode ? 'text-green-400' : 'text-green-700'}`}>
+                              {npubCashValidated.lightningAddress}
+                            </span>
+                          </div>
+                          <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            Min: {npubCashValidated.minSendable} sats • Max: {npubCashValidated.maxSendable?.toLocaleString()} sats
+                          </p>
+                          <p className={`text-xs mt-1 ${darkMode ? 'text-teal-400' : 'text-teal-600'}`}>
+                            Payments will be converted to Cashu ecash tokens
+                          </p>
+                        </div>
+                      )}
+
+                      {addAccountError && (
+                        <p className="text-sm text-red-500">{addAccountError}</p>
+                      )}
+
+                      <div className="flex gap-2">
+                        <button
+                          type="submit"
+                          disabled={npubCashValidating || addAccountLoading}
+                          className="flex-1 py-2 bg-teal-500 text-white text-sm font-medium rounded-md hover:bg-teal-600 disabled:opacity-50 transition-colors"
+                        >
+                          {npubCashValidating ? 'Validating...' : addAccountLoading ? 'Adding...' : npubCashValidated ? 'Add Wallet' : 'Validate'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAddAccountForm(false);
+                            setNewNpubCashAddress('');
+                            setNewAccountLabel('');
+                            setNewAccountType(null);
+                            setNpubCashValidated(null);
+                            setAddAccountError(null);
+                          }}
+                          className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
+                            darkMode 
+                              ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
                 {/* Wallets List */}
                 <div className="space-y-2">
-                  {/* Blink Accounts */}
-                  {blinkAccounts && blinkAccounts.map((account) => (
+                  {/* Blink Accounts (exclude npub.cash which is shown separately) */}
+                  {blinkAccounts && blinkAccounts.filter(a => a.type !== 'npub-cash').map((account) => (
                     <div
                       key={`blink-${account.id}`}
                       className={`rounded-lg p-4 border transition-colors ${
@@ -3275,6 +3520,100 @@ export default function Dashboard() {
                           ) : (
                             <button
                               onClick={() => setConfirmDeleteWallet({ type: 'blink', id: account.id })}
+                              className={`p-1.5 rounded transition-colors ${darkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'}`}
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* npub.cash Wallets */}
+                  {npubCashWallets && npubCashWallets.map((wallet) => (
+                    <div
+                      key={`npubcash-${wallet.id}`}
+                      className={`rounded-lg p-4 border transition-colors ${
+                        wallet.isActive && !activeNWC
+                          ? darkMode
+                            ? 'bg-teal-900/20 border-teal-500'
+                            : 'bg-teal-50 border-teal-400'
+                          : darkMode
+                            ? 'bg-gray-900 border-gray-700'
+                            : 'bg-gray-50 border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${
+                            wallet.isActive && !activeNWC
+                              ? 'bg-teal-500/20' 
+                              : darkMode ? 'bg-gray-800' : 'bg-gray-200'
+                          }`}>
+                            <span className="text-lg">🥜</span>
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h5 className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                {wallet.label || 'npub.cash Wallet'}
+                              </h5>
+                              <span className={`px-1.5 py-0.5 text-xs rounded ${darkMode ? 'bg-teal-900/30 text-teal-400' : 'bg-teal-100 text-teal-700'}`}>Cashu</span>
+                            </div>
+                            <p className={`text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {wallet.lightningAddress}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0 ml-2 flex items-center gap-2">
+                          {wallet.isActive && !activeNWC ? (
+                            <span className="px-3 py-1 text-xs font-medium bg-teal-500/20 text-teal-400 rounded">
+                              Active
+                            </span>
+                          ) : (
+                            <button
+                              onClick={async () => {
+                                // Deactivate NWC if active
+                                if (activeNWC) {
+                                  await setActiveNWC(null);
+                                }
+                                // Deactivate any other Blink account
+                                if (activeBlinkAccount) {
+                                  await setActiveBlinkAccount(null);
+                                }
+                                // Activate this npub.cash wallet
+                                await setActiveBlinkAccount(wallet.id);
+                              }}
+                              className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                                darkMode 
+                                  ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
+                            >
+                              Use
+                            </button>
+                          )}
+                          {/* Delete button */}
+                          {confirmDeleteWallet?.type === 'npub-cash' && confirmDeleteWallet?.id === wallet.id ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => { removeBlinkAccount(wallet.id); setConfirmDeleteWallet(null); }}
+                                className="px-2 py-1 text-xs font-medium bg-red-600 text-white rounded hover:bg-red-700"
+                              >
+                                Delete
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteWallet(null)}
+                                className={`px-2 py-1 text-xs rounded ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmDeleteWallet({ type: 'npub-cash', id: wallet.id })}
                               className={`p-1.5 rounded transition-colors ${darkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'}`}
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3388,7 +3727,7 @@ export default function Dashboard() {
                         No wallets connected
                       </p>
                       <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                        Add a Blink or NWC wallet to get started
+                        Add a Blink, NWC, or npub.cash wallet to get started
                       </p>
                     </div>
                   )}
@@ -3521,12 +3860,12 @@ export default function Dashboard() {
             {/* Owner Display - Always show when logged in */}
             <div className="flex items-center gap-2">
               <img 
-                src={activeNWC ? "/purpledot.svg" : "/bluedot.svg"} 
+                src={activeNWC ? "/purpledot.svg" : activeNpubCashWallet ? "/tealdot.svg" : "/bluedot.svg"} 
                 alt="Owner" 
                 className="w-2 h-2"
               />
-              <span className={`font-semibold ${activeNWC ? 'text-purple-600 dark:text-purple-400' : 'text-blue-600 dark:text-blue-400'}`} style={{fontSize: '11.2px'}}>
-                {activeNWC ? activeNWC.label : (activeBlinkAccount?.label || activeBlinkAccount?.username || 'Wallet')}
+              <span className={`font-semibold ${activeNWC ? 'text-purple-600 dark:text-purple-400' : activeNpubCashWallet ? 'text-teal-600 dark:text-teal-400' : 'text-blue-600 dark:text-blue-400'}`} style={{fontSize: '11.2px'}}>
+                {activeNWC ? activeNWC.label : activeNpubCashWallet ? (activeNpubCashWallet.label || activeNpubCashWallet.lightningAddress) : (activeBlinkAccount?.label || activeBlinkAccount?.username || 'Wallet')}
               </span>
             </div>
             
@@ -3593,6 +3932,7 @@ export default function Dashboard() {
             nwcMakeInvoice={nwcMakeInvoice}
             nwcLookupInvoice={nwcLookupInvoice}
             activeBlinkAccount={activeBlinkAccount}
+            activeNpubCashWallet={activeNpubCashWallet}
             cartCheckoutData={cartCheckoutData}
             onCartCheckoutProcessed={() => setCartCheckoutData(null)}
           />

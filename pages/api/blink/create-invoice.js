@@ -12,7 +12,9 @@ export default async function handler(req, res) {
       baseAmount, tipAmount, tipPercent, tipRecipients = [], baseAmountDisplay, tipAmountDisplay, 
       nwcActive, 
       // Blink Lightning Address wallet fields (no API key required)
-      blinkLnAddress, blinkLnAddressWalletId, blinkLnAddressUsername
+      blinkLnAddress, blinkLnAddressWalletId, blinkLnAddressUsername,
+      // npub.cash wallet fields (intraledger via LNURL-pay)
+      npubCashActive, npubCashLightningAddress
     } = req.body;
 
     console.log('📥 Create invoice request received:', {
@@ -26,21 +28,23 @@ export default async function handler(req, res) {
       nwcActive: !!nwcActive,
       hasApiKey: !!apiKey,
       blinkLnAddress: !!blinkLnAddress,
-      blinkLnAddressUsername
+      blinkLnAddressUsername,
+      npubCashActive: !!npubCashActive,
+      npubCashLightningAddress: npubCashLightningAddress || undefined
     });
 
     // Validate required fields
-    // For NWC-only or LN Address users, apiKey is not required
+    // For NWC-only, LN Address, or npub.cash users, apiKey is not required
     if (!amount || !currency) {
       return res.status(400).json({ 
         error: 'Missing required fields: amount, currency' 
       });
     }
     
-    // Either apiKey (for Blink API forwarding) OR nwcActive (for NWC forwarding) OR blinkLnAddress (for LN Address forwarding) must be present
-    if (!apiKey && !nwcActive && !blinkLnAddress) {
+    // Either apiKey OR nwcActive OR blinkLnAddress OR npubCashActive must be present for payment forwarding
+    if (!apiKey && !nwcActive && !blinkLnAddress && !npubCashActive) {
       return res.status(400).json({ 
-        error: 'Missing payment forwarding: either apiKey, nwcActive, or blinkLnAddress required' 
+        error: 'Missing payment forwarding: either apiKey, nwcActive, blinkLnAddress, or npubCashAddress required' 
       });
     }
 
@@ -78,7 +82,9 @@ export default async function handler(req, res) {
       hasTip: tipAmount > 0,
       tipRecipientsCount: tipRecipients?.length || 0,
       blinkLnAddress: !!blinkLnAddress,
-      blinkLnAddressUsername
+      blinkLnAddressUsername,
+      npubCashActive: !!npubCashActive,
+      npubCashLightningAddress: npubCashLightningAddress || undefined
     });
 
     // Always use BlinkPOS API and BTC wallet for invoice creation
@@ -101,9 +107,9 @@ export default async function handler(req, res) {
       }
 
       // Store payment metadata (using hybrid storage)
-      // For NWC-only or LN Address users, apiKey/userWalletId may be empty
-      // Store for ALL NWC payments (even without tips) so forwarding can work
-      const shouldStorePaymentData = (tipAmount > 0 && tipRecipients && tipRecipients.length > 0) || nwcActive;
+      // For NWC-only, LN Address, or npub.cash users, apiKey/userWalletId may be empty
+      // Store for ALL NWC/npub.cash payments (even without tips) so forwarding can work
+      const shouldStorePaymentData = (tipAmount > 0 && tipRecipients && tipRecipients.length > 0) || nwcActive || npubCashActive;
       
       if (shouldStorePaymentData) {
         const hybridStore = await getHybridStore();
@@ -112,8 +118,8 @@ export default async function handler(req, res) {
           tipAmount: tipAmount || 0,
           tipPercent: tipPercent || 0,
           tipRecipients: tipRecipients || [], // Array of { username, share }
-          userApiKey: apiKey || null, // May be null for NWC-only or LN Address users
-          userWalletId: userWalletId || walletId || null, // May be null for NWC-only or LN Address users
+          userApiKey: apiKey || null, // May be null for NWC-only, LN Address, or npub.cash users
+          userWalletId: userWalletId || walletId || null, // May be null for NWC-only, LN Address, or npub.cash users
           displayCurrency: displayCurrency || 'BTC', // Store display currency for tip memo
           baseAmountDisplay: baseAmountDisplay, // Base amount in display currency
           tipAmountDisplay: tipAmountDisplay, // Tip amount in display currency
@@ -122,9 +128,12 @@ export default async function handler(req, res) {
           // Lightning Address wallet info
           blinkLnAddress: !!blinkLnAddress,
           blinkLnAddressWalletId: blinkLnAddressWalletId || null,
-          blinkLnAddressUsername: blinkLnAddressUsername || null
+          blinkLnAddressUsername: blinkLnAddressUsername || null,
+          // npub.cash wallet info (intraledger via LNURL-pay)
+          npubCashActive: !!npubCashActive,
+          npubCashLightningAddress: npubCashLightningAddress || null
         });
-        console.log(`✅ Stored payment data for ${invoice.paymentHash?.substring(0, 16)}... (nwcActive: ${!!nwcActive}, hasTip: ${tipAmount > 0})`);
+        console.log(`✅ Stored payment data for ${invoice.paymentHash?.substring(0, 16)}... (nwcActive: ${!!nwcActive}, npubCashActive: ${!!npubCashActive}, hasTip: ${tipAmount > 0})`);
       }
 
       // Return invoice details with additional metadata for payment forwarding
@@ -138,8 +147,8 @@ export default async function handler(req, res) {
           currency: currency,
           memo: memo || '',
           walletId: blinkposBtcWalletId, // This is now the BlinkPOS wallet
-          userApiKey: apiKey || null, // May be null for NWC-only or LN Address users
-          userWalletId: userWalletId || walletId || null, // May be null for NWC-only or LN Address users
+          userApiKey: apiKey || null, // May be null for NWC-only, LN Address, or npub.cash users
+          userWalletId: userWalletId || walletId || null, // May be null for NWC-only, LN Address, or npub.cash users
           hasTip: tipAmount > 0,
           tipAmount: tipAmount || 0,
           tipRecipients: tipRecipients || [],
@@ -147,7 +156,10 @@ export default async function handler(req, res) {
           // Lightning Address wallet info
           blinkLnAddress: !!blinkLnAddress,
           blinkLnAddressWalletId: blinkLnAddressWalletId || null,
-          blinkLnAddressUsername: blinkLnAddressUsername || null
+          blinkLnAddressUsername: blinkLnAddressUsername || null,
+          // npub.cash wallet info
+          npubCashActive: !!npubCashActive,
+          npubCashLightningAddress: npubCashLightningAddress || null
         }
       });
 

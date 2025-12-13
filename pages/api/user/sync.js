@@ -2,8 +2,9 @@
  * User Sync API
  * 
  * Unified endpoint for cross-device sync of all user data:
- * - Blink API Key wallets (encrypted) - NEW
+ * - Blink API Key wallets (encrypted)
  * - Blink Lightning Address wallets
+ * - npub.cash wallets (Cashu ecash via LNURL-pay)
  * - NWC connections (encrypted)
  * - UI preferences
  * 
@@ -118,6 +119,7 @@ async function handleGet(req, res, pubkey, username) {
       pubkey,
       blinkApiAccounts: [],
       blinkLnAddressWallets: [],
+      npubCashWallets: [],
       nwcConnections: [],
       preferences: getDefaultPreferences()
     });
@@ -139,6 +141,7 @@ async function handleGet(req, res, pubkey, username) {
     pubkey,
     blinkApiAccounts,
     blinkLnAddressWallets: userData.blinkLnAddressWallets || [],
+    npubCashWallets: userData.npubCashWallets || [],
     nwcConnections,
     preferences: userData.preferences || getDefaultPreferences(),
     lastSynced: userData.lastSynced || null
@@ -221,7 +224,7 @@ async function handlePatch(req, res, pubkey, username) {
   
   const { field, data } = req.body;
   
-  const validFields = ['blinkApiAccounts', 'blinkLnAddressWallets', 'nwcConnections', 'preferences'];
+  const validFields = ['blinkApiAccounts', 'blinkLnAddressWallets', 'npubCashWallets', 'nwcConnections', 'preferences'];
   if (!field || !validFields.includes(field)) {
     return res.status(400).json({ error: `Invalid field. Must be one of: ${validFields.join(', ')}` });
   }
@@ -250,6 +253,22 @@ async function handlePatch(req, res, pubkey, username) {
     processedData = data.map(conn => ({
       ...conn,
       uri: encryptNWCUri(conn.uri)
+    }));
+  }
+  
+  // Special handling for npub.cash wallets - sanitize data
+  if (field === 'npubCashWallets' && Array.isArray(data)) {
+    processedData = data.map(wallet => ({
+      id: wallet.id,
+      label: wallet.label,
+      address: wallet.address,
+      lightningAddress: wallet.lightningAddress || wallet.address,
+      localpart: wallet.localpart,
+      isNpub: !!wallet.isNpub,
+      pubkey: wallet.pubkey,
+      isActive: !!wallet.isActive,
+      createdAt: wallet.createdAt || new Date().toISOString(),
+      lastUsed: wallet.lastUsed
     }));
   }
   

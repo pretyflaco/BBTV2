@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { useCombinedAuth } from '../../lib/hooks/useCombinedAuth';
 import { useDarkMode } from '../../lib/hooks/useDarkMode';
+import { isNpubCashAddress, probeNpubCashAddress } from '../../lib/lnurl';
 
 export default function BlinkAccountsSection() {
   const { 
@@ -13,31 +14,37 @@ export default function BlinkAccountsSection() {
     blinkAccounts,
     addBlinkAccount,
     addBlinkLnAddressWallet,
+    addNpubCashWallet,
     setActiveBlinkAccount,
     hasServerSession,
     storeBlinkAccountOnServer,
-    publicKey
+    publicKey,
+    npubCashWallets
   } = useCombinedAuth();
   
   const { darkMode } = useDarkMode();
   const [showAddForm, setShowAddForm] = useState(false);
-  const [addMethod, setAddMethod] = useState(null); // 'api-key' | 'ln-address'
+  const [addMethod, setAddMethod] = useState(null); // 'api-key' | 'ln-address' | 'npub-cash'
   const [apiKey, setApiKey] = useState('');
   const [lnAddress, setLnAddress] = useState('');
+  const [npubCashAddress, setNpubCashAddress] = useState('');
   const [label, setLabel] = useState('');
   const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState(false);
   const [error, setError] = useState(null);
   const [walletInfo, setWalletInfo] = useState(null);
+  const [npubCashInfo, setNpubCashInfo] = useState(null);
 
   const resetForm = () => {
     setShowAddForm(false);
     setAddMethod(null);
     setApiKey('');
     setLnAddress('');
+    setNpubCashAddress('');
     setLabel('');
     setError(null);
     setWalletInfo(null);
+    setNpubCashInfo(null);
   };
 
   const handleValidateLnAddress = async () => {
@@ -70,6 +77,64 @@ export default function BlinkAccountsSection() {
     } catch (err) {
       setError(err.message || 'Validation failed');
       setValidating(false);
+    }
+  };
+
+  const handleValidateNpubCash = async () => {
+    if (!npubCashAddress.trim()) {
+      setError('Please enter an npub.cash Lightning Address');
+      return;
+    }
+
+    if (!isNpubCashAddress(npubCashAddress.trim())) {
+      setError('Invalid npub.cash address format. Must be npub1...@npub.cash or username@npub.cash');
+      return;
+    }
+
+    setValidating(true);
+    setError(null);
+    setNpubCashInfo(null);
+
+    try {
+      const lnurlInfo = await probeNpubCashAddress(npubCashAddress.trim());
+      setNpubCashInfo({
+        lightningAddress: npubCashAddress.trim(),
+        minSendable: lnurlInfo.minSendable,
+        maxSendable: lnurlInfo.maxSendable
+      });
+      setValidating(false);
+    } catch (err) {
+      setError(err.message || 'Failed to validate npub.cash address');
+      setValidating(false);
+    }
+  };
+
+  const handleAddNpubCash = async (e) => {
+    e.preventDefault();
+    
+    if (!npubCashInfo) {
+      await handleValidateNpubCash();
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const result = await addNpubCashWallet({
+        label: label.trim() || npubCashInfo.lightningAddress,
+        lightningAddress: npubCashInfo.lightningAddress
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to add npub.cash wallet');
+      }
+
+      resetForm();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -237,6 +302,27 @@ export default function BlinkAccountsSection() {
               </div>
             </div>
           </button>
+
+          <button
+            onClick={() => setAddMethod('npub-cash')}
+            className={`w-full p-3 rounded-lg border text-left transition-colors ${
+              darkMode 
+                ? 'border-gray-700 bg-gray-800 hover:bg-gray-700' 
+                : 'border-gray-200 bg-white hover:bg-gray-50'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-xl">🥜</span>
+              <div>
+                <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  npub.cash (Cashu)
+                </div>
+                <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Receive payments as Cashu ecash - zero fees!
+                </div>
+              </div>
+            </div>
+          </button>
           
           <button
             onClick={resetForm}
@@ -346,6 +432,113 @@ export default function BlinkAccountsSection() {
                 type="button"
                 onClick={resetForm}
                 className={`${walletInfo ? 'flex-1' : 'w-full'} py-2 text-sm font-medium rounded-md transition-colors ${
+                  darkMode 
+                    ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Add npub.cash Form */}
+      {showAddForm && addMethod === 'npub-cash' && (
+        <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+          <form onSubmit={handleAddNpubCash} className="space-y-3">
+            <div>
+              <label className={`block text-sm mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                npub.cash Lightning Address
+              </label>
+              <input
+                type="text"
+                value={npubCashAddress}
+                onChange={(e) => {
+                  setNpubCashAddress(e.target.value);
+                  setNpubCashInfo(null);
+                  setError(null);
+                }}
+                placeholder="npub1...@npub.cash or username@npub.cash"
+                autoComplete="off"
+                data-1p-ignore="true"
+                data-lpignore="true"
+                className={`w-full px-3 py-2 rounded-md border text-sm ${
+                  darkMode 
+                    ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
+              />
+            </div>
+            
+            <div>
+              <label className={`block text-sm mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Label (optional)
+              </label>
+              <input
+                type="text"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder="My npub.cash Wallet"
+                autoComplete="off"
+                data-1p-ignore="true"
+                data-lpignore="true"
+                className={`w-full px-3 py-2 rounded-md border text-sm ${
+                  darkMode 
+                    ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
+              />
+            </div>
+
+            {/* npub.cash Info */}
+            {npubCashInfo && (
+              <div className={`p-3 rounded-md ${darkMode ? 'bg-green-900/20 border-green-500/30' : 'bg-green-50 border-green-200'} border`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className={`text-sm font-medium ${darkMode ? 'text-green-400' : 'text-green-700'}`}>
+                    {npubCashInfo.lightningAddress}
+                  </span>
+                </div>
+                <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Payments will be converted to Cashu ecash tokens
+                </p>
+              </div>
+            )}
+            
+            {error && (
+              <p className="text-sm text-red-500">{error}</p>
+            )}
+
+            {/* Validate button */}
+            {!npubCashInfo && npubCashAddress.trim() && (
+              <button
+                type="button"
+                onClick={handleValidateNpubCash}
+                disabled={validating}
+                className="w-full py-2 bg-blink-accent text-black text-sm font-medium rounded-md hover:bg-blink-accent/90 disabled:opacity-50 transition-colors"
+              >
+                {validating ? 'Validating...' : 'Validate'}
+              </button>
+            )}
+
+            <div className="flex gap-2">
+              {npubCashInfo && (
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 py-2 bg-blink-accent text-black text-sm font-medium rounded-md hover:bg-blink-accent/90 disabled:opacity-50 transition-colors"
+                >
+                  {loading ? 'Adding...' : 'Add Wallet'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={resetForm}
+                className={`${npubCashInfo ? 'flex-1' : 'w-full'} py-2 text-sm font-medium rounded-md transition-colors ${
                   darkMode 
                     ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -505,6 +698,67 @@ export default function BlinkAccountsSection() {
               No wallets connected
             </p>
           </div>
+        )}
+
+        {/* npub.cash Wallets */}
+        {npubCashWallets && npubCashWallets.length > 0 && (
+          <>
+            <div className={`mt-4 pt-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h4 className={`text-sm font-medium mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                npub.cash Wallets (Cashu)
+              </h4>
+            </div>
+            {npubCashWallets.map((wallet) => (
+              <div
+                key={wallet.id}
+                className={`rounded-lg p-3 border transition-colors ${
+                  wallet.isActive
+                    ? darkMode
+                      ? 'bg-purple-900/20 border-purple-500'
+                      : 'bg-purple-50 border-purple-500'
+                    : darkMode
+                      ? 'bg-gray-900 border-gray-700'
+                      : 'bg-gray-50 border-gray-200'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${
+                      wallet.isActive 
+                        ? 'bg-purple-500/20' 
+                        : darkMode ? 'bg-gray-800' : 'bg-gray-200'
+                    }`}>
+                      <span className="text-lg">🥜</span>
+                    </div>
+                    <div className="min-w-0">
+                      <h5 className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {wallet.label || 'npub.cash Wallet'}
+                      </h5>
+                      <p className={`text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {wallet.lightningAddress}
+                      </p>
+                      <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                        Zero-fee Cashu ecash
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0 ml-2">
+                    {wallet.isActive ? (
+                      <span className="px-2 py-1 text-xs font-medium bg-purple-500/20 text-purple-400 rounded">
+                        Active
+                      </span>
+                    ) : (
+                      <span className={`px-2 py-1 text-xs font-medium rounded ${
+                        darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-200 text-gray-500'
+                      }`}>
+                        Connected
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </>
         )}
       </div>
 

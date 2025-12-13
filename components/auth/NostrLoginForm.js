@@ -9,9 +9,11 @@
 
 import { useState, useEffect } from 'react';
 import { useNostrAuth } from '../../lib/hooks/useNostrAuth';
+import { useDarkMode } from '../../lib/hooks/useDarkMode';
 import NostrAuthService from '../../lib/nostr/NostrAuthService';
 
 export default function NostrLoginForm() {
+  const { darkMode } = useDarkMode();
   const {
     loading,
     error,
@@ -436,7 +438,7 @@ export default function NostrLoginForm() {
         <div className="text-center">
           <div className="flex justify-center mb-6">
             <img 
-              src="/logos/blink-logo-full.svg" 
+              src={darkMode ? "/logos/blink-logo-full.svg" : "/logos/blink-logo-full-dark.svg"} 
               alt="Blink POS" 
               className="h-24"
             />

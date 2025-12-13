@@ -3868,21 +3868,39 @@ export default function Dashboard() {
         {!showingInvoice && (currentView === 'pos' || currentView === 'cart') && (
           <div className="flex flex-col gap-1 mb-2 bg-white dark:bg-black">
             {/* Owner Display - Always show when logged in */}
-            <div className="flex items-center gap-2">
-              {(() => {
-                const hasWallet = activeNWC || activeNpubCashWallet || activeBlinkAccount;
-                const dotColor = activeNWC ? "/purpledot.svg" : activeNpubCashWallet ? "/tealdot.svg" : hasWallet ? "/bluedot.svg" : "/yellowdot.svg";
-                return <img src={dotColor} alt="Owner" className="w-2 h-2" />;
-              })()}
-              <span className={`font-semibold ${
-                activeNWC ? 'text-purple-600 dark:text-purple-400' : 
+            {(() => {
+              const hasWallet = activeNWC || activeNpubCashWallet || activeBlinkAccount;
+              const noWallet = !hasWallet;
+              const dotColor = activeNWC ? "/purpledot.svg" : activeNpubCashWallet ? "/tealdot.svg" : hasWallet ? "/bluedot.svg" : "/yellowdot.svg";
+              const textColorClass = activeNWC ? 'text-purple-600 dark:text-purple-400' : 
                 activeNpubCashWallet ? 'text-teal-600 dark:text-teal-400' : 
-                (activeBlinkAccount?.label || activeBlinkAccount?.username) ? 'text-blue-600 dark:text-blue-400' :
-                'text-yellow-600 dark:text-yellow-400'
-              }`} style={{fontSize: '11.2px'}}>
-                {activeNWC ? activeNWC.label : activeNpubCashWallet ? (activeNpubCashWallet.label || activeNpubCashWallet.lightningAddress) : (activeBlinkAccount?.label || activeBlinkAccount?.username || 'Connect wallet to start')}
-              </span>
-            </div>
+                hasWallet ? 'text-blue-600 dark:text-blue-400' :
+                'text-yellow-600 dark:text-yellow-400';
+              const displayText = activeNWC ? activeNWC.label : activeNpubCashWallet ? (activeNpubCashWallet.label || activeNpubCashWallet.lightningAddress) : (activeBlinkAccount?.label || activeBlinkAccount?.username || 'Connect wallet to start');
+              
+              if (noWallet) {
+                return (
+                  <button 
+                    onClick={() => setShowAccountSettings(true)}
+                    className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                  >
+                    <img src={dotColor} alt="Owner" className="w-2 h-2" />
+                    <span className={`font-semibold ${textColorClass}`} style={{fontSize: '11.2px'}}>
+                      {displayText}
+                    </span>
+                  </button>
+                );
+              }
+              
+              return (
+                <div className="flex items-center gap-2">
+                  <img src={dotColor} alt="Owner" className="w-2 h-2" />
+                  <span className={`font-semibold ${textColorClass}`} style={{fontSize: '11.2px'}}>
+                    {displayText}
+                  </span>
+                </div>
+              );
+            })()}
             
             {/* Agent Display - Show when split profile is active */}
             {activeSplitProfile && (

@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useAuth } from '../lib/hooks/useAuth';
+import { useDarkMode } from '../lib/hooks/useDarkMode';
 
 export default function LoginForm() {
+  const { darkMode } = useDarkMode();
   const [apiKey, setApiKey] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -52,7 +54,7 @@ export default function LoginForm() {
         <div>
           <div className="flex justify-center mb-6">
             <img 
-              src="/logos/blink-logo-full.svg" 
+              src={darkMode ? "/logos/blink-logo-full.svg" : "/logos/blink-logo-full-dark.svg"} 
               alt="Blink" 
               className="h-24"
             />

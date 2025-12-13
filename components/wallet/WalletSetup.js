@@ -189,7 +189,7 @@ export default function WalletSetup({ onComplete, onSkip }) {
         >
           <div className="flex items-start gap-4">
             <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center p-2 ${
-              darkMode ? 'bg-gray-700' : 'bg-gray-600'
+              darkMode ? 'bg-gray-600' : 'bg-gray-300'
             }`}>
               <img 
                 src={darkMode ? "/logos/blink-icon-dark.svg" : "/logos/blink-icon-light.svg"} 

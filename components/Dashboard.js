@@ -597,9 +597,11 @@ export default function Dashboard() {
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
-  // Refresh data when payment received and clear POS invoice
+  // Refresh data when payment received (direct Blink payments, NOT BlinkPOS forwarded payments)
   useEffect(() => {
-    if (lastPayment) {
+    // Skip if this is a forwarded payment (already handled in BlinkPOS callback)
+    // Forwarded payments have isForwarded: true set by triggerPaymentAnimation
+    if (lastPayment && !lastPayment.isForwarded) {
       // Clear the POS invoice immediately when payment is received
       if (posPaymentReceivedRef.current) {
         posPaymentReceivedRef.current();
@@ -711,6 +713,14 @@ export default function Dashboard() {
     // Skip if active Blink wallet is a Lightning Address wallet (no transaction history available)
     if (activeBlinkAccount?.type === 'ln-address') {
       console.log('Lightning Address wallet active - transaction history not available');
+      setLoading(false);
+      setTransactions([]);
+      return;
+    }
+    
+    // Skip if npub.cash wallet is active (no transaction history available via Blink API)
+    if (activeNpubCashWallet) {
+      console.log('npub.cash wallet active - transaction history not available via Blink API');
       setLoading(false);
       setTransactions([]);
       return;

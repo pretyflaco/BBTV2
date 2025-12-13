@@ -17,7 +17,7 @@ import BlinkAccountSetup from '../auth/BlinkAccountSetup';
 
 export default function WalletSetup({ onComplete, onSkip }) {
   const { darkMode } = useDarkMode();
-  const { addNWCConnection: addConnection, addBlinkLnAddressWallet, addNpubCashWallet } = useCombinedAuth();
+  const { addNWCConnection: addConnection, addBlinkLnAddressWallet, addNpubCashWallet, publicKey } = useCombinedAuth();
   
   const [walletType, setWalletType] = useState(null); // null | 'blink-ln-address' | 'blink-api-key' | 'nwc' | 'npub-cash'
   const [error, setError] = useState(null);
@@ -149,6 +149,7 @@ export default function WalletSetup({ onComplete, onSkip }) {
       <NpubCashSetup
         onComplete={handleNpubCashComplete}
         onCancel={() => setWalletType(null)}
+        userPublicKey={publicKey}
       />
     );
   }

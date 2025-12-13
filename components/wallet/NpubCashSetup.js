@@ -15,6 +15,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import { nip19 } from 'nostr-tools';
 import { useDarkMode } from '../../lib/hooks/useDarkMode';
 import { 
   validateNpubCashAddress, 
@@ -22,7 +23,7 @@ import {
   isNpubCashAddress 
 } from '../../lib/lnurl';
 
-export default function NpubCashSetup({ onComplete, onCancel }) {
+export default function NpubCashSetup({ onComplete, onCancel, userPublicKey }) {
   const { darkMode } = useDarkMode();
   
   const [address, setAddress] = useState('');
@@ -32,11 +33,60 @@ export default function NpubCashSetup({ onComplete, onCancel }) {
   const [addressInfo, setAddressInfo] = useState(null);
   
   const inputRef = useRef(null);
+  
+  // Convert hex pubkey to npub if available
+  const userNpub = userPublicKey ? nip19.npubEncode(userPublicKey) : null;
+  const autoConfigAddress = userNpub ? `${userNpub}@npub.cash` : null;
 
   // Focus input on mount
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+  
+  // Auto-configure with user's npub
+  const handleAutoConfig = async () => {
+    if (!autoConfigAddress) return;
+    
+    setAddress(autoConfigAddress);
+    setLabel('My npub.cash Wallet');
+    setValidating(true);
+    setError(null);
+    setAddressInfo(null);
+    
+    try {
+      // Validate format
+      const validation = validateNpubCashAddress(autoConfigAddress);
+      if (!validation.valid) {
+        setError(validation.error);
+        setValidating(false);
+        return;
+      }
+      
+      // Probe to confirm it works
+      const probeResult = await probeNpubCashAddress(autoConfigAddress);
+      
+      if (!probeResult.valid) {
+        setError(probeResult.error || 'Could not reach npub.cash endpoint');
+        setValidating(false);
+        return;
+      }
+      
+      setAddressInfo({
+        address: autoConfigAddress,
+        localpart: validation.localpart,
+        isNpub: true,
+        pubkey: validation.pubkey,
+        minSats: probeResult.minSats,
+        maxSats: probeResult.maxSats
+      });
+      
+      setValidating(false);
+    } catch (err) {
+      console.error('Auto-config validation error:', err);
+      setError(err.message || 'Failed to validate npub.cash address');
+      setValidating(false);
+    }
+  };
 
   const validateAddress = async (addr) => {
     if (!addr) return;
@@ -162,6 +212,61 @@ export default function NpubCashSetup({ onComplete, onCancel }) {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Quick Setup with User's npub */}
+        {autoConfigAddress && !addressInfo && (
+          <div className={`p-4 rounded-xl border-2 ${
+            darkMode 
+              ? 'bg-gradient-to-br from-emerald-900/30 to-teal-900/30 border-emerald-500/50' 
+              : 'bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-300'
+          }`}>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-lg">⚡</span>
+              <span className={`font-semibold ${darkMode ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                Quick Setup
+              </span>
+            </div>
+            <p className={`text-sm mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+              Use your Nostr identity to receive payments instantly!
+            </p>
+            <button
+              type="button"
+              onClick={handleAutoConfig}
+              disabled={validating}
+              className={`w-full py-3 px-4 rounded-xl font-medium transition-all ${
+                validating
+                  ? `${darkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-200 text-gray-400'} cursor-wait`
+                  : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white shadow-lg hover:shadow-emerald-500/25'
+              }`}
+            >
+              {validating ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Setting up...
+                </span>
+              ) : (
+                <span className="flex items-center justify-center gap-2">
+                  🥜 Use my npub
+                </span>
+              )}
+            </button>
+            <p className={`mt-2 text-xs text-center ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+              Your address: <span className="font-mono">{userNpub?.slice(0, 12)}...@npub.cash</span>
+            </p>
+          </div>
+        )}
+
+        {/* Divider - only show if auto-config is available and not yet validated */}
+        {autoConfigAddress && !addressInfo && (
+          <div className="flex items-center gap-3">
+            <div className={`flex-1 h-px ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+            <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>or enter manually</span>
+            <div className={`flex-1 h-px ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+          </div>
+        )}
+
         {/* npub.cash Address Input */}
         <div>
           <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>

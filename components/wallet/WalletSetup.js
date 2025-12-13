@@ -188,7 +188,9 @@ export default function WalletSetup({ onComplete, onSkip }) {
           }`}
         >
           <div className="flex items-start gap-4">
-            <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center p-2">
+            <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center p-2 ${
+              darkMode ? 'bg-gray-700' : 'bg-gray-600'
+            }`}>
               <img 
                 src={darkMode ? "/logos/blink-icon-dark.svg" : "/logos/blink-icon-light.svg"} 
                 alt="Blink" 
@@ -325,11 +327,11 @@ export default function WalletSetup({ onComplete, onSkip }) {
           }`}
         >
           <div className="flex items-start gap-4">
-            <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center p-2">
+            <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center">
               <img 
                 src={darkMode ? "/nwc_dark.svg" : "/nwc_light.svg"} 
                 alt="NWC" 
-                className="w-full h-full object-contain"
+                className="w-12 h-12 object-contain"
               />
             </div>
             <div className="flex-1 min-w-0">

@@ -762,18 +762,35 @@ export default function BlinkAccountsSection() {
         )}
       </div>
 
-      {/* Help link */}
-      <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-        Get API key from{' '}
-        <a 
-          href="https://dashboard.blink.sv" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="text-blink-accent hover:underline"
-        >
-          dashboard.blink.sv
-        </a>
-      </p>
+      {/* Help links */}
+      <div className={`text-xs space-y-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+        <p>
+          <span className="font-medium">Blink:</span>{' '}
+          <a 
+            href="https://dashboard.blink.sv" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-blink-accent hover:underline"
+          >
+            dashboard.blink.sv
+          </a>
+        </p>
+        <p>
+          <span className="font-medium">NWC:</span>{' '}
+          Alby, Coinos, Zeus, minibits.cash etc.
+        </p>
+        <p>
+          <span className="font-medium">Cashu:</span>{' '}
+          <a 
+            href="https://npub.cash" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-emerald-500 hover:underline"
+          >
+            npub.cash
+          </a>
+        </p>
+      </div>
     </div>
   );
 }

@@ -3869,13 +3869,18 @@ export default function Dashboard() {
           <div className="flex flex-col gap-1 mb-2 bg-white dark:bg-black">
             {/* Owner Display - Always show when logged in */}
             <div className="flex items-center gap-2">
-              <img 
-                src={activeNWC ? "/purpledot.svg" : activeNpubCashWallet ? "/tealdot.svg" : "/bluedot.svg"} 
-                alt="Owner" 
-                className="w-2 h-2"
-              />
-              <span className={`font-semibold ${activeNWC ? 'text-purple-600 dark:text-purple-400' : activeNpubCashWallet ? 'text-teal-600 dark:text-teal-400' : 'text-blue-600 dark:text-blue-400'}`} style={{fontSize: '11.2px'}}>
-                {activeNWC ? activeNWC.label : activeNpubCashWallet ? (activeNpubCashWallet.label || activeNpubCashWallet.lightningAddress) : (activeBlinkAccount?.label || activeBlinkAccount?.username || 'Wallet')}
+              {(() => {
+                const hasWallet = activeNWC || activeNpubCashWallet || activeBlinkAccount;
+                const dotColor = activeNWC ? "/purpledot.svg" : activeNpubCashWallet ? "/tealdot.svg" : hasWallet ? "/bluedot.svg" : "/yellowdot.svg";
+                return <img src={dotColor} alt="Owner" className="w-2 h-2" />;
+              })()}
+              <span className={`font-semibold ${
+                activeNWC ? 'text-purple-600 dark:text-purple-400' : 
+                activeNpubCashWallet ? 'text-teal-600 dark:text-teal-400' : 
+                (activeBlinkAccount?.label || activeBlinkAccount?.username) ? 'text-blue-600 dark:text-blue-400' :
+                'text-yellow-600 dark:text-yellow-400'
+              }`} style={{fontSize: '11.2px'}}>
+                {activeNWC ? activeNWC.label : activeNpubCashWallet ? (activeNpubCashWallet.label || activeNpubCashWallet.lightningAddress) : (activeBlinkAccount?.label || activeBlinkAccount?.username || 'Connect wallet to start')}
               </span>
             </div>
             

@@ -188,8 +188,12 @@ export default function WalletSetup({ onComplete, onSkip }) {
           }`}
         >
           <div className="flex items-start gap-4">
-            <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-              <span className="text-xl">⚡</span>
+            <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center p-2">
+              <img 
+                src={darkMode ? "/logos/blink-icon-dark.svg" : "/logos/blink-icon-light.svg"} 
+                alt="Blink" 
+                className="w-full h-full object-contain"
+              />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
@@ -222,7 +226,51 @@ export default function WalletSetup({ onComplete, onSkip }) {
           </div>
         </button>
 
-        {/* Option 2: Blink API Key */}
+        {/* Option 2: npub.cash (Cashu) */}
+        <button
+          onClick={() => setWalletType('npub-cash')}
+          className={`w-full p-4 rounded-xl border-2 text-left transition-all hover:scale-[1.02] ${
+            darkMode 
+              ? 'border-emerald-500/30 bg-emerald-900/20 hover:border-emerald-500/50 hover:bg-emerald-900/30' 
+              : 'border-emerald-200 bg-emerald-50 hover:border-emerald-300 hover:bg-emerald-100'
+          }`}
+        >
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
+              <span className="text-xl">🥜</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  npub.cash (Cashu)
+                </h3>
+                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-500 text-white">
+                  New
+                </span>
+              </div>
+              <p className={`mt-1 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Receive payments as Cashu ecash tokens
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {['Zero Fees', 'Privacy', 'No API Key'].map((feature) => (
+                  <span 
+                    key={feature}
+                    className={`px-2 py-0.5 rounded text-xs ${
+                      darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'
+                    }`}
+                  >
+                    {feature}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <svg className={`w-5 h-5 flex-shrink-0 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </button>
+
+        {/* Option 3: Blink API Key */}
         <button
           onClick={() => setWalletType('blink-api-key')}
           className={`w-full p-4 rounded-xl border-2 text-left transition-all hover:scale-[1.02] ${
@@ -232,12 +280,14 @@ export default function WalletSetup({ onComplete, onSkip }) {
           }`}
         >
           <div className="flex items-start gap-4">
-            <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center ${
+            <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center p-2 ${
               darkMode ? 'bg-gray-600' : 'bg-gray-200'
             }`}>
-              <svg className={`w-6 h-6 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-              </svg>
+              <img 
+                src={darkMode ? "/logos/blink-icon-dark.svg" : "/logos/blink-icon-light.svg"} 
+                alt="Blink" 
+                className="w-full h-full object-contain"
+              />
             </div>
             <div className="flex-1 min-w-0">
               <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -265,7 +315,7 @@ export default function WalletSetup({ onComplete, onSkip }) {
           </div>
         </button>
 
-        {/* Option 3: NWC */}
+        {/* Option 4: NWC */}
         <button
           onClick={() => setWalletType('nwc')}
           className={`w-full p-4 rounded-xl border-2 text-left transition-all hover:scale-[1.02] ${
@@ -275,64 +325,22 @@ export default function WalletSetup({ onComplete, onSkip }) {
           }`}
         >
           <div className="flex items-start gap-4">
-            <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
+            <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center p-2">
+              <img 
+                src={darkMode ? "/nwc_dark.svg" : "/nwc_light.svg"} 
+                alt="NWC" 
+                className="w-full h-full object-contain"
+              />
             </div>
             <div className="flex-1 min-w-0">
               <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                 Nostr Wallet Connect
               </h3>
               <p className={`mt-1 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Connect any NWC-compatible wallet (Alby, Phoenix, Zeus, etc.)
+                Alby, Coinos, Zeus, minibits.cash, etc.
               </p>
               <div className="mt-2 flex flex-wrap gap-1">
                 {['Any NWC Wallet', 'Flexible', 'Decentralized'].map((feature) => (
-                  <span 
-                    key={feature}
-                    className={`px-2 py-0.5 rounded text-xs ${
-                      darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'
-                    }`}
-                  >
-                    {feature}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <svg className={`w-5 h-5 flex-shrink-0 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-            </svg>
-          </div>
-        </button>
-
-        {/* Option 4: npub.cash */}
-        <button
-          onClick={() => setWalletType('npub-cash')}
-          className={`w-full p-4 rounded-xl border-2 text-left transition-all hover:scale-[1.02] ${
-            darkMode 
-              ? 'border-emerald-500/30 bg-emerald-900/20 hover:border-emerald-500/50 hover:bg-emerald-900/30' 
-              : 'border-emerald-200 bg-emerald-50 hover:border-emerald-300 hover:bg-emerald-100'
-          }`}
-        >
-          <div className="flex items-start gap-4">
-            <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
-              <span className="text-xl">🥜</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  npub.cash (Cashu)
-                </h3>
-                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-500 text-white">
-                  New
-                </span>
-              </div>
-              <p className={`mt-1 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Receive payments as Cashu ecash tokens
-              </p>
-              <div className="mt-2 flex flex-wrap gap-1">
-                {['Zero Fees', 'Privacy', 'No API Key'].map((feature) => (
                   <span 
                     key={feature}
                     className={`px-2 py-0.5 rounded text-xs ${

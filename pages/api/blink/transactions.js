@@ -51,6 +51,12 @@ export default async function handler(req, res) {
     // Get transactions
     const transactionData = await blink.getTransactions(parseInt(first), after);
     
+    // Debug: Log first transaction's raw createdAt format
+    if (transactionData.edges.length > 0) {
+      const firstTx = transactionData.edges[0].node;
+      console.log('[transactions] First tx createdAt:', firstTx.createdAt, 'type:', typeof firstTx.createdAt);
+    }
+
     // Format transactions for display (preserving all raw data for CSV export)
     const formattedTransactions = transactionData.edges.map(edge => {
       const tx = edge.node;

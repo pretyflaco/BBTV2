@@ -11,6 +11,7 @@ import ItemCart from './ItemCart';
 import KeyManagementSection from './Settings/KeyManagementSection';
 import NWCClient from '../lib/nwc/NWCClient';
 import { isNpubCashAddress, validateNpubCashAddress, probeNpubCashAddress } from '../lib/lnurl';
+import TransactionDetail from './TransactionDetail';
 
 // Predefined Tip Profiles for different regions
 const TIP_PROFILES = [
@@ -129,6 +130,18 @@ export default function Dashboard() {
   const [newRecipientInput, setNewRecipientInput] = useState(''); // Current input for adding a recipient
   const [splitProfileError, setSplitProfileError] = useState(null);
   const [recipientValidation, setRecipientValidation] = useState({ status: null, message: '', isValidating: false });
+  
+  // Date Range Selection for Transaction History
+  const [showDateRangeSelector, setShowDateRangeSelector] = useState(false);
+  const [selectedDateRange, setSelectedDateRange] = useState(null); // { type: 'preset' | 'custom', start: Date, end: Date, label: string }
+  const [customDateStart, setCustomDateStart] = useState('');
+  const [customDateEnd, setCustomDateEnd] = useState('');
+  const [customTimeStart, setCustomTimeStart] = useState('00:00');
+  const [customTimeEnd, setCustomTimeEnd] = useState('23:59');
+  const [showTimeInputs, setShowTimeInputs] = useState(false);
+  const [filteredTransactions, setFilteredTransactions] = useState([]);
+  const [dateFilterActive, setDateFilterActive] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState(null); // Transaction detail modal
   
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
@@ -1226,6 +1239,345 @@ export default function Dashboard() {
     } finally {
       setLoadingMore(false);
     }
+  };
+
+  // Date range presets for transaction filtering
+  const getDateRangePresets = () => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0); // Last day of previous month
+    
+    const last7Days = new Date(today);
+    last7Days.setDate(last7Days.getDate() - 6); // 7 days including today
+    
+    const last30Days = new Date(today);
+    last30Days.setDate(last30Days.getDate() - 29); // 30 days including today
+    
+    return [
+      { 
+        id: 'today', 
+        label: 'Today', 
+        start: today, 
+        end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1) // End of today
+      },
+      { 
+        id: 'yesterday', 
+        label: 'Yesterday', 
+        start: yesterday, 
+        end: new Date(yesterday.getTime() + 24 * 60 * 60 * 1000 - 1)
+      },
+      { 
+        id: 'last7days', 
+        label: 'Last 7 Days', 
+        start: last7Days, 
+        end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1)
+      },
+      { 
+        id: 'last30days', 
+        label: 'Last 30 Days', 
+        start: last30Days, 
+        end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1)
+      },
+      { 
+        id: 'thismonth', 
+        label: 'This Month', 
+        start: thisMonthStart, 
+        end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1)
+      },
+      { 
+        id: 'lastmonth', 
+        label: 'Last Month', 
+        start: lastMonthStart, 
+        end: lastMonthEnd
+      }
+    ];
+  };
+
+  // Parse createdAt value to Date object (handles various formats from Blink API)
+  const parseCreatedAt = (createdAt) => {
+    if (!createdAt) return null;
+    
+    try {
+      // If it's a number, it's likely a Unix timestamp
+      if (typeof createdAt === 'number') {
+        // Check if it's in seconds (10 digits) or milliseconds (13 digits)
+        if (createdAt < 10000000000) {
+          // Unix timestamp in seconds
+          return new Date(createdAt * 1000);
+        } else {
+          // Unix timestamp in milliseconds
+          return new Date(createdAt);
+        }
+      }
+      
+      // If it's a string
+      if (typeof createdAt === 'string') {
+        // Check if it's a numeric string (timestamp)
+        const numericValue = parseInt(createdAt, 10);
+        if (!isNaN(numericValue) && createdAt.match(/^\d+$/)) {
+          // It's a numeric timestamp string
+          if (numericValue < 10000000000) {
+            return new Date(numericValue * 1000);
+          } else {
+            return new Date(numericValue);
+          }
+        }
+        
+        // Otherwise treat as ISO string or date string
+        const date = new Date(createdAt);
+        if (!isNaN(date.getTime())) {
+          return date;
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error parsing createdAt:', createdAt, error);
+      return null;
+    }
+  };
+
+  // Parse transaction date string to Date object (for formatted display dates)
+  const parseTransactionDate = (dateString) => {
+    try {
+      // Handle format like "Dec 14, 2025, 10:30 AM"
+      const date = new Date(dateString);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error parsing date:', dateString, error);
+      return null;
+    }
+  };
+
+  // Filter transactions by date range
+  const filterTransactionsByDateRange = (txs, startDate, endDate) => {
+    console.log('Filtering transactions:', { 
+      count: txs.length, 
+      startDate: startDate.toISOString(), 
+      endDate: endDate.toISOString() 
+    });
+    
+    const filtered = txs.filter(tx => {
+      // Parse the createdAt field properly (handles Unix timestamps)
+      const txDate = parseCreatedAt(tx.createdAt) || parseTransactionDate(tx.date);
+      
+      if (!txDate) {
+        console.log('Could not parse date for tx:', tx.id, tx.createdAt, tx.date);
+        return false;
+      }
+      
+      const isInRange = txDate >= startDate && txDate <= endDate;
+      return isInRange;
+    });
+    
+    console.log('Filtered result:', filtered.length, 'transactions');
+    if (txs.length > 0 && filtered.length === 0) {
+      // Debug: show first transaction's date info
+      const firstTx = txs[0];
+      const parsedDate = parseCreatedAt(firstTx.createdAt);
+      console.log('Debug first tx:', { 
+        createdAt: firstTx.createdAt, 
+        type: typeof firstTx.createdAt,
+        parsedDate: parsedDate?.toISOString(),
+        date: firstTx.date 
+      });
+    }
+    
+    return filtered;
+  };
+
+  // Load and filter transactions by date range
+  const loadTransactionsForDateRange = async (dateRange) => {
+    if (loadingMore) return;
+    
+    setLoadingMore(true);
+    setDateFilterActive(true);
+    setSelectedDateRange(dateRange);
+    
+    try {
+      // Build request headers
+      const headers = {};
+      if (apiKey && !hasServerSession) {
+        headers['X-API-KEY'] = apiKey;
+      }
+      
+      // We need to load enough transactions to cover the date range
+      // Start by loading initial batch, then load more if needed
+      let allTransactions = [...transactions];
+      let cursor = allTransactions.length > 0 ? allTransactions[allTransactions.length - 1]?.cursor : null;
+      let hasMore = hasMoreTransactions;
+      let batchCount = 0;
+      const maxBatches = 10; // Load up to 10 batches (1000 transactions)
+      
+      // Check if we already have transactions covering the date range
+      const existingFiltered = filterTransactionsByDateRange(allTransactions, dateRange.start, dateRange.end);
+      
+      // If we have existing transactions and the oldest one is older than our range start,
+      // we might have enough data
+      const oldestTx = allTransactions[allTransactions.length - 1];
+      let oldestDate = parseCreatedAt(oldestTx?.createdAt) || parseTransactionDate(oldestTx?.date);
+      
+      // Load more if we don't have enough data covering the date range
+      while (hasMore && batchCount < maxBatches) {
+        // If oldest transaction is older than our range start, we have enough
+        if (oldestDate && oldestDate < dateRange.start) {
+          break;
+        }
+        
+        batchCount++;
+        const url = cursor 
+          ? `/api/blink/transactions?first=100&after=${cursor}` 
+          : '/api/blink/transactions?first=100';
+          
+        const response = await fetch(url, { headers, credentials: 'include' });
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          if (data.transactions && data.transactions.length > 0) {
+            allTransactions = [...allTransactions, ...data.transactions];
+            cursor = data.pageInfo?.endCursor;
+            hasMore = data.pageInfo?.hasNextPage || false;
+            
+            // Update the oldest date check
+            const newOldest = allTransactions[allTransactions.length - 1];
+            const newOldestDate = parseCreatedAt(newOldest?.createdAt) || parseTransactionDate(newOldest?.date);
+            if (newOldestDate && newOldestDate < dateRange.start) {
+              break; // We have enough data
+            }
+          } else {
+            break;
+          }
+        } else {
+          break;
+        }
+      }
+      
+      // Update main transactions state
+      setTransactions(allTransactions);
+      setHasMoreTransactions(hasMore);
+      
+      // Filter and set filtered transactions
+      const filtered = filterTransactionsByDateRange(allTransactions, dateRange.start, dateRange.end);
+      setFilteredTransactions(filtered);
+      setPastTransactionsLoaded(true);
+      
+      console.log(`Date range filter: ${dateRange.label}, found ${filtered.length} transactions out of ${allTransactions.length} total`);
+      
+    } catch (error) {
+      console.error('Error loading transactions for date range:', error);
+    } finally {
+      setLoadingMore(false);
+      setShowDateRangeSelector(false);
+    }
+  };
+
+  // Handle custom date range selection
+  const handleCustomDateRange = () => {
+    if (!customDateStart || !customDateEnd) {
+      return;
+    }
+    
+    const start = new Date(customDateStart);
+    const end = new Date(customDateEnd);
+    
+    // Apply time if time inputs are shown
+    if (showTimeInputs && customTimeStart) {
+      const [startHour, startMin] = customTimeStart.split(':').map(Number);
+      start.setHours(startHour, startMin, 0, 0);
+    } else {
+      start.setHours(0, 0, 0, 0);
+    }
+    
+    if (showTimeInputs && customTimeEnd) {
+      const [endHour, endMin] = customTimeEnd.split(':').map(Number);
+      end.setHours(endHour, endMin, 59, 999);
+    } else {
+      end.setHours(23, 59, 59, 999);
+    }
+    
+    if (start > end) {
+      alert('Start date/time must be before end date/time');
+      return;
+    }
+    
+    // Format label based on whether time is included
+    let label;
+    if (showTimeInputs) {
+      const formatDateTime = (d) => {
+        return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      };
+      label = `${formatDateTime(start)} - ${formatDateTime(end)}`;
+    } else {
+      label = `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`;
+    }
+    
+    const dateRange = {
+      type: 'custom',
+      start,
+      end,
+      label
+    };
+    
+    loadTransactionsForDateRange(dateRange);
+  };
+
+  // Clear date filter
+  const clearDateFilter = () => {
+    setDateFilterActive(false);
+    setSelectedDateRange(null);
+    setFilteredTransactions([]);
+    setCustomDateStart('');
+    setCustomDateEnd('');
+    setCustomTimeStart('00:00');
+    setCustomTimeEnd('23:59');
+    setShowTimeInputs(false);
+  };
+
+  // Get display transactions (filtered or all)
+  const getDisplayTransactions = () => {
+    if (dateFilterActive && filteredTransactions.length > 0) {
+      return filteredTransactions;
+    }
+    return transactions;
+  };
+
+  // Calculate summary stats for filtered transactions
+  const getFilteredStats = () => {
+    const txs = dateFilterActive ? filteredTransactions : transactions;
+    
+    let totalReceived = 0;
+    let totalSent = 0;
+    let receiveCount = 0;
+    let sendCount = 0;
+    
+    txs.forEach(tx => {
+      const amount = Math.abs(tx.settlementAmount || 0);
+      if (tx.direction === 'RECEIVE') {
+        totalReceived += amount;
+        receiveCount++;
+      } else {
+        totalSent += amount;
+        sendCount++;
+      }
+    });
+    
+    return {
+      totalReceived,
+      totalSent,
+      receiveCount,
+      sendCount,
+      netAmount: totalReceived - totalSent,
+      transactionCount: txs.length
+    };
   };
 
   const handleRefresh = () => {
@@ -3790,6 +4142,58 @@ export default function Dashboard() {
             {/* Export Options List */}
             <div className="max-w-md mx-auto px-4 py-6">
               <div className="space-y-3">
+                {/* Filtered Export - Show when date filter is active */}
+                {dateFilterActive && filteredTransactions.length > 0 && (
+                  <div className="mb-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-sm font-medium text-green-600 dark:text-green-400">
+                        Active Filter: {selectedDateRange?.label} ({filteredTransactions.length} transactions)
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        // Export filtered transactions
+                        const csv = convertTransactionsToBasicCSV(filteredTransactions);
+                        const date = new Date();
+                        const dateStr = date.getFullYear() + 
+                                        String(date.getMonth() + 1).padStart(2, '0') + 
+                                        String(date.getDate()).padStart(2, '0');
+                        const username = user?.username || 'user';
+                        const rangeLabel = selectedDateRange?.label?.replace(/[^a-zA-Z0-9]/g, '-') || 'filtered';
+                        const filename = `${dateStr}-${username}-${rangeLabel}-transactions.csv`;
+                        downloadCSV(csv, filename);
+                        setShowExportOptions(false);
+                      }}
+                      disabled={exportingData}
+                      className="w-full p-4 rounded-lg border-2 border-green-500 dark:border-green-400 bg-white dark:bg-blink-dark hover:border-green-600 dark:hover:border-green-300 hover:bg-green-50 dark:hover:bg-green-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="text-left">
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                            Export Filtered
+                          </h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            {selectedDateRange?.label} - {filteredTransactions.length} transactions (CSV)
+                          </p>
+                        </div>
+                        <div className="text-green-600 dark:text-green-400 text-xl">↓</div>
+                      </div>
+                    </button>
+                  </div>
+                )}
+
+                {dateFilterActive && filteredTransactions.length > 0 && (
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                      <span className="px-2 bg-white dark:bg-black text-gray-500">Or export all history</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Basic Export */}
                 <button
                   onClick={exportBasicTransactions}
@@ -3799,10 +4203,10 @@ export default function Dashboard() {
                   <div className="flex items-center justify-between">
                     <div className="text-left">
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-                        Basic
+                        Basic (All)
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {exportingData ? 'Exporting simplified transaction summary...' : 'Simplified transaction summary (CSV)'}
+                        {exportingData ? 'Exporting simplified transaction summary...' : 'All transactions - simplified format (CSV)'}
                       </p>
                     </div>
                     {exportingData ? (
@@ -3822,10 +4226,10 @@ export default function Dashboard() {
                   <div className="flex items-center justify-between">
                     <div className="text-left">
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-                        Full
+                        Full (All)
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {exportingData ? 'Exporting complete transaction history...' : 'Complete transaction history (CSV)'}
+                        {exportingData ? 'Exporting complete transaction history...' : 'All transactions - complete format (CSV)'}
                       </p>
                     </div>
                     {exportingData ? (
@@ -3839,6 +4243,11 @@ export default function Dashboard() {
               
               {/* Info Text */}
               <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                {dateFilterActive && filteredTransactions.length > 0 && (
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                    <strong>Filtered Export:</strong> Only transactions from {selectedDateRange?.label}.
+                  </p>
+                )}
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                   <strong>Basic Export:</strong> Simplified CSV with 9 essential columns (timestamp, type, credit, debit, fee, currency, status, memo, username).
                 </p>
@@ -3847,6 +4256,157 @@ export default function Dashboard() {
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
                   On mobile devices, you'll have the option to save or share the file with other apps.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Date Range Selector Modal */}
+      {showDateRangeSelector && (
+        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+          <div className="min-h-screen">
+            {/* Header */}
+            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center h-16">
+                  <button
+                    onClick={() => setShowDateRangeSelector(false)}
+                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
+                  >
+                    <span className="text-2xl mr-2">‹</span>
+                    <span className="text-lg">Back</span>
+                  </button>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                    Select Date Range
+                  </h1>
+                  <div className="w-16"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Date Range Options */}
+            <div className="max-w-md mx-auto px-4 py-6">
+              <div className="space-y-3">
+                {/* Quick Options */}
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3 uppercase tracking-wide">
+                    Quick Options
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {getDateRangePresets().map((preset) => (
+                      <button
+                        key={preset.id}
+                        onClick={() => loadTransactionsForDateRange({ type: 'preset', ...preset })}
+                        disabled={loadingMore}
+                        className="p-4 rounded-lg border-2 border-blue-500 dark:border-blue-400 bg-white dark:bg-blink-dark hover:border-blue-600 dark:hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-left"
+                      >
+                        <h4 className="text-base font-semibold text-gray-900 dark:text-white" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                          {preset.label}
+                        </h4>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {preset.start.toLocaleDateString()} {preset.id !== 'today' && preset.id !== 'yesterday' && `- ${preset.end.toLocaleDateString()}`}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom Date Range */}
+                <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3 uppercase tracking-wide">
+                    Custom Range
+                  </h3>
+                  <div className="space-y-3">
+                    {/* Start Date/Time */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Start Date
+                      </label>
+                      <div className={`flex gap-2 ${showTimeInputs ? 'flex-col sm:flex-row' : ''}`}>
+                        <input
+                          type="date"
+                          value={customDateStart}
+                          onChange={(e) => setCustomDateStart(e.target.value)}
+                          max={customDateEnd || new Date().toISOString().split('T')[0]}
+                          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                        {showTimeInputs && (
+                          <input
+                            type="time"
+                            value={customTimeStart}
+                            onChange={(e) => setCustomTimeStart(e.target.value)}
+                            className="w-full sm:w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* End Date/Time */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        End Date
+                      </label>
+                      <div className={`flex gap-2 ${showTimeInputs ? 'flex-col sm:flex-row' : ''}`}>
+                        <input
+                          type="date"
+                          value={customDateEnd}
+                          onChange={(e) => setCustomDateEnd(e.target.value)}
+                          min={customDateStart}
+                          max={new Date().toISOString().split('T')[0]}
+                          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                        {showTimeInputs && (
+                          <input
+                            type="time"
+                            value={customTimeEnd}
+                            onChange={(e) => setCustomTimeEnd(e.target.value)}
+                            className="w-full sm:w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Toggle Time Inputs */}
+                    <button
+                      type="button"
+                      onClick={() => setShowTimeInputs(!showTimeInputs)}
+                      className={`flex items-center gap-2 text-sm font-medium transition-colors ${
+                        showTimeInputs 
+                          ? 'text-blue-600 dark:text-blue-400' 
+                          : 'text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400'
+                      }`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {showTimeInputs ? 'Hide time options' : 'Add specific times'}
+                    </button>
+
+                    {/* Apply Button */}
+                    <button
+                      onClick={handleCustomDateRange}
+                      disabled={!customDateStart || !customDateEnd || loadingMore}
+                      className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {loadingMore ? (
+                        <div className="flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Loading...
+                        </div>
+                      ) : (
+                        'Apply Custom Range'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Info Text */}
+              <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Select a date range to filter and view transactions. You can then export the filtered data using the Export button.
                 </p>
               </div>
             </div>
@@ -3979,7 +4539,11 @@ export default function Dashboard() {
           <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black overflow-hidden sm:rounded-md">
             <ul className="divide-y divide-gray-200 dark:divide-gray-700">
               {transactions.slice(0, 5).map((tx) => (
-                <li key={tx.id} className="px-6 py-4">
+                <li 
+                  key={tx.id} 
+                  className="px-6 py-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                  onClick={() => setSelectedTransaction(tx)}
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
                       <div className={`flex-shrink-0 w-2 h-2 rounded-full mr-3 ${
@@ -3992,9 +4556,14 @@ export default function Dashboard() {
                         <p className="text-sm text-gray-500 dark:text-gray-400">{tx.memo}</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm text-gray-900 dark:text-gray-100">{tx.status}</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">{tx.date}</p>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right">
+                        <p className="text-sm text-gray-900 dark:text-gray-100">{tx.status}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{tx.date}</p>
+                      </div>
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                      </svg>
                     </div>
                   </div>
                 </li>
@@ -4003,13 +4572,197 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Past Transactions - Grouped by Month */}
+        {/* Past Transactions - Grouped by Month or Filtered */}
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Past Transactions</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+              {dateFilterActive ? 'Filtered Transactions' : 'Past Transactions'}
+            </h2>
+            {dateFilterActive && selectedDateRange && (
+              <button
+                onClick={clearDateFilter}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+              >
+                <span>{selectedDateRange.label}</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+
+          {/* Top Action Buttons - Always visible */}
+          <div className="mb-4">
+            <div className="flex gap-2 max-w-sm">
+              {/* Filter Button */}
+              <button
+                onClick={() => setShowDateRangeSelector(true)}
+                disabled={loadingMore}
+                className="flex-1 h-10 bg-white dark:bg-black border border-blue-500 dark:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Filter
+              </button>
+              
+              {/* Export Button */}
+              <button
+                onClick={() => setShowExportOptions(true)}
+                className="flex-1 h-10 bg-white dark:bg-black border border-yellow-500 dark:border-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Export
+              </button>
+            </div>
+          </div>
+
+          {/* Summary Stats - Show when date filter is active */}
+          {dateFilterActive && filteredTransactions.length > 0 && (() => {
+            const stats = getFilteredStats();
+            const currency = filteredTransactions[0]?.settlementCurrency || 'BTC';
+            const formatStatAmount = (amount) => {
+              if (currency === 'BTC') {
+                return `${Math.abs(amount).toLocaleString()} sats`;
+              } else if (currency === 'USD') {
+                return `$${(Math.abs(amount) / 100).toFixed(2)}`;
+              }
+              return `${Math.abs(amount).toLocaleString()} ${currency}`;
+            };
+            
+            return (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-3 text-center">
+                  <div className="text-xs text-green-600 dark:text-green-400 font-medium uppercase">Received</div>
+                  <div className="text-lg font-bold text-green-700 dark:text-green-300">{formatStatAmount(stats.totalReceived)}</div>
+                  <div className="text-xs text-green-500 dark:text-green-500">{stats.receiveCount} transactions</div>
+                </div>
+                <div className="bg-red-50 dark:bg-red-900/30 rounded-lg p-3 text-center">
+                  <div className="text-xs text-red-600 dark:text-red-400 font-medium uppercase">Sent</div>
+                  <div className="text-lg font-bold text-red-700 dark:text-red-300">{formatStatAmount(stats.totalSent)}</div>
+                  <div className="text-xs text-red-500 dark:text-red-500">{stats.sendCount} transactions</div>
+                </div>
+                <div className={`rounded-lg p-3 text-center ${stats.netAmount >= 0 ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-orange-50 dark:bg-orange-900/30'}`}>
+                  <div className={`text-xs font-medium uppercase ${stats.netAmount >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400'}`}>Net</div>
+                  <div className={`text-lg font-bold ${stats.netAmount >= 0 ? 'text-blue-700 dark:text-blue-300' : 'text-orange-700 dark:text-orange-300'}`}>
+                    {stats.netAmount >= 0 ? '+' : '-'}{formatStatAmount(stats.netAmount)}
+                  </div>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-center">
+                  <div className="text-xs text-gray-600 dark:text-gray-400 font-medium uppercase">Total</div>
+                  <div className="text-lg font-bold text-gray-700 dark:text-gray-300">{stats.transactionCount}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-500">transactions</div>
+                </div>
+              </div>
+            );
+          })()}
           
           {!pastTransactionsLoaded ? (
             <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6 text-center text-gray-500 dark:text-gray-400">
-              Click "Show" to load past transaction history
+              <div className="flex flex-col items-center gap-3">
+                <svg className="w-12 h-12 text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <p>Click "Show" to select a date range and view transactions</p>
+              </div>
+            </div>
+          ) : dateFilterActive && filteredTransactions.length === 0 ? (
+            <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6 text-center text-gray-500 dark:text-gray-400">
+              <div className="flex flex-col items-center gap-3">
+                <svg className="w-12 h-12 text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p>No transactions found for {selectedDateRange?.label || 'selected date range'}</p>
+                <button
+                  onClick={() => setShowDateRangeSelector(true)}
+                  className="mt-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Try Different Range
+                </button>
+              </div>
+            </div>
+          ) : dateFilterActive && filteredTransactions.length > 0 ? (
+            <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg overflow-hidden">
+              {/* Filtered Transactions List - Mobile */}
+              <div className="block sm:hidden">
+                <div className="p-4 space-y-3">
+                  {filteredTransactions.map((tx) => (
+                    <div 
+                      key={tx.id} 
+                      className="bg-white dark:bg-blink-dark rounded-lg p-4 border border-gray-200 dark:border-gray-700 cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-colors"
+                      onClick={() => setSelectedTransaction(tx)}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={`text-lg font-medium ${
+                          tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                        }`}>
+                          {tx.amount}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                            {tx.status}
+                          </span>
+                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="text-sm text-gray-900 dark:text-gray-100 mb-1">{tx.date}</div>
+                      {tx.memo && tx.memo !== '-' && (
+                        <div className="text-sm text-gray-500 dark:text-gray-400">{tx.memo}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Filtered Transactions Table - Desktop */}
+              <div className="hidden sm:block">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-800">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Memo</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white dark:bg-blink-dark divide-y divide-gray-200 dark:divide-gray-700">
+                      {filteredTransactions.map((tx) => (
+                        <tr 
+                          key={tx.id} 
+                          className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                          onClick={() => setSelectedTransaction(tx)}
+                        >
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`text-sm font-medium ${
+                              tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                            }`}>
+                              {tx.amount}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                              {tx.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{tx.date}</td>
+                          <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{tx.memo && tx.memo !== '-' ? tx.memo : '-'}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           ) : (() => {
             const monthGroups = getMonthGroups();
@@ -4068,16 +4821,25 @@ export default function Dashboard() {
                           <div className="block sm:hidden">
                             <div className="p-4 space-y-3">
                               {monthData.transactions.map((tx) => (
-                                <div key={tx.id} className="bg-white dark:bg-blink-dark rounded-lg p-4 border border-gray-200 dark:border-gray-700 transaction-card-mobile">
+                                <div 
+                                  key={tx.id} 
+                                  className="bg-white dark:bg-blink-dark rounded-lg p-4 border border-gray-200 dark:border-gray-700 transaction-card-mobile cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-colors"
+                                  onClick={() => setSelectedTransaction(tx)}
+                                >
                                   <div className="flex items-center justify-between mb-2">
                                     <span className={`text-lg font-medium ${
                                       tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                                     }`}>
                                       {tx.amount}
                                     </span>
-                                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
-                                      {tx.status}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                                        {tx.status}
+                                      </span>
+                                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                                      </svg>
+                                    </div>
                                   </div>
                                   <div className="text-sm text-gray-900 dark:text-gray-100 mb-1">{tx.date}</div>
                                   {tx.memo && tx.memo !== '-' && (
@@ -4106,11 +4868,16 @@ export default function Dashboard() {
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                       Memo
                                     </th>
+                                    <th className="px-6 py-3"></th>
                                   </tr>
                                 </thead>
                                 <tbody className="bg-white dark:bg-blink-dark divide-y divide-gray-200 dark:divide-gray-700">
                                   {monthData.transactions.map((tx) => (
-                                    <tr key={tx.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-blink-dark">
+                                    <tr 
+                                      key={tx.id} 
+                                      className="hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-blink-dark cursor-pointer"
+                                      onClick={() => setSelectedTransaction(tx)}
+                                    >
                                       <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`text-sm font-medium ${
                                           tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
@@ -4129,6 +4896,11 @@ export default function Dashboard() {
                                       <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
                                         {tx.memo && tx.memo !== '-' ? tx.memo : '-'}
                                       </td>
+                                      <td className="px-6 py-4 whitespace-nowrap">
+                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                                        </svg>
+                                      </td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -4144,51 +4916,91 @@ export default function Dashboard() {
             );
           })()}
           
-          {/* Action Buttons - Always visible */}
-          <div className="mt-6 px-4">
-            <div className={`grid gap-3 max-w-sm mx-auto ${hasMoreTransactions ? 'grid-cols-2' : 'grid-cols-1'}`}>
-              {/* Show / Show More Button */}
-              {hasMoreTransactions && (
-                <button
-                  onClick={pastTransactionsLoaded ? loadMoreMonths : loadPastTransactions}
-                  disabled={loadingMore}
-                  className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:border-gray-400 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-black rounded-lg text-lg font-normal transition-colors shadow-md"
-                  style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-                >
-                  {loadingMore ? (
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
-                      Loading...
-                    </div>
-                  ) : pastTransactionsLoaded ? (
-                    'Show More'
-                  ) : (
-                    'Show'
+          {/* Bottom Action Buttons - Show Filter/Export only when > 5 transactions loaded */}
+          {(() => {
+            const displayTxCount = dateFilterActive ? filteredTransactions.length : transactions.length;
+            const showBottomFilterExport = displayTxCount > 5;
+            const showMoreButton = pastTransactionsLoaded && hasMoreTransactions;
+            
+            // Don't show section at all if nothing to show
+            if (!showBottomFilterExport && !showMoreButton) return null;
+            
+            return (
+              <div className="mt-6 px-4">
+                <div className={`grid gap-3 max-w-sm mx-auto ${
+                  showBottomFilterExport && showMoreButton ? 'grid-cols-3' : 
+                  showMoreButton ? 'grid-cols-1' : 'grid-cols-2'
+                }`}>
+                  {/* Filter Button - Only when > 5 transactions */}
+                  {showBottomFilterExport && (
+                    <button
+                      onClick={() => setShowDateRangeSelector(true)}
+                      disabled={loadingMore}
+                      className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:border-gray-400 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-black rounded-lg text-lg font-normal transition-colors shadow-md"
+                      style={{fontFamily: "'Source Sans Pro', sans-serif"}}
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Filter
+                      </div>
+                    </button>
                   )}
-                </button>
-              )}
-              
-              {/* Export Button */}
-              <button
-                onClick={() => setShowExportOptions(true)}
-                className="h-16 bg-white dark:bg-black border-2 border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 rounded-lg text-lg font-normal transition-colors shadow-md"
-                style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-              >
-                Export
-              </button>
-            </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-2">
-              {!pastTransactionsLoaded && hasMoreTransactions
-                ? 'Load past transactions or export current data'
-                : hasMoreTransactions 
-                  ? 'Load more historical data or export transactions'
-                  : 'Export transaction data'}
-            </p>
-          </div>
+
+                  {/* Show More Button - Only when more data is available */}
+                  {showMoreButton && (
+                    <button
+                      onClick={loadMoreMonths}
+                      disabled={loadingMore}
+                      className="h-16 bg-white dark:bg-black border-2 border-gray-400 dark:border-gray-500 hover:border-gray-500 dark:hover:border-gray-400 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 disabled:border-gray-300 disabled:text-gray-300 disabled:cursor-not-allowed rounded-lg text-lg font-normal transition-colors shadow-md"
+                      style={{fontFamily: "'Source Sans Pro', sans-serif"}}
+                    >
+                      {loadingMore ? (
+                        <div className="flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                          Loading...
+                        </div>
+                      ) : (
+                        'More'
+                      )}
+                    </button>
+                  )}
+                  
+                  {/* Export Button - Only when > 5 transactions */}
+                  {showBottomFilterExport && (
+                    <button
+                      onClick={() => setShowExportOptions(true)}
+                      className="h-16 bg-white dark:bg-black border-2 border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                      style={{fontFamily: "'Source Sans Pro', sans-serif"}}
+                    >
+                      Export
+                    </button>
+                  )}
+                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-2">
+                  {dateFilterActive && selectedDateRange
+                    ? `Showing: ${selectedDateRange.label}`
+                    : hasMoreTransactions 
+                      ? 'Load more historical transactions'
+                      : 'All transactions loaded'}
+                </p>
+              </div>
+            );
+          })()}
         </div>
           </>
         )}
       </main>
+
+      {/* Transaction Detail Modal */}
+      {selectedTransaction && (
+        <TransactionDetail
+          transaction={selectedTransaction}
+          onClose={() => setSelectedTransaction(null)}
+          darkMode={darkMode}
+        />
+      )}
 
       {/* Settings Modal */}
     </div>

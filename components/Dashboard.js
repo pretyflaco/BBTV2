@@ -469,9 +469,12 @@ export default function Dashboard() {
       const key = await getApiKey();
       if (key) {
         setApiKey(key);
+        return key; // Return the key so callers can use it immediately
       }
+      return null;
     } catch (error) {
       console.error('Failed to get API key:', error);
+      return null;
     }
   };
 
@@ -601,12 +604,25 @@ export default function Dashboard() {
       prevActiveNWCRef.current = activeNWC?.id;
       prevActiveBlinkRef.current = activeBlinkAccount?.id;
       
-      // Clear existing transactions to prevent showing old wallet's data
+      // Clear existing transactions and reset all history state
       setTransactions([]);
+      setPastTransactionsLoaded(false);
+      setHasMoreTransactions(false);
+      setFilteredTransactions([]);
+      setDateFilterActive(false);
       
-      // If we're viewing transactions, refresh the data for the new active wallet
-      if (currentView === 'transactions') {
-        // Small delay to ensure the NWC client is ready after switching
+      // Refresh API key for the new account first, then fetch transactions
+      if (blinkChanged && activeBlinkAccount) {
+        fetchApiKey().then((newApiKey) => {
+          // If we're viewing transactions, refresh the data for the new active wallet
+          // Pass the new API key directly to avoid race condition with state update
+          if (currentView === 'transactions') {
+            console.log('[Dashboard] Refreshing transactions for new active Blink wallet, newApiKey:', newApiKey ? newApiKey.substring(0, 8) + '...' : 'none');
+            fetchData(newApiKey);
+          }
+        });
+      } else if (currentView === 'transactions') {
+        // For NWC changes, just fetch directly
         setTimeout(() => {
           console.log('[Dashboard] Refreshing transactions for new active wallet');
           fetchData();
@@ -654,7 +670,10 @@ export default function Dashboard() {
     }
   }, [lastPayment]);
 
-  const fetchData = async () => {
+  const fetchData = async (overrideApiKey = null) => {
+    // Use override API key if provided (for account switching), otherwise use state
+    const effectiveApiKey = overrideApiKey || apiKey;
+    
     // Check if NWC wallet is ACTIVE (user chose to use NWC for this session)
     const isNwcActive = activeNWC && nwcClientReady;
     const hasBlinkAccount = blinkAccounts && blinkAccounts.length > 0;
@@ -767,14 +786,14 @@ export default function Dashboard() {
     }
     
     // Skip if no Blink API credentials available
-    if (!apiKey && !hasServerSession) {
+    if (!effectiveApiKey && !hasServerSession) {
       console.log('No wallet credentials available for transaction fetch');
       setLoading(false);
       setTransactions([]);
       return;
     }
     
-    console.log('Fetching Blink transaction history for active Blink wallet');
+    console.log('Fetching Blink transaction history for active Blink wallet, apiKey:', effectiveApiKey ? effectiveApiKey.substring(0, 8) + '...' : 'none');
     
     try {
       setLoading(true);
@@ -785,11 +804,11 @@ export default function Dashboard() {
       
       try {
         // Build request headers
-        // - With server session: rely on auth-token cookie (more secure)
-        // - Without server session: include API key in header (fallback)
+        // Always include API key for Blink accounts to ensure correct account is used
+        // (server session may have cached a different account's key)
         const headers = {};
-        if (apiKey && !hasServerSession) {
-          headers['X-API-KEY'] = apiKey;
+        if (effectiveApiKey) {
+          headers['X-API-KEY'] = effectiveApiKey;
         }
 
         // Fetch transactions only (no balance for employee privacy)
@@ -1181,9 +1200,9 @@ export default function Dashboard() {
       const maxBatches = 5; // Load up to 5 more batches (500 more transactions)
       
       // Build request headers
-      // With server session: rely on cookie; without: include API key
+      // Always include API key to ensure correct account is used
       const headers = {};
-      if (apiKey && !hasServerSession) {
+      if (apiKey) {
         headers['X-API-KEY'] = apiKey;
       }
       
@@ -1241,9 +1260,9 @@ export default function Dashboard() {
     
     setLoadingMore(true);
     try {
-      // Build request headers
+      // Always include API key to ensure correct account is used
       const headers = {};
-      if (apiKey && !hasServerSession) {
+      if (apiKey) {
         headers['X-API-KEY'] = apiKey;
       }
       
@@ -1430,9 +1449,9 @@ export default function Dashboard() {
     setSelectedDateRange(dateRange);
     
     try {
-      // Build request headers
+      // Always include API key to ensure correct account is used
       const headers = {};
-      if (apiKey && !hasServerSession) {
+      if (apiKey) {
         headers['X-API-KEY'] = apiKey;
       }
       
@@ -1707,7 +1726,8 @@ export default function Dashboard() {
       const headers = {
         'Content-Type': 'application/json',
       };
-      if (apiKey && !hasServerSession) {
+      // Always include API key to ensure correct account is used
+      if (apiKey) {
         headers['X-API-KEY'] = apiKey;
       }
       
@@ -1764,9 +1784,9 @@ export default function Dashboard() {
     try {
       console.log('Starting basic transaction export...');
       
-      // Build request headers
+      // Always include API key to ensure correct account is used
       const headers = {};
-      if (apiKey && !hasServerSession) {
+      if (apiKey) {
         headers['X-API-KEY'] = apiKey;
       }
       
@@ -5301,8 +5321,8 @@ export default function Dashboard() {
                   {dateFilterActive && selectedDateRange
                     ? `Showing: ${selectedDateRange.label}`
                     : hasMoreTransactions 
-                      ? 'Load more historical transactions'
-                      : 'All transactions loaded'}
+                      ? `${transactions.length} transactions loaded · More available`
+                      : `All ${transactions.length} transactions loaded`}
                 </p>
               </div>
             );

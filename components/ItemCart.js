@@ -552,7 +552,7 @@ const ItemCart = ({
                           }`}
                         >
                           <span className="text-sm font-medium truncate">{item.name}</span>
-                          <span className="text-xs opacity-75">{item.price}</span>
+                          <span className="text-xs opacity-75">{formatDisplayAmount(item.price, displayCurrency)}</span>
                         </button>
                         
                         {/* Edit and Delete icons - moved towards center */}

@@ -11,7 +11,19 @@ import ItemCart from './ItemCart';
 import KeyManagementSection from './Settings/KeyManagementSection';
 import NWCClient from '../lib/nwc/NWCClient';
 import { isNpubCashAddress, validateNpubCashAddress, probeNpubCashAddress } from '../lib/lnurl';
-import TransactionDetail from './TransactionDetail';
+import TransactionDetail, { getTransactionLabel, initTransactionLabels } from './TransactionDetail';
+
+// Spinner colors matching the numpad buttons (rotates on each transition)
+const SPINNER_COLORS = [
+  'border-blue-600',    // Digits
+  'border-green-600',   // OK/Continue
+  'border-orange-500',  // Backspace
+  'border-red-600',     // Clear
+  'border-yellow-500',  // Skip tip
+  'border-purple-600',  // Variety
+  'border-cyan-500',    // Variety
+  'border-pink-500',    // Variety
+];
 
 // Predefined Tip Profiles for different regions
 const TIP_PROFILES = [
@@ -50,6 +62,8 @@ export default function Dashboard() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [currentView, setCurrentView] = useState('pos'); // 'cart', 'pos', or 'transactions'
+  const [isViewTransitioning, setIsViewTransitioning] = useState(false); // Loading animation between views
+  const [transitionColorIndex, setTransitionColorIndex] = useState(0); // Rotating spinner color
   const [cartCheckoutData, setCartCheckoutData] = useState(null); // Data from cart checkout to prefill POS
   const [displayCurrency, setDisplayCurrency] = useState('USD'); // 'USD' or 'BTC'
   const [wallets, setWallets] = useState([]);
@@ -142,7 +156,15 @@ export default function Dashboard() {
   const [filteredTransactions, setFilteredTransactions] = useState([]);
   const [dateFilterActive, setDateFilterActive] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null); // Transaction detail modal
-  
+  const [labelUpdateTrigger, setLabelUpdateTrigger] = useState(0); // Trigger re-render when labels change
+
+  // Transaction search state
+  const [isSearchingTx, setIsSearchingTx] = useState(false);
+  const [txSearchInput, setTxSearchInput] = useState(''); // Input field value
+  const [txSearchQuery, setTxSearchQuery] = useState(''); // Locked/active search query
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
+  const txSearchInputRef = useRef(null);
+
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
   
@@ -285,6 +307,11 @@ export default function Dashboard() {
           };
           syncPreferencesToServer(currentPrefs);
         }
+        
+        // Initialize transaction labels from server
+        await initTransactionLabels();
+        console.log('[Dashboard] Transaction labels synced from server');
+        
       } catch (err) {
         console.error('[Dashboard] Failed to fetch server preferences:', err);
       }
@@ -1542,14 +1569,6 @@ export default function Dashboard() {
     setShowTimeInputs(false);
   };
 
-  // Get display transactions (filtered or all)
-  const getDisplayTransactions = () => {
-    if (dateFilterActive && filteredTransactions.length > 0) {
-      return filteredTransactions;
-    }
-    return transactions;
-  };
-
   // Calculate summary stats for filtered transactions
   const getFilteredStats = () => {
     const txs = dateFilterActive ? filteredTransactions : transactions;
@@ -1578,6 +1597,91 @@ export default function Dashboard() {
       netAmount: totalReceived - totalSent,
       transactionCount: txs.length
     };
+  };
+
+  // Filter transactions by search query (memo, username, amount)
+  const filterTransactionsBySearch = (txList, query) => {
+    if (!query || !query.trim()) return txList;
+    const lowerQuery = query.toLowerCase().trim();
+    return txList.filter(tx => {
+      // Search in memo
+      if (tx.memo && tx.memo.toLowerCase().includes(lowerQuery)) return true;
+      // Search in amount string
+      if (tx.amount && tx.amount.toLowerCase().includes(lowerQuery)) return true;
+      // Search in counterparty username (from settlementVia or initiationVia)
+      const username = tx.settlementVia?.counterPartyUsername || tx.initiationVia?.counterPartyUsername;
+      if (username && username.toLowerCase().includes(lowerQuery)) return true;
+      return false;
+    });
+  };
+
+  // Get display transactions (applies search filter on top of date filter)
+  const getDisplayTransactions = () => {
+    const baseTxs = dateFilterActive ? filteredTransactions : transactions;
+    return filterTransactionsBySearch(baseTxs, txSearchQuery);
+  };
+
+  // Handle transaction search activation
+  const handleTxSearchClick = () => {
+    setIsSearchingTx(true);
+    setTxSearchInput(txSearchQuery); // Pre-fill with current search if any
+    setTimeout(() => {
+      txSearchInputRef.current?.focus();
+    }, 100);
+  };
+
+  // Handle transaction search submit (lock in the search)
+  const handleTxSearchSubmit = () => {
+    if (!txSearchInput.trim()) {
+      // If empty, just close the input
+      setIsSearchingTx(false);
+      return;
+    }
+    
+    // Show loading animation
+    setIsSearchLoading(true);
+    setIsSearchingTx(false); // Close input immediately
+    
+    // Brief delay to show loading, then apply search
+    setTimeout(() => {
+      setTxSearchQuery(txSearchInput.trim());
+      setIsSearchLoading(false);
+    }, 400);
+  };
+
+  // Handle Enter key in search input
+  const handleTxSearchKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleTxSearchSubmit();
+    } else if (e.key === 'Escape') {
+      setIsSearchingTx(false);
+      setTxSearchInput('');
+    }
+  };
+
+  // Handle transaction search close/clear
+  const handleTxSearchClose = () => {
+    setIsSearchingTx(false);
+    setTxSearchInput('');
+    setTxSearchQuery('');
+  };
+
+  // Handle view transition with loading animation
+  const handleViewTransition = (newView) => {
+    if (newView === currentView) return;
+    
+    // Rotate to next spinner color
+    setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);
+    
+    // Show loading animation
+    setIsViewTransitioning(true);
+    
+    // Brief delay to show the animation, then switch view
+    setTimeout(() => {
+      setCurrentView(newView);
+      setIsViewTransitioning(false);
+    }, 150);
   };
 
   const handleRefresh = () => {
@@ -1914,17 +2018,17 @@ export default function Dashboard() {
     // Navigation order: Cart ← → POS ← → Transactions
     // Left swipe: Cart → POS → Transactions
     // Right swipe: Transactions → POS → Cart
-    if (isLeftSwipe && !showingInvoice) {
+    if (isLeftSwipe && !showingInvoice && !isViewTransitioning) {
       if (currentView === 'cart') {
-        setCurrentView('pos');
+        handleViewTransition('pos');
       } else if (currentView === 'pos') {
-        setCurrentView('transactions');
+        handleViewTransition('transactions');
       }
-    } else if (isRightSwipe) {
+    } else if (isRightSwipe && !isViewTransitioning) {
       if (currentView === 'transactions') {
-        setCurrentView('pos');
+        handleViewTransition('pos');
       } else if (currentView === 'pos' && !showingInvoice) {
-        setCurrentView('cart');
+        handleViewTransition('cart');
       }
     }
 
@@ -2024,11 +2128,11 @@ export default function Dashboard() {
     }
   };
 
-  if (loading && transactions.length === 0) {
+  if (loading && transactions.length === 0 && !isViewTransitioning) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blink-accent mx-auto"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blink-accent border-t-transparent mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading transactions...</p>
         </div>
       </div>
@@ -2072,7 +2176,8 @@ export default function Dashboard() {
               {/* Navigation Dots - Center */}
               <div className="flex gap-2">
                 <button
-                  onClick={() => setCurrentView('cart')}
+                  onClick={() => handleViewTransition('cart')}
+                  disabled={isViewTransitioning}
                   className={`w-2 h-2 rounded-full transition-colors ${
                     currentView === 'cart'
                       ? 'bg-blink-accent'
@@ -2081,7 +2186,8 @@ export default function Dashboard() {
                   aria-label="Cart"
                 />
                 <button
-                  onClick={() => setCurrentView('pos')}
+                  onClick={() => handleViewTransition('pos')}
+                  disabled={isViewTransitioning}
                   className={`w-2 h-2 rounded-full transition-colors ${
                     currentView === 'pos'
                       ? 'bg-blink-accent'
@@ -2090,7 +2196,8 @@ export default function Dashboard() {
                   aria-label="POS"
                 />
                 <button
-                  onClick={() => setCurrentView('transactions')}
+                  onClick={() => handleViewTransition('transactions')}
+                  disabled={isViewTransitioning}
                   className={`w-2 h-2 rounded-full transition-colors ${
                     currentView === 'transactions'
                       ? 'bg-blink-accent'
@@ -2711,7 +2818,7 @@ export default function Dashboard() {
                 {/* Loading State */}
                 {splitProfilesLoading && (
                   <div className="flex justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blink-accent"></div>
+                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-blink-accent border-t-transparent"></div>
                   </div>
                 )}
 
@@ -2911,7 +3018,7 @@ export default function Dashboard() {
                     />
                     {recipientValidation.isValidating && (
                       <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blink-accent"></div>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-blink-accent border-t-transparent"></div>
                       </div>
                     )}
                     {recipientValidation.status === 'success' && (
@@ -4210,7 +4317,7 @@ export default function Dashboard() {
                       </p>
                     </div>
                     {exportingData ? (
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 dark:border-blue-400"></div>
+                      <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-600 dark:border-blue-400 border-t-transparent"></div>
                     ) : (
                       <div className="text-blue-600 dark:text-blue-400 text-xl">↓</div>
                     )}
@@ -4233,7 +4340,7 @@ export default function Dashboard() {
                       </p>
                     </div>
                     {exportingData ? (
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-yellow-600 dark:border-yellow-400"></div>
+                      <div className="animate-spin rounded-full h-6 w-6 border-2 border-yellow-600 dark:border-yellow-400 border-t-transparent"></div>
                     ) : (
                       <div className="text-yellow-600 dark:text-yellow-400 text-xl">↓</div>
                     )}
@@ -4392,7 +4499,7 @@ export default function Dashboard() {
                     >
                       {loadingMore ? (
                         <div className="flex items-center justify-center">
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
                           Loading...
                         </div>
                       ) : (
@@ -4480,6 +4587,13 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* View Transition Loading Overlay */}
+        {isViewTransitioning && (
+          <div className="fixed inset-0 z-40 bg-white/80 dark:bg-black/80 flex items-center justify-center backdrop-blur-sm">
+            <div className={`animate-spin rounded-full h-12 w-12 border-4 ${SPINNER_COLORS[transitionColorIndex]} border-t-transparent`}></div>
+          </div>
+        )}
+
         {/* Conditional Content Based on Current View */}
         {currentView === 'cart' ? (
           <div className="h-[calc(100vh-180px)] min-h-[400px]">
@@ -4490,11 +4604,12 @@ export default function Dashboard() {
               onCheckout={(checkoutData) => {
                 // Store checkout data and switch to POS
                 setCartCheckoutData(checkoutData);
-                setCurrentView('pos');
+                handleViewTransition('pos');
               }}
               soundEnabled={soundEnabled}
               darkMode={darkMode}
               toggleDarkMode={toggleDarkMode}
+              isViewTransitioning={isViewTransitioning}
             />
           </div>
         ) : currentView === 'pos' ? (
@@ -4530,6 +4645,12 @@ export default function Dashboard() {
             activeNpubCashWallet={activeNpubCashWallet}
             cartCheckoutData={cartCheckoutData}
             onCartCheckoutProcessed={() => setCartCheckoutData(null)}
+            onInternalTransition={() => {
+              // Rotate spinner color and show brief transition
+              setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);
+              setIsViewTransitioning(true);
+              setTimeout(() => setIsViewTransitioning(false), 120);
+            }}
           />
         ) : (
           <>
@@ -4574,49 +4695,119 @@ export default function Dashboard() {
 
         {/* Past Transactions - Grouped by Month or Filtered */}
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {dateFilterActive ? 'Filtered Transactions' : 'Past Transactions'}
-            </h2>
-            {dateFilterActive && selectedDateRange && (
+          {/* Title Row - Own line */}
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+            {dateFilterActive ? 'Filtered Transactions' : 'Past Transactions'}
+          </h2>
+          
+          {/* Date Range Tag - Own line when active */}
+          {dateFilterActive && selectedDateRange && (
+            <div className="mb-4">
               <button
                 onClick={clearDateFilter}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
               >
                 <span>{selectedDateRange.label}</span>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Top Action Buttons - Always visible */}
           <div className="mb-4">
-            <div className="flex gap-2 max-w-sm">
-              {/* Filter Button */}
-              <button
-                onClick={() => setShowDateRangeSelector(true)}
-                disabled={loadingMore}
-                className="flex-1 h-10 bg-white dark:bg-black border border-blue-500 dark:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                Filter
-              </button>
-              
-              {/* Export Button */}
-              <button
-                onClick={() => setShowExportOptions(true)}
-                className="flex-1 h-10 bg-white dark:bg-black border border-yellow-500 dark:border-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Export
-              </button>
-            </div>
+            {isSearchingTx ? (
+              /* Expanded Search Input */
+              <div className="max-w-sm h-10 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 rounded-lg flex items-center shadow-md">
+                {/* Cancel button */}
+                <button
+                  onClick={() => { setIsSearchingTx(false); setTxSearchInput(''); }}
+                  className="w-10 h-full flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+                <input
+                  ref={txSearchInputRef}
+                  type="text"
+                  value={txSearchInput}
+                  onChange={(e) => setTxSearchInput(e.target.value)}
+                  onKeyDown={handleTxSearchKeyDown}
+                  placeholder="Search memo, amount, username..."
+                  className="flex-1 h-full bg-transparent text-gray-900 dark:text-white focus:outline-none text-sm"
+                  autoFocus
+                />
+                {/* Submit button */}
+                <button
+                  onClick={handleTxSearchSubmit}
+                  disabled={!txSearchInput.trim()}
+                  className="w-10 h-full flex items-center justify-center text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300 disabled:text-gray-300 dark:disabled:text-gray-600 transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              /* Filter, Search, Export buttons row */
+              <div className="flex gap-2 max-w-sm">
+                {/* Filter Button */}
+                <button
+                  onClick={() => setShowDateRangeSelector(true)}
+                  disabled={loadingMore}
+                  className="flex-1 h-10 bg-white dark:bg-black border border-blue-500 dark:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Filter
+                </button>
+                
+                {/* Search Button */}
+                <button
+                  onClick={txSearchQuery ? handleTxSearchClose : handleTxSearchClick}
+                  className={`flex-1 h-10 bg-white dark:bg-black border rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                    txSearchQuery 
+                      ? 'border-orange-500 dark:border-orange-400 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-300' 
+                      : 'border-orange-500 dark:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400'
+                  }`}
+                >
+                  {isSearchLoading ? (
+                    /* Loading spinner */
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-orange-500 border-t-transparent"></div>
+                  ) : txSearchQuery ? (
+                    /* Active search - show query with X */
+                    <>
+                      <span className="truncate max-w-[80px]">"{txSearchQuery}"</span>
+                      <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </>
+                  ) : (
+                    /* Default search icon */
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      Search
+                    </>
+                  )}
+                </button>
+                
+                {/* Export Button */}
+                <button
+                  onClick={() => setShowExportOptions(true)}
+                  className="flex-1 h-10 bg-white dark:bg-black border border-yellow-500 dark:border-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Export
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Summary Stats - Show when date filter is active */}
@@ -4683,90 +4874,189 @@ export default function Dashboard() {
                 </button>
               </div>
             </div>
-          ) : dateFilterActive && filteredTransactions.length > 0 ? (
-            <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg overflow-hidden">
-              {/* Filtered Transactions List - Mobile */}
-              <div className="block sm:hidden">
-                <div className="p-4 space-y-3">
-                  {filteredTransactions.map((tx) => (
-                    <div 
-                      key={tx.id} 
-                      className="bg-white dark:bg-blink-dark rounded-lg p-4 border border-gray-200 dark:border-gray-700 cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-colors"
-                      onClick={() => setSelectedTransaction(tx)}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className={`text-lg font-medium ${
-                          tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                        }`}>
-                          {tx.amount}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
-                            {tx.status}
-                          </span>
-                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                          </svg>
-                        </div>
-                      </div>
-                      <div className="text-sm text-gray-900 dark:text-gray-100 mb-1">{tx.date}</div>
-                      {tx.memo && tx.memo !== '-' && (
-                        <div className="text-sm text-gray-500 dark:text-gray-400">{tx.memo}</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+          ) : isSearchLoading ? (
+            /* Search Loading State */
+            <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-8 text-center">
+              <div className="flex flex-col items-center gap-3">
+                <div className="animate-spin rounded-full h-8 w-8 border-3 border-orange-500 border-t-transparent"></div>
+                <p className="text-gray-500 dark:text-gray-400 text-sm">Searching...</p>
               </div>
+            </div>
+          ) : dateFilterActive && filteredTransactions.length > 0 ? (
+            (() => {
+              const displayTxs = getDisplayTransactions();
 
-              {/* Filtered Transactions Table - Desktop */}
-              <div className="hidden sm:block">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead className="bg-gray-50 dark:bg-gray-800">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Memo</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white dark:bg-blink-dark divide-y divide-gray-200 dark:divide-gray-700">
-                      {filteredTransactions.map((tx) => (
-                        <tr 
-                          key={tx.id} 
-                          className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
-                          onClick={() => setSelectedTransaction(tx)}
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`text-sm font-medium ${
-                              tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                            }`}>
-                              {tx.amount}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
-                              {tx.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{tx.date}</td>
-                          <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{tx.memo && tx.memo !== '-' ? tx.memo : '-'}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right">
-                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                            </svg>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              if (displayTxs.length === 0 && txSearchQuery) {
+                // Search returned no results
+                return (
+                  <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6 text-center text-gray-500 dark:text-gray-400">
+                    <div className="flex flex-col items-center gap-3">
+                      <svg className="w-12 h-12 text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <p>No transactions match "{txSearchQuery}"</p>
+                      <button
+                        onClick={handleTxSearchClose}
+                        className="mt-2 px-4 py-2 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                      >
+                        Clear Search
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+              
+              return (
+                <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg overflow-hidden">
+                  {/* Search Results Count */}
+                  {txSearchQuery && (
+                    <div className="px-4 py-2 bg-orange-50 dark:bg-orange-900/20 border-b border-orange-200 dark:border-orange-800">
+                      <span className="text-sm text-orange-700 dark:text-orange-300">
+                        Found {displayTxs.length} result{displayTxs.length !== 1 ? 's' : ''} for "{txSearchQuery}"
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Filtered Transactions List - Mobile */}
+                  <div className="block sm:hidden">
+                    <div className="p-4 space-y-3">
+                      {displayTxs.map((tx) => {
+                        const txLabel = getTransactionLabel(tx.id);
+                        return (
+                          <div 
+                            key={tx.id} 
+                            className={`bg-white dark:bg-blink-dark rounded-lg p-4 border cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-colors ${
+                              txLabel.id !== 'none' 
+                                ? `${txLabel.borderLight} dark:${txLabel.borderDark}` 
+                                : 'border-gray-200 dark:border-gray-700'
+                            }`}
+                            onClick={() => setSelectedTransaction(tx)}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                {/* Label indicator dot */}
+                                {txLabel.id !== 'none' && (
+                                  <div className={`w-2.5 h-2.5 rounded-full ${txLabel.bgLight} dark:${txLabel.bgDark}`} 
+                                    style={{ backgroundColor: txLabel.color === 'blue' ? '#3b82f6' : txLabel.color === 'purple' ? '#a855f7' : txLabel.color === 'orange' ? '#f97316' : txLabel.color === 'cyan' ? '#06b6d4' : txLabel.color === 'green' ? '#22c55e' : txLabel.color === 'red' ? '#ef4444' : txLabel.color === 'pink' ? '#ec4899' : txLabel.color === 'amber' ? '#f59e0b' : '#6b7280' }}
+                                  />
+                                )}
+                                <span className={`text-lg font-medium ${
+                                  tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                                }`}>
+                                  {tx.amount}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                                  {tx.status}
+                                </span>
+                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                                </svg>
+                              </div>
+                            </div>
+                            <div className="text-sm text-gray-900 dark:text-gray-100 mb-1">{tx.date}</div>
+                            {tx.memo && tx.memo !== '-' && (
+                              <div className="text-sm text-gray-500 dark:text-gray-400">{tx.memo}</div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Filtered Transactions Table - Desktop */}
+                  <div className="hidden sm:block">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead className="bg-gray-50 dark:bg-gray-800">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Memo</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white dark:bg-blink-dark divide-y divide-gray-200 dark:divide-gray-700">
+                          {displayTxs.map((tx) => (
+                            <tr 
+                              key={tx.id} 
+                              className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                              onClick={() => setSelectedTransaction(tx)}
+                            >
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className={`text-sm font-medium ${
+                                  tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                                }`}>
+                                  {tx.amount}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                                  {tx.status}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{tx.date}</td>
+                              <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{tx.memo && tx.memo !== '-' ? tx.memo : '-'}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-right">
+                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                                </svg>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
+              );
+            })()
+          ) : isSearchLoading ? (
+            /* Search Loading State (for month-grouped view) */
+            <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-8 text-center">
+              <div className="flex flex-col items-center gap-3">
+                <div className="animate-spin rounded-full h-8 w-8 border-3 border-orange-500 border-t-transparent"></div>
+                <p className="text-gray-500 dark:text-gray-400 text-sm">Searching...</p>
               </div>
             </div>
           ) : (() => {
             const monthGroups = getMonthGroups();
-            const monthKeys = Object.keys(monthGroups);
+
+            // Apply search filter to month groups if search is active
+            const filteredMonthGroups = {};
+            Object.entries(monthGroups).forEach(([monthKey, monthData]) => {
+              const filteredTxs = filterTransactionsBySearch(monthData.transactions, txSearchQuery);
+              if (filteredTxs.length > 0) {
+                filteredMonthGroups[monthKey] = {
+                  ...monthData,
+                  transactions: filteredTxs
+                };
+              }
+            });
+            
+            const monthKeys = Object.keys(filteredMonthGroups);
+            
+            // Show search no results message
+            if (monthKeys.length === 0 && txSearchQuery) {
+              return (
+                <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6 text-center text-gray-500 dark:text-gray-400">
+                  <div className="flex flex-col items-center gap-3">
+                    <svg className="w-12 h-12 text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <p>No transactions match "{txSearchQuery}"</p>
+                    <button
+                      onClick={handleTxSearchClose}
+                      className="mt-2 px-4 py-2 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                    >
+                      Clear Search
+                    </button>
+                  </div>
+                </div>
+              );
+            }
             
             if (monthKeys.length === 0) {
               return (
@@ -4776,10 +5066,24 @@ export default function Dashboard() {
               );
             }
             
+            // Calculate total search results count
+            const totalSearchResults = txSearchQuery 
+              ? Object.values(filteredMonthGroups).reduce((sum, m) => sum + m.transactions.length, 0)
+              : 0;
+            
             return (
               <div className="space-y-4">
+                {/* Search Results Count */}
+                {txSearchQuery && (
+                  <div className="px-4 py-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                    <span className="text-sm text-orange-700 dark:text-orange-300">
+                      Found {totalSearchResults} result{totalSearchResults !== 1 ? 's' : ''} for "{txSearchQuery}"
+                    </span>
+                  </div>
+                )}
+                
                 {monthKeys.map(monthKey => {
-                  const monthData = monthGroups[monthKey];
+                  const monthData = filteredMonthGroups[monthKey];
                   const isExpanded = expandedMonths.has(monthKey);
                   const transactionCount = monthData.transactions.length;
                   
@@ -4820,33 +5124,48 @@ export default function Dashboard() {
                           {/* Mobile-friendly card layout for small screens */}
                           <div className="block sm:hidden">
                             <div className="p-4 space-y-3">
-                              {monthData.transactions.map((tx) => (
-                                <div 
-                                  key={tx.id} 
-                                  className="bg-white dark:bg-blink-dark rounded-lg p-4 border border-gray-200 dark:border-gray-700 transaction-card-mobile cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-colors"
-                                  onClick={() => setSelectedTransaction(tx)}
-                                >
-                                  <div className="flex items-center justify-between mb-2">
-                                    <span className={`text-lg font-medium ${
-                                      tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                                    }`}>
-                                      {tx.amount}
-                                    </span>
-                                    <div className="flex items-center gap-2">
-                                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
-                                        {tx.status}
-                                      </span>
-                                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                                      </svg>
+                              {monthData.transactions.map((tx) => {
+                                const txLabel = getTransactionLabel(tx.id);
+                                return (
+                                  <div 
+                                    key={tx.id} 
+                                    className={`bg-white dark:bg-blink-dark rounded-lg p-4 border transaction-card-mobile cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-colors ${
+                                      txLabel.id !== 'none' 
+                                        ? `${txLabel.borderLight} dark:${txLabel.borderDark}` 
+                                        : 'border-gray-200 dark:border-gray-700'
+                                    }`}
+                                    onClick={() => setSelectedTransaction(tx)}
+                                  >
+                                    <div className="flex items-center justify-between mb-2">
+                                      <div className="flex items-center gap-2">
+                                        {/* Label indicator dot */}
+                                        {txLabel.id !== 'none' && (
+                                          <div className={`w-2.5 h-2.5 rounded-full`} 
+                                            style={{ backgroundColor: txLabel.color === 'blue' ? '#3b82f6' : txLabel.color === 'purple' ? '#a855f7' : txLabel.color === 'orange' ? '#f97316' : txLabel.color === 'cyan' ? '#06b6d4' : txLabel.color === 'green' ? '#22c55e' : txLabel.color === 'red' ? '#ef4444' : txLabel.color === 'pink' ? '#ec4899' : txLabel.color === 'amber' ? '#f59e0b' : '#6b7280' }}
+                                          />
+                                        )}
+                                        <span className={`text-lg font-medium ${
+                                          tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                                        }`}>
+                                          {tx.amount}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                                          {tx.status}
+                                        </span>
+                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                                        </svg>
+                                      </div>
                                     </div>
+                                    <div className="text-sm text-gray-900 dark:text-gray-100 mb-1">{tx.date}</div>
+                                    {tx.memo && tx.memo !== '-' && (
+                                      <div className="text-sm text-gray-500 dark:text-gray-400">{tx.memo}</div>
+                                    )}
                                   </div>
-                                  <div className="text-sm text-gray-900 dark:text-gray-100 mb-1">{tx.date}</div>
-                                  {tx.memo && tx.memo !== '-' && (
-                                    <div className="text-sm text-gray-500 dark:text-gray-400">{tx.memo}</div>
-                                  )}
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           </div>
 
@@ -4958,7 +5277,7 @@ export default function Dashboard() {
                     >
                       {loadingMore ? (
                         <div className="flex items-center justify-center">
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent mr-2"></div>
                           Loading...
                         </div>
                       ) : (
@@ -4999,6 +5318,7 @@ export default function Dashboard() {
           transaction={selectedTransaction}
           onClose={() => setSelectedTransaction(null)}
           darkMode={darkMode}
+          onLabelChange={() => setLabelUpdateTrigger(prev => prev + 1)}
         />
       )}
 

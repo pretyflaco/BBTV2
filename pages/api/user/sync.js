@@ -144,6 +144,7 @@ async function handleGet(req, res, pubkey, username) {
     npubCashWallets: userData.npubCashWallets || [],
     nwcConnections,
     preferences: userData.preferences || getDefaultPreferences(),
+    transactionLabels: userData.transactionLabels || {},
     lastSynced: userData.lastSynced || null
   });
 }
@@ -224,7 +225,7 @@ async function handlePatch(req, res, pubkey, username) {
   
   const { field, data } = req.body;
   
-  const validFields = ['blinkApiAccounts', 'blinkLnAddressWallets', 'npubCashWallets', 'nwcConnections', 'preferences'];
+  const validFields = ['blinkApiAccounts', 'blinkLnAddressWallets', 'npubCashWallets', 'nwcConnections', 'preferences', 'transactionLabels'];
   if (!field || !validFields.includes(field)) {
     return res.status(400).json({ error: `Invalid field. Must be one of: ${validFields.join(', ')}` });
   }

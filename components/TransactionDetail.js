@@ -4,7 +4,107 @@
  * Inspired by blink-mobile transaction detail screen
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+
+// Predefined label options with colors
+const TRANSACTION_LABELS = [
+  { id: 'none', name: 'No Label', color: 'gray', bgLight: 'bg-gray-100', bgDark: 'bg-gray-800', textLight: 'text-gray-600', textDark: 'text-gray-400', borderLight: 'border-gray-300', borderDark: 'border-gray-600' },
+  { id: 'personal', name: 'Personal', color: 'blue', bgLight: 'bg-blue-100', bgDark: 'bg-blue-900/30', textLight: 'text-blue-700', textDark: 'text-blue-300', borderLight: 'border-blue-400', borderDark: 'border-blue-500' },
+  { id: 'business', name: 'Business', color: 'purple', bgLight: 'bg-purple-100', bgDark: 'bg-purple-900/30', textLight: 'text-purple-700', textDark: 'text-purple-300', borderLight: 'border-purple-400', borderDark: 'border-purple-500' },
+  { id: 'refund', name: 'Refund', color: 'orange', bgLight: 'bg-orange-100', bgDark: 'bg-orange-900/30', textLight: 'text-orange-700', textDark: 'text-orange-300', borderLight: 'border-orange-400', borderDark: 'border-orange-500' },
+  { id: 'subscription', name: 'Subscription', color: 'cyan', bgLight: 'bg-cyan-100', bgDark: 'bg-cyan-900/30', textLight: 'text-cyan-700', textDark: 'text-cyan-300', borderLight: 'border-cyan-400', borderDark: 'border-cyan-500' },
+  { id: 'salary', name: 'Salary/Income', color: 'green', bgLight: 'bg-green-100', bgDark: 'bg-green-900/30', textLight: 'text-green-700', textDark: 'text-green-300', borderLight: 'border-green-400', borderDark: 'border-green-500' },
+  { id: 'expense', name: 'Expense', color: 'red', bgLight: 'bg-red-100', bgDark: 'bg-red-900/30', textLight: 'text-red-700', textDark: 'text-red-300', borderLight: 'border-red-400', borderDark: 'border-red-500' },
+  { id: 'gift', name: 'Gift', color: 'pink', bgLight: 'bg-pink-100', bgDark: 'bg-pink-900/30', textLight: 'text-pink-700', textDark: 'text-pink-300', borderLight: 'border-pink-400', borderDark: 'border-pink-500' },
+  { id: 'savings', name: 'Savings', color: 'amber', bgLight: 'bg-amber-100', bgDark: 'bg-amber-900/30', textLight: 'text-amber-700', textDark: 'text-amber-300', borderLight: 'border-amber-400', borderDark: 'border-amber-500' },
+];
+
+// Storage key for transaction labels (localStorage cache)
+const TX_LABELS_STORAGE_KEY = 'blinkpos_tx_labels';
+
+// In-memory cache for labels (populated from server/localStorage)
+let labelsCache = null;
+
+// Load labels from localStorage (cache)
+const loadLocalLabels = () => {
+  try {
+    const stored = localStorage.getItem(TX_LABELS_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch (err) {
+    console.error('Failed to load transaction labels from localStorage:', err);
+    return {};
+  }
+};
+
+// Save labels to localStorage (cache)
+const saveLocalLabels = (labels) => {
+  try {
+    localStorage.setItem(TX_LABELS_STORAGE_KEY, JSON.stringify(labels));
+    labelsCache = labels;
+  } catch (err) {
+    console.error('Failed to save transaction labels to localStorage:', err);
+  }
+};
+
+// Load labels from server
+const loadServerLabels = async () => {
+  try {
+    const response = await fetch('/api/user/sync');
+    if (response.ok) {
+      const data = await response.json();
+      if (data.transactionLabels) {
+        // Merge server labels with local (server takes precedence for conflicts)
+        const localLabels = loadLocalLabels();
+        const mergedLabels = { ...localLabels, ...data.transactionLabels };
+        saveLocalLabels(mergedLabels);
+        return mergedLabels;
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load transaction labels from server:', err);
+  }
+  return loadLocalLabels();
+};
+
+// Save labels to server
+const saveServerLabels = async (labels) => {
+  try {
+    const response = await fetch('/api/user/sync', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        field: 'transactionLabels',
+        data: labels
+      })
+    });
+    if (!response.ok) {
+      console.error('Failed to sync transaction labels to server');
+    }
+  } catch (err) {
+    console.error('Failed to save transaction labels to server:', err);
+  }
+};
+
+// Get all labels (from cache or load)
+export const getAllTransactionLabels = () => {
+  if (labelsCache === null) {
+    labelsCache = loadLocalLabels();
+  }
+  return labelsCache;
+};
+
+// Get label for a specific transaction
+export const getTransactionLabel = (txId) => {
+  const labels = getAllTransactionLabels();
+  const labelId = labels[txId];
+  return TRANSACTION_LABELS.find(l => l.id === labelId) || TRANSACTION_LABELS[0];
+};
+
+// Initialize labels from server (call on app mount)
+export const initTransactionLabels = async () => {
+  labelsCache = await loadServerLabels();
+  return labelsCache;
+};
 
 // Helper to determine transaction type from settlementVia
 const getTransactionType = (settlementVia) => {
@@ -91,8 +191,104 @@ const DetailRow = ({ label, value, copyable = false, onCopy, externalLink, darkM
   );
 };
 
-export default function TransactionDetail({ transaction, onClose, darkMode = false }) {
+// Label Selector Component
+const LabelSelector = ({ currentLabel, onSelectLabel, darkMode, isSyncing }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  return (
+    <div className="mb-4">
+      <div className="flex items-center justify-between mb-1">
+        <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+          Label
+        </span>
+        {isSyncing && (
+          <span className="text-xs text-blue-500 dark:text-blue-400 flex items-center gap-1">
+            <div className="animate-spin rounded-full h-3 w-3 border border-blue-500 border-t-transparent"></div>
+            Syncing...
+          </span>
+        )}
+      </div>
+      
+      {/* Current Label / Toggle Button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full p-3 rounded-lg border-2 transition-colors flex items-center justify-between ${
+          darkMode 
+            ? `${currentLabel.bgDark} ${currentLabel.borderDark}` 
+            : `${currentLabel.bgLight} ${currentLabel.borderLight}`
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          {/* Color dot */}
+          <div className={`w-3 h-3 rounded-full`} style={{
+            backgroundColor: currentLabel.color === 'gray' ? '#6b7280' : currentLabel.color === 'blue' ? '#3b82f6' : currentLabel.color === 'purple' ? '#a855f7' : currentLabel.color === 'orange' ? '#f97316' : currentLabel.color === 'cyan' ? '#06b6d4' : currentLabel.color === 'green' ? '#22c55e' : currentLabel.color === 'red' ? '#ef4444' : currentLabel.color === 'pink' ? '#ec4899' : currentLabel.color === 'amber' ? '#f59e0b' : '#6b7280'
+          }}></div>
+          <span className={`text-sm font-medium ${darkMode ? currentLabel.textDark : currentLabel.textLight}`}>
+            {currentLabel.name}
+          </span>
+        </div>
+        <svg 
+          className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''} ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} 
+          fill="none" 
+          stroke="currentColor" 
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      
+      {/* Dropdown Options */}
+      {isOpen && (
+        <div className={`mt-2 rounded-lg border overflow-hidden ${
+          darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+        }`}>
+          {TRANSACTION_LABELS.map((label) => (
+            <button
+              key={label.id}
+              onClick={() => {
+                onSelectLabel(label);
+                setIsOpen(false);
+              }}
+              className={`w-full px-4 py-3 flex items-center gap-3 transition-colors ${
+                currentLabel.id === label.id
+                  ? darkMode ? 'bg-gray-700' : 'bg-gray-100'
+                  : darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
+              }`}
+            >
+              {/* Color indicator */}
+              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center`} style={{
+                borderColor: label.color === 'gray' ? '#6b7280' : label.color === 'blue' ? '#3b82f6' : label.color === 'purple' ? '#a855f7' : label.color === 'orange' ? '#f97316' : label.color === 'cyan' ? '#06b6d4' : label.color === 'green' ? '#22c55e' : label.color === 'red' ? '#ef4444' : label.color === 'pink' ? '#ec4899' : label.color === 'amber' ? '#f59e0b' : '#6b7280',
+                backgroundColor: label.id !== 'none' ? (label.color === 'gray' ? '#6b728020' : label.color === 'blue' ? '#3b82f620' : label.color === 'purple' ? '#a855f720' : label.color === 'orange' ? '#f9731620' : label.color === 'cyan' ? '#06b6d420' : label.color === 'green' ? '#22c55e20' : label.color === 'red' ? '#ef444420' : label.color === 'pink' ? '#ec489920' : label.color === 'amber' ? '#f59e0b20' : '#6b728020') : 'transparent'
+              }}>
+                {currentLabel.id === label.id && (
+                  <svg className="w-2.5 h-2.5" style={{ color: label.color === 'gray' ? '#6b7280' : label.color === 'blue' ? '#3b82f6' : label.color === 'purple' ? '#a855f7' : label.color === 'orange' ? '#f97316' : label.color === 'cyan' ? '#06b6d4' : label.color === 'green' ? '#22c55e' : label.color === 'red' ? '#ef4444' : label.color === 'pink' ? '#ec4899' : label.color === 'amber' ? '#f59e0b' : '#6b7280' }} fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
+              <span className={`text-sm font-medium ${darkMode ? label.textDark : label.textLight}`}>
+                {label.name}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default function TransactionDetail({ transaction, onClose, darkMode = false, onLabelChange }) {
   const [toast, setToast] = useState(null);
+  const [currentLabel, setCurrentLabel] = useState(TRANSACTION_LABELS[0]);
+  const [isSyncing, setIsSyncing] = useState(false);
+  
+  // Load label for this transaction on mount
+  useEffect(() => {
+    if (transaction?.id) {
+      const label = getTransactionLabel(transaction.id);
+      setCurrentLabel(label);
+    }
+  }, [transaction?.id]);
   
   if (!transaction) return null;
   
@@ -114,6 +310,36 @@ export default function TransactionDetail({ transaction, onClose, darkMode = fal
   
   const isReceive = direction === 'RECEIVE';
   const txType = getTransactionType(settlementVia);
+  
+  // Handle label selection
+  const handleSelectLabel = async (label) => {
+    setCurrentLabel(label);
+    setIsSyncing(true);
+    
+    // Update local cache
+    const labels = getAllTransactionLabels();
+    if (label.id === 'none') {
+      delete labels[id];
+    } else {
+      labels[id] = label.id;
+    }
+    
+    // Save to localStorage immediately
+    saveLocalLabels(labels);
+    
+    // Show confirmation toast
+    setToast(label.id === 'none' ? 'Label removed' : `Labeled as "${label.name}"`);
+    setTimeout(() => setToast(null), 2000);
+    
+    // Notify parent if callback provided
+    if (onLabelChange) {
+      onLabelChange(id, label);
+    }
+    
+    // Sync to server in background
+    await saveServerLabels(labels);
+    setIsSyncing(false);
+  };
   
   // Get counterparty info
   const getCounterparty = () => {
@@ -213,6 +439,20 @@ export default function TransactionDetail({ transaction, onClose, darkMode = fal
         {/* Amount Header Section */}
         <div className={`py-8 px-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
           <div className="max-w-md mx-auto text-center">
+            {/* Label Badge - Show above amount if labeled */}
+            {currentLabel.id !== 'none' && (
+              <div className="mb-3">
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
+                  darkMode ? currentLabel.bgDark : currentLabel.bgLight
+                } ${darkMode ? currentLabel.textDark : currentLabel.textLight}`}>
+                  <div className={`w-2 h-2 rounded-full`} style={{
+                    backgroundColor: currentLabel.color === 'blue' ? '#3b82f6' : currentLabel.color === 'purple' ? '#a855f7' : currentLabel.color === 'orange' ? '#f97316' : currentLabel.color === 'cyan' ? '#06b6d4' : currentLabel.color === 'green' ? '#22c55e' : currentLabel.color === 'red' ? '#ef4444' : currentLabel.color === 'pink' ? '#ec4899' : currentLabel.color === 'amber' ? '#f59e0b' : '#6b7280'
+                  }}></div>
+                  {currentLabel.name}
+                </span>
+              </div>
+            )}
+            
             {/* Direction Icon */}
             <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
               isReceive 
@@ -255,6 +495,14 @@ export default function TransactionDetail({ transaction, onClose, darkMode = fal
 
         {/* Transaction Details */}
         <div className="max-w-md mx-auto px-4 py-6">
+          {/* Label Selector */}
+          <LabelSelector
+            currentLabel={currentLabel}
+            onSelectLabel={handleSelectLabel}
+            darkMode={darkMode}
+            isSyncing={isSyncing}
+          />
+          
           {/* Account/Wallet */}
           <DetailRow
             label={isReceive ? 'Receiving Account' : 'Sending Account'}

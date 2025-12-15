@@ -3,7 +3,7 @@ import QRCode from 'react-qr-code';
 import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
 import { useNFC } from './NFCPayment';
 
-const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed }) => {
+const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition }) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -45,6 +45,10 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
   useEffect(() => {
     if (pendingTipSelection !== null) {
       const newTipPercent = pendingTipSelection;
+      
+      // Trigger transition animation when confirming tip selection
+      if (onInternalTransition) onInternalTransition();
+      
       setSelectedTipPercent(newTipPercent);
       setShowTipDialog(false);
       setPendingTipSelection(null);
@@ -399,6 +403,12 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
 
   const handleClear = () => {
     playKeystrokeSound();
+    
+    // Trigger transition animation when canceling from invoice view
+    if (invoice && onInternalTransition) {
+      onInternalTransition();
+    }
+    
     setAmount('');
     setTotal(0);
     setItems([]);
@@ -484,6 +494,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
 
     // Show tip overlay if tips are enabled and we haven't skipped it
     if (tipsEnabled && tipRecipients && tipRecipients.length > 0 && !shouldSkipTipDialog && effectiveTipPercent === 0) {
+      if (onInternalTransition) onInternalTransition();
       setShowTipDialog(true);
       return;
     }
@@ -732,7 +743,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
         {/* Loading Animation - Contained in center */}
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center bg-gray-50 dark:bg-blink-dark rounded-lg p-8 shadow-lg">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blink-accent mb-4"></div>
+            <div className="animate-spin rounded-full h-16 w-16 border-4 border-blink-accent border-t-transparent mb-4"></div>
             <div className="text-xl font-semibold text-gray-800 dark:text-gray-100">
               Creating Invoice...
             </div>
@@ -1118,7 +1129,10 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
               
               {/* Cancel and No Tip buttons */}
               <button
-                onClick={() => setShowTipDialog(false)}
+                onClick={() => {
+                  if (onInternalTransition) onInternalTransition();
+                  setShowTipDialog(false);
+                }}
                 className="col-span-2 h-16 bg-white dark:bg-black border-2 border-red-500 hover:border-red-600 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-lg font-normal transition-colors shadow-md"
               >
                 Cancel

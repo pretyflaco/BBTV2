@@ -8,7 +8,8 @@ const ItemCart = ({
   onCheckout,
   soundEnabled,
   darkMode,
-  toggleDarkMode 
+  toggleDarkMode,
+  isViewTransitioning = false
 }) => {
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -335,9 +336,9 @@ const ItemCart = ({
 
       {/* Items Grid - In place of numpad */}
       <div className="flex-1 px-4 pb-4 relative overflow-hidden flex flex-col min-h-0">
-        {loading ? (
+        {loading && !isViewTransitioning ? (
           <div className="flex items-center justify-center h-full">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blink-accent"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-blink-accent border-t-transparent"></div>
           </div>
         ) : showAddForm ? (
           /* Add Item Form - scrollable for mobile keyboard */

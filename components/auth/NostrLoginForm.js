@@ -231,7 +231,7 @@ export default function NostrLoginForm() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-black">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blink-accent mx-auto"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blink-accent border-t-transparent mx-auto"></div>
           <p className="mt-4 text-gray-600 dark:text-gray-400">
             {checkingReturn ? 'Completing sign-in...' : 'Checking authentication...'}
           </p>

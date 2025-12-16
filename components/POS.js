@@ -149,6 +149,63 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
     }
   }, [cartCheckoutData, onCartCheckoutProcessed]);
 
+  // Check if invoice was paid when app regains focus (handles webhook forwarding case)
+  useEffect(() => {
+    if (!invoice?.paymentHash) return;
+
+    const checkPaymentOnFocus = async () => {
+      try {
+        console.log('🔍 Checking if invoice was paid while app was in background...');
+        const response = await fetch('/api/blink/check-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paymentHash: invoice.paymentHash })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.paid) {
+            console.log('✅ Invoice was paid while app was in background! Clearing invoice...');
+            // Trigger the payment received callback
+            if (onPaymentReceived?.current) {
+              onPaymentReceived.current();
+            }
+            // Also trigger sound if enabled
+            if (soundEnabled) {
+              try {
+                const audio = new Audio('/sounds/success.mp3');
+                audio.play().catch(() => {});
+              } catch (e) {}
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check payment status:', error);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden && invoice?.paymentHash) {
+        // Small delay to let the app settle after focus
+        setTimeout(checkPaymentOnFocus, 500);
+      }
+    };
+
+    const handleFocus = () => {
+      if (invoice?.paymentHash) {
+        setTimeout(checkPaymentOnFocus, 500);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [invoice?.paymentHash, onPaymentReceived, soundEnabled]);
+
   // Notify parent when invoice or tip dialog state changes
   useEffect(() => {
     if (onInvoiceStateChange) {

@@ -16,6 +16,7 @@
 
 import BlinkAPI from '../../../lib/blink-api';
 import { verifyWebhookSignature } from '../../../lib/webhook-verify';
+import { getInvoiceFromLightningAddress } from '../../../lib/lnurl';
 const { getHybridStore } = require('../../../lib/storage/hybrid-store');
 
 export default async function handler(req, res) {
@@ -321,8 +322,6 @@ async function forwardToLnAddress(paymentHash, amount, forwardingData, hybridSto
  * Forward payment to npub.cash via LNURL-pay
  */
 async function forwardToNpubCash(paymentHash, amount, forwardingData, hybridStore) {
-  const { getInvoiceFromLightningAddress } = require('../../../lib/lnurl');
-  
   const blinkposApiKey = process.env.BLINKPOS_API_KEY;
   const blinkposBtcWalletId = process.env.BLINKPOS_BTC_WALLET_ID;
   const blinkposAPI = new BlinkAPI(blinkposApiKey);

@@ -29,24 +29,28 @@ export default async function handler(req, res) {
 
     const blinkposAPI = new BlinkAPI(blinkposApiKey);
 
-    // Query transactions to find if this payment hash was received
+    // Query recent transactions and look for matching payment hash
     const query = `
-      query GetTransactionByHash($walletId: WalletId!, $first: Int) {
+      query GetRecentTransactions($walletId: WalletId!) {
         me {
           defaultAccount {
             walletById(walletId: $walletId) {
-              transactionsByPaymentHash(paymentHash: "${paymentHash}") {
-                id
-                status
-                direction
-                settlementAmount
-                createdAt
-                initiationVia {
-                  ... on InitiationViaLn {
-                    paymentHash
-                  }
-                  ... on InitiationViaIntraLedger {
-                    counterPartyUsername
+              transactions(first: 30) {
+                edges {
+                  node {
+                    id
+                    status
+                    direction
+                    settlementAmount
+                    createdAt
+                    initiationVia {
+                      ... on InitiationViaLn {
+                        paymentHash
+                      }
+                      ... on InitiationViaIntraLedger {
+                        counterPartyUsername
+                      }
+                    }
                   }
                 }
               }
@@ -57,67 +61,11 @@ export default async function handler(req, res) {
     `;
 
     try {
-      const result = await blinkposAPI.query(query, { 
-        walletId: blinkposBtcWalletId,
-        first: 1 
-      });
+      const result = await blinkposAPI.query(query, { walletId: blinkposBtcWalletId });
+      const transactions = result?.me?.defaultAccount?.walletById?.transactions?.edges || [];
 
-      const transactions = result?.me?.defaultAccount?.walletById?.transactionsByPaymentHash || [];
-      
-      // Check if we have a matching incoming transaction
-      const receivedTx = transactions.find(tx => 
-        tx.direction === 'RECEIVE' && 
-        tx.status === 'SUCCESS'
-      );
-
-      if (receivedTx) {
-        console.log(`✅ [CheckPayment] Payment found for hash ${paymentHash.substring(0, 16)}...`);
-        return res.status(200).json({
-          paid: true,
-          transaction: {
-            id: receivedTx.id,
-            amount: receivedTx.settlementAmount,
-            createdAt: receivedTx.createdAt,
-            status: receivedTx.status
-          }
-        });
-      }
-
-      // If transactionsByPaymentHash doesn't work (API limitation), 
-      // check recent transactions as fallback
-      console.log(`ℹ️ [CheckPayment] No transaction found by paymentHash query, checking recent transactions...`);
-      
-      const recentQuery = `
-        query GetRecentTransactions($walletId: WalletId!) {
-          me {
-            defaultAccount {
-              walletById(walletId: $walletId) {
-                transactions(first: 20) {
-                  edges {
-                    node {
-                      id
-                      status
-                      direction
-                      settlementAmount
-                      createdAt
-                      initiationVia {
-                        ... on InitiationViaLn {
-                          paymentHash
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      `;
-
-      const recentResult = await blinkposAPI.query(recentQuery, { walletId: blinkposBtcWalletId });
-      const recentTransactions = recentResult?.me?.defaultAccount?.walletById?.transactions?.edges || [];
-
-      const matchingTx = recentTransactions.find(edge => {
+      // Find a matching receive transaction by payment hash
+      const matchingTx = transactions.find(edge => {
         const tx = edge.node;
         return tx.direction === 'RECEIVE' && 
                tx.status === 'SUCCESS' &&
@@ -125,7 +73,7 @@ export default async function handler(req, res) {
       });
 
       if (matchingTx) {
-        console.log(`✅ [CheckPayment] Payment found in recent transactions for hash ${paymentHash.substring(0, 16)}...`);
+        console.log(`✅ [CheckPayment] Payment found for hash ${paymentHash.substring(0, 16)}...`);
         return res.status(200).json({
           paid: true,
           transaction: {
@@ -142,9 +90,6 @@ export default async function handler(req, res) {
 
     } catch (queryError) {
       console.error('❌ [CheckPayment] Query error:', queryError.message);
-      
-      // If the specific paymentHash query fails, try the fallback
-      // This can happen if transactionsByPaymentHash is not supported
       return res.status(200).json({ 
         paid: false, 
         error: 'Could not verify payment status' 

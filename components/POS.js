@@ -3,7 +3,7 @@ import QRCode from 'react-qr-code';
 import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
 import { useNFC } from './NFCPayment';
 
-const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition }) => {
+const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation }) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -165,17 +165,21 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
         if (response.ok) {
           const result = await response.json();
           if (result.paid) {
-            console.log('✅ Invoice was paid while app was in background! Clearing invoice...');
-            // Trigger the payment received callback
+            console.log('✅ Invoice was paid while app was in background!');
+            
+            // Trigger the payment animation with sound (same as real-time payment)
+            if (triggerPaymentAnimation) {
+              triggerPaymentAnimation({
+                amount: result.transaction?.amount || invoice.satoshis || invoice.amount,
+                currency: 'BTC',
+                memo: invoice.memo || `BlinkPOS: ${result.transaction?.amount || invoice.satoshis} sats`,
+                isForwarded: true
+              });
+            }
+            
+            // Clear the invoice after animation is triggered
             if (onPaymentReceived?.current) {
               onPaymentReceived.current();
-            }
-            // Also trigger sound if enabled
-            if (soundEnabled) {
-              try {
-                const audio = new Audio('/sounds/success.mp3');
-                audio.play().catch(() => {});
-              } catch (e) {}
             }
           }
         }
@@ -204,7 +208,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [invoice?.paymentHash, onPaymentReceived, soundEnabled]);
+  }, [invoice?.paymentHash, invoice?.satoshis, invoice?.amount, invoice?.memo, onPaymentReceived, triggerPaymentAnimation]);
 
   // Notify parent when invoice or tip dialog state changes
   useEffect(() => {

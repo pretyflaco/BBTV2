@@ -4671,6 +4671,7 @@ export default function Dashboard() {
               setIsViewTransitioning(true);
               setTimeout(() => setIsViewTransitioning(false), 120);
             }}
+            triggerPaymentAnimation={triggerPaymentAnimation}
           />
         ) : (
           <>

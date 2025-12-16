@@ -22,6 +22,7 @@ export default async function handler(req, res) {
 
   let hybridStore = null;
   let paymentHash = null;
+  let claimSucceeded = false;
 
   try {
     const { 
@@ -61,6 +62,40 @@ export default async function handler(req, res) {
 
     const blinkposAPI = new BlinkAPI(blinkposApiKey);
     hybridStore = await getHybridStore();
+
+    // CRITICAL: Use atomic claim to prevent duplicate payouts
+    // This ensures only ONE request (client or webhook) can process this payment
+    if (paymentHash) {
+      const claimResult = await hybridStore.claimPaymentForProcessing(paymentHash);
+      
+      if (!claimResult.claimed) {
+        // Payment already being processed or completed - return appropriate response
+        console.log(`🔒 [npub.cash] DUPLICATE PREVENTION: Payment ${paymentHash?.substring(0, 16)}... ${claimResult.reason}`);
+        
+        if (claimResult.reason === 'already_completed') {
+          // Already successfully processed - return success (idempotent)
+          return res.status(200).json({
+            success: true,
+            message: 'Payment already processed',
+            alreadyProcessed: true,
+            details: { paymentHash, status: 'completed' }
+          });
+        } else if (claimResult.reason === 'already_processing') {
+          // Another request (likely webhook) is processing - return 409
+          return res.status(409).json({
+            error: 'Payment is being processed by another request',
+            retryable: false,
+            details: { paymentHash, status: 'processing' }
+          });
+        } else {
+          // Not found - continue without claim (legacy behavior for old payments)
+          console.log('⚠️ [npub.cash] No stored data found, proceeding without claim');
+        }
+      } else {
+        claimSucceeded = true;
+        console.log(`✅ [npub.cash] CLAIMED payment ${paymentHash?.substring(0, 16)}... for processing`);
+      }
+    }
 
     // Check for tip data if we have a payment hash
     let baseAmount = totalAmount;
@@ -266,10 +301,15 @@ export default async function handler(req, res) {
 
       console.log('✅ Tips sent:', tipResult);
 
-      // Remove tip data after processing
+      // Remove tip data after processing (marks as completed)
       if (paymentHash) {
         await hybridStore.removeTipData(paymentHash);
+        claimSucceeded = false; // Payment completed, no need to release on error
       }
+    } else if (paymentHash && claimSucceeded) {
+      // No tips, but we claimed - mark as completed
+      await hybridStore.removeTipData(paymentHash);
+      claimSucceeded = false;
     }
 
     res.status(200).json({
@@ -284,6 +324,17 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('❌ Forward to npub.cash error:', error);
+    
+    // Release claim if we claimed but failed to complete
+    if (claimSucceeded && hybridStore && paymentHash) {
+      try {
+        await hybridStore.releaseFailedClaim(paymentHash, error.message);
+        console.log(`🔓 [npub.cash] Released claim for ${paymentHash?.substring(0, 16)}...`);
+      } catch (releaseError) {
+        console.error('❌ [npub.cash] Failed to release claim:', releaseError);
+      }
+    }
+    
     res.status(500).json({ 
       error: 'Failed to forward payment to npub.cash', 
       details: error.message 

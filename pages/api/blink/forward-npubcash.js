@@ -207,7 +207,8 @@ export default async function handler(req, res) {
 
       for (let i = 0; i < tipRecipients.length; i++) {
         const recipient = tipRecipients[i];
-        const recipientTipAmount = i === 0 ? tipPerRecipient + remainder : tipPerRecipient;
+        // Distribute remainder evenly: first 'remainder' recipients get +1 sat each
+        const recipientTipAmount = i < remainder ? tipPerRecipient + 1 : tipPerRecipient;
         // Auto-detect npub.cash addresses by checking if username ends with @npub.cash
         const isNpubCash = recipient.username?.endsWith('@npub.cash') || recipient.type === 'npub_cash';
         const recipientType = isNpubCash ? 'npub_cash' : (recipient.type || 'blink');

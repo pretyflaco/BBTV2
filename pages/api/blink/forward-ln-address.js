@@ -265,7 +265,8 @@ export default async function handler(req, res) {
 
       for (let i = 0; i < tipRecipients.length; i++) {
         const recipient = tipRecipients[i];
-        const recipientTipAmount = i === 0 ? tipPerRecipient + remainder : tipPerRecipient;
+        // Distribute remainder evenly: first 'remainder' recipients get +1 sat each
+        const recipientTipAmount = i < remainder ? tipPerRecipient + 1 : tipPerRecipient;
 
         const splitInfo = isMultiple ? ` (${i + 1}/${tipRecipients.length})` : '';
         let tipMemo;

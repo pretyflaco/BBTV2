@@ -662,14 +662,21 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
 
       // Create invoice via Blink API (always through blinkpos account)
       // For NWC-only or LN Address users, Blink wallet fields are optional
+      // Calculate base and tip amounts in sats
+      // CRITICAL: Calculate tip as (total - base) to avoid rounding errors
+      // When base and tip are rounded independently, their sum may differ from total
+      const baseInSats = convertToSatoshis(finalTotal, displayCurrency !== 'BTC' ? displayCurrency : 'BTC');
+      // Tip is the difference between total invoice and base (ensures base + tip = total)
+      const tipInSats = effectiveTipPercent > 0 ? Math.max(0, finalTotalInSats - baseInSats) : 0;
+      
       const requestBody = {
         amount: finalTotalInSats,
         currency: 'BTC', // Always create BTC invoices
         memo: memo, // Show calculation in memo
         displayCurrency: displayCurrency, // Pass the actual display currency for tip memo
         // Tip information for payment splitting
-        baseAmount: convertToSatoshis(finalTotal, displayCurrency !== 'BTC' ? displayCurrency : 'BTC'),
-        tipAmount: effectiveTipPercent > 0 ? convertToSatoshis(tipAmount, displayCurrency !== 'BTC' ? displayCurrency : 'BTC') : 0,
+        baseAmount: baseInSats,
+        tipAmount: tipInSats,
         tipPercent: effectiveTipPercent,
         tipRecipients: tipRecipients || [],
         // Display currency amounts for memo calculation

@@ -536,15 +536,19 @@ export default function Dashboard() {
     {
       isActive: activeNpubCashWallet?.type === 'npub-cash' && !activeNWC,
       address: activeNpubCashWallet?.lightningAddress
-    }
+    },
+    // CRITICAL: Expected payment hash to prevent cross-device animation triggering
+    // Only trigger callback if payment matches this client's pending invoice
+    currentInvoice?.paymentHash
   );
 
-  // Track current invoice for NFC payments
+  // Track current invoice for NFC payments and payment hash for WebSocket filtering
+  // Now stores { paymentRequest, paymentHash } object
   const [currentInvoice, setCurrentInvoice] = useState(null);
   
   // Setup NFC for Boltcard payments
   const nfcState = useNFC({
-    paymentRequest: currentInvoice,
+    paymentRequest: currentInvoice?.paymentRequest,
     onPaymentSuccess: () => {
       console.log('🎉 NFC Boltcard payment successful');
       // Payment will be picked up by BlinkPOS WebSocket

@@ -731,9 +731,12 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
             satAmount: finalTotalInSats
           };
           setInvoice(enhancedInvoice);
-          // Notify parent of invoice creation for NFC scanning
+          // Notify parent of invoice creation for NFC scanning and payment hash tracking
           if (onInvoiceChange) {
-            onInvoiceChange(data.invoice.paymentRequest);
+            onInvoiceChange({
+              paymentRequest: data.invoice.paymentRequest,
+              paymentHash: data.invoice.paymentHash
+            });
           }
         } else {
           throw new Error('Invalid response from server');

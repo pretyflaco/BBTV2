@@ -491,7 +491,8 @@ export default function Dashboard() {
     connect: blinkposConnect, 
     disconnect: blinkposDisconnect,
     manualReconnect: blinkposReconnect, 
-    reconnectAttempts: blinkposReconnectAttempts 
+    reconnectAttempts: blinkposReconnectAttempts,
+    setExpectedPaymentHash: blinkposSetExpectedPaymentHash
   } = useBlinkPOSWebSocket(
     apiKey, 
     userBtcWallet?.id, 
@@ -4657,7 +4658,12 @@ export default function Dashboard() {
             tipRecipients={activeSplitProfile?.recipients || []}
             soundEnabled={soundEnabled}
             onInvoiceStateChange={setShowingInvoice}
-            onInvoiceChange={setCurrentInvoice}
+            onInvoiceChange={(invoiceData) => {
+              setCurrentInvoice(invoiceData);
+              // CRITICAL: Immediately set expected payment hash to bypass React render cycle
+              // This ensures the WebSocket knows which payment to accept BEFORE React re-renders
+              blinkposSetExpectedPaymentHash(invoiceData?.paymentHash || null);
+            }}
             darkMode={darkMode}
             toggleDarkMode={toggleDarkMode}
             nfcState={nfcState}

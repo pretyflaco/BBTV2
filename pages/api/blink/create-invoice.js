@@ -107,9 +107,11 @@ export default async function handler(req, res) {
       }
 
       // Store payment metadata (using hybrid storage)
-      // For NWC-only, LN Address, or npub.cash users, apiKey/userWalletId may be empty
-      // Store for ALL NWC/npub.cash payments (even without tips) so forwarding can work
-      const shouldStorePaymentData = (tipAmount > 0 && tipRecipients && tipRecipients.length > 0) || nwcActive || npubCashActive;
+      // ALWAYS store forwarding data so webhook-based forwarding can work even if client disconnects
+      // This enables reliable payment forwarding regardless of client connection state
+      const hasForwardingDestination = apiKey || nwcActive || blinkLnAddress || npubCashActive;
+      const hasTips = tipAmount > 0 && tipRecipients && tipRecipients.length > 0;
+      const shouldStorePaymentData = hasForwardingDestination || hasTips;
       
       if (shouldStorePaymentData) {
         const hybridStore = await getHybridStore();
@@ -131,9 +133,12 @@ export default async function handler(req, res) {
           blinkLnAddressUsername: blinkLnAddressUsername || null,
           // npub.cash wallet info (intraledger via LNURL-pay)
           npubCashActive: !!npubCashActive,
-          npubCashLightningAddress: npubCashLightningAddress || null
+          npubCashLightningAddress: npubCashLightningAddress || null,
+          // Metadata for webhook processing
+          createdAt: Date.now(),
+          forwardingType: blinkLnAddress ? 'ln_address' : npubCashActive ? 'npub_cash' : nwcActive ? 'nwc' : apiKey ? 'api_key' : 'unknown'
         });
-        console.log(`✅ Stored payment data for ${invoice.paymentHash?.substring(0, 16)}... (nwcActive: ${!!nwcActive}, npubCashActive: ${!!npubCashActive}, hasTip: ${tipAmount > 0})`);
+        console.log(`✅ Stored forwarding data for ${invoice.paymentHash?.substring(0, 16)}... (type: ${blinkLnAddress ? 'ln_address' : npubCashActive ? 'npub_cash' : nwcActive ? 'nwc' : 'api_key'}, hasTip: ${tipAmount > 0})`);
       }
 
       // Return invoice details with additional metadata for payment forwarding

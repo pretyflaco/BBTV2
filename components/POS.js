@@ -733,6 +733,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
           setInvoice(enhancedInvoice);
           // Notify parent of invoice creation for NFC scanning and payment hash tracking
           if (onInvoiceChange) {
+            console.log('📋 Invoice created with payment hash:', data.invoice.paymentHash?.substring(0, 16) + '...');
             onInvoiceChange({
               paymentRequest: data.invoice.paymentRequest,
               paymentHash: data.invoice.paymentHash

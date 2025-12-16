@@ -430,6 +430,7 @@ async function forwardToUserWallet(paymentHash, amount, forwardingData, hybridSt
 
 /**
  * Send tips to recipients
+ * Supports both Blink usernames and npub.cash addresses
  */
 async function sendTips(blinkposAPI, blinkposBtcWalletId, tipAmount, tipRecipients, forwardingData) {
   const { formatCurrencyServer } = require('../../../lib/currency-formatter-server');
@@ -447,6 +448,10 @@ async function sendTips(blinkposAPI, blinkposBtcWalletId, tipAmount, tipRecipien
   for (let i = 0; i < tipRecipients.length; i++) {
     const recipient = tipRecipients[i];
     const recipientTipAmount = i === 0 ? tipPerRecipient + remainder : tipPerRecipient;
+    
+    // Auto-detect npub.cash addresses by checking if username ends with @npub.cash
+    const isNpubCash = recipient.username?.endsWith('@npub.cash') || recipient.type === 'npub_cash';
+    const recipientType = isNpubCash ? 'npub_cash' : (recipient.type || 'blink');
 
     const splitInfo = isMultiple ? ` (${i + 1}/${tipRecipients.length})` : '';
     let tipMemo;
@@ -458,20 +463,72 @@ async function sendTips(blinkposAPI, blinkposBtcWalletId, tipAmount, tipRecipien
     }
 
     try {
-      const tipPaymentResult = await blinkposAPI.sendTipViaInvoice(
-        blinkposBtcWalletId,
-        recipient.username,
-        recipientTipAmount,
-        tipMemo
-      );
+      if (recipientType === 'npub_cash') {
+        // Send tip to npub.cash address via LNURL-pay
+        console.log(`🥜 [Webhook] Sending tip to npub.cash: ${recipient.username}`);
+        
+        const tipInvoiceData = await getInvoiceFromLightningAddress(
+          recipient.username,
+          recipientTipAmount,
+          tipMemo
+        );
+        
+        const tipPaymentResult = await blinkposAPI.payLnInvoice(
+          blinkposBtcWalletId,
+          tipInvoiceData.paymentRequest,
+          tipMemo
+        );
 
-      if (tipPaymentResult.status === 'SUCCESS') {
-        tipResults.push({ success: true, amount: recipientTipAmount, recipient: `${recipient.username}@blink.sv` });
+        if (tipPaymentResult.status === 'SUCCESS') {
+          console.log(`💰 [Webhook] Tip successfully sent to ${recipient.username}`);
+          tipResults.push({ 
+            success: true, 
+            amount: recipientTipAmount, 
+            recipient: recipient.username,
+            type: 'npub_cash'
+          });
+        } else {
+          tipResults.push({ 
+            success: false, 
+            recipient: recipient.username, 
+            error: `Failed: ${tipPaymentResult.status}`,
+            type: 'npub_cash'
+          });
+        }
       } else {
-        tipResults.push({ success: false, recipient: `${recipient.username}@blink.sv`, error: `Failed: ${tipPaymentResult.status}` });
+        // Send tip to Blink user (existing method)
+        const tipPaymentResult = await blinkposAPI.sendTipViaInvoice(
+          blinkposBtcWalletId,
+          recipient.username,
+          recipientTipAmount,
+          tipMemo
+        );
+
+        if (tipPaymentResult.status === 'SUCCESS') {
+          console.log(`💰 [Webhook] Tip successfully sent to ${recipient.username}@blink.sv`);
+          tipResults.push({ 
+            success: true, 
+            amount: recipientTipAmount, 
+            recipient: `${recipient.username}@blink.sv`,
+            type: 'blink'
+          });
+        } else {
+          tipResults.push({ 
+            success: false, 
+            recipient: `${recipient.username}@blink.sv`, 
+            error: `Failed: ${tipPaymentResult.status}`,
+            type: 'blink'
+          });
+        }
       }
     } catch (tipError) {
-      tipResults.push({ success: false, recipient: `${recipient.username}@blink.sv`, error: tipError.message });
+      const recipientDisplay = recipientType === 'npub_cash' ? recipient.username : `${recipient.username}@blink.sv`;
+      tipResults.push({ 
+        success: false, 
+        recipient: recipientDisplay, 
+        error: tipError.message,
+        type: recipientType
+      });
     }
   }
 

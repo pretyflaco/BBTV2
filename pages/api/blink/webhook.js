@@ -334,16 +334,23 @@ async function forwardToNpubCash(paymentHash, amount, forwardingData, hybridStor
   const forwardingMemo = memo.startsWith('BlinkPOS:') ? memo : `BlinkPOS: ${memo}`;
 
   // Get invoice from npub.cash via LNURL-pay
-  const invoiceResult = await getInvoiceFromLightningAddress(recipientAddress, baseAmount * 1000, forwardingMemo);
+  // Note: getInvoiceFromLightningAddress takes sats, not millisats
+  const invoiceResult = await getInvoiceFromLightningAddress(recipientAddress, baseAmount, forwardingMemo);
   
-  if (!invoiceResult.success || !invoiceResult.invoice) {
-    throw new Error(`Failed to get invoice from ${recipientAddress}: ${invoiceResult.error}`);
+  if (!invoiceResult.paymentRequest) {
+    throw new Error(`Failed to get invoice from ${recipientAddress}: No payment request returned`);
   }
+
+  console.log('✅ [Webhook] Got invoice from npub.cash:', {
+    recipient: recipientAddress,
+    amount: baseAmount,
+    hasPaymentRequest: !!invoiceResult.paymentRequest
+  });
 
   // Pay the invoice from BlinkPOS
   const paymentResult = await blinkposAPI.payLnInvoice(
     blinkposBtcWalletId,
-    invoiceResult.invoice,
+    invoiceResult.paymentRequest,
     forwardingMemo
   );
 

@@ -79,13 +79,29 @@ export default async function handler(req, res) {
       eventType: payload.eventType
     });
 
-    // Step 3: Look up forwarding data
+    // Step 3: Try to claim the payment for processing (atomic deduplication)
+    // This prevents duplicate forwarding if both webhook and client try to process
     hybridStore = await getHybridStore();
-    const forwardingData = await hybridStore.getTipData(paymentHash);
+    const claimResult = await hybridStore.claimPaymentForProcessing(paymentHash);
+    
+    if (!claimResult.claimed) {
+      console.log(`ℹ️ [Webhook] Payment not claimed: ${claimResult.reason}`);
+      return res.status(200).json({ 
+        status: claimResult.reason === 'not_found' ? 'ignored' : 'already_claimed', 
+        reason: claimResult.reason 
+      });
+    }
 
-    if (!forwardingData) {
-      console.log('ℹ️ [Webhook] No forwarding data found for payment - may be direct payment or already processed');
-      return res.status(200).json({ status: 'ignored', reason: 'No forwarding data found' });
+    const forwardingData = claimResult.paymentData;
+    
+    // Extract additional fields from metadata (they're stored in JSONB)
+    if (forwardingData.metadata) {
+      forwardingData.nwcActive = forwardingData.metadata.nwcActive || false;
+      forwardingData.blinkLnAddress = forwardingData.metadata.blinkLnAddress || false;
+      forwardingData.blinkLnAddressWalletId = forwardingData.metadata.blinkLnAddressWalletId || null;
+      forwardingData.blinkLnAddressUsername = forwardingData.metadata.blinkLnAddressUsername || null;
+      forwardingData.npubCashActive = forwardingData.metadata.npubCashActive || false;
+      forwardingData.npubCashLightningAddress = forwardingData.metadata.npubCashLightningAddress || null;
     }
 
     console.log('📄 [Webhook] Forwarding data found:', {
@@ -98,14 +114,7 @@ export default async function handler(req, res) {
       tipAmount: forwardingData.tipAmount
     });
 
-    // Step 4: Try to claim the payment hash (deduplication)
-    const claimed = await hybridStore.claimPaymentHash(paymentHash, 'webhook');
-    if (!claimed) {
-      console.log('ℹ️ [Webhook] Payment already claimed by another handler');
-      return res.status(200).json({ status: 'already_claimed', reason: 'Payment being processed by another handler' });
-    }
-
-    console.log('✅ [Webhook] Payment hash claimed for forwarding');
+    console.log('✅ [Webhook] Payment claimed for forwarding');
 
     // Step 5: Forward the payment based on the forwarding type
     let forwardResult;
@@ -126,7 +135,7 @@ export default async function handler(req, res) {
         // NWC forwarding requires client-side action (we can't initiate NWC from server)
         console.log('⚠️ [Webhook] NWC payment - cannot forward from server, client must handle');
         // Release the claim so client can try
-        await hybridStore.releasePaymentHash(paymentHash);
+        await hybridStore.releaseFailedClaim(paymentHash, 'NWC requires client-side forwarding');
         return res.status(200).json({ 
           status: 'nwc_requires_client', 
           reason: 'NWC forwarding requires client WebSocket' 
@@ -139,7 +148,7 @@ export default async function handler(req, res) {
       }
       else {
         console.warn('⚠️ [Webhook] No valid forwarding destination found');
-        await hybridStore.releasePaymentHash(paymentHash);
+        await hybridStore.releaseFailedClaim(paymentHash, 'No valid forwarding destination');
         return res.status(200).json({ status: 'no_destination', reason: 'No valid forwarding destination' });
       }
 
@@ -162,7 +171,7 @@ export default async function handler(req, res) {
       console.error('❌ [Webhook] Forwarding failed:', forwardError);
       
       // Release the claim so it can be retried
-      await hybridStore.releasePaymentHash(paymentHash);
+      await hybridStore.releaseFailedClaim(paymentHash, forwardError.message);
       
       // Log failure event
       await hybridStore.logEvent(paymentHash, 'webhook_forward', 'failed', {
@@ -182,7 +191,7 @@ export default async function handler(req, res) {
     // Release claim if we have one
     if (hybridStore && paymentHash) {
       try {
-        await hybridStore.releasePaymentHash(paymentHash);
+        await hybridStore.releaseFailedClaim(paymentHash, error.message);
       } catch (releaseError) {
         console.error('❌ [Webhook] Failed to release claim:', releaseError);
       }

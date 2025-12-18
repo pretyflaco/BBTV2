@@ -126,15 +126,47 @@ export default async function handler(req, res) {
       }
     }
 
-    // Format the forwarding memo
+    // Format the forwarding memo with tip recipient information
     let forwardingMemo;
-    if (storedMemo && storedMemo.startsWith('BlinkPOS:')) {
+    const recipientNames = tipRecipients.map(r => r.username).join(', ');
+    
+    if (storedMemo && tipAmount > 0 && tipRecipients.length > 0) {
+      // Generate enhanced memo with tip info
+      let tipAmountText;
+      if (displayCurrency === 'BTC') {
+        tipAmountText = `${tipAmount} sat`;
+      } else {
+        const formattedTipAmount = formatCurrencyServer(tipAmountDisplay || tipAmount, displayCurrency);
+        tipAmountText = `${formattedTipAmount} (${tipAmount} sat)`;
+      }
+      
+      // Convert original memo format to enhanced format
+      // From: "$0.80 + 10% tip = $0.88 (757 sats)" 
+      // To: "BlinkPOS: $0.80 + 10% tip = $0.88 (757 sats) | $0.08 (69 sat) tip split to user1, user2"
+      const enhancedMemoContent = storedMemo.replace(
+        /([^+]+?)\s*\+\s*(\d+)%\s*tip\s*=\s*(.+)/,
+        (match, baseAmountStr, tipPercent, total) => {
+          const cleanBaseAmount = baseAmountStr.trim();
+          const splitText = tipRecipients.length > 1 ? 'split to' : 'to';
+          return `${cleanBaseAmount} + ${tipPercent}% tip = ${total} | ${tipAmountText} tip ${splitText} ${recipientNames}`;
+        }
+      );
+      
+      forwardingMemo = `BlinkPOS: ${enhancedMemoContent !== storedMemo ? enhancedMemoContent : storedMemo}`;
+    } else if (storedMemo && storedMemo.startsWith('BlinkPOS:')) {
       forwardingMemo = storedMemo;
     } else if (storedMemo) {
       forwardingMemo = `BlinkPOS: ${storedMemo}`;
     } else {
       forwardingMemo = `BlinkPOS: ${baseAmount} sats`;
     }
+    
+    console.log('📝 Enhanced npub.cash forwarding memo:', {
+      originalMemo: storedMemo?.substring(0, 50),
+      enhancedMemo: forwardingMemo?.substring(0, 80),
+      tipAmount,
+      tipRecipients: tipRecipients.length
+    });
 
     // Step 1: Get invoice from npub.cash via LNURL-pay
     console.log('🔍 Resolving npub.cash LNURL for:', recipientAddress);

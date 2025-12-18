@@ -255,6 +255,19 @@ export default async function handler(req, res) {
           // Distribute remainder evenly: first 'remainder' recipients get +1 sat each
           const recipientTipAmount = i < remainder ? tipPerRecipient + 1 : tipPerRecipient;
           
+          // Skip recipients who would receive 0 sats (cannot create 0-sat invoice)
+          if (recipientTipAmount <= 0) {
+            console.log(`⏭️ Skipping tip to ${recipient.username}: amount is ${recipientTipAmount} sats (minimum 1 sat required)`);
+            tipResults.push({
+              success: false,
+              skipped: true,
+              amount: 0,
+              recipient: recipient.username,
+              reason: 'Tip amount too small (0 sats)'
+            });
+            continue;
+          }
+          
           console.log(`💡 Sending tip to ${recipient.username}:`, {
             amount: recipientTipAmount,
             index: i + 1,

@@ -43,8 +43,9 @@ export default function Dashboard() {
     storeBlinkAccountOnServer, tippingSettings: profileTippingSettings, updateTippingSettings: updateProfileTippingSettings, 
     nostrProfile,
     // NWC data from useCombinedAuth (user-scoped)
-    nwcConnections, activeNWC, addNWCConnection, removeNWCConnection, setActiveNWC, 
+    nwcConnections, activeNWC, addNWCConnection, removeNWCConnection, setActiveNWC,
     nwcMakeInvoice, nwcLookupInvoice, nwcListTransactions, nwcHasCapability, nwcClientReady,
+    getActiveNWCUri, // For server-side NWC forwarding via webhook
     // npub.cash wallet data
     activeNpubCashWallet, npubCashWallets, addNpubCashWallet
   } = useCombinedAuth();
@@ -4671,6 +4672,7 @@ export default function Dashboard() {
             nwcClientReady={nwcClientReady}
             nwcMakeInvoice={nwcMakeInvoice}
             nwcLookupInvoice={nwcLookupInvoice}
+            getActiveNWCUri={getActiveNWCUri}
             activeBlinkAccount={activeBlinkAccount}
             activeNpubCashWallet={activeNpubCashWallet}
             cartCheckoutData={cartCheckoutData}

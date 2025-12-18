@@ -17,6 +17,8 @@
 import BlinkAPI from '../../../lib/blink-api';
 import { verifyWebhookSignature } from '../../../lib/webhook-verify';
 import { getInvoiceFromLightningAddress } from '../../../lib/lnurl';
+import NWCClient from '../../../lib/nwc/NWCClient';
+const AuthManager = require('../../../lib/auth');
 const { getHybridStore } = require('../../../lib/storage/hybrid-store');
 
 export default async function handler(req, res) {
@@ -98,6 +100,7 @@ export default async function handler(req, res) {
     // Extract additional fields from metadata (they're stored in JSONB)
     if (forwardingData.metadata) {
       forwardingData.nwcActive = forwardingData.metadata.nwcActive || false;
+      forwardingData.nwcConnectionUri = forwardingData.metadata.nwcConnectionUri || null;
       forwardingData.blinkLnAddress = forwardingData.metadata.blinkLnAddress || false;
       forwardingData.blinkLnAddressWalletId = forwardingData.metadata.blinkLnAddressWalletId || null;
       forwardingData.blinkLnAddressUsername = forwardingData.metadata.blinkLnAddressUsername || null;
@@ -107,6 +110,7 @@ export default async function handler(req, res) {
 
     console.log('📄 [Webhook] Forwarding data found:', {
       nwcActive: forwardingData.nwcActive,
+      hasNwcConnectionUri: !!forwardingData.nwcConnectionUri,
       blinkLnAddress: forwardingData.blinkLnAddress,
       blinkLnAddressUsername: forwardingData.blinkLnAddressUsername,
       npubCashActive: forwardingData.npubCashActive,
@@ -132,14 +136,19 @@ export default async function handler(req, res) {
         console.log('🥜 [Webhook] Forwarding to npub.cash:', forwardingData.npubCashLightningAddress);
         forwardResult = await forwardToNpubCash(paymentHash, amount, forwardingData, hybridStore);
       }
+      else if (forwardingData.nwcActive && forwardingData.nwcConnectionUri) {
+        // Forward to NWC wallet using stored encrypted connection URI
+        console.log('📱 [Webhook] Forwarding to NWC wallet');
+        forwardResult = await forwardToNWCWallet(paymentHash, amount, forwardingData, hybridStore);
+      }
       else if (forwardingData.nwcActive) {
-        // NWC forwarding requires client-side action (we can't initiate NWC from server)
-        console.log('⚠️ [Webhook] NWC payment - cannot forward from server, client must handle');
+        // NWC active but no URI stored (legacy invoice or error)
+        console.log('⚠️ [Webhook] NWC payment but no connection URI - client must handle');
         // Release the claim so client can try
-        await hybridStore.releaseFailedClaim(paymentHash, 'NWC requires client-side forwarding');
-        return res.status(200).json({ 
-          status: 'nwc_requires_client', 
-          reason: 'NWC forwarding requires client WebSocket' 
+        await hybridStore.releaseFailedClaim(paymentHash, 'NWC requires client-side forwarding (no URI stored)');
+        return res.status(200).json({
+          status: 'nwc_requires_client',
+          reason: 'NWC forwarding requires connection URI (not stored with invoice)'
         });
       }
       else if (forwardingData.userApiKey && forwardingData.userWalletId) {
@@ -370,6 +379,99 @@ async function forwardToNpubCash(paymentHash, amount, forwardingData, hybridStor
   return {
     type: 'npub_cash',
     recipientAddress,
+    baseAmount,
+    tipAmount,
+    tipResult
+  };
+}
+
+/**
+ * Forward payment to NWC (Nostr Wallet Connect) wallet
+ * This creates an invoice on the user's NWC wallet and pays it from BlinkPOS
+ */
+async function forwardToNWCWallet(paymentHash, amount, forwardingData, hybridStore) {
+  const blinkposApiKey = process.env.BLINKPOS_API_KEY;
+  const blinkposBtcWalletId = process.env.BLINKPOS_BTC_WALLET_ID;
+  const blinkposAPI = new BlinkAPI(blinkposApiKey);
+
+  // Decrypt the NWC connection URI
+  const encryptedNwcUri = forwardingData.nwcConnectionUri;
+  if (!encryptedNwcUri) {
+    throw new Error('No NWC connection URI available');
+  }
+  
+  const nwcUri = AuthManager.decryptApiKey(encryptedNwcUri);
+  if (!nwcUri) {
+    throw new Error('Failed to decrypt NWC connection URI');
+  }
+
+  const baseAmount = forwardingData.baseAmount || amount;
+  const tipAmount = forwardingData.tipAmount || 0;
+  const tipRecipients = forwardingData.tipRecipients || [];
+  const memo = forwardingData.memo || `${baseAmount} sats`;
+  const forwardingMemo = memo.startsWith('BlinkPOS:') ? memo : `BlinkPOS: ${memo}`;
+
+  console.log('📱 [Webhook] Creating NWC invoice for forwarding:', {
+    baseAmount,
+    tipAmount,
+    hasTipRecipients: tipRecipients.length > 0
+  });
+
+  // Create NWC client and invoice
+  const nwcClient = new NWCClient(nwcUri);
+  
+  let invoiceResult;
+  try {
+    invoiceResult = await nwcClient.makeInvoice({
+      amount: baseAmount * 1000, // NWC uses millisats
+      description: forwardingMemo,
+      expiry: 3600
+    });
+  } catch (nwcError) {
+    console.error('❌ [Webhook] NWC makeInvoice threw error:', nwcError);
+    nwcClient.close();
+    throw new Error(`NWC invoice creation error: ${nwcError.message}`);
+  }
+
+  if (invoiceResult.error || !invoiceResult.result?.invoice) {
+    const errorMsg = invoiceResult.error?.message || 'No invoice returned from NWC wallet';
+    console.error('❌ [Webhook] NWC invoice creation failed:', errorMsg, invoiceResult);
+    nwcClient.close();
+    throw new Error(`NWC invoice creation failed: ${errorMsg}`);
+  }
+
+  console.log('✅ [Webhook] NWC invoice created:', {
+    paymentHash: invoiceResult.result.payment_hash?.substring(0, 16) + '...',
+    hasInvoice: !!invoiceResult.result.invoice
+  });
+
+  // Close NWC client - we have the invoice
+  nwcClient.close();
+
+  // Pay the invoice from BlinkPOS
+  const paymentResult = await blinkposAPI.payLnInvoice(
+    blinkposBtcWalletId,
+    invoiceResult.result.invoice,
+    forwardingMemo
+  );
+
+  if (paymentResult.status !== 'SUCCESS') {
+    throw new Error(`Payment to NWC wallet failed: ${paymentResult.status}`);
+  }
+
+  console.log('✅ [Webhook] NWC base amount forwarded successfully');
+
+  // Send tips if applicable
+  let tipResult = null;
+  if (tipAmount > 0 && tipRecipients.length > 0) {
+    tipResult = await sendTips(blinkposAPI, blinkposBtcWalletId, tipAmount, tipRecipients, forwardingData);
+  }
+
+  // Clean up forwarding data
+  await hybridStore.removeTipData(paymentHash);
+
+  return {
+    type: 'nwc',
     baseAmount,
     tipAmount,
     tipResult

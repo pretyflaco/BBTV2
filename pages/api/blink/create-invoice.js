@@ -1,4 +1,5 @@
 import BlinkAPI from '../../../lib/blink-api';
+const AuthManager = require('../../../lib/auth');
 const { getHybridStore } = require('../../../lib/storage/hybrid-store');
 
 export default async function handler(req, res) {
@@ -26,6 +27,7 @@ export default async function handler(req, res) {
       hasBaseAmountDisplay: !!baseAmountDisplay,
       hasTipAmountDisplay: !!tipAmountDisplay,
       nwcActive: !!nwcActive,
+      hasNwcConnectionUri: !!nwcConnectionUri,
       hasApiKey: !!apiKey,
       blinkLnAddress: !!blinkLnAddress,
       blinkLnAddressUsername,
@@ -115,6 +117,12 @@ export default async function handler(req, res) {
       
       if (shouldStorePaymentData) {
         const hybridStore = await getHybridStore();
+        
+        // Encrypt NWC URI if present (contains sensitive private key)
+        const encryptedNwcUri = nwcConnectionUri 
+          ? AuthManager.encryptApiKey(nwcConnectionUri) 
+          : null;
+        
         await hybridStore.storeTipData(invoice.paymentHash, {
           baseAmount: baseAmount || numericAmount,
           tipAmount: tipAmount || 0,
@@ -127,7 +135,7 @@ export default async function handler(req, res) {
           tipAmountDisplay: tipAmountDisplay, // Tip amount in display currency
           memo: memo,
           nwcActive: !!nwcActive, // Flag for NWC forwarding
-          nwcConnectionUri: nwcConnectionUri || null, // NWC connection string for server-side forwarding
+          nwcConnectionUri: encryptedNwcUri, // Encrypted NWC connection string for server-side forwarding
           // Lightning Address wallet info
           blinkLnAddress: !!blinkLnAddress,
           blinkLnAddressWalletId: blinkLnAddressWalletId || null,
@@ -139,7 +147,7 @@ export default async function handler(req, res) {
           createdAt: Date.now(),
           forwardingType: blinkLnAddress ? 'ln_address' : npubCashActive ? 'npub_cash' : nwcActive ? 'nwc' : apiKey ? 'api_key' : 'unknown'
         });
-        console.log(`✅ Stored forwarding data for ${invoice.paymentHash?.substring(0, 16)}... (type: ${blinkLnAddress ? 'ln_address' : npubCashActive ? 'npub_cash' : nwcActive ? 'nwc' : 'api_key'}, hasTip: ${tipAmount > 0})`);
+        console.log(`✅ Stored forwarding data for ${invoice.paymentHash?.substring(0, 16)}... (type: ${blinkLnAddress ? 'ln_address' : npubCashActive ? 'npub_cash' : nwcActive ? 'nwc' : 'api_key'}, hasTip: ${tipAmount > 0}, hasNwcUri: ${!!encryptedNwcUri})`);
       }
 
       // Return invoice details with additional metadata for payment forwarding

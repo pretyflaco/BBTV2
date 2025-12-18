@@ -13,13 +13,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { invoice, memo = '' } = req.body;
+    // Support both 'invoice' and 'paymentRequest' field names for compatibility
+    const { invoice: invoiceField, paymentRequest, memo = '' } = req.body;
+    const invoice = invoiceField || paymentRequest;
 
     // Validate required fields
     if (!invoice) {
       console.error('❌ Missing invoice for payment');
       return res.status(400).json({ 
-        error: 'Missing required field: invoice' 
+        error: 'Missing required field: invoice or paymentRequest' 
       });
     }
 

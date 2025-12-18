@@ -3,7 +3,7 @@ import QRCode from 'react-qr-code';
 import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
 import { useNFC } from './NFCPayment';
 
-const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation }) => {
+const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation }) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -770,6 +770,19 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
       // Tip is the difference between total invoice and base (ensures base + tip = total)
       const tipInSats = effectiveTipPercent > 0 ? Math.max(0, finalTotalInSats - baseInSats) : 0;
       
+      // Get NWC connection URI for server-side forwarding (if NWC is active)
+      let nwcConnectionUri = null;
+      if (activeNWC && nwcClientReady && getActiveNWCUri) {
+        try {
+          nwcConnectionUri = await getActiveNWCUri();
+          if (nwcConnectionUri) {
+            console.log('📱 NWC URI retrieved for server-side forwarding');
+          }
+        } catch (nwcUriError) {
+          console.error('Failed to get NWC URI:', nwcUriError);
+        }
+      }
+      
       const requestBody = {
         amount: finalTotalInSats,
         currency: 'BTC', // Always create BTC invoices
@@ -792,6 +805,9 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
         ...(apiKey && { apiKey }),
         // Flag to indicate if NWC is active (for forwarding logic)
         nwcActive: !!activeNWC && nwcClientReady,
+        // NWC connection URI for server-side webhook forwarding
+        // This allows the webhook to forward payments even when the app is in background
+        ...(nwcConnectionUri && { nwcConnectionUri }),
         // Flag and data for Blink Lightning Address wallet (no API key required)
         ...(hasBlinkLnAddressWallet && {
           blinkLnAddress: true,

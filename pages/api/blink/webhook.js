@@ -27,6 +27,40 @@ import { getInvoiceFromLightningAddress } from '../../../lib/lnurl';
 import NWCClient from '../../../lib/nwc/NWCClient';
 const AuthManager = require('../../../lib/auth');
 const { getHybridStore } = require('../../../lib/storage/hybrid-store');
+const { formatCurrencyServer } = require('../../../lib/currency-formatter-server');
+
+/**
+ * Generate enhanced memo with tip split information
+ * Format: "BlinkPOS: $X + Y% tip = $Z (N sats) | $A (M sat) tip split to recipient1, recipient2"
+ */
+function generateEnhancedMemo(memo, baseAmount, tipAmount, tipRecipients, displayCurrency, tipAmountDisplay) {
+  const recipientNames = tipRecipients.map(r => r.username || r).join(', ');
+  
+  if (memo && tipAmount > 0 && tipRecipients.length > 0) {
+    let tipAmountText;
+    if (displayCurrency === 'BTC') {
+      tipAmountText = `${tipAmount} sat`;
+    } else {
+      const formattedAmount = formatCurrencyServer(tipAmountDisplay || tipAmount, displayCurrency);
+      tipAmountText = `${formattedAmount} (${tipAmount} sat)`;
+    }
+    
+    // Try to enhance the memo with tip info
+    const enhancedMemoContent = memo.replace(
+      /([^+]+?)\s*\+\s*(\d+)%\s*tip\s*=\s*(.+)/,
+      (match, baseAmountStr, tipPercent, total) => {
+        const cleanBaseAmount = baseAmountStr.trim();
+        const splitText = tipRecipients.length > 1 ? 'split to' : 'to';
+        return `${cleanBaseAmount} + ${tipPercent}% tip = ${total} | ${tipAmountText} tip ${splitText} ${recipientNames}`;
+      }
+    );
+    
+    return `BlinkPOS: ${enhancedMemoContent !== memo ? enhancedMemoContent : memo}`;
+  }
+  
+  // Fallback to basic memo
+  return memo ? (memo.startsWith('BlinkPOS:') ? memo : `BlinkPOS: ${memo}`) : `BlinkPOS: ${baseAmount} sats`;
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -113,6 +147,8 @@ export default async function handler(req, res) {
       forwardingData.blinkLnAddressUsername = forwardingData.metadata.blinkLnAddressUsername || null;
       forwardingData.npubCashActive = forwardingData.metadata.npubCashActive || false;
       forwardingData.npubCashLightningAddress = forwardingData.metadata.npubCashLightningAddress || null;
+      forwardingData.displayCurrency = forwardingData.metadata.displayCurrency || 'BTC';
+      forwardingData.tipAmountDisplay = forwardingData.metadata.tipAmountDisplay || null;
     }
 
     console.log('📄 [Webhook] Forwarding data found:', {
@@ -235,7 +271,9 @@ async function forwardToLnAddress(paymentHash, amount, forwardingData, hybridSto
   const tipAmount = forwardingData.tipAmount || 0;
   const tipRecipients = forwardingData.tipRecipients || [];
   const memo = forwardingData.memo || `${baseAmount} sats`;
-  const forwardingMemo = memo.startsWith('BlinkPOS:') ? memo : `BlinkPOS: ${memo}`;
+  const displayCurrency = forwardingData.displayCurrency || 'BTC';
+  const tipAmountDisplay = forwardingData.tipAmountDisplay || tipAmount;
+  const forwardingMemo = generateEnhancedMemo(memo, baseAmount, tipAmount, tipRecipients, displayCurrency, tipAmountDisplay);
 
   // Look up recipient's BTC wallet
   const walletLookupQuery = `
@@ -347,7 +385,9 @@ async function forwardToNpubCash(paymentHash, amount, forwardingData, hybridStor
   const tipAmount = forwardingData.tipAmount || 0;
   const tipRecipients = forwardingData.tipRecipients || [];
   const memo = forwardingData.memo || `${baseAmount} sats`;
-  const forwardingMemo = memo.startsWith('BlinkPOS:') ? memo : `BlinkPOS: ${memo}`;
+  const displayCurrency = forwardingData.displayCurrency || 'BTC';
+  const tipAmountDisplay = forwardingData.tipAmountDisplay || tipAmount;
+  const forwardingMemo = generateEnhancedMemo(memo, baseAmount, tipAmount, tipRecipients, displayCurrency, tipAmountDisplay);
 
   // Get invoice from npub.cash via LNURL-pay
   // Note: getInvoiceFromLightningAddress takes sats, not millisats
@@ -416,7 +456,9 @@ async function forwardToNWCWallet(paymentHash, amount, forwardingData, hybridSto
   const tipAmount = forwardingData.tipAmount || 0;
   const tipRecipients = forwardingData.tipRecipients || [];
   const memo = forwardingData.memo || `${baseAmount} sats`;
-  const forwardingMemo = memo.startsWith('BlinkPOS:') ? memo : `BlinkPOS: ${memo}`;
+  const displayCurrency = forwardingData.displayCurrency || 'BTC';
+  const tipAmountDisplay = forwardingData.tipAmountDisplay || tipAmount;
+  const forwardingMemo = generateEnhancedMemo(memo, baseAmount, tipAmount, tipRecipients, displayCurrency, tipAmountDisplay);
 
   console.log('📱 [Webhook] Creating NWC invoice for forwarding:', {
     baseAmount,
@@ -499,7 +541,9 @@ async function forwardToUserWallet(paymentHash, amount, forwardingData, hybridSt
   const tipAmount = forwardingData.tipAmount || 0;
   const tipRecipients = forwardingData.tipRecipients || [];
   const memo = forwardingData.memo || `${baseAmount} sats`;
-  const forwardingMemo = memo.startsWith('BlinkPOS:') ? memo : `BlinkPOS: ${memo}`;
+  const displayCurrency = forwardingData.displayCurrency || 'BTC';
+  const tipAmountDisplay = forwardingData.tipAmountDisplay || tipAmount;
+  const forwardingMemo = generateEnhancedMemo(memo, baseAmount, tipAmount, tipRecipients, displayCurrency, tipAmountDisplay);
 
   // Create invoice on user's wallet
   const userAPI = new BlinkAPI(userApiKey);

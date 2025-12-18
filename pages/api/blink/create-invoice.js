@@ -10,7 +10,7 @@ export default async function handler(req, res) {
     const { 
       amount, currency, memo, walletId, apiKey, userWalletId, displayCurrency, 
       baseAmount, tipAmount, tipPercent, tipRecipients = [], baseAmountDisplay, tipAmountDisplay, 
-      nwcActive, 
+      nwcActive, nwcConnectionUri, // NWC connection string for server-side forwarding
       // Blink Lightning Address wallet fields (no API key required)
       blinkLnAddress, blinkLnAddressWalletId, blinkLnAddressUsername,
       // npub.cash wallet fields (intraledger via LNURL-pay)
@@ -127,6 +127,7 @@ export default async function handler(req, res) {
           tipAmountDisplay: tipAmountDisplay, // Tip amount in display currency
           memo: memo,
           nwcActive: !!nwcActive, // Flag for NWC forwarding
+          nwcConnectionUri: nwcConnectionUri || null, // NWC connection string for server-side forwarding
           // Lightning Address wallet info
           blinkLnAddress: !!blinkLnAddress,
           blinkLnAddressWalletId: blinkLnAddressWalletId || null,

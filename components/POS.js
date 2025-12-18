@@ -170,7 +170,18 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
             
             // For NWC wallets, we need to forward the payment from client
             // (webhook cannot forward NWC payments - it releases the claim for client to handle)
-            if (activeNWC && nwcClientReady && nwcMakeInvoice) {
+            console.log('🔍 NWC check:', { 
+              hasActiveNWC: !!activeNWC, 
+              nwcClientReady, 
+              hasNwcMakeInvoice: !!nwcMakeInvoice 
+            });
+            
+            if (activeNWC && nwcMakeInvoice) {
+              // Note: nwcClientReady might be false after app was in background
+              // We'll try to forward anyway - nwcMakeInvoice should handle reconnection internally
+              if (!nwcClientReady) {
+                console.log('⚠️ NWC client not ready - attempting forwarding anyway...');
+              }
               console.log('💳 NWC wallet detected - forwarding payment from client...');
               try {
                 // Step 1: Get tip data and base amount (defer tips for correct chronology)
@@ -200,13 +211,20 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
                     
                     // Step 2: Create NWC invoice for base amount
                     console.log('📝 Creating NWC invoice for base amount:', baseAmount);
-                    const nwcInvoiceResult = await nwcMakeInvoice({
-                      amount: baseAmount * 1000, // NWC uses millisats
-                      description: enhancedMemo,
-                      expiry: 3600
-                    });
+                    let nwcInvoiceResult;
+                    try {
+                      nwcInvoiceResult = await nwcMakeInvoice({
+                        amount: baseAmount * 1000, // NWC uses millisats
+                        description: enhancedMemo,
+                        expiry: 3600
+                      });
+                      console.log('📋 NWC makeInvoice result:', nwcInvoiceResult);
+                    } catch (nwcError) {
+                      console.error('❌ NWC makeInvoice threw error:', nwcError);
+                      nwcInvoiceResult = { success: false, error: nwcError.message };
+                    }
                     
-                    if (nwcInvoiceResult.success && nwcInvoiceResult.invoice) {
+                    if (nwcInvoiceResult?.success && nwcInvoiceResult?.invoice) {
                       console.log('✅ NWC invoice created, paying from BlinkPOS...');
                       
                       // Step 3: Pay NWC invoice from BlinkPOS

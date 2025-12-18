@@ -53,21 +53,34 @@ export default async function handler(req, res) {
     const claimResult = await hybridStore.claimPaymentForProcessing(paymentHash);
     
     if (!claimResult.claimed) {
-      // No payment data found
+      // Payment claim failed - check reason
       console.log(`ℹ️ No payment data for NWC payment: ${paymentHash?.substring(0, 16)}... - ${claimResult.reason}`);
       
       if (claimResult.reason === 'already_completed') {
+        // Payment already forwarded - tell client not to forward again
+        console.log(`✅ Payment ${paymentHash?.substring(0, 16)}... already completed - skipping duplicate forwarding`);
         return res.status(200).json({
           success: true,
-          baseAmount: totalAmount,
-          tipAmount: 0,
-          enhancedMemo: memo ? `BlinkPOS: ${memo}` : `BlinkPOS: ${totalAmount} sats`,
-          alreadyProcessed: true
+          alreadyProcessed: true,
+          skipForwarding: true,  // Client should NOT forward
+          message: 'Payment already forwarded'
         });
       }
       
-      // No payment data found - this could be a legacy payment or an error
-      // Return success with full amount so the client can still forward to NWC
+      if (claimResult.reason === 'already_processing') {
+        // Payment being processed by another request (webhook or other client call)
+        // Tell client NOT to forward to prevent duplicate payment
+        console.log(`⏳ Payment ${paymentHash?.substring(0, 16)}... already being processed - skipping duplicate forwarding`);
+        return res.status(200).json({
+          success: true,
+          alreadyProcessing: true,
+          skipForwarding: true,  // Client should NOT forward
+          message: 'Payment already being processed'
+        });
+      }
+      
+      // No payment data found (not_found) - this could be a legacy payment or payment without stored data
+      // Only allow forwarding for not_found case (truly new/unknown payments)
       console.log(`⚠️ Payment data not found for ${paymentHash?.substring(0, 16)}... - returning full amount for NWC forwarding`);
       return res.status(200).json({
         success: true,

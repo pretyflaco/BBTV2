@@ -201,8 +201,9 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
                 } else if (tipResponse.ok) {
                   const tipResult = await tipResponse.json();
                   
-                  if (tipResult.alreadyProcessed) {
-                    console.log('ℹ️ Payment was already processed');
+                  // Check if we should skip forwarding (already processed or being processed)
+                  if (tipResult.skipForwarding || tipResult.alreadyProcessed || tipResult.alreadyProcessing) {
+                    console.log('ℹ️ Payment forwarding skipped:', tipResult.message || 'Already handled');
                   } else {
                     const baseAmount = tipResult.baseAmount || paymentAmount;
                     const enhancedMemo = tipResult.enhancedMemo || invoice.memo;

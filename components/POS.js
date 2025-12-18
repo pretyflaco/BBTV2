@@ -166,13 +166,96 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
           const result = await response.json();
           if (result.paid) {
             console.log('✅ Invoice was paid while app was in background!');
+            const paymentAmount = result.transaction?.amount || invoice.satoshis || invoice.amount;
+            
+            // For NWC wallets, we need to forward the payment from client
+            // (webhook cannot forward NWC payments - it releases the claim for client to handle)
+            if (activeNWC && nwcClientReady && nwcMakeInvoice) {
+              console.log('💳 NWC wallet detected - forwarding payment from client...');
+              try {
+                // Step 1: Get tip data and base amount (defer tips for correct chronology)
+                const tipResponse = await fetch('/api/blink/forward-nwc-with-tips', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    paymentHash: invoice.paymentHash,
+                    totalAmount: paymentAmount,
+                    memo: invoice.memo,
+                    deferTips: true  // Get tip data but don't send yet
+                  })
+                });
+                
+                if (tipResponse.status === 409) {
+                  console.log('ℹ️ Payment already being processed (409)');
+                } else if (tipResponse.ok) {
+                  const tipResult = await tipResponse.json();
+                  
+                  if (tipResult.alreadyProcessed) {
+                    console.log('ℹ️ Payment was already processed');
+                  } else {
+                    const baseAmount = tipResult.baseAmount || paymentAmount;
+                    const enhancedMemo = tipResult.enhancedMemo || invoice.memo;
+                    
+                    console.log('📄 NWC forwarding data:', { baseAmount, hasTips: !!tipResult.tipData });
+                    
+                    // Step 2: Create NWC invoice for base amount
+                    console.log('📝 Creating NWC invoice for base amount:', baseAmount);
+                    const nwcInvoiceResult = await nwcMakeInvoice({
+                      amount: baseAmount * 1000, // NWC uses millisats
+                      description: enhancedMemo,
+                      expiry: 3600
+                    });
+                    
+                    if (nwcInvoiceResult.success && nwcInvoiceResult.invoice) {
+                      console.log('✅ NWC invoice created, paying from BlinkPOS...');
+                      
+                      // Step 3: Pay NWC invoice from BlinkPOS
+                      const payResponse = await fetch('/api/blink/pay-invoice', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          paymentRequest: nwcInvoiceResult.invoice,
+                          memo: enhancedMemo
+                        })
+                      });
+                      
+                      if (payResponse.ok) {
+                        console.log('✅ NWC base amount forwarded successfully!');
+                        
+                        // Step 4: Send tips if there are deferred tips
+                        if (tipResult.tipsDeferred && tipResult.tipData) {
+                          console.log('💰 Sending deferred tips...');
+                          await fetch('/api/blink/send-nwc-tips', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              paymentHash: invoice.paymentHash,
+                              tipData: tipResult.tipData
+                            })
+                          });
+                          console.log('✅ Tips sent!');
+                        }
+                      } else {
+                        console.error('❌ Failed to pay NWC invoice:', await payResponse.text());
+                      }
+                    } else {
+                      console.error('❌ Failed to create NWC invoice:', nwcInvoiceResult);
+                    }
+                  }
+                } else {
+                  console.error('❌ Failed to get NWC forwarding data:', await tipResponse.text());
+                }
+              } catch (forwardError) {
+                console.error('❌ Error forwarding NWC payment:', forwardError);
+              }
+            }
             
             // Trigger the payment animation with sound (same as real-time payment)
             if (triggerPaymentAnimation) {
               triggerPaymentAnimation({
-                amount: result.transaction?.amount || invoice.satoshis || invoice.amount,
+                amount: paymentAmount,
                 currency: 'BTC',
-                memo: invoice.memo || `BlinkPOS: ${result.transaction?.amount || invoice.satoshis} sats`,
+                memo: invoice.memo || `BlinkPOS: ${paymentAmount} sats`,
                 isForwarded: true
               });
             }

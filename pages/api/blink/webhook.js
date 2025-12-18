@@ -14,6 +14,13 @@
  * @see https://dev.blink.sv/api/webhooks
  */
 
+// WebSocket polyfill for Node.js environment (required for NWCClient)
+// nostr-tools uses WebSocket which is only available in browsers by default
+import WebSocket from 'ws';
+if (typeof global !== 'undefined' && !global.WebSocket) {
+  global.WebSocket = WebSocket;
+}
+
 import BlinkAPI from '../../../lib/blink-api';
 import { verifyWebhookSignature } from '../../../lib/webhook-verify';
 import { getInvoiceFromLightningAddress } from '../../../lib/lnurl';

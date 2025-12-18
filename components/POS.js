@@ -168,8 +168,8 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
             console.log('✅ Invoice was paid while app was in background!');
             const paymentAmount = result.transaction?.amount || invoice.satoshis || invoice.amount;
             
-            // For NWC wallets, we need to forward the payment from client
-            // (webhook cannot forward NWC payments - it releases the claim for client to handle)
+            // For NWC wallets, try to forward from client as fallback
+            // (webhook should handle this in production, but client provides fallback)
             console.log('🔍 NWC check:', { 
               hasActiveNWC: !!activeNWC, 
               nwcClientReady, 

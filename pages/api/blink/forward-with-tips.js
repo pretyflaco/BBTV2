@@ -153,7 +153,7 @@ export default async function handler(req, res) {
       // From: "$0.80 + 10% tip = $0.88 (757 sats)" 
       // To: "BlinkPOS: $0.80 + 10% tip = $0.88 (757 sats) | $0.08 (69 sat) tip split to user1, user2"
       const enhancedMemo = memo.replace(
-        /([^+]+?)\s*\+\s*(\d+)%\s*tip\s*=\s*(.+)/,
+        /([^+]+?)\s*\+\s*([\d.]+)%\s*tip\s*=\s*(.+)/,
         (match, baseAmount, tipPercent, total) => {
           // Clean up baseAmount - remove extra spaces and ensure proper formatting
           const cleanBaseAmount = baseAmount.trim();

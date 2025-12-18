@@ -140,7 +140,7 @@ export default async function handler(req, res) {
       
       // Convert memo to enhanced format with tip info
       const enhancedMemoContent = memo.replace(
-        /([^+]+?)\s*\+\s*(\d+)%\s*tip\s*=\s*(.+)/,
+        /([^+]+?)\s*\+\s*([\d.]+)%\s*tip\s*=\s*(.+)/,
         (match, baseAmountStr, tipPercent, total) => {
           const cleanBaseAmount = baseAmountStr.trim();
           const splitText = tipRecipients.length > 1 ? 'split to' : 'to';

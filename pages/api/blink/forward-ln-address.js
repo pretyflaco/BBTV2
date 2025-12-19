@@ -84,8 +84,16 @@ export default async function handler(req, res) {
             details: { paymentHash, status: 'processing' }
           });
         } else {
-          // Not found - continue without claim (legacy behavior for old payments)
-          console.log('⚠️ [LN Address] No stored data found, proceeding without claim');
+          // Not found - payment was likely already processed and cleaned up
+          // CRITICAL FIX: Do NOT continue - this could cause duplicate payments
+          console.log('⚠️ [LN Address] No stored data found - likely already processed, skipping to prevent duplicate');
+          return res.status(200).json({
+            success: true,
+            message: 'Payment data not found - likely already processed',
+            alreadyProcessed: true,
+            skipForwarding: true,
+            details: { paymentHash, status: 'not_found' }
+          });
         }
       } else {
         claimSucceeded = true;

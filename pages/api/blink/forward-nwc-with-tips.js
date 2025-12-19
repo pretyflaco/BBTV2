@@ -79,14 +79,16 @@ export default async function handler(req, res) {
         });
       }
       
-      // No payment data found (not_found) - this could be a legacy payment or payment without stored data
-      // Only allow forwarding for not_found case (truly new/unknown payments)
-      console.log(`⚠️ Payment data not found for ${paymentHash?.substring(0, 16)}... - returning full amount for NWC forwarding`);
+      // No payment data found (not_found) - payment was either:
+      // 1. Already processed and cleaned up (most common) - should NOT forward again
+      // 2. Never created through our system - should NOT forward
+      // CRITICAL FIX: Always skip forwarding when data not found to prevent double-spend
+      console.log(`⚠️ Payment data not found for ${paymentHash?.substring(0, 16)}... - skipping forwarding to prevent duplicate`);
       return res.status(200).json({
         success: true,
-        baseAmount: totalAmount,
-        tipAmount: 0,
-        enhancedMemo: memo ? `BlinkPOS: ${memo}` : `BlinkPOS: ${totalAmount} sats`,
+        skipForwarding: true,  // CRITICAL: Prevent forwarding when data not found
+        alreadyProcessed: true,  // Assume it was already processed
+        message: 'Payment data not found - likely already processed',
         noPaymentData: true
       });
     }

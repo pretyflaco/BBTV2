@@ -142,10 +142,10 @@ export default function NWCSetup({ onComplete, onCancel }) {
           </svg>
         </div>
         <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-          Connect via NWC
+          Connect Blink via NWC
         </h2>
         <p className={`mt-2 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-          Connect your Lightning wallet using Nostr Wallet Connect
+          Connect your Blink wallet using Nostr Wallet Connect
         </p>
       </div>
 
@@ -194,7 +194,7 @@ export default function NWCSetup({ onComplete, onCancel }) {
             </button>
           </div>
           <p className={`mt-2 text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-            Get this from your wallet app (Alby, Coinos, Zeus, minibits.cash, etc.)
+            Get this from your Blink wallet app at blink.sv
           </p>
         </div>
 
@@ -334,30 +334,25 @@ export default function NWCSetup({ onComplete, onCancel }) {
       {/* Info Section */}
       <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
         <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-          Supported Wallets
+          Important: Blink Wallets Only
         </h3>
-        <div className="flex flex-wrap gap-2">
-          {['Alby', 'Coinos', 'Zeus', 'minibits.cash', 'LNbits'].map((wallet) => (
-            <span 
-              key={wallet}
-              className={`px-3 py-1 rounded-full text-xs ${
-                darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
-              }`}
-            >
-              {wallet}
-            </span>
-          ))}
+        <div className={`p-3 rounded-lg mb-3 ${darkMode ? 'bg-amber-900/20 border border-amber-500/30' : 'bg-amber-50 border border-amber-200'}`}>
+          <p className={`text-xs ${darkMode ? 'text-amber-200' : 'text-amber-800'}`}>
+            <strong>Only Blink NWC wallets are supported.</strong> This ensures zero-fee internal transfers. 
+            External Lightning wallets would incur routing fees that are difficult to account for properly.
+          </p>
         </div>
-        <p className={`mt-3 text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-          Any wallet that supports{' '}
+        <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+          Get your NWC connection string from{' '}
           <a 
-            href="https://nwc.dev" 
+            href="https://blink.sv" 
             target="_blank" 
             rel="noopener noreferrer"
             className="text-purple-500 hover:underline"
           >
-            NIP-47 (NWC)
+            blink.sv
           </a>
+          {' '}→ Settings → Nostr Wallet Connect
         </p>
       </div>
     </div>

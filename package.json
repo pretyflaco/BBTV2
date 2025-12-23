@@ -14,6 +14,7 @@
     "@noble/secp256k1": "^2.1.0",
     "bcryptjs": "^2.4.3",
     "bech32": "^2.0.0",
+    "bolt11": "^1.4.1",
     "crypto-js": "^4.2.0",
     "js-lnurl": "^0.6.0",
     "jsonwebtoken": "^9.0.0",

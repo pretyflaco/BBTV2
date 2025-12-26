@@ -7,6 +7,7 @@ import { useDarkMode } from '../lib/hooks/useDarkMode';
 import { useNFC } from './NFCPayment';
 import PaymentAnimation from './PaymentAnimation';
 import POS from './POS';
+import Voucher from './Voucher';
 import ItemCart from './ItemCart';
 import KeyManagementSection from './Settings/KeyManagementSection';
 import NWCClient from '../lib/nwc/NWCClient';
@@ -64,7 +65,7 @@ export default function Dashboard() {
   const [exportingData, setExportingData] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
-  const [currentView, setCurrentView] = useState('pos'); // 'cart', 'pos', or 'transactions'
+  const [currentView, setCurrentView] = useState('pos'); // 'cart', 'pos', 'voucher', or 'transactions'
   const [isViewTransitioning, setIsViewTransitioning] = useState(false); // Loading animation between views
   const [transitionColorIndex, setTransitionColorIndex] = useState(0); // Rotating spinner color
   const [cartCheckoutData, setCartCheckoutData] = useState(null); // Data from cart checkout to prefill POS
@@ -126,6 +127,23 @@ export default function Dashboard() {
   const [npubCashValidating, setNpubCashValidating] = useState(false);
   const [npubCashValidated, setNpubCashValidated] = useState(null); // { lightningAddress, minSendable, maxSendable }
   const [confirmDeleteWallet, setConfirmDeleteWallet] = useState(null); // { type: 'blink'|'nwc', id: string }
+  
+  // Voucher Wallet state (separate from regular wallet - for voucher feature)
+  const [showVoucherWalletSettings, setShowVoucherWalletSettings] = useState(false);
+  const [voucherWallet, setVoucherWallet] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('blinkpos-voucher-wallet');
+      return saved ? JSON.parse(saved) : null;
+    }
+    return null;
+  });
+  const [voucherWalletApiKey, setVoucherWalletApiKey] = useState('');
+  const [voucherWalletLabel, setVoucherWalletLabel] = useState('');
+  const [voucherWalletLoading, setVoucherWalletLoading] = useState(false);
+  const [voucherWalletError, setVoucherWalletError] = useState(null);
+  const [voucherWalletValidating, setVoucherWalletValidating] = useState(false);
+  const [voucherWalletScopes, setVoucherWalletScopes] = useState(null); // Scopes returned from authorization query
+  
   // Tip Profile state
   const [showTipProfileSettings, setShowTipProfileSettings] = useState(false);
   // Paycode state
@@ -172,6 +190,8 @@ export default function Dashboard() {
 
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
+  const touchStartY = useRef(0);
+  const touchEndY = useRef(0);
   
   // Save sound preference to localStorage when it changes
   useEffect(() => {
@@ -2028,30 +2048,40 @@ export default function Dashboard() {
   // Handle touch events for swipe navigation
   const handleTouchStart = (e) => {
     touchStartX.current = e.targetTouches[0].clientX;
+    touchStartY.current = e.targetTouches[0].clientY;
   };
 
   const handleTouchMove = (e) => {
     touchEndX.current = e.targetTouches[0].clientX;
+    touchEndY.current = e.targetTouches[0].clientY;
   };
 
   const handleTouchEnd = () => {
     if (!touchStartX.current || !touchEndX.current) return;
     
-    const distance = touchStartX.current - touchEndX.current;
-    const isLeftSwipe = distance > 50;
-    const isRightSwipe = distance < -50;
+    const distanceX = touchStartX.current - touchEndX.current;
+    const distanceY = touchStartY.current - touchEndY.current;
+    const isLeftSwipe = distanceX > 50 && Math.abs(distanceY) < 50;
+    const isRightSwipe = distanceX < -50 && Math.abs(distanceY) < 50;
+    const isUpSwipe = distanceY > 50 && Math.abs(distanceX) < 50;
+    const isDownSwipe = distanceY < -50 && Math.abs(distanceX) < 50;
 
     // Only allow swipe navigation when:
     // - On Cart screen (not showing any overlay)
     // - On POS numpad screen (not showing invoice/tips)
+    // - On Voucher numpad screen (not showing voucher QR)
     // - On transactions screen
-    // Navigation order: Cart ← → POS ← → Transactions
-    // Left swipe: Cart → POS → Transactions
-    // Right swipe: Transactions → POS → Cart
+    // Navigation order (horizontal): Cart ← → POS ← → Transactions
+    // Navigation order (vertical): POS ↕ Voucher (only when voucher wallet is configured)
+    
+    // Horizontal swipes (left/right)
     if (isLeftSwipe && !showingInvoice && !isViewTransitioning) {
       if (currentView === 'cart') {
         handleViewTransition('pos');
       } else if (currentView === 'pos') {
+        handleViewTransition('transactions');
+      } else if (currentView === 'voucher') {
+        // From voucher, swipe left goes to transactions
         handleViewTransition('transactions');
       }
     } else if (isRightSwipe && !isViewTransitioning) {
@@ -2059,12 +2089,27 @@ export default function Dashboard() {
         handleViewTransition('pos');
       } else if (currentView === 'pos' && !showingInvoice) {
         handleViewTransition('cart');
+      } else if (currentView === 'voucher') {
+        // From voucher, swipe right goes to cart
+        handleViewTransition('cart');
+      }
+    }
+    // Vertical swipes (up/down) - only between POS and Voucher, and only if voucher wallet is configured
+    else if (isUpSwipe && !showingInvoice && !isViewTransitioning && voucherWallet) {
+      if (currentView === 'pos') {
+        handleViewTransition('voucher');
+      }
+    } else if (isDownSwipe && !isViewTransitioning && voucherWallet) {
+      if (currentView === 'voucher') {
+        handleViewTransition('pos');
       }
     }
 
     // Reset touch positions
     touchStartX.current = 0;
     touchEndX.current = 0;
+    touchStartY.current = 0;
+    touchEndY.current = 0;
   };
 
   // Group transactions by month
@@ -2225,6 +2270,18 @@ export default function Dashboard() {
                   }`}
                   aria-label="POS"
                 />
+                {voucherWallet && (
+                  <button
+                    onClick={() => handleViewTransition('voucher')}
+                    disabled={isViewTransitioning}
+                    className={`w-2 h-2 rounded-full transition-colors ${
+                      currentView === 'voucher'
+                        ? 'bg-purple-600 dark:bg-purple-400'
+                        : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+                    }`}
+                    aria-label="Voucher"
+                  />
+                )}
                 <button
                   onClick={() => handleViewTransition('transactions')}
                   disabled={isViewTransitioning}
@@ -2320,6 +2377,23 @@ export default function Dashboard() {
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Wallet</span>
                     <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                       <span>{activeNWC ? activeNWC.label : activeNpubCashWallet ? (activeNpubCashWallet.label || activeNpubCashWallet.lightningAddress) : (activeBlinkAccount?.label || activeBlinkAccount?.username || 'None')}</span>
+                      <span className="ml-1">›</span>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Voucher Wallet - For voucher feature (requires Blink API key with WRITE scope) */}
+                <button
+                  onClick={() => setShowVoucherWalletSettings(true)}
+                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Voucher Wallet</span>
+                      <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-purple-500/20 text-purple-400">Beta</span>
+                    </div>
+                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                      <span>{voucherWallet ? (voucherWallet.label || voucherWallet.username || 'Connected') : 'None'}</span>
                       <span className="ml-1">›</span>
                     </div>
                   </div>
@@ -4488,6 +4562,340 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Voucher Wallet Overlay */}
+      {showVoucherWalletSettings && (
+        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+            {/* Header */}
+            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center h-16">
+                  <button
+                    onClick={() => {
+                      setShowVoucherWalletSettings(false);
+                      setVoucherWalletApiKey('');
+                      setVoucherWalletLabel('');
+                      setVoucherWalletError(null);
+                      setVoucherWalletScopes(null);
+                    }}
+                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
+                  >
+                    <span className="text-2xl mr-2">‹</span>
+                    <span className="text-lg">Back</span>
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                      Voucher Wallet
+                    </h1>
+                    <span className="px-2 py-0.5 text-xs font-medium rounded bg-purple-500/20 text-purple-400">Beta</span>
+                  </div>
+                  <div className="w-16"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="max-w-md mx-auto px-4 py-6">
+              <div className="space-y-4">
+                {/* Info Banner */}
+                <div className={`p-4 rounded-lg ${darkMode ? 'bg-purple-900/20 border border-purple-500/30' : 'bg-purple-50 border border-purple-200'}`}>
+                  <div className="flex gap-3">
+                    <svg className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                      <p className={`text-sm font-medium ${darkMode ? 'text-purple-300' : 'text-purple-800'}`}>
+                        Voucher Wallet Requirements
+                      </p>
+                      <p className={`text-xs mt-1 ${darkMode ? 'text-purple-400/80' : 'text-purple-600'}`}>
+                        This wallet is used for voucher operations. It requires a Blink API key with <strong>WRITE</strong> scope to create and manage vouchers.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Current Voucher Wallet */}
+                {voucherWallet && (
+                  <div className={`rounded-lg p-4 border-2 ${darkMode ? 'bg-purple-900/20 border-purple-500' : 'bg-purple-50 border-purple-400'}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center bg-purple-500/20">
+                          <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                          </svg>
+                        </div>
+                        <div className="min-w-0">
+                          <h5 className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                            {voucherWallet.label || 'Voucher Wallet'}
+                          </h5>
+                          <p className={`text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            @{voucherWallet.username}
+                          </p>
+                          {voucherWallet.walletId && (
+                            <p className={`text-xs truncate ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                              Wallet: {voucherWallet.walletId}
+                            </p>
+                          )}
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {voucherWallet.scopes?.map((scope) => (
+                              <span key={scope} className={`px-1.5 py-0.5 rounded text-xs ${
+                                scope === 'WRITE' 
+                                  ? 'bg-green-500/20 text-green-400' 
+                                  : 'bg-gray-500/20 text-gray-400'
+                              }`}>
+                                {scope}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (typeof window !== 'undefined') {
+                            localStorage.removeItem('blinkpos-voucher-wallet');
+                          }
+                          setVoucherWallet(null);
+                        }}
+                        className={`p-2 rounded transition-colors ${darkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'}`}
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Add Voucher Wallet Form */}
+                {!voucherWallet && (
+                  <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                    <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      Connect Blink API Key
+                    </h3>
+                    <form onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (!voucherWalletApiKey.trim()) {
+                        setVoucherWalletError('Please enter an API key');
+                        return;
+                      }
+                      
+                      setVoucherWalletLoading(true);
+                      setVoucherWalletError(null);
+                      setVoucherWalletScopes(null);
+                      
+                      try {
+                        // Step 1: Check scopes using authorization query
+                        setVoucherWalletValidating(true);
+                        const scopeResponse = await fetch('https://api.blink.sv/graphql', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'X-API-KEY': voucherWalletApiKey.trim()
+                          },
+                          body: JSON.stringify({
+                            query: '{ authorization { scopes } }'
+                          })
+                        });
+                        
+                        if (!scopeResponse.ok) {
+                          throw new Error('Invalid API key');
+                        }
+                        
+                        const scopeData = await scopeResponse.json();
+                        if (scopeData.errors) {
+                          throw new Error(scopeData.errors[0]?.message || 'Failed to check API key scopes');
+                        }
+                        
+                        const scopes = scopeData.data?.authorization?.scopes || [];
+                        setVoucherWalletScopes(scopes);
+                        
+                        // Step 2: Verify WRITE scope is present
+                        if (!scopes.includes('WRITE')) {
+                          setVoucherWalletError(`This API key does not have WRITE scope. Found scopes: ${scopes.join(', ') || 'none'}. The voucher feature requires WRITE permission.`);
+                          setVoucherWalletLoading(false);
+                          setVoucherWalletValidating(false);
+                          return;
+                        }
+                        
+                        // Step 3: Get user info and wallet ID
+                        const userResponse = await fetch('https://api.blink.sv/graphql', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'X-API-KEY': voucherWalletApiKey.trim()
+                          },
+                          body: JSON.stringify({
+                            query: '{ me { id username defaultAccount { displayCurrency wallets { id walletCurrency } } } }'
+                          })
+                        });
+                        
+                        if (!userResponse.ok) {
+                          throw new Error('Failed to validate API key');
+                        }
+                        
+                        const userData = await userResponse.json();
+                        if (userData.errors || !userData.data?.me?.id) {
+                          throw new Error('Invalid API key');
+                        }
+                        
+                        // Get BTC wallet ID
+                        const wallets = userData.data.me.defaultAccount?.wallets || [];
+                        const btcWallet = wallets.find(w => w.walletCurrency === 'BTC');
+                        
+                        if (!btcWallet) {
+                          throw new Error('No BTC wallet found for this account. The voucher feature requires a BTC wallet.');
+                        }
+                        
+                        // Save voucher wallet
+                        const walletData = {
+                          apiKey: voucherWalletApiKey.trim(),
+                          walletId: btcWallet.id,
+                          label: voucherWalletLabel.trim() || 'Voucher Wallet',
+                          username: userData.data.me.username,
+                          userId: userData.data.me.id,
+                          displayCurrency: userData.data.me.defaultAccount?.displayCurrency || 'BTC',
+                          scopes: scopes,
+                          createdAt: Date.now()
+                        };
+                        
+                        if (typeof window !== 'undefined') {
+                          localStorage.setItem('blinkpos-voucher-wallet', JSON.stringify(walletData));
+                        }
+                        setVoucherWallet(walletData);
+                        
+                        // Reset form
+                        setVoucherWalletApiKey('');
+                        setVoucherWalletLabel('');
+                        setVoucherWalletScopes(null);
+                      } catch (err) {
+                        setVoucherWalletError(err.message);
+                      } finally {
+                        setVoucherWalletLoading(false);
+                        setVoucherWalletValidating(false);
+                      }
+                    }} className="space-y-3">
+                      <div>
+                        <label className={`block text-sm mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Label (optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={voucherWalletLabel}
+                          onChange={(e) => setVoucherWalletLabel(e.target.value)}
+                          placeholder="My Voucher Wallet"
+                          autoComplete="off"
+                          data-1p-ignore="true"
+                          data-lpignore="true"
+                          className={`w-full px-3 py-2 rounded-md border text-sm ${
+                            darkMode 
+                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
+                              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                          } focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
+                        />
+                      </div>
+                      <div>
+                        <label className={`block text-sm mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Blink API Key <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="password"
+                          value={voucherWalletApiKey}
+                          onChange={(e) => {
+                            setVoucherWalletApiKey(e.target.value);
+                            setVoucherWalletError(null);
+                            setVoucherWalletScopes(null);
+                          }}
+                          placeholder="blink_..."
+                          required
+                          autoComplete="off"
+                          data-1p-ignore="true"
+                          data-lpignore="true"
+                          className={`w-full px-3 py-2 rounded-md border text-sm ${
+                            darkMode 
+                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
+                              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                          } focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
+                        />
+                        <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                          Get from <a href="https://dashboard.blink.sv" target="_blank" rel="noopener noreferrer" className="text-purple-500 hover:underline">dashboard.blink.sv</a>. 
+                          Must have <span className="font-semibold">WRITE</span> scope.
+                        </p>
+                      </div>
+                      
+                      {/* Scopes Display */}
+                      {voucherWalletScopes && (
+                        <div className={`p-3 rounded-md ${
+                          voucherWalletScopes.includes('WRITE')
+                            ? darkMode ? 'bg-green-900/20 border border-green-500/30' : 'bg-green-50 border border-green-200'
+                            : darkMode ? 'bg-red-900/20 border border-red-500/30' : 'bg-red-50 border border-red-200'
+                        }`}>
+                          <div className="flex items-center gap-2 mb-1">
+                            {voucherWalletScopes.includes('WRITE') ? (
+                              <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : (
+                              <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            )}
+                            <span className={`text-sm font-medium ${
+                              voucherWalletScopes.includes('WRITE')
+                                ? darkMode ? 'text-green-400' : 'text-green-700'
+                                : darkMode ? 'text-red-400' : 'text-red-700'
+                            }`}>
+                              {voucherWalletScopes.includes('WRITE') ? 'WRITE scope found' : 'Missing WRITE scope'}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {voucherWalletScopes.map((scope) => (
+                              <span key={scope} className={`px-2 py-0.5 rounded text-xs ${
+                                scope === 'WRITE' 
+                                  ? 'bg-green-500/20 text-green-400' 
+                                  : darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'
+                              }`}>
+                                {scope}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {voucherWalletError && (
+                        <div className={`p-3 rounded-md ${darkMode ? 'bg-red-900/20 border border-red-500/30' : 'bg-red-50 border border-red-200'}`}>
+                          <p className="text-sm text-red-500">{voucherWalletError}</p>
+                        </div>
+                      )}
+                      
+                      <button
+                        type="submit"
+                        disabled={voucherWalletLoading || !voucherWalletApiKey.trim()}
+                        className="w-full py-3 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {voucherWalletLoading 
+                          ? (voucherWalletValidating ? 'Checking scopes...' : 'Adding...') 
+                          : 'Add Voucher Wallet'
+                        }
+                      </button>
+                    </form>
+                  </div>
+                )}
+
+                {/* Help Section */}
+                <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                  <p className="font-medium mb-1">About Voucher Wallet:</p>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    <li>Used exclusively for voucher creation and redemption</li>
+                    <li>Separate from your main receiving wallet</li>
+                    <li>Requires API key with WRITE permission</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Export Options Overlay */}
       {showExportOptions && (
         <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
@@ -4798,11 +5206,38 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Owner/Agent Display - Left aligned on POS and Cart only */}
-        {!showingInvoice && (currentView === 'pos' || currentView === 'cart') && (
+        {/* Owner/Agent Display - Left aligned on POS, Cart, and Voucher */}
+        {!showingInvoice && (currentView === 'pos' || currentView === 'cart' || currentView === 'voucher') && (
           <div className="flex flex-col gap-1 mb-2 bg-white dark:bg-black">
-            {/* Owner Display - Always show when logged in */}
+            {/* Owner Display - Show voucher wallet on voucher view, regular wallet on POS/Cart */}
             {(() => {
+              // For voucher view, show voucher wallet
+              if (currentView === 'voucher') {
+                if (voucherWallet) {
+                  return (
+                    <div className="flex items-center gap-2">
+                      <img src="/purpledot.svg" alt="Voucher Wallet" className="w-2 h-2" />
+                      <span className="font-semibold text-purple-600 dark:text-purple-400" style={{fontSize: '11.2px'}}>
+                        {voucherWallet.label || voucherWallet.username || 'Voucher Wallet'}
+                      </span>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <button 
+                      onClick={() => setShowVoucherWalletSettings(true)}
+                      className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                    >
+                      <img src="/yellowdot.svg" alt="No Wallet" className="w-2 h-2" />
+                      <span className="font-semibold text-yellow-600 dark:text-yellow-400" style={{fontSize: '11.2px'}}>
+                        Connect voucher wallet
+                      </span>
+                    </button>
+                  );
+                }
+              }
+              
+              // For POS/Cart view, show regular wallet
               const hasWallet = activeNWC || activeNpubCashWallet || activeBlinkAccount;
               const noWallet = !hasWallet;
               const dotColor = activeNWC ? "/purpledot.svg" : activeNpubCashWallet ? "/tealdot.svg" : hasWallet ? "/bluedot.svg" : "/yellowdot.svg";
@@ -4836,8 +5271,8 @@ export default function Dashboard() {
               );
             })()}
             
-            {/* Agent Display - Show when split profile is active */}
-            {activeSplitProfile && (
+            {/* Agent Display - Show when split profile is active (only on POS/Cart, not Voucher) */}
+            {activeSplitProfile && currentView !== 'voucher' && (
               <div className="flex items-center gap-2">
                 <img 
                   src="/greendot.svg" 
@@ -4924,6 +5359,23 @@ export default function Dashboard() {
             }}
             triggerPaymentAnimation={triggerPaymentAnimation}
           />
+        ) : currentView === 'voucher' ? (
+          <div className="h-[calc(100vh-180px)] min-h-[400px]">
+            <Voucher
+              voucherWallet={voucherWallet}
+              displayCurrency={displayCurrency}
+              currencies={currencies}
+              darkMode={darkMode}
+              toggleDarkMode={toggleDarkMode}
+              soundEnabled={soundEnabled}
+              onInternalTransition={() => {
+                // Rotate spinner color and show brief transition
+                setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);
+                setIsViewTransitioning(true);
+                setTimeout(() => setIsViewTransitioning(false), 120);
+              }}
+            />
+          </div>
         ) : (
           <>
             {/* Most Recent Transactions */}

@@ -651,8 +651,33 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
     }
   };
 
-  // Print voucher using companion app or browser print
-  const printVoucher = async () => {
+  // Print voucher using companion app (like Blink voucher app does)
+  const printVoucher = () => {
+    if (!voucher) return;
+    
+    // Build the display amounts
+    let voucherPrice = '';
+    if (voucher.displayCurrency && voucher.displayCurrency !== 'BTC') {
+      voucherPrice = formatDisplayAmount(voucher.displayAmount, voucher.displayCurrency);
+    }
+    
+    const voucherAmount = `${voucher.amount} sats`;
+    const voucherSecret = voucher.id?.replace(/-/g, '').substring(0, 12) || '';
+    const identifierCode = voucher.id?.substring(0, 8)?.toUpperCase() || '';
+    
+    // Build companion app deep link URL (same format as Blink voucher app)
+    const deepLinkUrl = `blink-pos-companion://print?app=voucher&lnurl=${encodeURIComponent(voucher.lnurl)}&voucherPrice=${encodeURIComponent(voucherPrice)}&voucherAmount=${encodeURIComponent(voucherAmount)}&voucherSecret=${encodeURIComponent(voucherSecret)}&commissionPercentage=0&identifierCode=${encodeURIComponent(identifierCode)}`;
+    
+    console.log('🖨️ Printing via companion app:', deepLinkUrl);
+    
+    // Use window.location.href to trigger the deep link (same as Blink voucher app)
+    window.location.href = deepLinkUrl;
+    
+    setShowPrintModal(false);
+  };
+  
+  // Browser print fallback (for desktop or when companion app is not available)
+  const browserPrint = async () => {
     if (!voucher) return;
     
     setPrinting(true);
@@ -668,117 +693,76 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
       const voucherAmount = `${voucher.amount} sats`;
       const voucherSecret = voucher.id?.replace(/-/g, '').substring(0, 12) || '';
       const identifierCode = voucher.id?.substring(0, 8)?.toUpperCase() || '';
+      const qrDataUrl = await getQrDataUrl();
       
-      if (companionAppInstalled) {
-        // Use companion app for thermal printing
-        console.log('🖨️ Printing via companion app...');
-        const deepLinkUrl = `blink-pos-companion://print?app=voucher&lnurl=${encodeURIComponent(voucher.lnurl)}&voucherPrice=${encodeURIComponent(voucherPrice)}&voucherAmount=${encodeURIComponent(voucherAmount)}&voucherSecret=${encodeURIComponent(voucherSecret)}&commissionPercentage=0&identifierCode=${encodeURIComponent(identifierCode)}`;
-        window.location.href = deepLinkUrl;
-        setShowPrintModal(false);
-      } else {
-        // Fallback to browser print
-        console.log('🖨️ Printing via browser...');
-        
-        // Create a printable version of the voucher
-        const printWindow = window.open('', '_blank', 'width=400,height=600');
-        if (printWindow) {
-          const qrDataUrl = await getQrDataUrl();
-          
-          printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <title>Blink Voucher</title>
-              <style>
-                body { 
-                  font-family: Helvetica, Arial, sans-serif; 
-                  padding: 20px; 
-                  max-width: 300px; 
-                  margin: 0 auto;
-                  text-align: center;
-                }
-                .logo { 
-                  max-width: 150px; 
-                  margin-bottom: 15px; 
-                }
-                .info { 
-                  text-align: left; 
-                  margin: 10px 0; 
-                  font-size: 14px;
-                }
-                .info-row { 
-                  display: flex; 
-                  margin: 5px 0; 
-                }
-                .info-label { 
-                  width: 80px; 
-                }
-                .info-value { 
-                  font-weight: bold; 
-                }
-                .qr { 
-                  margin: 15px 0; 
-                }
-                .qr img { 
-                  max-width: 200px; 
-                }
-                .dashed { 
-                  border-top: 1px dashed #666; 
-                  margin: 10px 0; 
-                }
-                .secret { 
-                  margin: 10px 0; 
-                  padding: 10px; 
-                  border-top: 1px dashed #666;
-                  border-bottom: 1px dashed #666;
-                }
-                .secret-label { 
-                  font-size: 12px; 
-                  color: #666; 
-                }
-                .secret-code { 
-                  font-size: 16px; 
-                  font-weight: bold; 
-                  letter-spacing: 2px; 
-                }
-                .footer { 
-                  margin-top: 15px; 
-                  font-size: 12px; 
-                }
-                @media print {
-                  body { padding: 0; }
-                }
-              </style>
-            </head>
-            <body>
-              <img src="/blink-logo-black.svg" alt="Blink" class="logo">
-              <div class="info">
-                ${voucherPrice ? `<div class="info-row"><span class="info-label">Price:</span><span class="info-value">${voucherPrice}</span></div>` : ''}
-                <div class="info-row"><span class="info-label">Value:</span><span class="info-value">${voucherAmount}</span></div>
-                <div class="info-row"><span class="info-label">Identifier:</span><span class="info-value">${identifierCode}</span></div>
-              </div>
-              <div class="dashed"></div>
-              <div class="qr">
-                ${qrDataUrl ? `<img src="${qrDataUrl}" alt="QR Code">` : '<p>QR Code</p>'}
-              </div>
-              <div class="secret">
-                <div class="secret-label">voucher secret</div>
-                <div class="secret-code">${voucherSecret.match(/.{1,4}/g)?.join(' ') || voucherSecret}</div>
-              </div>
-              <div class="footer">blink.sv</div>
-              <script>
-                window.onload = function() {
-                  window.print();
-                  setTimeout(function() { window.close(); }, 500);
-                };
-              </script>
-            </body>
-            </html>
-          `);
-          printWindow.document.close();
-        }
-        setShowPrintModal(false);
-      }
+      // Create a printable iframe (better than popup for some browsers)
+      const printFrame = document.createElement('iframe');
+      printFrame.style.position = 'fixed';
+      printFrame.style.top = '-10000px';
+      printFrame.style.left = '-10000px';
+      printFrame.style.width = '0';
+      printFrame.style.height = '0';
+      document.body.appendChild(printFrame);
+      
+      const printDoc = printFrame.contentDocument || printFrame.contentWindow.document;
+      printDoc.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Blink Voucher</title>
+          <style>
+            body { 
+              font-family: Helvetica, Arial, sans-serif; 
+              padding: 20px; 
+              max-width: 300px; 
+              margin: 0 auto;
+              text-align: center;
+            }
+            .logo { max-width: 150px; margin-bottom: 15px; }
+            .info { text-align: left; margin: 10px 0; font-size: 14px; }
+            .info-row { display: flex; margin: 5px 0; }
+            .info-label { width: 80px; }
+            .info-value { font-weight: bold; }
+            .qr { margin: 15px 0; }
+            .qr img { max-width: 200px; }
+            .dashed { border-top: 1px dashed #666; margin: 10px 0; }
+            .secret { margin: 10px 0; padding: 10px; border-top: 1px dashed #666; border-bottom: 1px dashed #666; }
+            .secret-label { font-size: 12px; color: #666; }
+            .secret-code { font-size: 16px; font-weight: bold; letter-spacing: 2px; }
+            .footer { margin-top: 15px; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <img src="/blink-logo-black.svg" alt="Blink" class="logo">
+          <div class="info">
+            ${voucherPrice ? `<div class="info-row"><span class="info-label">Price:</span><span class="info-value">${voucherPrice}</span></div>` : ''}
+            <div class="info-row"><span class="info-label">Value:</span><span class="info-value">${voucherAmount}</span></div>
+            <div class="info-row"><span class="info-label">Identifier:</span><span class="info-value">${identifierCode}</span></div>
+          </div>
+          <div class="dashed"></div>
+          <div class="qr">
+            ${qrDataUrl ? `<img src="${qrDataUrl}" alt="QR Code">` : '<p>QR Code</p>'}
+          </div>
+          <div class="secret">
+            <div class="secret-label">voucher secret</div>
+            <div class="secret-code">${voucherSecret.match(/.{1,4}/g)?.join(' ') || voucherSecret}</div>
+          </div>
+          <div class="footer">blink.sv</div>
+        </body>
+        </html>
+      `);
+      printDoc.close();
+      
+      // Wait for content to load then print
+      setTimeout(() => {
+        printFrame.contentWindow.print();
+        // Clean up after print dialog closes
+        setTimeout(() => {
+          document.body.removeChild(printFrame);
+        }, 1000);
+      }, 250);
+      
+      setShowPrintModal(false);
     } catch (err) {
       console.error('Print error:', err);
       setError(err.message || 'Failed to print');
@@ -1020,32 +1004,21 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
                 
                 {/* Action Buttons */}
                 <div className="flex flex-col gap-3">
-                  {/* Print Button - Primary action */}
+                  {/* Thermal Print Button - For POS devices with companion app */}
                   <button
                     onClick={printVoucher}
-                    disabled={printing || generatingPdf}
-                    className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
                   >
-                    {printing ? (
-                      <>
-                        <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
-                        Printing...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                        </svg>
-                        Print
-                        {companionAppInstalled && <span className="text-xs opacity-70">(Thermal)</span>}
-                      </>
-                    )}
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    Print (Thermal)
                   </button>
                   
-                  {/* Download PDF Button - Secondary action */}
+                  {/* Download PDF Button */}
                   <button
                     onClick={generatePdf}
-                    disabled={generatingPdf || printing}
+                    disabled={generatingPdf}
                     className="w-full px-4 py-3 border-2 border-purple-600 text-purple-600 dark:text-purple-400 dark:border-purple-400 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {generatingPdf ? (
@@ -1059,6 +1032,27 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                         Download PDF
+                      </>
+                    )}
+                  </button>
+                  
+                  {/* Browser Print Button - Fallback for desktop */}
+                  <button
+                    onClick={browserPrint}
+                    disabled={printing}
+                    className="w-full px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {printing ? (
+                      <>
+                        <div className="animate-spin w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full"></div>
+                        Preparing...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        Browser Print
                       </>
                     )}
                   </button>

@@ -11,8 +11,12 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
   const [exchangeRate, setExchangeRate] = useState(null);
   const [loadingRate, setLoadingRate] = useState(false);
   const [redeemed, setRedeemed] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printFormat, setPrintFormat] = useState('a4');
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   const pollingIntervalRef = useRef(null);
   const successSoundRef = useRef(null);
+  const qrRef = useRef(null);
 
   // Play success sound
   const playSuccessSound = useCallback(() => {
@@ -445,6 +449,97 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
     }
   };
 
+  // Generate QR code as data URL for PDF
+  const getQrDataUrl = () => {
+    if (!qrRef.current) return null;
+    
+    const svg = qrRef.current.querySelector('svg');
+    if (!svg) return null;
+    
+    // Clone SVG and set white background
+    const clonedSvg = svg.cloneNode(true);
+    clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    
+    // Serialize to string
+    const svgData = new XMLSerializer().serializeToString(clonedSvg);
+    const svgBase64 = btoa(unescape(encodeURIComponent(svgData)));
+    
+    return `data:image/svg+xml;base64,${svgBase64}`;
+  };
+
+  // Generate and download PDF
+  const generatePdf = async () => {
+    if (!voucher) return;
+    
+    setGeneratingPdf(true);
+    
+    try {
+      // Get QR code as data URL
+      const qrDataUrl = getQrDataUrl();
+      
+      if (!qrDataUrl) {
+        throw new Error('Could not capture QR code');
+      }
+      
+      // Build fiat amount string
+      let fiatAmount = null;
+      if (voucher.displayCurrency && voucher.displayCurrency !== 'BTC') {
+        fiatAmount = formatDisplayAmount(voucher.displayAmount, voucher.displayCurrency);
+      }
+      
+      // Call PDF generation API
+      const response = await fetch('/api/voucher/pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          vouchers: [{
+            satsAmount: voucher.amount,
+            fiatAmount: fiatAmount,
+            qrDataUrl: qrDataUrl,
+            identifierCode: voucher.id?.substring(0, 8) || null
+          }],
+          format: printFormat
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to generate PDF');
+      }
+      
+      // Convert base64 to blob and download
+      const byteCharacters = atob(data.pdf);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `blink-voucher-${voucher.amount}sats.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      setShowPrintModal(false);
+      console.log('✅ PDF downloaded successfully');
+      
+    } catch (err) {
+      console.error('PDF generation error:', err);
+      setError(err.message || 'Failed to generate PDF');
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-full flex flex-col bg-white dark:bg-black" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
@@ -568,7 +663,7 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
           {/* QR Code and LNURL - Centered in remaining space - Same as POS */}
           <div className="flex-1 flex flex-col items-center justify-center space-y-4 px-6">
             {/* QR Code */}
-            <div className="bg-white dark:bg-white p-4 rounded-lg shadow-lg border-2 border-gray-200 dark:border-gray-600">
+            <div ref={qrRef} className="bg-white dark:bg-white p-4 rounded-lg shadow-lg border-2 border-gray-200 dark:border-gray-600">
               <QRCode 
                 value={voucher.lnurl} 
                 size={256}
@@ -602,7 +697,111 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
                 </button>
               </div>
             </div>
+
+            {/* Print PDF Button */}
+            <button
+              onClick={() => setShowPrintModal(true)}
+              className="flex items-center gap-2 px-6 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+              Print PDF
+            </button>
           </div>
+
+          {/* Print Modal */}
+          {showPrintModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-sm w-full p-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+                  Print Voucher PDF
+                </h3>
+                
+                {/* Format Selection */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                    Paper Format
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setPrintFormat('a4')}
+                      className={`p-3 rounded-lg border-2 transition-colors ${
+                        printFormat === 'a4'
+                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                          : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400'
+                      }`}
+                    >
+                      <div className="font-medium">A4</div>
+                      <div className="text-xs opacity-70">210×297mm</div>
+                    </button>
+                    <button
+                      onClick={() => setPrintFormat('letter')}
+                      className={`p-3 rounded-lg border-2 transition-colors ${
+                        printFormat === 'letter'
+                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                          : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400'
+                      }`}
+                    >
+                      <div className="font-medium">Letter</div>
+                      <div className="text-xs opacity-70">8.5×11 in</div>
+                    </button>
+                    <button
+                      onClick={() => setPrintFormat('thermal-80')}
+                      className={`p-3 rounded-lg border-2 transition-colors ${
+                        printFormat === 'thermal-80'
+                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                          : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400'
+                      }`}
+                    >
+                      <div className="font-medium">Thermal 80mm</div>
+                      <div className="text-xs opacity-70">Receipt printer</div>
+                    </button>
+                    <button
+                      onClick={() => setPrintFormat('thermal-58')}
+                      className={`p-3 rounded-lg border-2 transition-colors ${
+                        printFormat === 'thermal-58'
+                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                          : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400'
+                      }`}
+                    >
+                      <div className="font-medium">Thermal 58mm</div>
+                      <div className="text-xs opacity-70">Mini printer</div>
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowPrintModal(false)}
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={generatePdf}
+                    disabled={generatingPdf}
+                    className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {generatingPdf ? (
+                      <>
+                        <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Download PDF
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Cancel Button - Bottom Left - Same as POS */}
           <div className="px-4 pb-4 pt-6">

@@ -337,6 +337,21 @@ export default function Dashboard() {
         await initTransactionLabels();
         console.log('[Dashboard] Transaction labels synced from server');
         
+        // Sync voucher wallet from server
+        if (data.voucherWallet && data.voucherWallet.apiKey) {
+          console.log('[Dashboard] Loaded voucher wallet from server:', data.voucherWallet.label);
+          setVoucherWallet(data.voucherWallet);
+          localStorage.setItem('blinkpos-voucher-wallet', JSON.stringify(data.voucherWallet));
+        } else if (!data.voucherWallet) {
+          // Check if we have local voucher wallet to sync to server
+          const localVoucherWallet = localStorage.getItem('blinkpos-voucher-wallet');
+          if (localVoucherWallet) {
+            const parsed = JSON.parse(localVoucherWallet);
+            console.log('[Dashboard] Syncing local voucher wallet to server');
+            syncVoucherWalletToServer(parsed);
+          }
+        }
+        
       } catch (err) {
         console.error('[Dashboard] Failed to fetch server preferences:', err);
       }
@@ -344,6 +359,30 @@ export default function Dashboard() {
     
     fetchServerPreferences();
   }, [publicKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  
+  // Sync voucher wallet to server
+  const syncVoucherWalletToServer = useCallback(async (walletData) => {
+    if (!publicKey) return;
+    
+    try {
+      console.log('[Dashboard] Syncing voucher wallet to server...');
+      const response = await fetch('/api/user/sync', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pubkey: publicKey,
+          field: 'voucherWallet',
+          data: walletData
+        })
+      });
+      
+      if (response.ok) {
+        console.log('[Dashboard] ✓ Voucher wallet synced to server');
+      }
+    } catch (err) {
+      console.error('[Dashboard] Failed to sync voucher wallet:', err);
+    }
+  }, [publicKey]);
 
   // Sync preferences to server when they change
   useEffect(() => {
@@ -4655,6 +4694,8 @@ export default function Dashboard() {
                             localStorage.removeItem('blinkpos-voucher-wallet');
                           }
                           setVoucherWallet(null);
+                          // Sync deletion to server
+                          syncVoucherWalletToServer(null);
                         }}
                         className={`p-2 rounded transition-colors ${darkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'}`}
                       >
@@ -4762,6 +4803,9 @@ export default function Dashboard() {
                           localStorage.setItem('blinkpos-voucher-wallet', JSON.stringify(walletData));
                         }
                         setVoucherWallet(walletData);
+                        
+                        // Sync to server for cross-device access
+                        syncVoucherWalletToServer(walletData);
                         
                         // Reset form
                         setVoucherWalletApiKey('');

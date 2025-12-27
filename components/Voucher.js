@@ -14,9 +14,30 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [printFormat, setPrintFormat] = useState('a4');
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [companionAppInstalled, setCompanionAppInstalled] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const pollingIntervalRef = useRef(null);
   const successSoundRef = useRef(null);
   const qrRef = useRef(null);
+
+  // Check if POS companion app is installed
+  useEffect(() => {
+    const checkCompanionApp = async () => {
+      try {
+        if ('getInstalledRelatedApps' in navigator) {
+          const apps = await navigator.getInstalledRelatedApps();
+          const hasCompanion = apps.some(app => app.id === 'com.blink.pos.companion');
+          setCompanionAppInstalled(hasCompanion);
+          if (hasCompanion) {
+            console.log('✅ POS companion app detected');
+          }
+        }
+      } catch (error) {
+        console.log('Could not check for companion app:', error.message);
+      }
+    };
+    checkCompanionApp();
+  }, []);
 
   // Play success sound
   const playSuccessSound = useCallback(() => {
@@ -449,22 +470,98 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
     }
   };
 
-  // Generate QR code as data URL for PDF
+  // Generate QR code as PNG data URL for PDF (PNG is better supported than SVG)
   const getQrDataUrl = () => {
-    if (!qrRef.current) return null;
-    
-    const svg = qrRef.current.querySelector('svg');
-    if (!svg) return null;
-    
-    // Clone SVG and set white background
-    const clonedSvg = svg.cloneNode(true);
-    clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    
-    // Serialize to string
-    const svgData = new XMLSerializer().serializeToString(clonedSvg);
-    const svgBase64 = btoa(unescape(encodeURIComponent(svgData)));
-    
-    return `data:image/svg+xml;base64,${svgBase64}`;
+    return new Promise((resolve, reject) => {
+      if (!qrRef.current) {
+        reject(new Error('QR ref not found'));
+        return;
+      }
+      
+      const svg = qrRef.current.querySelector('svg');
+      if (!svg) {
+        reject(new Error('SVG element not found'));
+        return;
+      }
+      
+      // Clone SVG and set dimensions
+      const clonedSvg = svg.cloneNode(true);
+      clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      
+      // Get dimensions
+      const width = 256;
+      const height = 256;
+      clonedSvg.setAttribute('width', width);
+      clonedSvg.setAttribute('height', height);
+      
+      // Serialize SVG to string
+      const svgData = new XMLSerializer().serializeToString(clonedSvg);
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const svgUrl = URL.createObjectURL(svgBlob);
+      
+      // Create image and canvas to convert to PNG
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        
+        // Draw white background
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, width, height);
+        
+        // Draw SVG
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Get PNG data URL
+        const pngDataUrl = canvas.toDataURL('image/png');
+        URL.revokeObjectURL(svgUrl);
+        
+        console.log('✅ QR code converted to PNG, length:', pngDataUrl.length);
+        resolve(pngDataUrl);
+      };
+      
+      img.onerror = (err) => {
+        URL.revokeObjectURL(svgUrl);
+        reject(new Error('Failed to load SVG image'));
+      };
+      
+      img.src = svgUrl;
+    });
+  };
+
+  // Convert Blink logo SVG to PNG data URL (using black version for print)
+  const getLogoDataUrl = () => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        // Use wider canvas for the full "blink" logo with text
+        const canvas = document.createElement('canvas');
+        canvas.width = 300;
+        canvas.height = 125;
+        const ctx = canvas.getContext('2d');
+        // White background for print
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, 300, 125);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => {
+        console.warn('Could not load logo');
+        resolve(null);
+      };
+      img.src = '/blink-logo-black.svg';
+    });
+  };
+
+  // Generate a formatted voucher secret from the charge ID
+  const generateVoucherSecret = (chargeId) => {
+    if (!chargeId) return null;
+    // Take first 12 characters and format as "xxxx xxxx xxxx"
+    const cleaned = chargeId.replace(/-/g, '').substring(0, 12);
+    return cleaned;
   };
 
   // Generate and download PDF
@@ -472,20 +569,31 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
     if (!voucher) return;
     
     setGeneratingPdf(true);
+    setError('');
     
     try {
-      // Get QR code as data URL
-      const qrDataUrl = getQrDataUrl();
+      console.log('📄 Starting PDF generation...');
+      
+      // Get QR code and logo as PNG data URLs
+      const [qrDataUrl, logoDataUrl] = await Promise.all([
+        getQrDataUrl(),
+        getLogoDataUrl()
+      ]);
       
       if (!qrDataUrl) {
         throw new Error('Could not capture QR code');
       }
+      
+      console.log('📷 QR captured, logo:', logoDataUrl ? 'yes' : 'no');
       
       // Build fiat amount string
       let fiatAmount = null;
       if (voucher.displayCurrency && voucher.displayCurrency !== 'BTC') {
         fiatAmount = formatDisplayAmount(voucher.displayAmount, voucher.displayCurrency);
       }
+      
+      // Generate voucher secret for display
+      const voucherSecret = generateVoucherSecret(voucher.id);
       
       // Call PDF generation API
       const response = await fetch('/api/voucher/pdf', {
@@ -498,16 +606,19 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
             satsAmount: voucher.amount,
             fiatAmount: fiatAmount,
             qrDataUrl: qrDataUrl,
-            identifierCode: voucher.id?.substring(0, 8) || null
+            logoDataUrl: logoDataUrl,
+            identifierCode: voucher.id?.substring(0, 8)?.toUpperCase() || null,
+            voucherSecret: voucherSecret
           }],
           format: printFormat
         }),
       });
       
       const data = await response.json();
+      console.log('📦 API response:', { success: data.success, error: data.error, pdfLength: data.pdf?.length });
       
       if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to generate PDF');
+        throw new Error(data.error || data.message || 'Failed to generate PDF');
       }
       
       // Convert base64 to blob and download
@@ -537,6 +648,142 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
       setError(err.message || 'Failed to generate PDF');
     } finally {
       setGeneratingPdf(false);
+    }
+  };
+
+  // Print voucher using companion app or browser print
+  const printVoucher = async () => {
+    if (!voucher) return;
+    
+    setPrinting(true);
+    setError('');
+    
+    try {
+      // Build the display amounts
+      let voucherPrice = '';
+      if (voucher.displayCurrency && voucher.displayCurrency !== 'BTC') {
+        voucherPrice = formatDisplayAmount(voucher.displayAmount, voucher.displayCurrency);
+      }
+      
+      const voucherAmount = `${voucher.amount} sats`;
+      const voucherSecret = voucher.id?.replace(/-/g, '').substring(0, 12) || '';
+      const identifierCode = voucher.id?.substring(0, 8)?.toUpperCase() || '';
+      
+      if (companionAppInstalled) {
+        // Use companion app for thermal printing
+        console.log('🖨️ Printing via companion app...');
+        const deepLinkUrl = `blink-pos-companion://print?app=voucher&lnurl=${encodeURIComponent(voucher.lnurl)}&voucherPrice=${encodeURIComponent(voucherPrice)}&voucherAmount=${encodeURIComponent(voucherAmount)}&voucherSecret=${encodeURIComponent(voucherSecret)}&commissionPercentage=0&identifierCode=${encodeURIComponent(identifierCode)}`;
+        window.location.href = deepLinkUrl;
+        setShowPrintModal(false);
+      } else {
+        // Fallback to browser print
+        console.log('🖨️ Printing via browser...');
+        
+        // Create a printable version of the voucher
+        const printWindow = window.open('', '_blank', 'width=400,height=600');
+        if (printWindow) {
+          const qrDataUrl = await getQrDataUrl();
+          
+          printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <title>Blink Voucher</title>
+              <style>
+                body { 
+                  font-family: Helvetica, Arial, sans-serif; 
+                  padding: 20px; 
+                  max-width: 300px; 
+                  margin: 0 auto;
+                  text-align: center;
+                }
+                .logo { 
+                  max-width: 150px; 
+                  margin-bottom: 15px; 
+                }
+                .info { 
+                  text-align: left; 
+                  margin: 10px 0; 
+                  font-size: 14px;
+                }
+                .info-row { 
+                  display: flex; 
+                  margin: 5px 0; 
+                }
+                .info-label { 
+                  width: 80px; 
+                }
+                .info-value { 
+                  font-weight: bold; 
+                }
+                .qr { 
+                  margin: 15px 0; 
+                }
+                .qr img { 
+                  max-width: 200px; 
+                }
+                .dashed { 
+                  border-top: 1px dashed #666; 
+                  margin: 10px 0; 
+                }
+                .secret { 
+                  margin: 10px 0; 
+                  padding: 10px; 
+                  border-top: 1px dashed #666;
+                  border-bottom: 1px dashed #666;
+                }
+                .secret-label { 
+                  font-size: 12px; 
+                  color: #666; 
+                }
+                .secret-code { 
+                  font-size: 16px; 
+                  font-weight: bold; 
+                  letter-spacing: 2px; 
+                }
+                .footer { 
+                  margin-top: 15px; 
+                  font-size: 12px; 
+                }
+                @media print {
+                  body { padding: 0; }
+                }
+              </style>
+            </head>
+            <body>
+              <img src="/blink-logo-black.svg" alt="Blink" class="logo">
+              <div class="info">
+                ${voucherPrice ? `<div class="info-row"><span class="info-label">Price:</span><span class="info-value">${voucherPrice}</span></div>` : ''}
+                <div class="info-row"><span class="info-label">Value:</span><span class="info-value">${voucherAmount}</span></div>
+                <div class="info-row"><span class="info-label">Identifier:</span><span class="info-value">${identifierCode}</span></div>
+              </div>
+              <div class="dashed"></div>
+              <div class="qr">
+                ${qrDataUrl ? `<img src="${qrDataUrl}" alt="QR Code">` : '<p>QR Code</p>'}
+              </div>
+              <div class="secret">
+                <div class="secret-label">voucher secret</div>
+                <div class="secret-code">${voucherSecret.match(/.{1,4}/g)?.join(' ') || voucherSecret}</div>
+              </div>
+              <div class="footer">blink.sv</div>
+              <script>
+                window.onload = function() {
+                  window.print();
+                  setTimeout(function() { window.close(); }, 500);
+                };
+              </script>
+            </body>
+            </html>
+          `);
+          printWindow.document.close();
+        }
+        setShowPrintModal(false);
+      }
+    } catch (err) {
+      console.error('Print error:', err);
+      setError(err.message || 'Failed to print');
+    } finally {
+      setPrinting(false);
     }
   };
 
@@ -706,7 +953,7 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
-              Print PDF
+              Print
             </button>
           </div>
 
@@ -715,7 +962,7 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
               <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-sm w-full p-6">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-                  Print Voucher PDF
+                  Print Voucher
                 </h3>
                 
                 {/* Format Selection */}
@@ -772,31 +1019,56 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
                 </div>
                 
                 {/* Action Buttons */}
-                <div className="flex gap-3">
+                <div className="flex flex-col gap-3">
+                  {/* Print Button - Primary action */}
                   <button
-                    onClick={() => setShowPrintModal(false)}
-                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    onClick={printVoucher}
+                    disabled={printing || generatingPdf}
+                    className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    Cancel
+                    {printing ? (
+                      <>
+                        <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                        Printing...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        Print
+                        {companionAppInstalled && <span className="text-xs opacity-70">(Thermal)</span>}
+                      </>
+                    )}
                   </button>
+                  
+                  {/* Download PDF Button - Secondary action */}
                   <button
                     onClick={generatePdf}
-                    disabled={generatingPdf}
-                    className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    disabled={generatingPdf || printing}
+                    className="w-full px-4 py-3 border-2 border-purple-600 text-purple-600 dark:text-purple-400 dark:border-purple-400 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {generatingPdf ? (
                       <>
-                        <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                        <div className="animate-spin w-4 h-4 border-2 border-purple-600 dark:border-purple-400 border-t-transparent rounded-full"></div>
                         Generating...
                       </>
                     ) : (
                       <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                         Download PDF
                       </>
                     )}
+                  </button>
+                  
+                  {/* Cancel Button */}
+                  <button
+                    onClick={() => setShowPrintModal(false)}
+                    className="w-full px-4 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                  >
+                    Cancel
                   </button>
                 </div>
               </div>

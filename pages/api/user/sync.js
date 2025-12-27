@@ -6,6 +6,7 @@
  * - Blink Lightning Address wallets
  * - npub.cash wallets (Cashu ecash via LNURL-pay)
  * - NWC connections (encrypted)
+ * - Voucher Wallet (encrypted API key)
  * - UI preferences
  * 
  * This complements the existing endpoints:
@@ -121,6 +122,7 @@ async function handleGet(req, res, pubkey, username) {
       blinkLnAddressWallets: [],
       npubCashWallets: [],
       nwcConnections: [],
+      voucherWallet: null,
       preferences: getDefaultPreferences()
     });
   }
@@ -137,12 +139,22 @@ async function handleGet(req, res, pubkey, username) {
     uri: decryptNWCUri(conn.uri)
   }));
   
+  // Decrypt Voucher Wallet API key for the client
+  let voucherWallet = null;
+  if (userData.voucherWallet) {
+    voucherWallet = {
+      ...userData.voucherWallet,
+      apiKey: decryptSensitiveData(userData.voucherWallet.apiKey)
+    };
+  }
+  
   return res.status(200).json({
     pubkey,
     blinkApiAccounts,
     blinkLnAddressWallets: userData.blinkLnAddressWallets || [],
     npubCashWallets: userData.npubCashWallets || [],
     nwcConnections,
+    voucherWallet,
     preferences: userData.preferences || getDefaultPreferences(),
     transactionLabels: userData.transactionLabels || {},
     lastSynced: userData.lastSynced || null
@@ -225,7 +237,7 @@ async function handlePatch(req, res, pubkey, username) {
   
   const { field, data } = req.body;
   
-  const validFields = ['blinkApiAccounts', 'blinkLnAddressWallets', 'npubCashWallets', 'nwcConnections', 'preferences', 'transactionLabels'];
+  const validFields = ['blinkApiAccounts', 'blinkLnAddressWallets', 'npubCashWallets', 'nwcConnections', 'voucherWallet', 'preferences', 'transactionLabels'];
   if (!field || !validFields.includes(field)) {
     return res.status(400).json({ error: `Invalid field. Must be one of: ${validFields.join(', ')}` });
   }
@@ -280,6 +292,26 @@ async function handlePatch(req, res, pubkey, username) {
       ...(existingData.preferences || {}),
       ...(data || {})
     };
+  }
+  
+  // Special handling for voucherWallet - encrypt API key
+  if (field === 'voucherWallet') {
+    if (data === null) {
+      // Allow deletion of voucher wallet
+      processedData = null;
+    } else if (data && typeof data === 'object') {
+      processedData = {
+        label: data.label || 'Voucher Wallet',
+        username: data.username,
+        userId: data.userId,
+        walletId: data.walletId,
+        apiKey: encryptSensitiveData(data.apiKey),
+        displayCurrency: data.displayCurrency || 'BTC',
+        scopes: data.scopes || [],
+        createdAt: data.createdAt || new Date().toISOString(),
+        lastUsed: data.lastUsed
+      };
+    }
   }
   
   const saveResult = await StorageManager.saveUserData(username, {

@@ -1,12 +1,14 @@
 import React from 'react';
-import ReactPDF from '@react-pdf/renderer';
-import { 
-  SingleVoucherDocument, 
-  BatchVoucherDocument, 
-  ThermalVoucherDocument,
-  PAPER_FORMATS,
-  getAvailableFormats 
-} from '../../../lib/pdf/VoucherPDF';
+import { renderToBuffer } from '@react-pdf/renderer';
+
+// Dynamic import to avoid issues with font registration at module load time
+let pdfModule = null;
+const getPdfModule = async () => {
+  if (!pdfModule) {
+    pdfModule = await import('../../../lib/pdf/VoucherPDF');
+  }
+  return pdfModule;
+};
 
 /**
  * Voucher PDF Generation API
@@ -35,6 +37,13 @@ export default async function handler(req, res) {
   try {
     const { vouchers, format = 'a4' } = req.body;
 
+    console.log('📄 PDF API called with:', { 
+      voucherCount: vouchers?.length, 
+      format,
+      firstVoucherSats: vouchers?.[0]?.satsAmount,
+      qrDataUrlLength: vouchers?.[0]?.qrDataUrl?.length
+    });
+
     // Validate input
     if (!vouchers || !Array.isArray(vouchers) || vouchers.length === 0) {
       return res.status(400).json({ 
@@ -42,6 +51,15 @@ export default async function handler(req, res) {
         hint: 'Provide an array of voucher objects with satsAmount and qrDataUrl'
       });
     }
+
+    // Dynamically import PDF module
+    const { 
+      SingleVoucherDocument, 
+      BatchVoucherDocument, 
+      ThermalVoucherDocument,
+      PAPER_FORMATS,
+      getAvailableFormats 
+    } = await getPdfModule();
 
     // Validate format
     const validFormats = getAvailableFormats();
@@ -107,7 +125,7 @@ export default async function handler(req, res) {
     }
 
     // Render to buffer
-    const pdfBuffer = await ReactPDF.renderToBuffer(documentElement);
+    const pdfBuffer = await renderToBuffer(documentElement);
     
     // Convert to base64
     const pdfBase64 = pdfBuffer.toString('base64');
@@ -118,16 +136,17 @@ export default async function handler(req, res) {
       success: true,
       pdf: pdfBase64,
       format,
-      pageInfo: PAPER_FORMATS[format],
       voucherCount: vouchers.length
     });
 
   } catch (error) {
     console.error('❌ PDF generation error:', error);
+    console.error('❌ Stack trace:', error.stack);
     
     return res.status(500).json({ 
       error: 'Failed to generate PDF',
-      message: error.message
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 }

@@ -1351,8 +1351,8 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
             <div className="grid grid-cols-4 gap-3 max-w-sm mx-auto" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
               <h3 className="col-span-4 text-xl font-bold mb-2 text-center text-gray-800 dark:text-white">Commission Options</h3>
               
-              {/* Commission preset buttons in grid */}
-              {commissionPresets.slice(0, 2).map(percent => (
+              {/* Commission preset buttons in grid - render all presets */}
+              {commissionPresets.map((percent, index) => (
                 <button
                   key={percent}
                   onClick={() => {
@@ -1367,23 +1367,9 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
                 </button>
               ))}
               
-              {/* Third commission preset if available */}
-              {commissionPresets.length >= 3 && (
-                <>
-                  <button
-                    onClick={() => {
-                      setPendingCommissionSelection(commissionPresets[2]);
-                    }}
-                    className="col-span-2 h-16 bg-white dark:bg-black border-2 border-purple-500 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 rounded-lg text-lg font-normal transition-colors shadow-md"
-                  >
-                    {commissionPresets[2]}%
-                    <div className="text-sm">
-                      -{formatDisplayAmount(calculateCommissionAmount(parseFloat(amount) || 0, commissionPresets[2]), displayCurrency)}
-                    </div>
-                  </button>
-                  {/* Empty placeholder to keep grid balanced */}
-                  <div className="col-span-2"></div>
-                </>
+              {/* Empty placeholder after odd number of presets to complete the row */}
+              {commissionPresets.length % 2 === 1 && (
+                <div className="col-span-2"></div>
               )}
               
               {/* Cancel and No Commission buttons - always on the same row */}

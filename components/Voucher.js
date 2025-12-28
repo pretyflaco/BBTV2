@@ -3,7 +3,7 @@ import QRCode from 'react-qr-code';
 import { bech32 } from 'bech32';
 import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
 
-const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleDarkMode, soundEnabled, onInternalTransition }) => {
+const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleDarkMode, soundEnabled, onInternalTransition, onVoucherStateChange }) => {
   const [amount, setAmount] = useState('');
   const [voucher, setVoucher] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -19,6 +19,14 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
   const pollingIntervalRef = useRef(null);
   const successSoundRef = useRef(null);
   const qrRef = useRef(null);
+
+  // Notify parent when voucher QR is showing (to hide header elements)
+  useEffect(() => {
+    if (onVoucherStateChange) {
+      // Voucher QR is showing when we have a voucher and it's not redeemed yet
+      onVoucherStateChange(!!voucher && !redeemed);
+    }
+  }, [voucher, redeemed, onVoucherStateChange]);
 
   // Check if POS companion app is installed
   useEffect(() => {
@@ -799,10 +807,10 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
     );
   }
 
-  // Success screen when voucher is redeemed
+  // Success screen when voucher is redeemed - Full screen overlay
   if (redeemed && voucher) {
     return (
-      <div className="h-full flex flex-col bg-purple-600 dark:bg-purple-800 transition-colors duration-500" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+      <div className="fixed inset-0 z-50 flex flex-col bg-purple-600 dark:bg-purple-800 transition-colors duration-500" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
         {/* Success Animation - Full screen purple */}
         <div className="flex-1 flex flex-col items-center justify-center">
           {/* Animated Checkmark */}
@@ -849,7 +857,7 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
         </div>
 
         {/* Done Button */}
-        <div className="px-4 pb-8 pt-6">
+        <div className="px-6 pb-10 pt-6">
           <button
             onClick={handleClear}
             className="w-full h-14 bg-white dark:bg-white hover:bg-gray-100 dark:hover:bg-gray-100 text-purple-600 dark:text-purple-700 rounded-lg text-xl font-semibold transition-colors shadow-lg"
@@ -865,7 +873,49 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
   if (voucher) {
     return (
       <div className="h-full flex flex-col bg-white dark:bg-black" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-        {/* Voucher Display - No duplicate header */}
+        {/* Header - Match POS checkout header structure exactly */}
+        <div className="bg-white dark:bg-blink-dark border-b border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-black">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between py-4">
+              {/* Blink Logo - Left (tap to toggle dark mode) */}
+              <button 
+                onClick={toggleDarkMode}
+                className="flex items-center focus:outline-none"
+                aria-label="Toggle dark mode"
+              >
+                <img 
+                  src="/logos/blink-icon-light.svg" 
+                  alt="Blink" 
+                  className="h-12 w-12 dark:hidden"
+                />
+                <img 
+                  src="/logos/blink-icon-dark.svg" 
+                  alt="Blink" 
+                  className="h-12 w-12 hidden dark:block"
+                />
+              </button>
+              
+              {/* Print Icon - Center (same position as NFC on POS checkout) */}
+              <div className="absolute left-1/2 transform -translate-x-1/2">
+                <button
+                  onClick={() => setShowPrintModal(true)}
+                  className="flex items-center justify-center transition-all hover:scale-110"
+                  aria-label="Print voucher"
+                  title="Print voucher"
+                >
+                  <svg className="h-10 w-10 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                </button>
+              </div>
+              
+              {/* Spacer for layout balance */}
+              <div className="w-12"></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Voucher Display */}
         <div className="flex-1 flex flex-col">
           {/* Error Message Space - Same as POS */}
           <div className="mx-3 mt-1 min-h-[44px]"></div>
@@ -885,15 +935,15 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
                   )}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
-                  <div className="mb-1 min-h-[20px]">Scan to redeem</div>
+                  <div className="mb-1 min-h-[20px]"></div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* QR Code and LNURL - Centered in remaining space - Same as POS */}
+          {/* QR Code and LNURL - Centered in remaining space */}
           <div className="flex-1 flex flex-col items-center justify-center space-y-4 px-6">
-            {/* QR Code */}
+            {/* QR Code - Same size as POS (256) */}
             <div ref={qrRef} className="bg-white dark:bg-white p-4 rounded-lg shadow-lg border-2 border-gray-200 dark:border-gray-600">
               <QRCode 
                 value={voucher.lnurl} 
@@ -928,17 +978,6 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
                 </button>
               </div>
             </div>
-
-            {/* Print PDF Button */}
-            <button
-              onClick={() => setShowPrintModal(true)}
-              className="flex items-center gap-2 px-6 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-              </svg>
-              Print
-            </button>
           </div>
 
           {/* Print Modal */}
@@ -1069,7 +1108,7 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
             </div>
           )}
 
-          {/* Cancel Button - Bottom Left - Same as POS */}
+          {/* Cancel Button - Bottom - Same as POS */}
           <div className="px-4 pb-4 pt-6">
             <button
               onClick={handleClear}

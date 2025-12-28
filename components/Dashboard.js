@@ -106,6 +106,7 @@ export default function Dashboard() {
   const [tipRecipient, setTipRecipient] = useState('');
   const [usernameValidation, setUsernameValidation] = useState({ status: null, message: '', isValidating: false });
   const [showingInvoice, setShowingInvoice] = useState(false);
+  const [showingVoucherQR, setShowingVoucherQR] = useState(false);
   const [showSoundThemes, setShowSoundThemes] = useState(false);
   const [showTipSettings, setShowTipSettings] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
@@ -2113,33 +2114,27 @@ export default function Dashboard() {
     // Navigation order (horizontal): Cart ← → POS ← → Transactions
     // Navigation order (vertical): POS ↕ Voucher (only when voucher wallet is configured)
     
-    // Horizontal swipes (left/right)
-    if (isLeftSwipe && !showingInvoice && !isViewTransitioning) {
+    // Horizontal swipes (left/right) - only for cart, pos, transactions (not voucher)
+    if (isLeftSwipe && !showingInvoice && !isViewTransitioning && currentView !== 'voucher') {
       if (currentView === 'cart') {
         handleViewTransition('pos');
       } else if (currentView === 'pos') {
         handleViewTransition('transactions');
-      } else if (currentView === 'voucher') {
-        // From voucher, swipe left goes to transactions
-        handleViewTransition('transactions');
       }
-    } else if (isRightSwipe && !isViewTransitioning) {
+    } else if (isRightSwipe && !isViewTransitioning && currentView !== 'voucher') {
       if (currentView === 'transactions') {
         handleViewTransition('pos');
       } else if (currentView === 'pos' && !showingInvoice) {
         handleViewTransition('cart');
-      } else if (currentView === 'voucher') {
-        // From voucher, swipe right goes to cart
-        handleViewTransition('cart');
       }
     }
-    // Vertical swipes (up/down) - only between POS and Voucher, and only if voucher wallet is configured
+    // Vertical swipes (up) - between POS and Voucher only, voucher wallet must be configured
+    // From POS: swipe up → Voucher
+    // From Voucher: swipe up → POS (return to POS)
     else if (isUpSwipe && !showingInvoice && !isViewTransitioning && voucherWallet) {
       if (currentView === 'pos') {
         handleViewTransition('voucher');
-      }
-    } else if (isDownSwipe && !isViewTransitioning && voucherWallet) {
-      if (currentView === 'voucher') {
+      } else if (currentView === 'voucher') {
         handleViewTransition('pos');
       }
     }
@@ -2264,8 +2259,8 @@ export default function Dashboard() {
         soundTheme={soundTheme}
       />
 
-      {/* Mobile Header - Hidden when showing invoice */}
-      {!showingInvoice && (
+      {/* Mobile Header - Hidden when showing invoice or voucher QR */}
+      {!showingInvoice && !showingVoucherQR && (
         <header className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between py-4">
@@ -2287,50 +2282,64 @@ export default function Dashboard() {
                 />
               </button>
               
-              {/* Navigation Dots - Center */}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleViewTransition('cart')}
-                  disabled={isViewTransitioning}
-                  className={`w-2 h-2 rounded-full transition-colors ${
-                    currentView === 'cart'
-                      ? 'bg-blink-accent'
-                      : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
-                  }`}
-                  aria-label="Cart"
-                />
-                <button
-                  onClick={() => handleViewTransition('pos')}
-                  disabled={isViewTransitioning}
-                  className={`w-2 h-2 rounded-full transition-colors ${
-                    currentView === 'pos'
-                      ? 'bg-blink-accent'
-                      : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
-                  }`}
-                  aria-label="POS"
-                />
-                {voucherWallet && (
+              {/* Navigation Dots - Center - Two rows layout */}
+              <div className="flex flex-col items-center gap-1">
+                {/* Upper row: Cart - POS - History */}
+                <div className="flex gap-2">
                   <button
-                    onClick={() => handleViewTransition('voucher')}
+                    onClick={() => handleViewTransition('cart')}
                     disabled={isViewTransitioning}
                     className={`w-2 h-2 rounded-full transition-colors ${
-                      currentView === 'voucher'
-                        ? 'bg-purple-600 dark:bg-purple-400'
+                      currentView === 'cart'
+                        ? 'bg-blink-accent'
                         : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
                     }`}
-                    aria-label="Voucher"
+                    aria-label="Cart"
                   />
+                  <button
+                    onClick={() => handleViewTransition('pos')}
+                    disabled={isViewTransitioning}
+                    className={`w-2 h-2 rounded-full transition-colors ${
+                      currentView === 'pos'
+                        ? 'bg-blink-accent'
+                        : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+                    }`}
+                    aria-label="POS"
+                  />
+                  <button
+                    onClick={() => handleViewTransition('transactions')}
+                    disabled={isViewTransitioning}
+                    className={`w-2 h-2 rounded-full transition-colors ${
+                      currentView === 'transactions'
+                        ? 'bg-blink-accent'
+                        : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+                    }`}
+                    aria-label="History"
+                  />
+                </div>
+                {/* Lower row: Voucher (centered below POS) */}
+                {voucherWallet && (
+                  <div className="flex justify-center">
+                    <button
+                      onClick={() => {
+                        // Only allow navigation to voucher from POS
+                        if (currentView === 'pos') {
+                          handleViewTransition('voucher');
+                        }
+                      }}
+                      disabled={isViewTransitioning || currentView !== 'pos'}
+                      className={`w-2 h-2 rounded-full transition-colors ${
+                        currentView === 'voucher'
+                          ? 'bg-purple-600 dark:bg-purple-400'
+                          : currentView === 'pos'
+                            ? 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+                            : 'bg-gray-200 dark:bg-gray-700 opacity-50 cursor-not-allowed'
+                      }`}
+                      aria-label="Voucher"
+                      title={currentView !== 'pos' && currentView !== 'voucher' ? 'Navigate to POS first, then swipe up' : 'Voucher'}
+                    />
+                  </div>
                 )}
-                <button
-                  onClick={() => handleViewTransition('transactions')}
-                  disabled={isViewTransitioning}
-                  className={`w-2 h-2 rounded-full transition-colors ${
-                    currentView === 'transactions'
-                      ? 'bg-blink-accent'
-                      : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
-                  }`}
-                  aria-label="History"
-                />
               </div>
               
               {/* Right Side: Menu Button */}
@@ -5250,8 +5259,8 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Owner/Agent Display - Left aligned on POS, Cart, and Voucher */}
-        {!showingInvoice && (currentView === 'pos' || currentView === 'cart' || currentView === 'voucher') && (
+        {/* Owner/Agent Display - Left aligned on POS, Cart, and Voucher (hidden when showing voucher QR) */}
+        {!showingInvoice && !showingVoucherQR && (currentView === 'pos' || currentView === 'cart' || currentView === 'voucher') && (
           <div className="flex flex-col gap-1 mb-2 bg-white dark:bg-black">
             {/* Owner Display - Show voucher wallet on voucher view, regular wallet on POS/Cart */}
             {(() => {
@@ -5412,6 +5421,7 @@ export default function Dashboard() {
               darkMode={darkMode}
               toggleDarkMode={toggleDarkMode}
               soundEnabled={soundEnabled}
+              onVoucherStateChange={setShowingVoucherQR}
               onInternalTransition={() => {
                 // Rotate spinner color and show brief transition
                 setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);

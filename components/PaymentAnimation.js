@@ -48,32 +48,37 @@ export default function PaymentAnimation({ show, payment, onHide, soundEnabled =
 
   if (!show) return null;
 
-  const handleClick = (e) => {
-    console.log('🎬 Payment animation dismissed by click');
+  const handleDone = (e) => {
+    console.log('🎬 Payment animation dismissed by Done button');
     e.stopPropagation();
     onHide();
+  };
+
+  const handleOverlayClick = (e) => {
+    // Only dismiss if clicking the overlay itself, not the button
+    // This prevents accidental dismissals while still allowing Done button to work
+    e.stopPropagation();
   };
 
   const handleTouchStart = (e) => {
-    // Block touch events from reaching elements underneath but allow our own handling
+    // Block touch events from reaching elements underneath
     e.stopPropagation();
-  };
-
-  const handleTouchEnd = (e) => {
-    console.log('🎬 Payment animation dismissed by touch');
-    e.stopPropagation();
-    onHide();
   };
 
   return (
     <div 
-      className={`payment-overlay ${show ? 'active' : ''} cursor-pointer`}
-      onClick={handleClick}
+      className={`payment-overlay ${show ? 'active' : ''}`}
+      onClick={handleOverlayClick}
       onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      style={{ backgroundColor: 'rgba(34, 197, 94, 0.95)' }} // Green background - same for light and dark
+      style={{ 
+        backgroundColor: 'rgba(34, 197, 94, 0.95)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'stretch'
+      }}
     >
-      <div className="payment-animation-content flex flex-col items-center justify-center">
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col items-center justify-center">
         {/* Checkmark */}
         <img 
           src="/checkmark.png" 
@@ -103,11 +108,18 @@ export default function PaymentAnimation({ show, payment, onHide, soundEnabled =
               {payment.memo}
             </div>
           )}
-          
-          <div className="text-base mt-8 opacity-75">
-            Tap to continue
-          </div>
         </div>
+      </div>
+
+      {/* Done Button */}
+      <div className="px-6 pb-10 pt-6 w-full">
+        <button
+          onClick={handleDone}
+          className="w-full h-14 bg-white hover:bg-gray-100 text-green-600 rounded-lg text-xl font-semibold transition-colors shadow-lg"
+          style={{fontFamily: "'Source Sans Pro', sans-serif"}}
+        >
+          Done
+        </button>
       </div>
     </div>
   );

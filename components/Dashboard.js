@@ -5552,19 +5552,23 @@ export default function Dashboard() {
               );
             })()}
             
-            {/* Agent Display - Show when split profile is active (only on POS/Cart, not Voucher) */}
-            {activeSplitProfile && currentView !== 'voucher' && (
-              <div className="flex items-center gap-2">
-                <img 
-                  src="/greendot.svg" 
-                  alt="Split Active" 
-                  className="w-2 h-2"
-                />
-                <span className="text-green-600 dark:text-green-400 font-semibold" style={{fontSize: '11.2px'}}>
-                  {activeSplitProfile.label}
-                </span>
-              </div>
-            )}
+            {/* Agent Display Row - Always reserve space for consistent numpad positioning */}
+            {/* On POS/Cart: Show split profile if active, otherwise empty placeholder */}
+            {/* On Voucher: Always show empty placeholder to match POS layout */}
+            <div className="flex items-center gap-2 min-h-[18px]">
+              {activeSplitProfile && currentView !== 'voucher' && (
+                <>
+                  <img 
+                    src="/greendot.svg" 
+                    alt="Split Active" 
+                    className="w-2 h-2"
+                  />
+                  <span className="text-green-600 dark:text-green-400 font-semibold" style={{fontSize: '11.2px'}}>
+                    {activeSplitProfile.label}
+                  </span>
+                </>
+              )}
+            </div>
           </div>
         )}
 

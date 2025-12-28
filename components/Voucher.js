@@ -1369,32 +1369,24 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
               
               {/* Third commission preset if available */}
               {commissionPresets.length >= 3 && (
-                <button
-                  onClick={() => {
-                    setPendingCommissionSelection(commissionPresets[2]);
-                  }}
-                  className="col-span-2 h-16 bg-white dark:bg-black border-2 border-purple-500 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 rounded-lg text-lg font-normal transition-colors shadow-md"
-                >
-                  {commissionPresets[2]}%
-                  <div className="text-sm">
-                    -{formatDisplayAmount(calculateCommissionAmount(parseFloat(amount) || 0, commissionPresets[2]), displayCurrency)}
-                  </div>
-                </button>
-              )}
-
-              {/* No Commission option (only if 3 presets to balance grid) */}
-              {commissionPresets.length >= 3 && (
-                <button
-                  onClick={() => {
-                    setPendingCommissionSelection(0);
-                  }}
-                  className="col-span-2 h-16 bg-white dark:bg-black border-2 border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 rounded-lg text-lg font-normal transition-colors shadow-md"
-                >
-                  No Commission
-                </button>
+                <>
+                  <button
+                    onClick={() => {
+                      setPendingCommissionSelection(commissionPresets[2]);
+                    }}
+                    className="col-span-2 h-16 bg-white dark:bg-black border-2 border-purple-500 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                  >
+                    {commissionPresets[2]}%
+                    <div className="text-sm">
+                      -{formatDisplayAmount(calculateCommissionAmount(parseFloat(amount) || 0, commissionPresets[2]), displayCurrency)}
+                    </div>
+                  </button>
+                  {/* Empty placeholder to keep grid balanced */}
+                  <div className="col-span-2"></div>
+                </>
               )}
               
-              {/* Cancel and No Commission buttons (when less than 3 presets) */}
+              {/* Cancel and No Commission buttons - always on the same row */}
               <button
                 onClick={() => {
                   if (onInternalTransition) onInternalTransition();
@@ -1404,16 +1396,14 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
               >
                 Cancel
               </button>
-              {commissionPresets.length < 3 && (
-                <button
-                  onClick={() => {
-                    setPendingCommissionSelection(0);
-                  }}
-                  className="col-span-2 h-16 bg-white dark:bg-black border-2 border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 rounded-lg text-lg font-normal transition-colors shadow-md"
-                >
-                  No Commission
-                </button>
-              )}
+              <button
+                onClick={() => {
+                  setPendingCommissionSelection(0);
+                }}
+                className="col-span-2 h-16 bg-white dark:bg-black border-2 border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+              >
+                No Commission
+              </button>
             </div>
           </div>
         )}

@@ -107,7 +107,18 @@ export default async function handler(req, res) {
     try {
       // Pay the invoice using Blink API
       const blinkAPI = new BlinkAPI(voucher.apiKey);
-      const memo = `BlinkPOS Voucher: ${voucher.amount} sats`;
+      
+      // Build memo with commission and display info if available
+      let memo;
+      if (voucher.displayAmount && voucher.displayCurrency) {
+        if (voucher.commissionPercent && voucher.commissionPercent > 0) {
+          memo = `BlinkPOS Voucher: ${voucher.displayCurrency} ${voucher.displayAmount} (${voucher.commissionPercent}% commission) = ${voucher.amount} sats`;
+        } else {
+          memo = `BlinkPOS Voucher: ${voucher.displayCurrency} ${voucher.displayAmount} = ${voucher.amount} sats`;
+        }
+      } else {
+        memo = `BlinkPOS Voucher: ${voucher.amount} sats`;
+      }
       
       console.log('⚡ Paying invoice from voucher wallet...');
       

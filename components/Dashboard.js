@@ -147,6 +147,23 @@ export default function Dashboard() {
   
   // Tip Profile state
   const [showTipProfileSettings, setShowTipProfileSettings] = useState(false);
+  // % Settings submenu state (shows Tip % and Commission % options when voucher wallet connected)
+  const [showPercentSettings, setShowPercentSettings] = useState(false);
+  const [showCommissionSettings, setShowCommissionSettings] = useState(false);
+  // Commission settings state (for voucher commission)
+  const [commissionEnabled, setCommissionEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('blinkpos-commission-enabled') === 'true';
+    }
+    return false;
+  });
+  const [commissionPresets, setCommissionPresets] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('blinkpos-commission-presets');
+      return saved ? JSON.parse(saved) : [1, 2, 3]; // Default commission percentages
+    }
+    return [1, 2, 3];
+  });
   // Paycode state
   const [showPaycode, setShowPaycode] = useState(false);
   const [activeTipProfile, setActiveTipProfile] = useState(() => {
@@ -220,6 +237,19 @@ export default function Dashboard() {
       localStorage.setItem('blinkpos-tip-presets', JSON.stringify(tipPresets));
     }
   }, [tipPresets]);
+
+  // Persist commission settings to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('blinkpos-commission-enabled', commissionEnabled.toString());
+    }
+  }, [commissionEnabled]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('blinkpos-commission-presets', JSON.stringify(commissionPresets));
+    }
+  }, [commissionPresets]);
 
   // Persist active tip profile and update tipPresets when profile changes
   useEffect(() => {
@@ -2475,13 +2505,15 @@ export default function Dashboard() {
                   </div>
                 </button>
 
-                {/* Tip Settings */}
+                {/* Tip Settings / Tip & Commission Settings */}
                 <button
-                  onClick={() => setShowTipProfileSettings(true)}
+                  onClick={() => voucherWallet ? setShowPercentSettings(true) : setShowTipProfileSettings(true)}
                   className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">Tip Settings</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      {voucherWallet ? 'Tip & Commission Settings' : 'Tip Settings'}
+                    </span>
                     <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                       <span>{activeTipProfile?.name || 'Custom'}</span>
                       <span className="ml-1">›</span>
@@ -2992,6 +3024,196 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* % Settings Submenu Overlay (Tip % and Commission % when voucher wallet connected) */}
+      {showPercentSettings && (
+        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+            {/* Header */}
+            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center h-16">
+                  <button
+                    onClick={() => setShowPercentSettings(false)}
+                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
+                  >
+                    <span className="text-2xl mr-2">‹</span>
+                    <span className="text-lg">Back</span>
+                  </button>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                    % Settings
+                  </h1>
+                  <div className="w-16"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="max-w-md mx-auto px-4 py-6">
+              <div className="space-y-4">
+                {/* Tip % Settings */}
+                <button
+                  onClick={() => {
+                    setShowPercentSettings(false);
+                    setShowTipProfileSettings(true);
+                  }}
+                  className={`w-full p-4 rounded-lg border-2 transition-all border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-left">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+                        Tip % Settings
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Configure tip percentages for POS payments
+                      </p>
+                    </div>
+                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                      <span>{activeTipProfile?.name || 'Custom'}</span>
+                      <span className="ml-1">›</span>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Commission % Settings */}
+                <button
+                  onClick={() => {
+                    setShowPercentSettings(false);
+                    setShowCommissionSettings(true);
+                  }}
+                  className={`w-full p-4 rounded-lg border-2 transition-all border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-left">
+                      <h3 className="text-lg font-semibold text-purple-600 dark:text-purple-400 mb-1">
+                        Commission % Settings
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Configure commission for voucher creation
+                      </p>
+                    </div>
+                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                      <span>{commissionEnabled ? `${commissionPresets.join('%, ')}%` : 'Disabled'}</span>
+                      <span className="ml-1">›</span>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Commission % Settings Overlay */}
+      {showCommissionSettings && (
+        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+            {/* Header */}
+            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center h-16">
+                  <button
+                    onClick={() => {
+                      setShowCommissionSettings(false);
+                      setShowPercentSettings(true);
+                    }}
+                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
+                  >
+                    <span className="text-2xl mr-2">‹</span>
+                    <span className="text-lg">Back</span>
+                  </button>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Commission % Settings
+                  </h1>
+                  <div className="w-16"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="max-w-md mx-auto px-4 py-6">
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  When enabled, a commission selection screen will appear after entering a voucher amount. The commission percentage is deducted from the voucher value - for example, a $100 voucher with 2% commission creates a voucher worth $98 in sats.
+                </p>
+
+                {/* Enable/Disable Commission */}
+                <div className={`p-4 rounded-lg border-2 transition-all ${
+                  commissionEnabled
+                    ? 'border-purple-600 dark:border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                    : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark'
+                }`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        Enable Commission
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Show commission options when creating vouchers
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setCommissionEnabled(!commissionEnabled)}
+                      className="inline-flex gap-0.5 cursor-pointer focus:outline-none"
+                    >
+                      <span className={`w-5 h-5 transition-colors ${
+                        commissionEnabled ? 'bg-purple-600 dark:bg-purple-500' : 'bg-gray-300 dark:bg-gray-600'
+                      }`} />
+                      <span className={`w-5 h-5 transition-colors ${
+                        commissionEnabled ? 'bg-gray-300 dark:bg-gray-600' : 'bg-purple-600 dark:bg-purple-500'
+                      }`} />
+                    </button>
+                  </div>
+
+                  {commissionEnabled && (
+                    <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                        Commission Percentage Options (1-3 presets)
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {commissionPresets.map((preset, index) => (
+                          <div key={index} className="flex items-center">
+                            <input
+                              type="number"
+                              value={preset}
+                              onChange={(e) => {
+                                const newPresets = [...commissionPresets];
+                                newPresets[index] = parseFloat(e.target.value) || 0;
+                                setCommissionPresets(newPresets);
+                              }}
+                              className="w-16 px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-center"
+                              min="0"
+                              max="100"
+                              step="0.5"
+                            />
+                            <span className="ml-1 text-gray-500 dark:text-gray-400">%</span>
+                            {commissionPresets.length > 1 && (
+                              <button
+                                onClick={() => setCommissionPresets(commissionPresets.filter((_, i) => i !== index))}
+                                className="ml-2 text-red-500 hover:text-red-700"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {commissionPresets.length < 3 && (
+                        <button
+                          onClick={() => setCommissionPresets([...commissionPresets, commissionPresets.length === 1 ? 2 : 3])}
+                          className="mt-3 px-4 py-2 text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded transition-colors"
+                        >
+                          Add Option
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tip Profile Settings Overlay */}
       {showTipProfileSettings && (
         <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
@@ -3001,14 +3223,20 @@ export default function Dashboard() {
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                   <button
-                    onClick={() => setShowTipProfileSettings(false)}
+                    onClick={() => {
+                      setShowTipProfileSettings(false);
+                      // If voucher wallet is connected, go back to % Settings menu
+                      if (voucherWallet) {
+                        setShowPercentSettings(true);
+                      }
+                    }}
                     className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
                   >
                     <span className="text-2xl mr-2">‹</span>
                     <span className="text-lg">Back</span>
                   </button>
                   <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                    Tip Settings
+                    Tip % Settings
                   </h1>
                   <div className="w-16"></div>
                 </div>
@@ -5422,6 +5650,8 @@ export default function Dashboard() {
               toggleDarkMode={toggleDarkMode}
               soundEnabled={soundEnabled}
               onVoucherStateChange={setShowingVoucherQR}
+              commissionEnabled={commissionEnabled}
+              commissionPresets={commissionPresets}
               onInternalTransition={() => {
                 // Rotate spinner color and show brief transition
                 setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);

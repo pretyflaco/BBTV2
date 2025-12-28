@@ -3,7 +3,7 @@ import QRCode from 'react-qr-code';
 import { bech32 } from 'bech32';
 import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
 
-const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleDarkMode, soundEnabled, onInternalTransition, onVoucherStateChange }) => {
+const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleDarkMode, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3] }) => {
   const [amount, setAmount] = useState('');
   const [voucher, setVoucher] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -16,6 +16,10 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [companionAppInstalled, setCompanionAppInstalled] = useState(false);
   const [printing, setPrinting] = useState(false);
+  // Commission selection state
+  const [showCommissionDialog, setShowCommissionDialog] = useState(false);
+  const [selectedCommissionPercent, setSelectedCommissionPercent] = useState(0);
+  const [pendingCommissionSelection, setPendingCommissionSelection] = useState(null);
   const pollingIntervalRef = useRef(null);
   const successSoundRef = useRef(null);
   const qrRef = useRef(null);
@@ -112,6 +116,28 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
       }
     };
   }, []);
+
+  // Handle commission selection and create voucher after state update
+  useEffect(() => {
+    if (pendingCommissionSelection !== null) {
+      const newCommissionPercent = pendingCommissionSelection;
+      
+      // Trigger transition animation when confirming commission selection
+      if (onInternalTransition) onInternalTransition();
+      
+      setSelectedCommissionPercent(newCommissionPercent);
+      setShowCommissionDialog(false);
+      setPendingCommissionSelection(null);
+      
+      // Create voucher with the specific commission percentage
+      createVoucherWithCommission(newCommissionPercent);
+    }
+  }, [pendingCommissionSelection]);
+
+  // Calculate commission amount
+  const calculateCommissionAmount = (baseAmount, commissionPercent) => {
+    return (commissionPercent / 100) * baseAmount;
+  };
 
   // Helper function to get dynamic font size based on amount length
   const getDynamicFontSize = (displayText) => {
@@ -298,6 +324,10 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
     setVoucher(null);
     setError('');
     setRedeemed(false);
+    // Reset commission state
+    setSelectedCommissionPercent(0);
+    setShowCommissionDialog(false);
+    setPendingCommissionSelection(null);
   };
 
   const isValidAmount = () => {
@@ -372,7 +402,22 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
     }
   };
 
+  // Create voucher with specific commission percentage (bypasses state timing issues)
+  const createVoucherWithCommission = async (commissionPercent) => {
+    return createVoucherInternal(true, commissionPercent);
+  };
+
   const createVoucher = async () => {
+    return createVoucherInternal(false, null);
+  };
+
+  const createVoucherInternal = async (skipCommissionDialog = false, forceCommissionPercent = null) => {
+    // Ensure skipCommissionDialog is a boolean
+    const shouldSkipCommissionDialog = typeof skipCommissionDialog === 'boolean' ? skipCommissionDialog : false;
+    
+    // Use forced commission percent if provided, otherwise use state
+    const effectiveCommissionPercent = forceCommissionPercent !== null ? forceCommissionPercent : selectedCommissionPercent;
+
     if (!isValidAmount()) {
       setError('Please enter a valid amount (minimum 1 sat)');
       return;
@@ -383,21 +428,34 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
       return;
     }
 
+    // Show commission dialog if commission is enabled and we haven't skipped it
+    if (commissionEnabled && commissionPresets && commissionPresets.length > 0 && !shouldSkipCommissionDialog && effectiveCommissionPercent === 0) {
+      if (onInternalTransition) onInternalTransition();
+      setShowCommissionDialog(true);
+      return;
+    }
+
     setLoading(true);
     setError('');
 
     try {
       const numericAmount = parseFloat(amount);
       
-      // Convert to sats if needed
+      // Calculate commission-adjusted amount
+      // Commission is deducted from the voucher value
+      // E.g., $100 voucher with 2% commission = voucher encodes $98 worth of sats
+      const commissionAmount = effectiveCommissionPercent > 0 ? calculateCommissionAmount(numericAmount, effectiveCommissionPercent) : 0;
+      const netAmount = numericAmount - commissionAmount;
+      
+      // Convert to sats if needed (use netAmount after commission deduction)
       let amountInSats;
       if (displayCurrency === 'BTC') {
-        amountInSats = Math.round(numericAmount);
+        amountInSats = Math.round(netAmount);
       } else {
         if (!exchangeRate || !exchangeRate.satPriceInCurrency) {
           throw new Error(`Exchange rate not available for ${displayCurrency}`);
         }
-        amountInSats = convertToSatoshis(numericAmount, displayCurrency);
+        amountInSats = convertToSatoshis(netAmount, displayCurrency);
         
         if (amountInSats < 1) {
           throw new Error('Amount too small. Converts to less than 1 satoshi.');
@@ -407,6 +465,9 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
       console.log('🔨 Creating voucher:', {
         displayAmount: numericAmount,
         displayCurrency: displayCurrency,
+        commissionPercent: effectiveCommissionPercent,
+        commissionAmount: commissionAmount,
+        netAmount: netAmount,
         amountInSats: amountInSats,
         exchangeRate: exchangeRate
       });
@@ -420,7 +481,11 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
         body: JSON.stringify({
           amount: amountInSats,
           apiKey: voucherWallet.apiKey,
-          walletId: voucherWallet.walletId
+          walletId: voucherWallet.walletId,
+          // Include commission info for memo and printout
+          commissionPercent: effectiveCommissionPercent,
+          displayAmount: numericAmount,
+          displayCurrency: displayCurrency
         }),
       });
 
@@ -447,8 +512,11 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
         setVoucher({
           ...data.voucher,
           lnurl: lnurl,
-          displayAmount: numericAmount,
-          displayCurrency: displayCurrency
+          displayAmount: numericAmount, // Original entered amount (voucher price)
+          displayCurrency: displayCurrency,
+          commissionPercent: effectiveCommissionPercent,
+          commissionAmount: commissionAmount,
+          netAmount: netAmount // Amount after commission deduction
         });
 
         console.log('✅ Voucher created:', {
@@ -456,6 +524,7 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
           amount: amountInSats,
           displayAmount: numericAmount,
           displayCurrency: displayCurrency,
+          commissionPercent: effectiveCommissionPercent,
           lnurlUrl: lnurlUrl,
           lnurl: lnurl.substring(0, 30) + '...'
         });
@@ -616,7 +685,8 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
             qrDataUrl: qrDataUrl,
             logoDataUrl: logoDataUrl,
             identifierCode: voucher.id?.substring(0, 8)?.toUpperCase() || null,
-            voucherSecret: voucherSecret
+            voucherSecret: voucherSecret,
+            commissionPercent: voucher.commissionPercent || 0
           }],
           format: printFormat
         }),
@@ -672,9 +742,10 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
     const voucherAmount = `${voucher.amount} sats`;
     const voucherSecret = voucher.id?.replace(/-/g, '').substring(0, 12) || '';
     const identifierCode = voucher.id?.substring(0, 8)?.toUpperCase() || '';
+    const commissionPercent = voucher.commissionPercent || 0;
     
     // Build companion app deep link URL (same format as Blink voucher app)
-    const deepLinkUrl = `blink-pos-companion://print?app=voucher&lnurl=${encodeURIComponent(voucher.lnurl)}&voucherPrice=${encodeURIComponent(voucherPrice)}&voucherAmount=${encodeURIComponent(voucherAmount)}&voucherSecret=${encodeURIComponent(voucherSecret)}&commissionPercentage=0&identifierCode=${encodeURIComponent(identifierCode)}`;
+    const deepLinkUrl = `blink-pos-companion://print?app=voucher&lnurl=${encodeURIComponent(voucher.lnurl)}&voucherPrice=${encodeURIComponent(voucherPrice)}&voucherAmount=${encodeURIComponent(voucherAmount)}&voucherSecret=${encodeURIComponent(voucherSecret)}&commissionPercentage=${encodeURIComponent(commissionPercent)}&identifierCode=${encodeURIComponent(identifierCode)}`;
     
     console.log('🖨️ Printing via companion app:', deepLinkUrl);
     
@@ -701,6 +772,7 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
       const voucherAmount = `${voucher.amount} sats`;
       const voucherSecret = voucher.id?.replace(/-/g, '').substring(0, 12) || '';
       const identifierCode = voucher.id?.substring(0, 8)?.toUpperCase() || '';
+      const commissionPercent = voucher.commissionPercent || 0;
       const qrDataUrl = await getQrDataUrl();
       
       // Create a printable iframe (better than popup for some browsers)
@@ -746,6 +818,7 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
             ${voucherPrice ? `<div class="info-row"><span class="info-label">Price:</span><span class="info-value">${voucherPrice}</span></div>` : ''}
             <div class="info-row"><span class="info-label">Value:</span><span class="info-value">${voucherAmount}</span></div>
             <div class="info-row"><span class="info-label">Identifier:</span><span class="info-value">${identifierCode}</span></div>
+            ${commissionPercent > 0 ? `<div class="info-row"><span class="info-label">Commission:</span><span class="info-value">${commissionPercent}%</span></div>` : ''}
           </div>
           <div class="dashed"></div>
           <div class="qr">
@@ -1271,6 +1344,79 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
             </svg>
           </button>
         </div>
+
+        {/* Commission Selection Overlay (over numpad) */}
+        {showCommissionDialog && (
+          <div className="absolute inset-0 bg-white dark:bg-black z-30 pt-24">
+            <div className="grid grid-cols-4 gap-3 max-w-sm mx-auto" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+              <h3 className="col-span-4 text-xl font-bold mb-2 text-center text-gray-800 dark:text-white">Commission Options</h3>
+              
+              {/* Commission preset buttons in grid */}
+              {commissionPresets.slice(0, 2).map(percent => (
+                <button
+                  key={percent}
+                  onClick={() => {
+                    setPendingCommissionSelection(percent);
+                  }}
+                  className="col-span-2 h-16 bg-white dark:bg-black border-2 border-purple-500 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                >
+                  {percent}%
+                  <div className="text-sm">
+                    -{formatDisplayAmount(calculateCommissionAmount(parseFloat(amount) || 0, percent), displayCurrency)}
+                  </div>
+                </button>
+              ))}
+              
+              {/* Third commission preset if available */}
+              {commissionPresets.length >= 3 && (
+                <button
+                  onClick={() => {
+                    setPendingCommissionSelection(commissionPresets[2]);
+                  }}
+                  className="col-span-2 h-16 bg-white dark:bg-black border-2 border-purple-500 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                >
+                  {commissionPresets[2]}%
+                  <div className="text-sm">
+                    -{formatDisplayAmount(calculateCommissionAmount(parseFloat(amount) || 0, commissionPresets[2]), displayCurrency)}
+                  </div>
+                </button>
+              )}
+
+              {/* No Commission option (only if 3 presets to balance grid) */}
+              {commissionPresets.length >= 3 && (
+                <button
+                  onClick={() => {
+                    setPendingCommissionSelection(0);
+                  }}
+                  className="col-span-2 h-16 bg-white dark:bg-black border-2 border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                >
+                  No Commission
+                </button>
+              )}
+              
+              {/* Cancel and No Commission buttons (when less than 3 presets) */}
+              <button
+                onClick={() => {
+                  if (onInternalTransition) onInternalTransition();
+                  setShowCommissionDialog(false);
+                }}
+                className="col-span-2 h-16 bg-white dark:bg-black border-2 border-red-500 hover:border-red-600 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+              >
+                Cancel
+              </button>
+              {commissionPresets.length < 3 && (
+                <button
+                  onClick={() => {
+                    setPendingCommissionSelection(0);
+                  }}
+                  className="col-span-2 h-16 bg-white dark:bg-black border-2 border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                >
+                  No Commission
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

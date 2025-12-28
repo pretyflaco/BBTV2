@@ -12,7 +12,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { amount, apiKey, walletId } = req.body;
+    const { amount, apiKey, walletId, commissionPercent, displayAmount, displayCurrency } = req.body;
 
     // Validate required fields
     if (!amount || !apiKey || !walletId) {
@@ -31,12 +31,19 @@ export default async function handler(req, res) {
       });
     }
 
-    // Create voucher charge
-    const voucher = voucherStore.createVoucher(amountNum, apiKey, walletId);
+    // Create voucher charge with optional commission and display info
+    const voucher = voucherStore.createVoucher(amountNum, apiKey, walletId, {
+      commissionPercent: commissionPercent || 0,
+      displayAmount: displayAmount || null,
+      displayCurrency: displayCurrency || null
+    });
 
     console.log('✅ Voucher created successfully:', {
       chargeId: voucher.id,
       amount: voucher.amount,
+      commissionPercent: voucher.commissionPercent,
+      displayAmount: voucher.displayAmount,
+      displayCurrency: voucher.displayCurrency,
       timestamp: new Date(voucher.createdAt).toISOString()
     });
 

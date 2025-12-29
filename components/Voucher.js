@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import QRCode from 'react-qr-code';
 import { bech32 } from 'bech32';
 import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
 
-const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleDarkMode, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3] }) => {
+const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMode, toggleDarkMode, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3] }, ref) => {
   const [amount, setAmount] = useState('');
   const [voucher, setVoucher] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -20,17 +20,18 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
   const [showCommissionDialog, setShowCommissionDialog] = useState(false);
   const [selectedCommissionPercent, setSelectedCommissionPercent] = useState(0);
   const [pendingCommissionSelection, setPendingCommissionSelection] = useState(null);
+  const [commissionOptionIndex, setCommissionOptionIndex] = useState(0); // Keyboard navigation index
   const pollingIntervalRef = useRef(null);
   const successSoundRef = useRef(null);
   const qrRef = useRef(null);
 
-  // Notify parent when voucher QR is showing (to hide header elements)
+  // Notify parent when voucher QR or commission dialog is showing (to hide header elements)
   useEffect(() => {
     if (onVoucherStateChange) {
-      // Voucher QR is showing when we have a voucher and it's not redeemed yet
-      onVoucherStateChange(!!voucher && !redeemed);
+      // Hide header when voucher QR is showing OR commission dialog is showing
+      onVoucherStateChange((!!voucher && !redeemed) || showCommissionDialog);
     }
-  }, [voucher, redeemed, onVoucherStateChange]);
+  }, [voucher, redeemed, showCommissionDialog, onVoucherStateChange]);
 
   // Check if POS companion app is installed
   useEffect(() => {
@@ -133,6 +134,13 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
       createVoucherWithCommission(newCommissionPercent);
     }
   }, [pendingCommissionSelection]);
+
+  // Reset commission option index when dialog opens
+  useEffect(() => {
+    if (showCommissionDialog) {
+      setCommissionOptionIndex(0);
+    }
+  }, [showCommissionDialog]);
 
   // Calculate commission amount
   const calculateCommissionAmount = (baseAmount, commissionPercent) => {
@@ -410,6 +418,90 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
   const createVoucher = async () => {
     return createVoucherInternal(false, null);
   };
+
+  // Expose numpad handlers for keyboard navigation
+  useImperativeHandle(ref, () => ({
+    handleDigitPress,
+    handleBackspace,
+    handleClear,
+    handleSubmit: () => createVoucher(),
+    hasVoucher: () => !!voucher,
+    hasValidAmount: () => isValidAmount(),
+    isRedeemed: () => redeemed,
+    // Commission dialog keyboard navigation
+    isCommissionDialogOpen: () => showCommissionDialog,
+    handleCommissionDialogKey: (key) => {
+      if (!showCommissionDialog) return false;
+      
+      const presetCount = commissionPresets.length;
+      const totalOptions = presetCount + 2;
+      const cancelIndex = presetCount;
+      const noCommissionIndex = presetCount + 1;
+      
+      // Build column indices for proper up/down navigation
+      // Column 0: even preset indices + Cancel
+      // Column 1: odd preset indices + No Commission
+      const col0Indices = [];
+      const col1Indices = [];
+      for (let i = 0; i < presetCount; i++) {
+        if (i % 2 === 0) col0Indices.push(i);
+        else col1Indices.push(i);
+      }
+      col0Indices.push(cancelIndex);
+      col1Indices.push(noCommissionIndex);
+      
+      // Determine which column current index is in
+      const getColumn = (idx) => {
+        if (col0Indices.includes(idx)) return 0;
+        return 1;
+      };
+      
+      if (key === 'ArrowRight') {
+        setCommissionOptionIndex(prev => (prev + 1) % totalOptions);
+        return true;
+      } else if (key === 'ArrowLeft') {
+        setCommissionOptionIndex(prev => (prev - 1 + totalOptions) % totalOptions);
+        return true;
+      } else if (key === 'ArrowDown') {
+        setCommissionOptionIndex(prev => {
+          const col = getColumn(prev);
+          const colIndices = col === 0 ? col0Indices : col1Indices;
+          const posInCol = colIndices.indexOf(prev);
+          if (posInCol < colIndices.length - 1) {
+            return colIndices[posInCol + 1];
+          }
+          return prev; // Already at bottom of column
+        });
+        return true;
+      } else if (key === 'ArrowUp') {
+        setCommissionOptionIndex(prev => {
+          const col = getColumn(prev);
+          const colIndices = col === 0 ? col0Indices : col1Indices;
+          const posInCol = colIndices.indexOf(prev);
+          if (posInCol > 0) {
+            return colIndices[posInCol - 1];
+          }
+          return prev; // Already at top of column
+        });
+        return true;
+      } else if (key === 'Enter') {
+        if (commissionOptionIndex < commissionPresets.length) {
+          setPendingCommissionSelection(commissionPresets[commissionOptionIndex]);
+        } else if (commissionOptionIndex === totalOptions - 2) {
+          if (onInternalTransition) onInternalTransition();
+          setShowCommissionDialog(false);
+        } else if (commissionOptionIndex === totalOptions - 1) {
+          setPendingCommissionSelection(0);
+        }
+        return true;
+      } else if (key === 'Escape') {
+        if (onInternalTransition) onInternalTransition();
+        setShowCommissionDialog(false);
+        return true;
+      }
+      return false;
+    },
+  }));
 
   const createVoucherInternal = async (skipCommissionDialog = false, forceCommissionPercent = null) => {
     // Ensure skipCommissionDialog is a boolean
@@ -1346,7 +1438,12 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
         </div>
 
         {/* Commission Selection Overlay (over numpad) */}
-        {showCommissionDialog && (
+        {showCommissionDialog && (() => {
+          const totalOptions = commissionPresets.length + 2;
+          const cancelIndex = totalOptions - 2;
+          const noCommissionIndex = totalOptions - 1;
+          
+          return (
           <div className="absolute inset-0 bg-white dark:bg-black z-30 pt-24">
             <div className="grid grid-cols-4 gap-3 max-w-sm mx-auto" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
               <h3 className="col-span-4 text-xl font-bold mb-2 text-center text-gray-800 dark:text-white">Commission Options</h3>
@@ -1358,7 +1455,11 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
                   onClick={() => {
                     setPendingCommissionSelection(percent);
                   }}
-                  className="col-span-2 h-16 bg-white dark:bg-black border-2 border-purple-500 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                  className={`col-span-2 h-16 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal transition-colors shadow-md ${
+                    commissionOptionIndex === index 
+                      ? 'border-purple-400 ring-2 ring-purple-400 bg-purple-50 dark:bg-purple-900 text-purple-700 dark:text-purple-300' 
+                      : 'border-purple-500 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300'
+                  }`}
                 >
                   {percent}%
                   <div className="text-sm">
@@ -1378,7 +1479,11 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
                   if (onInternalTransition) onInternalTransition();
                   setShowCommissionDialog(false);
                 }}
-                className="col-span-2 h-16 bg-white dark:bg-black border-2 border-red-500 hover:border-red-600 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                className={`col-span-2 h-16 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal transition-colors shadow-md ${
+                  commissionOptionIndex === cancelIndex 
+                    ? 'border-red-400 ring-2 ring-red-400 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-300' 
+                    : 'border-red-500 hover:border-red-600 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300'
+                }`}
               >
                 Cancel
               </button>
@@ -1386,16 +1491,22 @@ const Voucher = ({ voucherWallet, displayCurrency, currencies, darkMode, toggleD
                 onClick={() => {
                   setPendingCommissionSelection(0);
                 }}
-                className="col-span-2 h-16 bg-white dark:bg-black border-2 border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                className={`col-span-2 h-16 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal transition-colors shadow-md ${
+                  commissionOptionIndex === noCommissionIndex 
+                    ? 'border-yellow-400 ring-2 ring-yellow-400 bg-yellow-50 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300' 
+                    : 'border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300'
+                }`}
               >
                 No Commission
               </button>
             </div>
           </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );
-};
+});
 
+Voucher.displayName = 'Voucher';
 export default Voucher;

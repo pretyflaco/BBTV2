@@ -27,6 +27,42 @@ function MyApp({ Component, pageProps }) {
   useEffect(() => {
     // Only run on client side to prevent hydration mismatch
     if (typeof window === 'undefined') return;
+
+    // Global error handler for WebSocket/relay connection errors
+    // These are expected when internet drops and shouldn't crash the app
+    const handleError = (event) => {
+      const error = event.error || event.reason || event;
+      const errorMessage = error?.message || String(error);
+      
+      // Suppress nostr relay connection errors (expected on network loss)
+      if (errorMessage.includes('relay connection closed') ||
+          errorMessage.includes('WebSocket') ||
+          errorMessage.includes('Failed to fetch') ||
+          errorMessage.includes('NetworkError') ||
+          errorMessage.includes('Network request failed')) {
+        console.warn('[Network] Connection error (suppressed):', errorMessage);
+        event.preventDefault?.();
+        return true;
+      }
+    };
+
+    const handleUnhandledRejection = (event) => {
+      const errorMessage = event.reason?.message || String(event.reason);
+      
+      // Suppress nostr relay connection errors
+      if (errorMessage.includes('relay connection closed') ||
+          errorMessage.includes('WebSocket') ||
+          errorMessage.includes('Failed to fetch') ||
+          errorMessage.includes('NetworkError') ||
+          errorMessage.includes('Network request failed')) {
+        console.warn('[Network] Promise rejection (suppressed):', errorMessage);
+        event.preventDefault();
+        return;
+      }
+    };
+
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
     
     // Initialize dark mode (default to dark)
     const savedMode = localStorage.getItem('darkMode');
@@ -79,6 +115,12 @@ function MyApp({ Component, pageProps }) {
         window.location.reload(true);
       }
     }
+
+    // Cleanup event listeners
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
   }, []);
 
   return (

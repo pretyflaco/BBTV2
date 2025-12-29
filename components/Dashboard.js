@@ -211,6 +211,11 @@ export default function Dashboard() {
   const touchStartY = useRef(0);
   const touchEndY = useRef(0);
   
+  // Refs for keyboard navigation
+  const posRef = useRef(null);
+  const voucherRef = useRef(null);
+  const cartRef = useRef(null);
+  
   // Save sound preference to localStorage when it changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -1800,6 +1805,11 @@ export default function Dashboard() {
     setTimeout(() => {
       setCurrentView(newView);
       setIsViewTransitioning(false);
+      
+      // Reset cart navigation when entering cart view
+      if (newView === 'cart' && cartRef.current) {
+        cartRef.current.resetNavigation?.();
+      }
     }, 150);
   };
 
@@ -2175,6 +2185,192 @@ export default function Dashboard() {
     touchStartY.current = 0;
     touchEndY.current = 0;
   };
+
+  // Keyboard navigation for desktop users
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Skip if side menu is open
+      if (sideMenuOpen) return;
+      
+      // Skip if focused on input/textarea elements
+      const activeElement = document.activeElement;
+      if (activeElement && (
+        activeElement.tagName === 'INPUT' || 
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.isContentEditable
+      )) {
+        return;
+      }
+
+      // Check if tip dialog is open - delegate keyboard to POS
+      if (currentView === 'pos' && posRef.current?.isTipDialogOpen?.()) {
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', 'Escape'].includes(e.key)) {
+          e.preventDefault();
+          posRef.current.handleTipDialogKey(e.key);
+          return;
+        }
+      }
+
+      // Check if commission dialog is open - delegate keyboard to Voucher
+      if (currentView === 'voucher' && voucherRef.current?.isCommissionDialogOpen?.()) {
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', 'Escape'].includes(e.key)) {
+          e.preventDefault();
+          voucherRef.current.handleCommissionDialogKey(e.key);
+          return;
+        }
+      }
+
+      // Check if cart is active and can handle keyboard navigation
+      if (currentView === 'cart' && cartRef.current?.isCartNavActive?.()) {
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', 'Escape', 'Backspace', ' '].includes(e.key)) {
+          e.preventDefault();
+          cartRef.current.handleCartKey(e.key);
+          return;
+        }
+      }
+
+      // Escape key for checkout screens and success animations
+      if (e.key === 'Escape') {
+        // Payment success animation - Done
+        if (showAnimation) {
+          e.preventDefault();
+          hideAnimation();
+          return;
+        }
+        
+        // Voucher success (redeemed) - Done
+        if (currentView === 'voucher' && voucherRef.current?.isRedeemed?.()) {
+          e.preventDefault();
+          voucherRef.current.handleClear();
+          return;
+        }
+        
+        // POS checkout screen - Cancel
+        if (currentView === 'pos' && showingInvoice) {
+          e.preventDefault();
+          posRef.current?.handleClear?.();
+          return;
+        }
+        
+        // Voucher checkout screen - Cancel (only if not redeemed)
+        if (currentView === 'voucher' && showingVoucherQR && !voucherRef.current?.isRedeemed?.()) {
+          e.preventDefault();
+          voucherRef.current?.handleClear?.();
+          return;
+        }
+      }
+
+      // Arrow key navigation between views (only when not in checkout or modal states)
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault(); // Prevent page scroll
+        
+        // Block navigation during checkout states
+        if (showingInvoice || showingVoucherQR || isViewTransitioning) return;
+        
+        if (e.key === 'ArrowLeft') {
+          // Navigate left: Transactions → POS → Cart
+          if (currentView === 'transactions') {
+            handleViewTransition('pos');
+          } else if (currentView === 'pos') {
+            handleViewTransition('cart');
+          }
+        } else if (e.key === 'ArrowRight') {
+          // Navigate right: Cart → POS → Transactions
+          if (currentView === 'cart') {
+            handleViewTransition('pos');
+          } else if (currentView === 'pos') {
+            handleViewTransition('transactions');
+          }
+        } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && voucherWallet) {
+          // Navigate up/down: POS ↔ Voucher
+          if (currentView === 'pos') {
+            handleViewTransition('voucher');
+          } else if (currentView === 'voucher') {
+            handleViewTransition('pos');
+          }
+        }
+        return;
+      }
+
+      // Numpad input (only on POS and Voucher views, only when showing numpad)
+      if (currentView === 'pos' && !showingInvoice && posRef.current) {
+        // Digit keys (top row and numpad)
+        if (/^[0-9]$/.test(e.key)) {
+          e.preventDefault();
+          posRef.current.handleDigitPress(e.key);
+          return;
+        }
+        // Decimal point
+        if (e.key === '.' || e.key === ',') {
+          e.preventDefault();
+          posRef.current.handleDigitPress('.');
+          return;
+        }
+        // Backspace
+        if (e.key === 'Backspace') {
+          e.preventDefault();
+          posRef.current.handleBackspace();
+          return;
+        }
+        // Escape = Clear
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          posRef.current.handleClear();
+          return;
+        }
+        // Enter = Submit (OK) - only if there's a valid amount
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (posRef.current.hasValidAmount?.()) {
+            posRef.current.handleSubmit();
+          }
+          return;
+        }
+        // Plus key = add to stack
+        if (e.key === '+') {
+          e.preventDefault();
+          posRef.current.handlePlusPress();
+          return;
+        }
+      } else if (currentView === 'voucher' && !showingVoucherQR && voucherRef.current) {
+        // Digit keys (top row and numpad)
+        if (/^[0-9]$/.test(e.key)) {
+          e.preventDefault();
+          voucherRef.current.handleDigitPress(e.key);
+          return;
+        }
+        // Decimal point
+        if (e.key === '.' || e.key === ',') {
+          e.preventDefault();
+          voucherRef.current.handleDigitPress('.');
+          return;
+        }
+        // Backspace
+        if (e.key === 'Backspace') {
+          e.preventDefault();
+          voucherRef.current.handleBackspace();
+          return;
+        }
+        // Escape = Clear
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          voucherRef.current.handleClear();
+          return;
+        }
+        // Enter = Submit (Create Voucher) - only if there's a valid amount
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (voucherRef.current.hasValidAmount?.()) {
+            voucherRef.current.handleSubmit();
+          }
+          return;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentView, sideMenuOpen, showingInvoice, showingVoucherQR, isViewTransitioning, voucherWallet]);
 
   // Group transactions by month
   const groupTransactionsByMonth = (transactions) => {
@@ -5583,6 +5779,7 @@ export default function Dashboard() {
         {currentView === 'cart' ? (
           <div className="h-[calc(100vh-180px)] min-h-[400px]">
             <ItemCart
+              ref={cartRef}
               displayCurrency={displayCurrency}
               currencies={currencies}
               publicKey={publicKey}
@@ -5599,6 +5796,7 @@ export default function Dashboard() {
           </div>
         ) : currentView === 'pos' ? (
           <POS 
+            ref={posRef}
             apiKey={apiKey}
             user={user}
             displayCurrency={displayCurrency}
@@ -5647,6 +5845,7 @@ export default function Dashboard() {
         ) : currentView === 'voucher' ? (
           <div className="h-[calc(100vh-180px)] min-h-[400px]">
             <Voucher
+              ref={voucherRef}
               voucherWallet={voucherWallet}
               displayCurrency={displayCurrency}
               currencies={currencies}

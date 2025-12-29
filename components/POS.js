@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import QRCode from 'react-qr-code';
 import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
 import { useNFC } from './NFCPayment';
 
-const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation }) => {
+const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation }, ref) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -21,6 +21,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
   const [pendingTipSelection, setPendingTipSelection] = useState(null);
   const [showCustomTipInput, setShowCustomTipInput] = useState(false);
   const [customTipValue, setCustomTipValue] = useState('');
+  const [tipOptionIndex, setTipOptionIndex] = useState(0); // Keyboard navigation index
   
   // Cart memo (when coming from item cart)
   const [cartMemo, setCartMemo] = useState('');
@@ -321,6 +322,12 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
     }
   }, [invoice, showTipDialog, onInvoiceStateChange]);
 
+  // Reset tip option index when dialog opens
+  useEffect(() => {
+    if (showTipDialog && !showCustomTipInput) {
+      setTipOptionIndex(0);
+    }
+  }, [showTipDialog, showCustomTipInput]);
 
   const fetchExchangeRate = async () => {
     if (displayCurrency === 'BTC') return;
@@ -614,6 +621,58 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
     setError('');
   };
 
+  // Expose numpad handlers for keyboard navigation
+  useImperativeHandle(ref, () => ({
+    handleDigitPress,
+    handleBackspace,
+    handleClear,
+    handlePlusPress,
+    handleSubmit: () => createInvoice(),
+    hasInvoice: () => !!invoice,
+    hasValidAmount: () => hasValidAmount(),
+    // Tip dialog keyboard navigation
+    isTipDialogOpen: () => showTipDialog && !showCustomTipInput,
+    handleTipDialogKey: (key) => {
+      if (!showTipDialog || showCustomTipInput) return false;
+      
+      const presets = tipPresets || [10, 15, 20];
+      const hasCustomButton = presets.length === 3;
+      const totalOptions = presets.length + (hasCustomButton ? 1 : 0) + 2;
+      
+      if (key === 'ArrowRight') {
+        setTipOptionIndex(prev => (prev + 1) % totalOptions);
+        return true;
+      } else if (key === 'ArrowLeft') {
+        setTipOptionIndex(prev => (prev - 1 + totalOptions) % totalOptions);
+        return true;
+      } else if (key === 'ArrowDown') {
+        setTipOptionIndex(prev => Math.min(prev + 2, totalOptions - 1));
+        return true;
+      } else if (key === 'ArrowUp') {
+        setTipOptionIndex(prev => Math.max(prev - 2, 0));
+        return true;
+      } else if (key === 'Enter') {
+        // Determine which option is selected
+        if (tipOptionIndex < presets.length) {
+          setPendingTipSelection(presets[tipOptionIndex]);
+        } else if (hasCustomButton && tipOptionIndex === presets.length) {
+          setShowCustomTipInput(true);
+          setCustomTipValue('');
+        } else if (tipOptionIndex === totalOptions - 2) {
+          if (onInternalTransition) onInternalTransition();
+          setShowTipDialog(false);
+        } else if (tipOptionIndex === totalOptions - 1) {
+          setPendingTipSelection(0);
+        }
+        return true;
+      } else if (key === 'Escape') {
+        if (onInternalTransition) onInternalTransition();
+        setShowTipDialog(false);
+        return true;
+      }
+      return false;
+    },
+  }));
 
   // Create invoice with specific tip percentage (bypasses state timing issues)
   const createInvoiceWithTip = async (tipPercent) => {
@@ -1268,19 +1327,31 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
       </div>
 
       {/* Tip Selection Overlay (over numpad) */}
-        {showTipDialog && !showCustomTipInput && (
+        {showTipDialog && !showCustomTipInput && (() => {
+          const presets = tipPresets || [10, 15, 20];
+          const hasCustomButton = presets.length === 3;
+          const totalOptions = presets.length + (hasCustomButton ? 1 : 0) + 2;
+          const cancelIndex = totalOptions - 2;
+          const noTipIndex = totalOptions - 1;
+          const customIndex = hasCustomButton ? presets.length : -1;
+          
+          return (
           <div className="absolute inset-0 bg-white dark:bg-black z-30 pt-24">
             <div className="grid grid-cols-4 gap-3 max-w-sm mx-auto" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
               <h3 className="col-span-4 text-xl font-bold mb-2 text-center text-gray-800 dark:text-white">Tip Options</h3>
               
               {/* Tip preset buttons in grid */}
-              {(tipPresets || [10, 15, 20]).slice(0, 2).map(percent => (
+              {presets.map((percent, idx) => (
                 <button
                   key={percent}
                   onClick={() => {
                     setPendingTipSelection(percent);
                   }}
-                  className="col-span-2 h-16 bg-white dark:bg-black border-2 border-green-500 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                  className={`col-span-2 h-16 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal transition-colors shadow-md ${
+                    tipOptionIndex === idx 
+                      ? 'border-green-400 ring-2 ring-green-400 bg-green-50 dark:bg-green-900 text-green-700 dark:text-green-300' 
+                      : 'border-green-500 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'
+                  }`}
                 >
                   {percent}%
                   <div className="text-sm">
@@ -1289,30 +1360,18 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
                 </button>
               ))}
               
-              {/* Second row of tip presets */}
-              {(tipPresets || [10, 15, 20]).slice(2, 4).map(percent => (
-                <button
-                  key={percent}
-                  onClick={() => {
-                    setPendingTipSelection(percent);
-                  }}
-                  className="col-span-2 h-16 bg-white dark:bg-black border-2 border-green-500 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 rounded-lg text-lg font-normal transition-colors shadow-md"
-                >
-                  {percent}%
-                  <div className="text-sm">
-                    +{formatDisplayAmount(calculateTipAmount(total + (parseFloat(amount) || 0), percent), displayCurrency)}
-            </div>
-                </button>
-              ))}
-              
               {/* Show Custom button when exactly 3 presets */}
-              {(tipPresets || []).length === 3 && (
+              {hasCustomButton && (
               <button
                 onClick={() => {
                     setShowCustomTipInput(true);
                     setCustomTipValue('');
                 }}
-                  className="col-span-2 h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                className={`col-span-2 h-16 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal transition-colors shadow-md ${
+                  tipOptionIndex === customIndex 
+                    ? 'border-blue-400 ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300' 
+                    : 'border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300'
+                }`}
               >
                   Custom
               </button>
@@ -1324,7 +1383,11 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
                   if (onInternalTransition) onInternalTransition();
                   setShowTipDialog(false);
                 }}
-                className="col-span-2 h-16 bg-white dark:bg-black border-2 border-red-500 hover:border-red-600 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                className={`col-span-2 h-16 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal transition-colors shadow-md ${
+                  tipOptionIndex === cancelIndex 
+                    ? 'border-red-400 ring-2 ring-red-400 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-300' 
+                    : 'border-red-500 hover:border-red-600 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300'
+                }`}
               >
                 Cancel
               </button>
@@ -1332,13 +1395,18 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
                 onClick={() => {
                   setPendingTipSelection(0);
                 }}
-                className="col-span-2 h-16 bg-white dark:bg-black border-2 border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                className={`col-span-2 h-16 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal transition-colors shadow-md ${
+                  tipOptionIndex === noTipIndex 
+                    ? 'border-yellow-400 ring-2 ring-yellow-400 bg-yellow-50 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300' 
+                    : 'border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300'
+                }`}
               >
                 No Tip
               </button>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* Custom Tip Input Overlay */}
         {showTipDialog && showCustomTipInput && (
@@ -1399,6 +1467,7 @@ const POS = ({ apiKey, user, displayCurrency, currencies, wallets, onPaymentRece
 
     </div>
   );
-};
+});
 
+POS.displayName = 'POS';
 export default POS;

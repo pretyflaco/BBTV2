@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
 
-const ItemCart = ({ 
+const ItemCart = forwardRef(({ 
   displayCurrency, 
   currencies, 
   publicKey, 
@@ -9,8 +9,9 @@ const ItemCart = ({
   soundEnabled,
   darkMode,
   toggleDarkMode,
-  isViewTransitioning = false
-}) => {
+  isViewTransitioning = false,
+  onActivate // Called when view becomes active
+}, ref) => {
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -31,6 +32,18 @@ const ItemCart = ({
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef(null);
+  
+  // Add Item form refs for keyboard navigation
+  const addItemNameRef = useRef(null);
+  const addItemPriceRef = useRef(null);
+  const addItemButtonRef = useRef(null);
+  
+  // Refs for item buttons to enable scroll-into-view
+  const itemRefs = useRef([]);
+  
+  // Keyboard navigation state
+  // Navigation indices: 0=Search, 1=AddItem, 2...(2+items.length-1)=Items, then C and OK
+  const [keyboardNavIndex, setKeyboardNavIndex] = useState(0); // Start with Search selected
 
   // Helper function to get dynamic font size based on amount length
   const getDynamicFontSize = (displayText) => {
@@ -297,6 +310,177 @@ const ItemCart = ({
     setSearchQuery('');
   };
 
+  // Calculate navigation indices based on current filtered items
+  // Layout: [Search, AddItem] -> [Items...] -> [C, OK]
+  // C and OK are only navigatable if there are items to select
+  const getNavIndices = useCallback(() => {
+    const itemCount = filteredItems.length;
+    const hasItems = itemCount > 0;
+    return {
+      search: 0,
+      addItem: 1,
+      firstItem: 2,
+      lastItem: itemCount > 0 ? 2 + itemCount - 1 : 1, // If no items, lastItem is addItem
+      clear: 2 + itemCount,
+      ok: 2 + itemCount + 1,
+      total: 2 + itemCount + 2,
+      hasItems // C and OK only navigatable when there are items
+    };
+  }, [filteredItems.length]);
+
+  // Reset navigation index when entering the view
+  useEffect(() => {
+    if (onActivate) {
+      setKeyboardNavIndex(0); // Reset to Search when activated
+    }
+  }, [onActivate]);
+
+  // Scroll selected item into view when keyboard navigation changes
+  useEffect(() => {
+    const indices = getNavIndices();
+    // Check if an item is selected (index 2 to 2 + itemCount - 1)
+    if (keyboardNavIndex >= indices.firstItem && keyboardNavIndex <= indices.lastItem) {
+      const itemIndex = keyboardNavIndex - indices.firstItem;
+      const itemElement = itemRefs.current[itemIndex];
+      if (itemElement) {
+        itemElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  }, [keyboardNavIndex, getNavIndices]);
+
+  // Expose keyboard navigation handlers via ref
+  useImperativeHandle(ref, () => ({
+    // Check if cart is in a state where it can handle keyboard nav
+    isCartNavActive: () => !showAddForm && !editingItem && !confirmDelete && !isSearching,
+    
+    // Reset selection to Search when entering the view
+    resetNavigation: () => {
+      setKeyboardNavIndex(0);
+    },
+    
+    // Handle keyboard navigation
+    handleCartKey: (key) => {
+      // Don't handle keys if in a modal state
+      if (showAddForm || editingItem || confirmDelete) return false;
+      
+      // If in search mode and typing, let the input handle it
+      if (isSearching) {
+        if (key === 'Escape') {
+          handleSearchClose();
+          return true;
+        }
+        if (key === 'Enter') {
+          // Confirm search and jump to first item
+          if (filteredItems.length > 0) {
+            setIsSearching(false);
+            setKeyboardNavIndex(2); // First item
+          }
+          return true;
+        }
+        return false; // Let input handle other keys
+      }
+      
+      const indices = getNavIndices();
+      
+      if (key === 'ArrowRight') {
+        // Move right within row
+        if (keyboardNavIndex === indices.search) {
+          setKeyboardNavIndex(indices.addItem);
+        } else if (keyboardNavIndex === indices.clear && indices.hasItems) {
+          setKeyboardNavIndex(indices.ok);
+        }
+        // Items are single column, no right movement
+        return true;
+      } else if (key === 'ArrowLeft') {
+        // Move left within row
+        if (keyboardNavIndex === indices.addItem) {
+          setKeyboardNavIndex(indices.search);
+        } else if (keyboardNavIndex === indices.ok && indices.hasItems) {
+          setKeyboardNavIndex(indices.clear);
+        }
+        // Items are single column, no left movement
+        return true;
+      } else if (key === 'ArrowDown') {
+        // Move down
+        if (keyboardNavIndex === indices.search || keyboardNavIndex === indices.addItem) {
+          // From top row, go to first item (only if there are items)
+          if (indices.hasItems) {
+            setKeyboardNavIndex(indices.firstItem);
+          }
+          // If no items, stay in top row (C and OK are not navigatable)
+        } else if (keyboardNavIndex >= indices.firstItem && keyboardNavIndex < indices.lastItem) {
+          // Move to next item
+          setKeyboardNavIndex(keyboardNavIndex + 1);
+        } else if (keyboardNavIndex === indices.lastItem && indices.hasItems) {
+          // From last item, go to OK button
+          setKeyboardNavIndex(indices.ok);
+        }
+        // At C or OK, stay there
+        return true;
+      } else if (key === 'ArrowUp') {
+        // Move up
+        if ((keyboardNavIndex === indices.clear || keyboardNavIndex === indices.ok) && indices.hasItems) {
+          // From bottom row, go to last item
+          setKeyboardNavIndex(indices.lastItem);
+        } else if (keyboardNavIndex > indices.firstItem && keyboardNavIndex <= indices.lastItem) {
+          // Move to previous item
+          setKeyboardNavIndex(keyboardNavIndex - 1);
+        } else if (keyboardNavIndex === indices.firstItem) {
+          // From first item, go to Search
+          setKeyboardNavIndex(indices.search);
+        } else if (keyboardNavIndex === indices.addItem) {
+          // From AddItem, go to Search
+          setKeyboardNavIndex(indices.search);
+        }
+        return true;
+      } else if (key === 'Enter') {
+        // Enter behavior depends on what's selected
+        if (keyboardNavIndex === indices.search) {
+          // Open search
+          handleSearchClick();
+        } else if (keyboardNavIndex === indices.addItem) {
+          // Open add item form
+          setShowAddForm(true);
+        } else if (keyboardNavIndex >= indices.firstItem && keyboardNavIndex <= indices.lastItem && indices.hasItems) {
+          // On item, jump to OK button
+          setKeyboardNavIndex(indices.ok);
+        } else if (keyboardNavIndex === indices.clear && selectedItems.length > 0) {
+          // Clear selection
+          handleClear();
+        } else if (keyboardNavIndex === indices.ok && total > 0) {
+          // Checkout
+          handleCheckout();
+        }
+        return true;
+      } else if (key === ' ') {
+        // Spacebar adds item to cart (when an item is selected)
+        if (keyboardNavIndex >= indices.firstItem && keyboardNavIndex <= indices.lastItem && indices.hasItems) {
+          const itemIndex = keyboardNavIndex - indices.firstItem;
+          if (filteredItems[itemIndex]) {
+            handleItemClick(filteredItems[itemIndex]);
+          }
+        }
+        return true;
+      } else if (key === 'Backspace') {
+        // If an item is selected, reduce its quantity by 1
+        if (keyboardNavIndex >= indices.firstItem && keyboardNavIndex <= indices.lastItem) {
+          const itemIndex = keyboardNavIndex - indices.firstItem;
+          if (filteredItems[itemIndex]) {
+            handleRemoveFromSelection(filteredItems[itemIndex].id);
+          }
+          return true;
+        }
+        return false;
+      } else if (key === 'Escape') {
+        // Escape does nothing when not in search mode
+        // (Search mode Escape is handled by the search input's onKeyDown)
+        return true;
+      }
+      
+      return false;
+    },
+  }), [showAddForm, editingItem, confirmDelete, isSearching, keyboardNavIndex, filteredItems, selectedItems, total, getNavIndices, handleSearchClick, handleClear, handleCheckout, handleItemClick, handleRemoveFromSelection]);
+
   return (
     <div className="h-full flex flex-col bg-white dark:bg-black relative overflow-hidden" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
       {/* Amount Display - Compact */}
@@ -351,9 +535,16 @@ const ItemCart = ({
                   Item Name
                 </label>
                 <input
+                  ref={addItemNameRef}
                   type="text"
                   value={newItemName}
                   onChange={(e) => setNewItemName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newItemName.trim()) {
+                      e.preventDefault();
+                      addItemPriceRef.current?.focus();
+                    }
+                  }}
                   placeholder="e.g., Ice Cream"
                   className="w-full px-3 py-2 border-2 border-blue-600 dark:border-blue-500 rounded-lg bg-white dark:bg-blink-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   autoFocus
@@ -365,9 +556,16 @@ const ItemCart = ({
                   Price
                 </label>
                 <input
+                  ref={addItemPriceRef}
                   type="number"
                   value={newItemPrice}
                   onChange={(e) => setNewItemPrice(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newItemPrice && parseFloat(newItemPrice) > 0) {
+                      e.preventDefault();
+                      addItemButtonRef.current?.focus();
+                    }
+                  }}
                   placeholder="1"
                   min="0"
                   step="any"
@@ -387,6 +585,7 @@ const ItemCart = ({
                   Cancel
                 </button>
                 <button
+                  ref={addItemButtonRef}
                   onClick={handleAddItem}
                   disabled={addingItem || !newItemName.trim() || !newItemPrice}
                   className="h-12 bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 disabled:border-gray-400 disabled:text-gray-400 disabled:cursor-not-allowed rounded-lg text-lg font-normal transition-colors shadow-md"
@@ -486,6 +685,19 @@ const ItemCart = ({
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        e.preventDefault();
+                        handleSearchClose();
+                        setKeyboardNavIndex(0); // Select Search button
+                      } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (filteredItems.length > 0) {
+                          setIsSearching(false);
+                          setKeyboardNavIndex(2); // First item
+                        }
+                      }
+                    }}
                     placeholder="Search items..."
                     className="flex-1 h-full bg-transparent text-gray-900 dark:text-white focus:outline-none text-base"
                     autoFocus
@@ -505,7 +717,11 @@ const ItemCart = ({
                   {/* Search Button */}
                   <button
                     onClick={handleSearchClick}
-                    className="w-full h-14 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 rounded-lg text-base font-normal transition-colors shadow-md flex items-center justify-center gap-2"
+                    className={`w-full h-14 bg-white dark:bg-black border-2 rounded-lg text-base font-normal transition-colors shadow-md flex items-center justify-center gap-2 ${
+                      keyboardNavIndex === 0
+                        ? 'border-orange-400 ring-2 ring-orange-400 bg-orange-50 dark:bg-orange-900 text-orange-700 dark:text-orange-300'
+                        : 'border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300'
+                    }`}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -516,7 +732,11 @@ const ItemCart = ({
                   {/* Add Item Button */}
                   <button
                     onClick={() => setShowAddForm(true)}
-                    className="w-full h-14 bg-white dark:bg-black border-2 border-dashed border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 rounded-lg text-base font-normal transition-colors shadow-md flex items-center justify-center gap-2"
+                    className={`w-full h-14 bg-white dark:bg-black border-2 border-dashed rounded-lg text-base font-normal transition-colors shadow-md flex items-center justify-center gap-2 ${
+                      keyboardNavIndex === 1
+                        ? 'border-orange-400 ring-2 ring-orange-400 bg-orange-50 dark:bg-orange-900 text-orange-700 dark:text-orange-300'
+                        : 'border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300'
+                    }`}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -531,13 +751,20 @@ const ItemCart = ({
             <div className="flex-1 overflow-y-auto min-h-0">
               <div className="flex flex-col gap-2 max-w-sm mx-auto pb-2">
                 {/* Item Buttons */}
-                {filteredItems.map((item) => {
+                {filteredItems.map((item, itemIndex) => {
                   const quantity = getSelectedQuantity(item.id);
+                  const navIndex = 2 + itemIndex; // Item navigation indices start at 2
+                  const isKeyboardSelected = keyboardNavIndex === navIndex;
                   return (
-                    <div key={item.id}>
+                    <div 
+                      key={item.id}
+                      ref={el => itemRefs.current[itemIndex] = el}
+                    >
                       <div
                         className={`w-full h-14 bg-white dark:bg-black border-2 rounded-lg transition-colors shadow-md flex items-center ${
-                          quantity > 0
+                          isKeyboardSelected
+                            ? 'border-blue-400 ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-900'
+                            : quantity > 0
                             ? 'border-blink-accent'
                             : 'border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400'
                         }`}
@@ -546,7 +773,9 @@ const ItemCart = ({
                         <button
                           onClick={() => handleItemClick(item)}
                           className={`flex-1 h-full flex flex-col justify-center px-3 text-left ${
-                            quantity > 0
+                            isKeyboardSelected
+                              ? 'text-blue-700 dark:text-blue-300'
+                              : quantity > 0
                               ? 'text-blink-accent'
                               : 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300'
                           }`}
@@ -627,12 +856,22 @@ const ItemCart = ({
 
             {/* Fixed bottom row: C and OK buttons */}
             <div className="flex-shrink-0 pt-2 max-w-sm mx-auto w-full">
+              {(() => {
+                const clearIndex = 2 + filteredItems.length;
+                const okIndex = 2 + filteredItems.length + 1;
+                return (
               <div className="grid grid-cols-2 gap-2 w-full">
                 {/* Clear button */}
                 <button
                   onClick={handleClear}
                   disabled={selectedItems.length === 0}
-                  className="w-full h-14 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg text-lg font-normal leading-none tracking-normal transition-colors shadow-md"
+                  className={`w-full h-14 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal leading-none tracking-normal transition-colors shadow-md ${
+                    keyboardNavIndex === clearIndex
+                      ? 'border-red-400 ring-2 ring-red-400 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-300'
+                      : selectedItems.length === 0
+                      ? 'border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                      : 'border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300'
+                  }`}
                   style={{fontFamily: "'Source Sans Pro', sans-serif"}}
                 >
                   C
@@ -642,18 +881,27 @@ const ItemCart = ({
                 <button
                   onClick={handleCheckout}
                   disabled={total <= 0}
-                  className={`w-full h-14 ${total <= 0 ? 'bg-gray-200 dark:bg-blink-dark border-2 border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500' : 'bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'} disabled:cursor-not-allowed rounded-lg text-lg font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center`}
+                  className={`w-full h-14 border-2 rounded-lg text-lg font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center ${
+                    keyboardNavIndex === okIndex
+                      ? 'bg-green-50 dark:bg-green-900 border-green-400 ring-2 ring-green-400 text-green-700 dark:text-green-300'
+                      : total <= 0 
+                      ? 'bg-gray-200 dark:bg-blink-dark border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed' 
+                      : 'bg-white dark:bg-black border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'
+                  }`}
                   style={{fontFamily: "'Source Sans Pro', sans-serif"}}
                 >
                   OK
                 </button>
               </div>
+                );
+              })()}
             </div>
           </div>
         )}
       </div>
     </div>
   );
-};
+});
 
+ItemCart.displayName = 'ItemCart';
 export default ItemCart;

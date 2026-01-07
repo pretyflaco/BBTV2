@@ -68,3 +68,10 @@ MERCHANT_VERIFICATION_BTCMAP.md
 CSV_EXPORT_FIELDS.md
 PROJECT_STATUS_UPDATE_DEC_2025.md
 .voucher-store.json
+
+# AI/IDE tooling directories
+.claude/
+.cursor/
+.opencode/
+_bmad/
+_bmad-output/

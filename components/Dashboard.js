@@ -8,7 +8,9 @@ import { useNFC } from './NFCPayment';
 import PaymentAnimation from './PaymentAnimation';
 import POS from './POS';
 import Voucher from './Voucher';
+import Network from './Network';
 import ItemCart from './ItemCart';
+import BatchPayments from './BatchPayments';
 import KeyManagementSection from './Settings/KeyManagementSection';
 import NWCClient from '../lib/nwc/NWCClient';
 import { isNpubCashAddress, validateNpubCashAddress, probeNpubCashAddress } from '../lib/lnurl';
@@ -111,6 +113,7 @@ export default function Dashboard() {
   const [showTipSettings, setShowTipSettings] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
   const [showKeyManagement, setShowKeyManagement] = useState(false);
+  const [showBatchPayments, setShowBatchPayments] = useState(false);
   const [showCurrencySettings, setShowCurrencySettings] = useState(false);
   const [showAddAccountForm, setShowAddAccountForm] = useState(false);
   const [newAccountApiKey, setNewAccountApiKey] = useState('');
@@ -2510,7 +2513,7 @@ export default function Dashboard() {
               
               {/* Navigation Dots - Center - Two rows layout */}
               <div className="flex flex-col items-center gap-1">
-                {/* Upper row: Cart - POS - History */}
+                {/* Upper row: Cart - POS - History - Network */}
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleViewTransition('cart')}
@@ -2541,6 +2544,17 @@ export default function Dashboard() {
                         : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
                     }`}
                     aria-label="History"
+                  />
+                  <button
+                    onClick={() => handleViewTransition('network')}
+                    disabled={isViewTransitioning}
+                    className={`w-2 h-2 rounded-full transition-colors ${
+                      currentView === 'network'
+                        ? 'bg-teal-500'
+                        : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+                    }`}
+                    aria-label="Network"
+                    title="Bitcoin Circular Economies"
                   />
                 </div>
                 {/* Lower row: Voucher (centered below POS) */}
@@ -2752,6 +2766,27 @@ export default function Dashboard() {
                   </button>
                 )}
 
+                {/* Batch Payments (only show if user has Voucher wallet with WRITE API key) */}
+                {voucherWallet?.apiKey && (
+                  <button
+                    onClick={() => {
+                      setShowBatchPayments(true);
+                      setSideMenuOpen(false);
+                    }}
+                    className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Batch Payments</span>
+                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        <span className="ml-1">›</span>
+                      </div>
+                    </div>
+                  </button>
+                )}
+
                 {/* Key Management (for generated accounts) */}
                 {authMode === 'nostr' && (
                   <button
@@ -2833,6 +2868,18 @@ export default function Dashboard() {
               <KeyManagementSection />
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Batch Payments Overlay (uses Voucher wallet API key with WRITE permission) */}
+      {showBatchPayments && voucherWallet?.apiKey && (
+        <div className="fixed inset-0 bg-white dark:bg-black z-50">
+          <BatchPayments
+            apiKey={voucherWallet.apiKey}
+            walletId={voucherWallet.walletId}
+            darkMode={darkMode}
+            onClose={() => setShowBatchPayments(false)}
+          />
         </div>
       )}
 
@@ -5855,6 +5902,21 @@ export default function Dashboard() {
               onVoucherStateChange={setShowingVoucherQR}
               commissionEnabled={commissionEnabled}
               commissionPresets={commissionPresets}
+              onInternalTransition={() => {
+                // Rotate spinner color and show brief transition
+                setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);
+                setIsViewTransitioning(true);
+                setTimeout(() => setIsViewTransitioning(false), 120);
+              }}
+            />
+          </div>
+        ) : currentView === 'network' ? (
+          <div className="h-[calc(100vh-180px)] min-h-[400px]">
+            <Network
+              publicKey={publicKey}
+              nostrProfile={nostrProfile}
+              darkMode={darkMode}
+              toggleDarkMode={toggleDarkMode}
               onInternalTransition={() => {
                 // Rotate spinner color and show brief transition
                 setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);

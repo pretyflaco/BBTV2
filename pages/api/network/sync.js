@@ -6,27 +6,27 @@
  */
 
 import { syncCommunityTransactions, syncAllCommunities } from '../../../lib/network/syncService';
-import transactionStore from '../../../lib/network/transactionStore';
-import consentStore from '../../../lib/network/consentStore';
+const db = require('../../../lib/network/db');
 
-// Super admin npub (only super admin and leaders can trigger sync)
-const SUPER_ADMIN_NPUB = 'npub1flac02t5hw6jljk8x7mec22uq37ert8d3y3mpwzcma726g5pz4lsmfzlk6';
-
-// Leader mappings
-const COMMUNITY_LEADERS = {
-  'a1b2c3d4-e5f6-7890-abcd-ef1234567001': 'npub1zkr064avsxmxzaasppamps86ge0npwvft9yu3ymgxmk9umx3xyeq9sk6ec',
-  'a1b2c3d4-e5f6-7890-abcd-ef1234567002': 'npub1xxcyzef28e5qcjncwmn6z2nmwaezs2apxc2v2f7unnvxw3r5edfsactfly',
-  'a1b2c3d4-e5f6-7890-abcd-ef1234567003': 'npub1flac02t5hw6jljk8x7mec22uq37ert8d3y3mpwzcma726g5pz4lsmfzlk6',
-};
-
-function canTriggerSync(userNpub, communityId) {
-  // Super admin can sync anything
-  if (userNpub === SUPER_ADMIN_NPUB) return true;
-  
-  // Leaders can sync their own community
-  if (communityId && COMMUNITY_LEADERS[communityId] === userNpub) return true;
-  
-  return false;
+async function canTriggerSync(userNpub, communityId) {
+  try {
+    // Check if user is super admin
+    const isSuperAdmin = await db.isSuperAdmin(userNpub);
+    if (isSuperAdmin) return true;
+    
+    // Check if user is the community leader
+    if (communityId) {
+      const community = await db.getCommunityById(communityId);
+      if (community && community.leader_npub === userNpub) {
+        return true;
+      }
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('Error checking sync permission:', error);
+    return false;
+  }
 }
 
 export default async function handler(req, res) {
@@ -45,9 +45,17 @@ export default async function handler(req, res) {
     
     try {
       if (communityId) {
-        // Get metrics for specific community
-        const metrics = transactionStore.getCommunityMetrics(communityId);
-        const consentCount = consentStore.getConsentCount(communityId);
+        // Get metrics for specific community from database
+        const metrics = await db.getLatestMetrics(communityId);
+        
+        // Count consents
+        const consents = await db.query(
+          `SELECT COUNT(*) as count FROM data_sharing_consents dsc
+           JOIN community_memberships cm ON cm.id = dsc.membership_id
+           WHERE cm.community_id = $1 AND dsc.consent_given = true`,
+          [communityId]
+        );
+        const consentCount = parseInt(consents.rows[0]?.count || 0);
         
         return res.status(200).json({
           success: true,
@@ -63,15 +71,18 @@ export default async function handler(req, res) {
           }
         });
       } else {
-        // Get metrics for all communities
-        const allMetrics = transactionStore.getAllMetrics();
+        // Get metrics for all communities from database
+        const communities = await db.listCommunities();
         const metricsArray = [];
         
-        for (const [id, metrics] of allMetrics) {
-          metricsArray.push({
-            community_id: id,
-            ...metrics
-          });
+        for (const community of communities) {
+          const metrics = await db.getLatestMetrics(community.id);
+          if (metrics) {
+            metricsArray.push({
+              community_id: community.id,
+              ...metrics
+            });
+          }
         }
         
         return res.status(200).json({
@@ -96,7 +107,8 @@ export default async function handler(req, res) {
       // Check permissions
       if (syncAll) {
         // Only super admin can sync all
-        if (userNpub !== SUPER_ADMIN_NPUB) {
+        const isSuperAdmin = await db.isSuperAdmin(userNpub);
+        if (!isSuperAdmin) {
           return res.status(403).json({
             success: false,
             error: 'Only super admin can trigger full sync'
@@ -114,7 +126,8 @@ export default async function handler(req, res) {
         
       } else if (communityId) {
         // Check if user can sync this community
-        if (!canTriggerSync(userNpub, communityId)) {
+        const canSync = await canTriggerSync(userNpub, communityId);
+        if (!canSync) {
           return res.status(403).json({
             success: false,
             error: 'You do not have permission to sync this community'

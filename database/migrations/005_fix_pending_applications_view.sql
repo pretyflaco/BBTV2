@@ -22,6 +22,4 @@ ORDER BY cm.applied_at ASC;
 
 -- Update schema version
 INSERT INTO system_metrics (metric_name, metric_value, recorded_at)
-VALUES ('schema_version', '5', NOW())
-ON CONFLICT (metric_name) DO UPDATE
-SET metric_value = EXCLUDED.metric_value, recorded_at = NOW();
+VALUES ('schema_version', '5', NOW());

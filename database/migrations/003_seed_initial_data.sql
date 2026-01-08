@@ -67,6 +67,20 @@ ON CONFLICT (npub) DO UPDATE SET
     reason = EXCLUDED.reason,
     updated_at = NOW();
 
+-- Blink Team Leader
+INSERT INTO community_leader_whitelist (npub, display_name, added_by, reason, status)
+VALUES (
+    'npub13ljnkd633c7maxatymv3y2fqq8vt3qk7j3tt0vytv90eztwgha9qmfcfhw',
+    'Blink Team Leader',
+    'npub1flac02t5hw6jljk8x7mec22uq37ert8d3y3mpwzcma726g5pz4lsmfzlk6',
+    'Pioneer community leader - Blink Team',
+    'active'
+)
+ON CONFLICT (npub) DO UPDATE SET
+    display_name = EXCLUDED.display_name,
+    reason = EXCLUDED.reason,
+    updated_at = NOW();
+
 -- ============================================
 -- SEED PIONEER COMMUNITIES
 -- ============================================
@@ -151,6 +165,46 @@ ON CONFLICT (community_id, user_npub) DO UPDATE SET
     role = 'leader',
     status = 'approved';
 
+-- Blink Team
+INSERT INTO communities (
+    id, name, slug, description,
+    country_code, region, city, latitude, longitude,
+    leader_npub, status
+)
+VALUES (
+    'a1b2c3d4-e5f6-7890-abcd-ef1234567004',
+    'Blink Team',
+    'blink-team',
+    'The Blink team pioneering Bitcoin banking infrastructure. Building tools and infrastructure to make Bitcoin accessible globally through innovative wallet solutions and circular economy support.',
+    'US',
+    'California',
+    'San Francisco',
+    37.7749,
+    -122.4194,
+    'npub13ljnkd633c7maxatymv3y2fqq8vt3qk7j3tt0vytv90eztwgha9qmfcfhw',
+    'active'
+)
+ON CONFLICT (slug) DO UPDATE SET
+    description = EXCLUDED.description,
+    latitude = EXCLUDED.latitude,
+    longitude = EXCLUDED.longitude,
+    updated_at = NOW();
+
+-- Create leader membership for Blink Team
+INSERT INTO community_memberships (
+    community_id, user_npub, role, status, approved_at
+)
+VALUES (
+    'a1b2c3d4-e5f6-7890-abcd-ef1234567004',
+    'npub13ljnkd633c7maxatymv3y2fqq8vt3qk7j3tt0vytv90eztwgha9qmfcfhw',
+    'leader',
+    'approved',
+    NOW()
+)
+ON CONFLICT (community_id, user_npub) DO UPDATE SET
+    role = 'leader',
+    status = 'approved';
+
 -- Test Community (Super Admin is leader)
 INSERT INTO communities (
     id, name, slug, description,
@@ -212,5 +266,6 @@ BEGIN
     RAISE NOTICE 'Pioneer Communities:';
     RAISE NOTICE '  - Bitcoin Ekasi (South Africa)';
     RAISE NOTICE '  - Bitcoin Victoria Falls (Zimbabwe)';
+    RAISE NOTICE '  - Blink Team (United States)';
     RAISE NOTICE '  - Test Community (Super Admin is leader)';
 END $$;

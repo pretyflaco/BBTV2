@@ -58,6 +58,8 @@ server.log
 
 # Database backups
 *.sql
+!database/migrations/*.sql
+!database/init.sql
 *.rdb
 backup_*
 

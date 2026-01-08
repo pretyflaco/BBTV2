@@ -66,30 +66,39 @@ export default async function handler(req, res) {
     
     try {
       if (communityId) {
-        // Check specific community
-        const consent = await db.getConsent(communityId, userNpub);
+        // Check specific community - use getConsentByUser with correct params
+        const consent = await db.getConsentByUser(communityId, userNpub);
         return res.status(200).json({
           success: true,
-          hasConsent: consent?.status === 'active',
+          hasConsent: consent?.consent_given === true,
           consent: consent ? {
             id: consent.id,
-            status: consent.status,
+            status: consent.consent_given ? 'active' : 'inactive',
             blink_username: consent.blink_username,
             consented_at: consent.consented_at
           } : null
         });
       } else {
-        // Get all user consents
-        const consents = await db.getConsentByUser(userNpub);
+        // Get all user consents - need to query across all communities
+        const memberships = await db.getUserMemberships(userNpub);
+        const consents = [];
+        
+        for (const membership of memberships) {
+          const consent = await db.getConsentByUser(membership.community_id, userNpub);
+          if (consent) {
+            consents.push({
+              id: consent.id,
+              community_id: membership.community_id,
+              status: consent.consent_given ? 'active' : 'inactive',
+              blink_username: consent.blink_username,
+              consented_at: consent.consented_at
+            });
+          }
+        }
+        
         return res.status(200).json({
           success: true,
-          consents: consents.map(c => ({
-            id: c.id,
-            community_id: c.community_id,
-            status: c.status,
-            blink_username: c.blink_username,
-            consented_at: c.consented_at
-          }))
+          consents
         });
       }
     } catch (error) {
@@ -137,9 +146,18 @@ export default async function handler(req, res) {
         });
       }
 
+      // Get the membership to get the membershipId
+      const membership = await db.getMembership(communityId, userNpub);
+      if (!membership) {
+        return res.status(404).json({
+          success: false,
+          error: 'Membership not found'
+        });
+      }
+
       // Check if already has consent
-      const existing = await db.getConsent(communityId, userNpub);
-      if (existing?.status === 'active') {
+      const existing = await db.getConsentByUser(communityId, userNpub);
+      if (existing?.consent_given === true) {
         return res.status(409).json({
           success: false,
           error: 'You have already opted in for data sharing',
@@ -163,11 +181,16 @@ export default async function handler(req, res) {
       const encryptedKey = encryptApiKey(apiKey);
       
       const consent = await db.createOrUpdateConsent(
-        communityId,
+        membership.id, // membershipId
         userNpub,
-        encryptedKey,
-        blinkUsername,
-        'active'
+        communityId,
+        {
+          consentGiven: true,
+          blinkApiKeyEncrypted: encryptedKey,
+          blinkWalletIds: null, // Will be populated during sync
+          blinkUsername: blinkUsername,
+          syncFromDate: null // Will use default (30 days ago)
+        }
       );
 
       console.log(`[Consent] User ${userNpub.substring(0, 20)}... opted in for community ${communityId} as ${blinkUsername}`);
@@ -203,13 +226,27 @@ export default async function handler(req, res) {
     }
 
     try {
-      // Revoke consent by setting status to 'revoked'
+      // Get the membership to get the membershipId
+      const membership = await db.getMembership(communityId, userNpub);
+      if (!membership) {
+        return res.status(404).json({
+          success: false,
+          error: 'Membership not found'
+        });
+      }
+
+      // Revoke consent by setting consent_given to false
       const consent = await db.createOrUpdateConsent(
-        communityId,
+        membership.id, // membershipId
         userNpub,
-        null, // Clear API key
-        null, // Clear username
-        'revoked'
+        communityId,
+        {
+          consentGiven: false,
+          blinkApiKeyEncrypted: null,
+          blinkWalletIds: null,
+          blinkUsername: null,
+          syncFromDate: null
+        }
       );
       
       if (!consent) {

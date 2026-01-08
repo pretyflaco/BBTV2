@@ -8,7 +8,7 @@ UPDATE communities
 SET 
     city = 'Prospera',
     region = 'Cortés',
-    country = 'HN',
+    country_code = 'HN',
     description = 'Supporting everyday bitcoin adoption by example',
     updated_at = NOW()
 WHERE id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567004';

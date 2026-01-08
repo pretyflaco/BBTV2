@@ -7,37 +7,7 @@
  *   - period: 'current_week' | 'last_week' | 'current_month' | 'last_month' | 'all' (default: 'current_month')
  */
 
-import membershipStore from '../../../lib/network/membershipStore';
-import consentStore from '../../../lib/network/consentStore';
-import { calculateMetricsForPeriod, getDateRange } from '../../../lib/network/transactionStore';
-
-// Pioneer communities base data
-const COMMUNITIES = [
-  {
-    id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567001',
-    name: 'Bitcoin Ekasi',
-    slug: 'bitcoin-ekasi',
-    country_code: 'ZA',
-    city: 'Mossel Bay',
-    leader_npub: 'npub1zkr064avsxmxzaasppamps86ge0npwvft9yu3ymgxmk9umx3xyeq9sk6ec'
-  },
-  {
-    id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567002',
-    name: 'Bitcoin Victoria Falls',
-    slug: 'bitcoin-victoria-falls',
-    country_code: 'ZW',
-    city: 'Victoria Falls',
-    leader_npub: 'npub1xxcyzef28e5qcjncwmn6z2nmwaezs2apxc2v2f7unnvxw3r5edfsactfly'
-  },
-  {
-    id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567003',
-    name: 'Test Community',
-    slug: 'test-community',
-    country_code: 'XX',
-    city: 'Test City',
-    leader_npub: 'npub1flac02t5hw6jljk8x7mec22uq37ert8d3y3mpwzcma726g5pz4lsmfzlk6'
-  }
-];
+const db = require('../../../lib/network/db');
 
 // Milestone definitions
 const MILESTONES = {
@@ -107,21 +77,22 @@ export default async function handler(req, res) {
   const { sortBy = 'volume', period = 'current_month' } = req.query;
 
   try {
-    // Build leaderboard with real metrics
-    const leaderboard = COMMUNITIES.map(community => {
-      // Get member count
-      const dynamicMemberCount = membershipStore.getMemberCount(community.id);
-      const memberCount = 1 + dynamicMemberCount; // Leader + members
+    // Get all communities from database
+    const communitiesData = await db.getAllCommunities();
+    
+    // Get date range for the period
+    const periodRange = db.getDateRange(period);
+    
+    // Build leaderboard with real metrics from database
+    const leaderboard = await Promise.all(communitiesData.map(async (community) => {
+      // Get member count from database
+      const memberCount = await db.getMemberCount(community.id);
       
-      // Get data sharing count
-      const dataSharingCount = consentStore.getConsentCount(community.id);
+      // Get data sharing count from database
+      const dataSharingCount = await db.getConsentCount(community.id);
       
-      // Get member usernames for metrics calculation
-      const consents = consentStore.getCommunityConsents(community.id);
-      const memberUsernames = consents.map(c => c.blink_username).filter(Boolean);
-      
-      // Calculate metrics for the period
-      const metrics = calculateMetricsForPeriod(community.id, memberUsernames, period);
+      // Calculate metrics for the period from database
+      const metrics = await db.calculateMetricsForPeriod(community.id, periodRange.start, periodRange.end);
       
       return {
         id: community.id,
@@ -138,9 +109,9 @@ export default async function handler(req, res) {
         velocity: metrics.velocity,
         avg_tx_size: metrics.avg_tx_size
       };
-    });
+    }));
     
-    // Add ranks and milestones
+    // Add milestones
     leaderboard.forEach(c => {
       c.milestones = getMilestones(c);
     });
@@ -160,9 +131,6 @@ export default async function handler(req, res) {
     leaderboard.forEach((c, index) => {
       c.rank = index + 1;
     });
-    
-    // Get period info
-    const periodRange = getDateRange(period);
 
     return res.status(200).json({
       success: true,

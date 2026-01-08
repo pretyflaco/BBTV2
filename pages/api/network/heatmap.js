@@ -4,43 +4,7 @@
  * GET: Get all communities with coordinates and activity metrics
  */
 
-import membershipStore from '../../../lib/network/membershipStore';
-import consentStore from '../../../lib/network/consentStore';
-import { calculateMetricsForPeriod } from '../../../lib/network/transactionStore';
-
-// Community base data with coordinates
-const COMMUNITIES = [
-  {
-    id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567001',
-    name: 'Bitcoin Ekasi',
-    slug: 'bitcoin-ekasi',
-    latitude: -34.1849,
-    longitude: 22.1265,
-    country_code: 'ZA',
-    city: 'Mossel Bay',
-    region: 'Western Cape'
-  },
-  {
-    id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567002',
-    name: 'Bitcoin Victoria Falls',
-    slug: 'bitcoin-victoria-falls',
-    latitude: -17.9243,
-    longitude: 25.8572,
-    country_code: 'ZW',
-    city: 'Victoria Falls',
-    region: 'Matabeleland North'
-  },
-  {
-    id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567003',
-    name: 'Test Community',
-    slug: 'test-community',
-    latitude: 40.7128,  // New York coordinates for testing
-    longitude: -74.0060,
-    country_code: 'US',
-    city: 'New York',
-    region: 'New York'
-  }
-];
+const db = require('../../../lib/network/db');
 
 /**
  * Calculate intensity score based on activity
@@ -76,18 +40,22 @@ export default async function handler(req, res) {
   const { period = 'current_month' } = req.query;
 
   try {
+    // Get all communities from database
+    const communitiesData = await db.getAllCommunities();
+    
+    // Get date range for the period
+    const { start, end } = db.getDateRange(period);
+    
     // Build community data with real metrics
-    const communities = COMMUNITIES.map(community => {
-      // Get member count
-      const dynamicMemberCount = membershipStore.getMemberCount(community.id);
-      const memberCount = 1 + dynamicMemberCount;
+    const communities = await Promise.all(communitiesData.map(async (community) => {
+      // Get member count from database
+      const memberCount = await db.getMemberCount(community.id);
       
-      // Get member usernames for metrics
-      const consents = consentStore.getCommunityConsents(community.id);
-      const memberUsernames = consents.map(c => c.blink_username).filter(Boolean);
+      // Get consent count from database
+      const consentCount = await db.getConsentCount(community.id);
       
-      // Calculate metrics
-      const metrics = calculateMetricsForPeriod(community.id, memberUsernames, period);
+      // Calculate metrics from database
+      const metrics = await db.calculateMetricsForPeriod(community.id, start, end);
       
       // Calculate intensity score
       const intensity = calculateIntensity(metrics, memberCount);
@@ -96,35 +64,48 @@ export default async function handler(req, res) {
         id: community.id,
         name: community.name,
         slug: community.slug,
-        latitude: community.latitude,
-        longitude: community.longitude,
+        latitude: parseFloat(community.latitude) || 0,
+        longitude: parseFloat(community.longitude) || 0,
         country_code: community.country_code,
         city: community.city,
         region: community.region,
         member_count: memberCount,
-        data_sharing_count: consents.length,
+        data_sharing_count: consentCount,
         transaction_count: metrics.transaction_count,
         volume_sats: metrics.total_volume_sats,
         closed_loop_ratio: metrics.closed_loop_ratio,
         intensity_score: intensity
       };
-    });
+    }));
+
+    // Filter out communities without valid coordinates
+    const validCommunities = communities.filter(c => c.latitude !== 0 && c.longitude !== 0);
 
     // Calculate bounds to fit all communities
-    const lats = communities.map(c => c.latitude);
-    const lngs = communities.map(c => c.longitude);
-    
-    const bounds = {
-      north: Math.max(...lats) + 5,
-      south: Math.min(...lats) - 5,
-      east: Math.max(...lngs) + 5,
-      west: Math.min(...lngs) - 5
-    };
+    if (validCommunities.length > 0) {
+      const lats = validCommunities.map(c => c.latitude);
+      const lngs = validCommunities.map(c => c.longitude);
+      
+      const bounds = {
+        north: Math.max(...lats) + 5,
+        south: Math.min(...lats) - 5,
+        east: Math.max(...lngs) + 5,
+        west: Math.min(...lngs) - 5
+      };
 
+      return res.status(200).json({
+        success: true,
+        communities: validCommunities,
+        bounds,
+        period
+      });
+    }
+
+    // No valid communities
     return res.status(200).json({
       success: true,
-      communities,
-      bounds,
+      communities: [],
+      bounds: { north: 90, south: -90, east: 180, west: -180 },
       period
     });
 

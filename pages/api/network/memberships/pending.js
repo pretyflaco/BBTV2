@@ -4,24 +4,7 @@
  * GET: Get all pending applications for communities the user leads
  */
 
-import applicationStore from '../../../../lib/network/applicationStore';
-
-// Community leader mappings (same as memberships.js)
-const LEADER_COMMUNITIES = {
-  'npub1zkr064avsxmxzaasppamps86ge0npwvft9yu3ymgxmk9umx3xyeq9sk6ec': 'a1b2c3d4-e5f6-7890-abcd-ef1234567001', // Bitcoin Ekasi
-  'npub1xxcyzef28e5qcjncwmn6z2nmwaezs2apxc2v2f7unnvxw3r5edfsactfly': 'a1b2c3d4-e5f6-7890-abcd-ef1234567002', // Bitcoin Victoria Falls
-  'npub1flac02t5hw6jljk8x7mec22uq37ert8d3y3mpwzcma726g5pz4lsmfzlk6': 'a1b2c3d4-e5f6-7890-abcd-ef1234567003', // Test Community
-};
-
-// Super admin can see all communities
-const SUPER_ADMIN_NPUB = 'npub1flac02t5hw6jljk8x7mec22uq37ert8d3y3mpwzcma726g5pz4lsmfzlk6';
-
-// All community IDs
-const ALL_COMMUNITY_IDS = [
-  'a1b2c3d4-e5f6-7890-abcd-ef1234567001',
-  'a1b2c3d4-e5f6-7890-abcd-ef1234567002',
-  'a1b2c3d4-e5f6-7890-abcd-ef1234567003',
-];
+const db = require('../../../../lib/network/db');
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -39,13 +22,22 @@ export default async function handler(req, res) {
   }
 
   try {
-    const isSuperAdmin = userNpub === SUPER_ADMIN_NPUB;
-    const leaderCommunityId = LEADER_COMMUNITIES[userNpub];
+    const isSuperAdmin = await db.isSuperAdmin(userNpub);
 
     // If specific community requested
     if (communityId) {
-      // Check if user has access to this community
-      const hasAccess = isSuperAdmin || leaderCommunityId === communityId;
+      // Get the community to check if user is the leader
+      const community = await db.getCommunityById(communityId);
+      
+      if (!community) {
+        return res.status(404).json({
+          success: false,
+          error: 'Community not found'
+        });
+      }
+      
+      const isLeader = community.leader_npub === userNpub;
+      const hasAccess = isSuperAdmin || isLeader;
       
       if (!hasAccess) {
         return res.status(403).json({
@@ -54,10 +46,10 @@ export default async function handler(req, res) {
         });
       }
 
-      const pending = applicationStore.getPendingApplicationsForCommunity(communityId);
+      const applications = await db.getPendingApplications(communityId);
       return res.status(200).json({
         success: true,
-        applications: pending
+        applications
       });
     }
 
@@ -65,14 +57,21 @@ export default async function handler(req, res) {
     let applications = [];
     
     if (isSuperAdmin) {
-      // Super admin sees all pending applications
-      ALL_COMMUNITY_IDS.forEach(id => {
-        const pending = applicationStore.getPendingApplicationsForCommunity(id);
+      // Super admin sees all pending applications across all communities
+      const allCommunities = await db.listCommunities();
+      for (const community of allCommunities) {
+        const pending = await db.getPendingApplications(community.id);
         applications = applications.concat(pending);
-      });
-    } else if (leaderCommunityId) {
+      }
+    } else {
       // Leader sees their community's applications
-      applications = applicationStore.getPendingApplicationsForCommunity(leaderCommunityId);
+      const allCommunities = await db.listCommunities();
+      for (const community of allCommunities) {
+        if (community.leader_npub === userNpub) {
+          const pending = await db.getPendingApplications(community.id);
+          applications = applications.concat(pending);
+        }
+      }
     }
 
     return res.status(200).json({

@@ -4,7 +4,7 @@
  * POST: Submit an application to join a community
  */
 
-import applicationStore from '../../../../lib/network/applicationStore';
+const db = require('../../../../lib/network/db');
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -12,6 +12,7 @@ export default async function handler(req, res) {
   }
 
   const userNpub = req.headers['x-user-npub'];
+  const userPubkeyHex = req.headers['x-user-pubkey'];
   
   if (!userNpub) {
     return res.status(401).json({
@@ -30,13 +31,21 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Check if user already has a pending application for this community
-    const existingApp = applicationStore.getExistingApplication(userNpub, communityId);
-    if (existingApp) {
+    // Check if user already has a membership for this community
+    const existingMembership = await db.getMembership(communityId, userNpub);
+    if (existingMembership && existingMembership.status === 'pending') {
       return res.status(409).json({
         success: false,
         error: 'You already have a pending application for this community',
-        existingApplication: existingApp
+        existingApplication: existingMembership
+      });
+    }
+    
+    if (existingMembership && existingMembership.status === 'approved') {
+      return res.status(409).json({
+        success: false,
+        error: 'You are already a member of this community',
+        membership: existingMembership
       });
     }
 
@@ -46,23 +55,24 @@ export default async function handler(req, res) {
       applicationNote: applicationNote?.substring(0, 50)
     });
 
-    // Store the application
-    const application = applicationStore.addApplication({
-      community_id: communityId,
-      user_npub: userNpub,
-      application_note: applicationNote || ''
-    });
+    // Create the application
+    const membership = await db.applyToJoinCommunity(
+      communityId,
+      userNpub,
+      userPubkeyHex,
+      applicationNote
+    );
 
     return res.status(200).json({
       success: true,
       message: 'Application submitted successfully. The community leader will review your request.',
       membership: {
-        id: application.id,
-        community_id: application.community_id,
-        user_npub: application.user_npub,
-        status: 'pending',
-        application_note: application.application_note,
-        applied_at: application.applied_at
+        id: membership.id,
+        community_id: membership.community_id,
+        user_npub: membership.user_npub,
+        status: membership.status,
+        application_note: membership.application_note,
+        applied_at: membership.applied_at
       }
     });
 

@@ -4,25 +4,7 @@
  * POST: Review a membership application (approve/reject)
  */
 
-import applicationStore from '../../../../lib/network/applicationStore';
-import membershipStore from '../../../../lib/network/membershipStore';
-
-// Community leader mappings
-const LEADER_COMMUNITIES = {
-  'npub1zkr064avsxmxzaasppamps86ge0npwvft9yu3ymgxmk9umx3xyeq9sk6ec': 'a1b2c3d4-e5f6-7890-abcd-ef1234567001', // Bitcoin Ekasi
-  'npub1xxcyzef28e5qcjncwmn6z2nmwaezs2apxc2v2f7unnvxw3r5edfsactfly': 'a1b2c3d4-e5f6-7890-abcd-ef1234567002', // Bitcoin Victoria Falls
-  'npub1flac02t5hw6jljk8x7mec22uq37ert8d3y3mpwzcma726g5pz4lsmfzlk6': 'a1b2c3d4-e5f6-7890-abcd-ef1234567003', // Test Community
-};
-
-// Community names for display
-const COMMUNITY_NAMES = {
-  'a1b2c3d4-e5f6-7890-abcd-ef1234567001': 'Bitcoin Ekasi',
-  'a1b2c3d4-e5f6-7890-abcd-ef1234567002': 'Bitcoin Victoria Falls',
-  'a1b2c3d4-e5f6-7890-abcd-ef1234567003': 'Test Community',
-};
-
-// Super admin can manage all communities
-const SUPER_ADMIN_NPUB = 'npub1flac02t5hw6jljk8x7mec22uq37ert8d3y3mpwzcma726g5pz4lsmfzlk6';
+const db = require('../../../../lib/network/db');
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -38,7 +20,7 @@ export default async function handler(req, res) {
     });
   }
 
-  const { applicationId, action } = req.body;
+  const { applicationId, action, rejectionReason } = req.body;
 
   if (!applicationId) {
     return res.status(400).json({
@@ -55,15 +37,20 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Get the application
-    const application = applicationStore.getApplication(applicationId);
+    // Get the application (membership record)
+    const membership = await db.query(
+      'SELECT cm.*, c.leader_npub, c.name as community_name FROM community_memberships cm JOIN communities c ON c.id = cm.community_id WHERE cm.id = $1',
+      [applicationId]
+    );
     
-    if (!application) {
+    if (!membership.rows || membership.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: 'Application not found'
       });
     }
+
+    const application = membership.rows[0];
 
     if (application.status !== 'pending') {
       return res.status(400).json({
@@ -73,9 +60,9 @@ export default async function handler(req, res) {
     }
 
     // Check if reviewer has permission for this community
-    const isSuperAdmin = reviewerNpub === SUPER_ADMIN_NPUB;
-    const leaderCommunityId = LEADER_COMMUNITIES[reviewerNpub];
-    const hasPermission = isSuperAdmin || leaderCommunityId === application.community_id;
+    const isSuperAdmin = await db.isSuperAdmin(reviewerNpub);
+    const isCommunityLeader = application.leader_npub === reviewerNpub;
+    const hasPermission = isSuperAdmin || isCommunityLeader;
 
     if (!hasPermission) {
       return res.status(403).json({
@@ -85,34 +72,22 @@ export default async function handler(req, res) {
     }
 
     // Update application status
-    const newStatus = action === 'approve' ? 'approved' : 'rejected';
-    const updatedApplication = applicationStore.updateApplicationStatus(
+    const approved = action === 'approve';
+    const updatedMembership = await db.reviewApplication(
       applicationId,
-      newStatus,
-      reviewerNpub
+      reviewerNpub,
+      approved,
+      rejectionReason
     );
 
-    // If approved, add to members
-    let membership = null;
-    if (action === 'approve') {
-      const communityName = COMMUNITY_NAMES[application.community_id] || 'Unknown Community';
-      membership = membershipStore.addMember(
-        application.community_id,
-        application.user_npub,
-        reviewerNpub,
-        communityName
-      );
-    }
-
-    console.log(`[Review] Application ${applicationId} ${newStatus} by ${reviewerNpub.substring(0, 20)}...`);
+    console.log(`[Review] Application ${applicationId} ${updatedMembership.status} by ${reviewerNpub.substring(0, 20)}...`);
 
     return res.status(200).json({
       success: true,
-      message: action === 'approve' 
+      message: approved
         ? 'Member approved successfully!' 
         : 'Application rejected',
-      application: updatedApplication,
-      membership: membership
+      membership: updatedMembership
     });
 
   } catch (error) {

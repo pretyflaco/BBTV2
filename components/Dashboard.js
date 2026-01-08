@@ -5930,40 +5930,75 @@ export default function Dashboard() {
             {/* Most Recent Transactions */}
             <div className="mb-8">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Most Recent Transactions</h2>
-          <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black overflow-hidden sm:rounded-md">
-            <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-              {transactions.slice(0, 5).map((tx) => (
-                <li 
-                  key={tx.id} 
-                  className="px-6 py-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                  onClick={() => setSelectedTransaction(tx)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className={`flex-shrink-0 w-2 h-2 rounded-full mr-3 ${
-                        tx.direction === 'RECEIVE' ? 'bg-green-500' : 'bg-red-500'
-                      }`}></div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                          {tx.amount}
-                        </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{tx.memo}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-right">
-                        <p className="text-sm text-gray-900 dark:text-gray-100">{tx.status}</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{tx.date}</p>
-                      </div>
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+          {(() => {
+            // Check if current wallet type doesn't support transaction history
+            const isLnAddressWallet = activeBlinkAccount?.type === 'ln-address';
+            const isNpubCashWallet = activeNpubCashWallet?.type === 'npub-cash' && !activeNWC;
+            const walletDoesNotSupportHistory = isLnAddressWallet || isNpubCashWallet;
+
+            if (walletDoesNotSupportHistory && transactions.length === 0) {
+              // Show informative message about wallet limitation
+              const walletType = isLnAddressWallet ? 'Blink Lightning Address' : 'npub.cash';
+              return (
+                <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6">
+                  <div className="flex flex-col items-center gap-4 text-center">
+                    <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                      <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                        Transaction History Not Available
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 max-w-md">
+                        {walletType} wallets are designed for receiving payments only and do not provide transaction history.
+                        {isLnAddressWallet && " To view transaction history, please use a Blink API Key wallet."}
+                      </p>
+                    </div>
                   </div>
-                </li>
-              ))}
-            </ul>
-          </div>
+                </div>
+              );
+            }
+
+            // Show normal transaction list
+            return (
+              <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black overflow-hidden sm:rounded-md">
+                <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {transactions.slice(0, 5).map((tx) => (
+                    <li 
+                      key={tx.id} 
+                      className="px-6 py-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                      onClick={() => setSelectedTransaction(tx)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <div className={`flex-shrink-0 w-2 h-2 rounded-full mr-3 ${
+                            tx.direction === 'RECEIVE' ? 'bg-green-500' : 'bg-red-500'
+                          }`}></div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                              {tx.amount}
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">{tx.memo}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-right">
+                            <p className="text-sm text-gray-900 dark:text-gray-100">{tx.status}</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">{tx.date}</p>
+                          </div>
+                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                          </svg>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Past Transactions - Grouped by Month or Filtered */}
@@ -5988,7 +6023,8 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Top Action Buttons - Always visible */}
+          {/* Top Action Buttons - Only visible when there are transactions */}
+          {transactions.length > 0 && (
           <div className="mb-4">
             {isSearchingTx ? (
               /* Expanded Search Input */
@@ -6082,6 +6118,7 @@ export default function Dashboard() {
               </div>
             )}
           </div>
+          )}
 
           {/* Summary Stats - Show when date filter is active */}
           {dateFilterActive && filteredTransactions.length > 0 && (() => {
@@ -6332,6 +6369,36 @@ export default function Dashboard() {
             }
             
             if (monthKeys.length === 0) {
+              // Check if current wallet type doesn't support transaction history
+              const isLnAddressWallet = activeBlinkAccount?.type === 'ln-address';
+              const isNpubCashWallet = activeNpubCashWallet?.type === 'npub-cash' && !activeNWC;
+              const walletDoesNotSupportHistory = isLnAddressWallet || isNpubCashWallet;
+
+              if (walletDoesNotSupportHistory) {
+                // Show informative message about wallet limitation
+                const walletType = isLnAddressWallet ? 'Blink Lightning Address' : 'npub.cash';
+                return (
+                  <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6">
+                    <div className="flex flex-col items-center gap-4 text-center">
+                      <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                        <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                          Transaction History Not Available
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 max-w-md">
+                          {walletType} wallets are designed for receiving payments only and do not provide transaction history.
+                          {isLnAddressWallet && " To view transaction history, please use a Blink API Key wallet."}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6 text-center text-gray-500 dark:text-gray-400">
                   No past transactions available

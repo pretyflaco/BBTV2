@@ -6,8 +6,7 @@
  * DELETE: Revoke consent
  */
 
-import consentStore from '../../../lib/network/consentStore';
-import membershipStore from '../../../lib/network/membershipStore';
+const db = require('../../../lib/network/db');
 import BlinkAPI from '../../../lib/blink-api';
 
 // Simple encryption for API keys (in production, use proper encryption)
@@ -31,19 +30,24 @@ async function fetchBlinkUsername(apiKey) {
   }
 }
 
-// Leader mappings to verify membership
-const LEADER_COMMUNITIES = {
-  'npub1zkr064avsxmxzaasppamps86ge0npwvft9yu3ymgxmk9umx3xyeq9sk6ec': 'a1b2c3d4-e5f6-7890-abcd-ef1234567001',
-  'npub1xxcyzef28e5qcjncwmn6z2nmwaezs2apxc2v2f7unnvxw3r5edfsactfly': 'a1b2c3d4-e5f6-7890-abcd-ef1234567002',
-  'npub1flac02t5hw6jljk8x7mec22uq37ert8d3y3mpwzcma726g5pz4lsmfzlk6': 'a1b2c3d4-e5f6-7890-abcd-ef1234567003',
-};
-
-function isUserMemberOfCommunity(userNpub, communityId) {
-  // Check if leader
-  if (LEADER_COMMUNITIES[userNpub] === communityId) return true;
-  
-  // Check dynamic memberships
-  return membershipStore.isMember(communityId, userNpub);
+/**
+ * Check if user is a member of the community (from database)
+ */
+async function isUserMemberOfCommunity(userNpub, communityId) {
+  try {
+    // Check if user is the community leader
+    const community = await db.getCommunityById(communityId);
+    if (community && community.leader_npub === userNpub) {
+      return true;
+    }
+    
+    // Check if user has approved membership
+    const membership = await db.getMembership(communityId, userNpub);
+    return membership && membership.status === 'approved';
+  } catch (error) {
+    console.error('Error checking membership:', error);
+    return false;
+  }
 }
 
 export default async function handler(req, res) {
@@ -63,7 +67,7 @@ export default async function handler(req, res) {
     try {
       if (communityId) {
         // Check specific community
-        const consent = consentStore.getConsent(userNpub, communityId);
+        const consent = await db.getConsent(communityId, userNpub);
         return res.status(200).json({
           success: true,
           hasConsent: consent?.status === 'active',
@@ -76,7 +80,7 @@ export default async function handler(req, res) {
         });
       } else {
         // Get all user consents
-        const consents = consentStore.getUserConsents(userNpub);
+        const consents = await db.getConsentByUser(userNpub);
         return res.status(200).json({
           success: true,
           consents: consents.map(c => ({
@@ -125,7 +129,8 @@ export default async function handler(req, res) {
 
     try {
       // Verify user is a member of this community
-      if (!isUserMemberOfCommunity(userNpub, communityId)) {
+      const isMember = await isUserMemberOfCommunity(userNpub, communityId);
+      if (!isMember) {
         return res.status(403).json({
           success: false,
           error: 'You must be a member of this community to share data'
@@ -133,7 +138,7 @@ export default async function handler(req, res) {
       }
 
       // Check if already has consent
-      const existing = consentStore.getConsent(userNpub, communityId);
+      const existing = await db.getConsent(communityId, userNpub);
       if (existing?.status === 'active') {
         return res.status(409).json({
           success: false,
@@ -157,11 +162,12 @@ export default async function handler(req, res) {
       // Encrypt and store
       const encryptedKey = encryptApiKey(apiKey);
       
-      const consent = consentStore.addConsent(
-        userNpub,
+      const consent = await db.createOrUpdateConsent(
         communityId,
+        userNpub,
         encryptedKey,
-        blinkUsername
+        blinkUsername,
+        'active'
       );
 
       console.log(`[Consent] User ${userNpub.substring(0, 20)}... opted in for community ${communityId} as ${blinkUsername}`);
@@ -197,7 +203,14 @@ export default async function handler(req, res) {
     }
 
     try {
-      const consent = consentStore.revokeConsent(userNpub, communityId);
+      // Revoke consent by setting status to 'revoked'
+      const consent = await db.createOrUpdateConsent(
+        communityId,
+        userNpub,
+        null, // Clear API key
+        null, // Clear username
+        'revoked'
+      );
       
       if (!consent) {
         return res.status(404).json({

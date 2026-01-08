@@ -138,6 +138,100 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     sleep 15
     
     echo ""
+    echo "💾 Creating database backup..."
+    
+    # Create timestamped backup
+    BACKUP_FILE="backup-\$(date +%Y%m%d-%H%M%S).sql.gz"
+    
+    if docker-compose -f docker-compose.prod.yml exec -T postgres pg_dump -U blinkpos blinkpos 2>/dev/null | gzip > "/tmp/\${BACKUP_FILE}"; then
+        BACKUP_SIZE=\$(ls -lh "/tmp/\${BACKUP_FILE}" 2>/dev/null | awk '{print \$5}')
+        echo "✅ Database backup created: \${BACKUP_FILE} (\${BACKUP_SIZE})"
+    else
+        echo "⚠️  Database backup failed (continuing with deployment)"
+    fi
+    
+    echo ""
+    echo "📦 Running database migrations..."
+    
+    # Function to check schema version
+    get_schema_version() {
+        docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos -t -c \
+          "SELECT COALESCE(MAX(metric_value::int), 0) FROM system_metrics WHERE metric_name = 'schema_version';" \
+          2>/dev/null | tr -d ' \n\r' || echo "0"
+    }
+    
+    # Check current schema version
+    SCHEMA_VERSION=\$(get_schema_version)
+    echo "📊 Current schema version: \${SCHEMA_VERSION}"
+    
+    # Apply migration 002 (network communities schema)
+    if [ "\${SCHEMA_VERSION}" -lt 2 ]; then
+        echo "🔄 Applying migration 002 (network communities schema)..."
+        
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/002_network_communities.sql 2>&1 | tee /tmp/migration-002.log | grep -v "^$" | tail -20; then
+            echo ""
+            echo "❌ MIGRATION 002 FAILED!"
+            echo "📋 Check logs: /tmp/migration-002.log"
+            echo ""
+            echo "🔙 Rolling back deployment..."
+            docker-compose -f docker-compose.prod.yml down
+            echo "❌ Deployment stopped due to migration failure"
+            exit 1
+        fi
+        
+        echo "✅ Migration 002 applied successfully"
+    else
+        echo "✅ Migration 002 already applied (skipping)"
+    fi
+    
+    # Refresh schema version
+    SCHEMA_VERSION=\$(get_schema_version)
+    
+    # Apply migration 003 (seed initial data)
+    if [ "\${SCHEMA_VERSION}" -lt 3 ]; then
+        echo "🔄 Applying migration 003 (seed initial communities & leaders)..."
+        
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/003_seed_initial_data.sql 2>&1 | tee /tmp/migration-003.log | grep -v "^$" | tail -20; then
+            echo ""
+            echo "❌ MIGRATION 003 FAILED!"
+            echo "📋 Check logs: /tmp/migration-003.log"
+            echo ""
+            echo "🔙 Rolling back deployment..."
+            docker-compose -f docker-compose.prod.yml down
+            echo "❌ Deployment stopped due to migration failure"
+            exit 1
+        fi
+        
+        echo "✅ Migration 003 applied successfully"
+    else
+        echo "✅ Migration 003 already applied (skipping)"
+    fi
+    
+    # Display final schema version
+    FINAL_VERSION=\$(get_schema_version)
+    echo ""
+    echo "📊 Final schema version: \${FINAL_VERSION}"
+    
+    # Verify network tables were created
+    echo ""
+    echo "📋 Verifying network tables..."
+    TABLE_COUNT=\$(docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos -t -c \
+      "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND (table_name LIKE '%communit%' OR table_name = 'super_admins');" \
+      2>/dev/null | tr -d ' \n\r' || echo "0")
+    
+    if [ "\${TABLE_COUNT}" -ge 5 ]; then
+        echo "✅ Network tables verified (\${TABLE_COUNT} tables found)"
+    else
+        echo "❌ NETWORK TABLES VERIFICATION FAILED!"
+        echo "⚠️  Expected at least 5 tables, found \${TABLE_COUNT}"
+        echo ""
+        echo "🔙 Rolling back deployment..."
+        docker-compose -f docker-compose.prod.yml down
+        echo "❌ Deployment stopped due to verification failure"
+        exit 1
+    fi
+    
+    echo ""
     echo "📊 Container status:"
     docker ps --filter name=blinkpos
     
@@ -178,6 +272,27 @@ else
 fi
 
 echo ""
+print_info "Verifying database migrations..."
+
+# Check schema version
+DEPLOYED_SCHEMA=$(ssh ${PROD_USER}@${PROD_SERVER} "cd ${PROD_PATH} && docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos -t -c \"SELECT COALESCE(MAX(metric_value::int), 0) FROM system_metrics WHERE metric_name = 'schema_version';\" 2>/dev/null | tr -d ' \n\r'" || echo "0")
+
+if [ "${DEPLOYED_SCHEMA}" -ge 3 ]; then
+    print_success "Database schema up to date (version ${DEPLOYED_SCHEMA})"
+else
+    print_warning "Database schema may need attention (version ${DEPLOYED_SCHEMA}, expected 3+)"
+fi
+
+# Check if communities exist
+COMMUNITY_COUNT=$(ssh ${PROD_USER}@${PROD_SERVER} "cd ${PROD_PATH} && docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos -t -c \"SELECT COUNT(*) FROM communities;\" 2>/dev/null | tr -d ' \n\r'" || echo "0")
+
+if [ "${COMMUNITY_COUNT}" -ge 2 ]; then
+    print_success "Communities seeded (${COMMUNITY_COUNT} communities found)"
+else
+    print_warning "Communities may need verification (${COMMUNITY_COUNT} found, expected 2+)"
+fi
+
+echo ""
 
 # Step 6: Post-deployment info
 print_header "📋 Post-Deployment Checklist"
@@ -188,6 +303,9 @@ echo "  • Open https://track.twentyone.ist in incognito mode"
 echo "  • Check that UI changes are visible"
 echo "  • Test key functionality (create invoice, NFC, etc.)"
 echo "  • Check browser console for errors"
+echo "  • Verify Network communities: Should show Bitcoin Ekasi & Victoria Falls"
+echo "  • Test membership application and approval flow"
+echo "  • Deploy again to verify member data persists across deployments"
 echo ""
 
 if [[ $SW_VERSION != *"not found"* ]]; then

@@ -375,7 +375,7 @@ ORDER BY cm.transaction_volume_sats DESC NULLS LAST;
 -- Pending applications view (for leaders)
 CREATE OR REPLACE VIEW pending_applications AS
 SELECT 
-    cm.id as membership_id,
+    cm.id as id,
     cm.community_id,
     c.name as community_name,
     cm.user_npub,

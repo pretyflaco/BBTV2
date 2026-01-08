@@ -35,12 +35,12 @@ VALUES (
     'a1b2c3d4-e5f6-7890-abcd-ef1234567004',
     'Blink Team',
     'blink-team',
-    'The Blink team pioneering Bitcoin banking infrastructure. Building tools and infrastructure to make Bitcoin accessible globally through innovative wallet solutions and circular economy support.',
-    'US',
-    'California',
-    'San Francisco',
-    37.7749,
-    -122.4194,
+    'Supporting everyday bitcoin adoption by example',
+    'HN',
+    'Cortés',
+    'Prospera',
+    15.5149,
+    -88.0253,
     'npub13ljnkd633c7maxatymv3y2fqq8vt3qk7j3tt0vytv90eztwgha9qmfcfhw',
     'active'
 )
@@ -84,6 +84,6 @@ VALUES (
 DO $$
 BEGIN
     RAISE NOTICE 'Blink Team community added successfully!';
-    RAISE NOTICE 'Community: Blink Team (San Francisco, US)';
+    RAISE NOTICE 'Community: Blink Team (Prospera, Honduras)';
     RAISE NOTICE 'Leader: npub13ljnkd633c7maxatymv3y2fqq8vt3qk7j3tt0vytv90eztwgha9qmfcfhw';
 END $$;

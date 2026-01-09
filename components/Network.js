@@ -1267,6 +1267,9 @@ const Network = forwardRef(({
           </div>
         </div>
 
+        {/* Scrollable Content Area - Everything below header scrolls on mobile */}
+        <div className="flex-1 overflow-y-auto">
+
         {/* Period Selector */}
         <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
@@ -1414,7 +1417,7 @@ const Network = forwardRef(({
         )}
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-4">
+        <div className="px-4 pb-6">
           {selectedCommunity.description && (
             <div className="mb-6">
               <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">
@@ -1440,6 +1443,8 @@ const Network = forwardRef(({
           </div>
 
         </div>
+
+        </div>{/* End scrollable content area */}
 
         {/* Data Sharing Consent Modal */}
         {showConsentModal && consentCommunity && (

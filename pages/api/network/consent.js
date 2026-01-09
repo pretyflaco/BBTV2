@@ -32,9 +32,16 @@ async function fetchBlinkUsername(apiKey) {
 
 /**
  * Check if user is a member of the community (from database)
+ * Super admins can share data with ANY community without being a member
  */
 async function isUserMemberOfCommunity(userNpub, communityId) {
   try {
+    // Super admins can share data with any community
+    const isSuperAdmin = await db.isSuperAdmin(userNpub);
+    if (isSuperAdmin) {
+      return true;
+    }
+    
     // Check if user is the community leader
     const community = await db.getCommunityById(communityId);
     if (community && community.leader_npub === userNpub) {
@@ -137,7 +144,10 @@ export default async function handler(req, res) {
     }
 
     try {
-      // Verify user is a member of this community
+      // Check if user is a super admin
+      const isSuperAdmin = await db.isSuperAdmin(userNpub);
+      
+      // Verify user is a member of this community (or super admin)
       const isMember = await isUserMemberOfCommunity(userNpub, communityId);
       if (!isMember) {
         return res.status(403).json({
@@ -147,7 +157,19 @@ export default async function handler(req, res) {
       }
 
       // Get the membership to get the membershipId
-      const membership = await db.getMembership(communityId, userNpub);
+      let membership = await db.getMembership(communityId, userNpub);
+      
+      // If super admin without membership, create one automatically
+      if (!membership && isSuperAdmin) {
+        console.log(`[Consent] Creating auto-membership for super admin ${userNpub.substring(0, 20)}...`);
+        // Get user's pubkey hex (we'll pass null since we might not have it)
+        membership = await db.applyToJoinCommunity(communityId, userNpub, null, 'Super admin auto-join for data sharing');
+        // Auto-approve the super admin
+        if (membership) {
+          membership = await db.reviewApplication(membership.id, userNpub, true, null);
+        }
+      }
+      
       if (!membership) {
         return res.status(404).json({
           success: false,

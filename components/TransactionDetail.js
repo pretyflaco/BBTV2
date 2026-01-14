@@ -281,6 +281,7 @@ export default function TransactionDetail({ transaction, onClose, darkMode = fal
   const [toast, setToast] = useState(null);
   const [currentLabel, setCurrentLabel] = useState(TRANSACTION_LABELS[0]);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
   // Load label for this transaction on mount
   useEffect(() => {
@@ -301,6 +302,8 @@ export default function TransactionDetail({ transaction, onClose, darkMode = fal
     settlementCurrency,
     settlementAmount,
     settlementFee,
+    settlementDisplayAmount,
+    settlementDisplayCurrency,
     date,
     createdAt,
     memo,
@@ -310,6 +313,60 @@ export default function TransactionDetail({ transaction, onClose, darkMode = fal
   
   const isReceive = direction === 'RECEIVE';
   const txType = getTransactionType(settlementVia);
+  
+  // Format display amount (fiat) - primary amount shown large
+  const formatDisplayAmount = () => {
+    if (settlementDisplayAmount !== undefined && settlementDisplayCurrency) {
+      // settlementDisplayAmount is already in major units (e.g., 10.50 for $10.50)
+      const sign = isReceive ? '+' : '-';
+      const absAmount = Math.abs(settlementDisplayAmount);
+      
+      // Format with currency symbol
+      if (settlementDisplayCurrency === 'USD') {
+        return `${sign}$${absAmount.toFixed(2)}`;
+      }
+      // For other currencies, use locale formatting
+      try {
+        const formatted = new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: settlementDisplayCurrency,
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        }).format(absAmount);
+        return `${sign}${formatted}`;
+      } catch {
+        return `${sign}${absAmount.toFixed(2)} ${settlementDisplayCurrency}`;
+      }
+    }
+    // Fallback to the pre-formatted amount
+    return amount;
+  };
+  
+  // Format settlement amount (sats/USD) - secondary amount shown smaller
+  const formatSettlementAmount = () => {
+    if (settlementAmount === undefined) return null;
+    const absAmount = Math.abs(settlementAmount);
+    
+    if (settlementCurrency === 'BTC') {
+      return `${absAmount.toLocaleString()} sats`;
+    } else if (settlementCurrency === 'USD') {
+      // settlementAmount is in cents
+      return `$${(absAmount / 100).toFixed(2)} USD`;
+    }
+    return `${absAmount.toLocaleString()} ${settlementCurrency}`;
+  };
+  
+  // Determine if we should show secondary amount (when display currency differs from settlement)
+  const shouldShowSecondaryAmount = () => {
+    if (!settlementDisplayCurrency || !settlementCurrency) return false;
+    // Always show sats as secondary for BTC wallet transactions
+    if (settlementCurrency === 'BTC') return true;
+    // Show secondary if currencies are different
+    return settlementDisplayCurrency !== settlementCurrency;
+  };
+  
+  const primaryAmount = formatDisplayAmount();
+  const secondaryAmount = shouldShowSecondaryAmount() ? formatSettlementAmount() : null;
   
   // Handle label selection
   const handleSelectLabel = async (label) => {
@@ -387,6 +444,55 @@ export default function TransactionDetail({ transaction, onClose, darkMode = fal
   
   const handleCopy = (text, label) => {
     copyToClipboard(text, label, setToast);
+  };
+  
+  // Generate and download PDF receipt
+  const handleDownloadReceipt = async () => {
+    setIsGeneratingPdf(true);
+    setToast('Generating PDF receipt...');
+    
+    try {
+      const response = await fetch('/api/transaction/receipt-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transaction })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to generate PDF');
+      }
+      
+      const { pdf, transactionId } = await response.json();
+      
+      // Convert base64 to blob
+      const byteCharacters = atob(pdf);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `blink-receipt-${transactionId.slice(0, 8)}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      setToast('Receipt downloaded!');
+      setTimeout(() => setToast(null), 2000);
+    } catch (error) {
+      console.error('Failed to generate receipt:', error);
+      setToast('Failed to generate receipt');
+      setTimeout(() => setToast(null), 3000);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
   
   // Format fee
@@ -473,10 +579,17 @@ export default function TransactionDetail({ transaction, onClose, darkMode = fal
               {isReceive ? 'You received' : 'You sent'}
             </p>
             
-            {/* Amount */}
+            {/* Primary Amount (Fiat) */}
             <p className={`text-4xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              {amount}
+              {primaryAmount}
             </p>
+            
+            {/* Secondary Amount (Sats) */}
+            {secondaryAmount && (
+              <p className={`text-lg mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                {secondaryAmount}
+              </p>
+            )}
             
             {/* Status Badge */}
             <div className="mt-4">
@@ -616,6 +729,38 @@ export default function TransactionDetail({ transaction, onClose, darkMode = fal
             onCopy={handleCopy}
             darkMode={darkMode}
           />
+          
+          {/* PDF Receipt Button */}
+          <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <button
+              onClick={handleDownloadReceipt}
+              disabled={isGeneratingPdf}
+              className={`w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                isGeneratingPdf
+                  ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
+                  : darkMode
+                    ? 'bg-amber-500 hover:bg-amber-600 text-black'
+                    : 'bg-amber-500 hover:bg-amber-600 text-white'
+              }`}
+            >
+              {isGeneratingPdf ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                  <span>Generating...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>Download PDF Receipt</span>
+                </>
+              )}
+            </button>
+            <p className={`text-xs text-center mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+              Generate a PDF receipt to share as proof of payment
+            </p>
+          </div>
         </div>
         
         {/* Toast Notification */}

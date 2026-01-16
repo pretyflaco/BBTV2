@@ -184,10 +184,11 @@ export default function Dashboard() {
   const [showCreateSplitProfile, setShowCreateSplitProfile] = useState(false);
   const [editingSplitProfile, setEditingSplitProfile] = useState(null);
   const [newSplitProfileLabel, setNewSplitProfileLabel] = useState('');
-  const [newSplitProfileRecipients, setNewSplitProfileRecipients] = useState([]); // Array of { username, validated }
+  const [newSplitProfileRecipients, setNewSplitProfileRecipients] = useState([]); // Array of { username, validated, type, weight, locked }
   const [newRecipientInput, setNewRecipientInput] = useState(''); // Current input for adding a recipient
   const [splitProfileError, setSplitProfileError] = useState(null);
   const [recipientValidation, setRecipientValidation] = useState({ status: null, message: '', isValidating: false });
+  const [useCustomWeights, setUseCustomWeights] = useState(false); // Toggle for custom weight mode
   
   // Date Range Selection for Transaction History
   const [showDateRangeSelector, setShowDateRangeSelector] = useState(false);
@@ -1275,20 +1276,37 @@ export default function Dashboard() {
       return;
     }
     
-    setNewSplitProfileRecipients(prev => [...prev, { 
-      username: recipientAddress, 
-      validated: true,
-      type: recipientType  // 'blink' or 'npub_cash'
-    }]);
+    setNewSplitProfileRecipients(prev => {
+      const newRecipients = [...prev, { 
+        username: recipientAddress, 
+        validated: true,
+        type: recipientType,  // 'blink' or 'npub_cash'
+        weight: 100 / (prev.length + 1)  // Default even weight
+      }];
+      // Redistribute weights evenly when not using custom weights
+      if (!useCustomWeights) {
+        const evenWeight = 100 / newRecipients.length;
+        return newRecipients.map(r => ({ ...r, weight: evenWeight }));
+      }
+      return newRecipients;
+    });
     setNewRecipientInput('');
     setRecipientValidation({ status: null, message: '', isValidating: false });
     setSplitProfileError(null);
-  }, [recipientValidation.status, recipientValidation.type, recipientValidation.address, newRecipientInput, newSplitProfileRecipients]);
+  }, [recipientValidation.status, recipientValidation.type, recipientValidation.address, newRecipientInput, newSplitProfileRecipients, useCustomWeights]);
 
   // Remove a recipient from the list
   const removeRecipientFromProfile = useCallback((username) => {
-    setNewSplitProfileRecipients(prev => prev.filter(r => r.username !== username));
-  }, []);
+    setNewSplitProfileRecipients(prev => {
+      const filtered = prev.filter(r => r.username !== username);
+      // Redistribute weights evenly when not using custom weights
+      if (!useCustomWeights && filtered.length > 0) {
+        const evenWeight = 100 / filtered.length;
+        return filtered.map(r => ({ ...r, weight: evenWeight }));
+      }
+      return filtered;
+    });
+  }, [useCustomWeights]);
 
   // Fetch split profiles when user is authenticated
   useEffect(() => {
@@ -3637,6 +3655,7 @@ export default function Dashboard() {
                       setNewRecipientInput('');
                       setRecipientValidation({ status: null, message: '', isValidating: false });
                       setSplitProfileError(null);
+                      setUseCustomWeights(false);
                       setShowCreateSplitProfile(true);
                     }}
                     className="w-full py-3 text-sm font-medium bg-blink-accent text-black rounded-lg hover:bg-blink-accent/90 transition-colors flex items-center justify-center gap-2"
@@ -3681,7 +3700,12 @@ export default function Dashboard() {
                 )}
 
                 {/* Split Profiles List */}
-                {!splitProfilesLoading && splitProfiles.map((profile) => (
+                {!splitProfilesLoading && splitProfiles.map((profile) => {
+                  // Check if profile uses custom weights (not evenly distributed)
+                  const evenShare = 100 / (profile.recipients?.length || 1);
+                  const hasCustomWeights = profile.recipients?.some(r => Math.abs((r.share || evenShare) - evenShare) > 0.01);
+                  
+                  return (
                   <div
                     key={profile.id}
                     className={`w-full p-4 rounded-lg border-2 transition-all ${
@@ -3703,7 +3727,13 @@ export default function Dashboard() {
                             {profile.label}
                           </h3>
                           <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {profile.recipients.map(r => r.type === 'npub_cash' ? r.username : `${r.username}@blink.sv`).join(', ')}
+                            {hasCustomWeights 
+                              ? profile.recipients.map(r => {
+                                  const name = r.type === 'npub_cash' ? r.username : `${r.username}@blink.sv`;
+                                  return `${name} (${Math.round(r.share || evenShare)}%)`;
+                                }).join(', ')
+                              : profile.recipients.map(r => r.type === 'npub_cash' ? r.username : `${r.username}@blink.sv`).join(', ')
+                            }
                           </p>
                         </div>
                         {activeSplitProfile?.id === profile.id && (
@@ -3717,10 +3747,18 @@ export default function Dashboard() {
                         onClick={() => {
                           setEditingSplitProfile(profile);
                           setNewSplitProfileLabel(profile.label);
-                          // Initialize recipients array from profile
-                          setNewSplitProfileRecipients(
-                            profile.recipients?.map(r => ({ username: r.username, validated: true, type: r.type || 'blink' })) || []
-                          );
+                          // Initialize recipients array from profile with weights
+                          const recipients = profile.recipients?.map(r => ({ 
+                            username: r.username, 
+                            validated: true, 
+                            type: r.type || 'blink',
+                            weight: r.share || (100 / (profile.recipients?.length || 1))
+                          })) || [];
+                          setNewSplitProfileRecipients(recipients);
+                          // Check if profile uses custom weights (not evenly distributed)
+                          const evenShare = 100 / (recipients.length || 1);
+                          const hasCustomWeights = recipients.some(r => Math.abs(r.weight - evenShare) > 0.01);
+                          setUseCustomWeights(hasCustomWeights);
                           setNewRecipientInput('');
                           setRecipientValidation({ status: null, message: '', isValidating: false });
                           setSplitProfileError(null);
@@ -3742,7 +3780,8 @@ export default function Dashboard() {
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
 
                 {/* No Profiles Yet Message */}
                 {!splitProfilesLoading && splitProfiles.length === 0 && authMode === 'nostr' && (
@@ -3835,20 +3874,145 @@ export default function Dashboard() {
                     <div className="mb-3 space-y-2">
                       {newSplitProfileRecipients.map((recipient, index) => (
                         <div key={recipient.username} className="flex items-center justify-between px-3 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
-                          <span className="text-sm text-green-700 dark:text-green-400">
+                          <span className="text-sm text-green-700 dark:text-green-400 flex-1">
                             {recipient.type === 'npub_cash' ? recipient.username : `${recipient.username}@blink.sv`}
                           </span>
+                          {useCustomWeights && (
+                            <div className="flex items-center mx-2">
+                              <input
+                                type="number"
+                                min="1"
+                                max="99"
+                                value={Math.round(recipient.weight || (100 / newSplitProfileRecipients.length))}
+                                onChange={(e) => {
+                                  const newWeight = Math.max(1, Math.min(99, parseInt(e.target.value) || 1));
+                                  setNewSplitProfileRecipients(prev => {
+                                    // Mark this recipient as locked (manually edited)
+                                    const updated = prev.map((r, i) => 
+                                      i === index ? { ...r, weight: newWeight, locked: true } : r
+                                    );
+                                    
+                                    // Calculate sum of locked weights (including the one just changed)
+                                    const lockedSum = updated
+                                      .filter(r => r.locked)
+                                      .reduce((sum, r) => sum + r.weight, 0);
+                                    
+                                    // Get unlocked recipients
+                                    const unlockedRecipients = updated.filter(r => !r.locked);
+                                    
+                                    // If there are unlocked recipients, distribute remaining weight among them
+                                    if (unlockedRecipients.length > 0) {
+                                      const remainingWeight = Math.max(0, 100 - lockedSum);
+                                      const weightPerUnlocked = remainingWeight / unlockedRecipients.length;
+                                      
+                                      return updated.map(r => 
+                                        r.locked ? r : { ...r, weight: weightPerUnlocked }
+                                      );
+                                    }
+                                    
+                                    // All recipients are locked, just return updated
+                                    return updated;
+                                  });
+                                }}
+                                className={`w-16 px-2 py-1 text-sm text-center border rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white ${
+                                  recipient.locked 
+                                    ? 'border-blink-accent ring-1 ring-blink-accent/30' 
+                                    : 'border-gray-300 dark:border-gray-600'
+                                }`}
+                              />
+                              <span className="ml-1 text-sm text-gray-500 dark:text-gray-400">%</span>
+                              {recipient.locked && (
+                                <button
+                                  onClick={() => {
+                                    // Unlock this recipient and redistribute
+                                    setNewSplitProfileRecipients(prev => {
+                                      const updated = prev.map((r, i) => 
+                                        i === index ? { ...r, locked: false } : r
+                                      );
+                                      
+                                      // Recalculate: get locked sum and redistribute among unlocked
+                                      const lockedSum = updated
+                                        .filter(r => r.locked)
+                                        .reduce((sum, r) => sum + r.weight, 0);
+                                      
+                                      const unlockedRecipients = updated.filter(r => !r.locked);
+                                      if (unlockedRecipients.length > 0) {
+                                        const remainingWeight = Math.max(0, 100 - lockedSum);
+                                        const weightPerUnlocked = remainingWeight / unlockedRecipients.length;
+                                        
+                                        return updated.map(r => 
+                                          r.locked ? r : { ...r, weight: weightPerUnlocked }
+                                        );
+                                      }
+                                      
+                                      return updated;
+                                    });
+                                  }}
+                                  className="ml-1 text-xs text-blink-accent hover:text-blink-accent/70"
+                                  title="Unlock - allow auto-adjustment"
+                                >
+                                  🔒
+                                </button>
+                              )}
+                            </div>
+                          )}
                           <button
                             onClick={() => removeRecipientFromProfile(recipient.username)}
-                            className="text-red-500 hover:text-red-700 text-lg font-bold"
+                            className="text-red-500 hover:text-red-700 text-lg font-bold ml-2"
                           >
                             ×
                           </button>
                         </div>
                       ))}
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Split will be divided evenly ({(100 / newSplitProfileRecipients.length).toFixed(1)}% each)
-                      </p>
+                      
+                      {/* Custom Weights Toggle - only show when 2+ recipients */}
+                      {newSplitProfileRecipients.length > 1 && (
+                        <div className="flex items-center justify-between py-2 mt-2 border-t border-gray-200 dark:border-gray-700">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            Custom split weights
+                          </span>
+                          <button
+                            onClick={() => {
+                              if (useCustomWeights) {
+                                // Switching to even split - reset all weights
+                                const evenWeight = 100 / newSplitProfileRecipients.length;
+                                setNewSplitProfileRecipients(prev => 
+                                  prev.map(r => ({ ...r, weight: evenWeight }))
+                                );
+                              }
+                              setUseCustomWeights(!useCustomWeights);
+                            }}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              useCustomWeights ? 'bg-blink-accent' : 'bg-gray-300 dark:bg-gray-600'
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                useCustomWeights ? 'translate-x-6' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      )}
+                      
+                      {/* Weight Summary */}
+                      {useCustomWeights ? (
+                        <div className="text-xs mt-1">
+                          {(() => {
+                            const totalWeight = newSplitProfileRecipients.reduce((sum, r) => sum + (r.weight || 0), 0);
+                            const isValid = Math.abs(totalWeight - 100) < 0.01;
+                            return (
+                              <p className={isValid ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}>
+                                Total: {Math.round(totalWeight)}% {isValid ? '✓' : `(must equal 100%)`}
+                              </p>
+                            );
+                          })()}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Split will be divided evenly ({(100 / newSplitProfileRecipients.length).toFixed(1)}% each)
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -3913,17 +4077,36 @@ export default function Dashboard() {
                       return;
                     }
                     
-                    // Calculate equal shares
-                    const sharePerRecipient = 100 / newSplitProfileRecipients.length;
+                    // Calculate shares based on custom weights or even split
+                    let recipients;
+                    if (useCustomWeights && newSplitProfileRecipients.length > 1) {
+                      // Validate total weights equal 100%
+                      const totalWeight = newSplitProfileRecipients.reduce((sum, r) => sum + (r.weight || 0), 0);
+                      if (Math.abs(totalWeight - 100) > 0.01) {
+                        setSplitProfileError(`Total split weights must equal 100% (currently ${Math.round(totalWeight)}%)`);
+                        return;
+                      }
+                      
+                      recipients = newSplitProfileRecipients.map(r => ({
+                        username: r.username,
+                        type: r.type || 'blink',
+                        share: r.weight
+                      }));
+                    } else {
+                      // Even split
+                      const sharePerRecipient = 100 / newSplitProfileRecipients.length;
+                      recipients = newSplitProfileRecipients.map(r => ({
+                        username: r.username,
+                        type: r.type || 'blink',
+                        share: sharePerRecipient
+                      }));
+                    }
                     
                     const profile = {
                       id: editingSplitProfile?.id,
                       label: newSplitProfileLabel.trim(),
-                      recipients: newSplitProfileRecipients.map(r => ({
-                        username: r.username,
-                        type: r.type || 'blink',  // 'blink' or 'npub_cash'
-                        share: sharePerRecipient
-                      }))
+                      recipients,
+                      useCustomWeights: useCustomWeights && newSplitProfileRecipients.length > 1
                     };
                     
                     const saved = await saveSplitProfile(profile, true);
@@ -3931,6 +4114,7 @@ export default function Dashboard() {
                       setShowCreateSplitProfile(false);
                       setEditingSplitProfile(null);
                       setShowTipSettings(false);
+                      setUseCustomWeights(false);
                     }
                   }}
                   disabled={!newSplitProfileLabel.trim() || newSplitProfileRecipients.length === 0}

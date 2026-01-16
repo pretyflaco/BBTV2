@@ -591,17 +591,34 @@ async function sendTips(blinkposAPI, blinkposBtcWalletId, tipAmount, tipRecipien
   const displayCurrency = forwardingData.displayCurrency || 'BTC';
   const tipAmountDisplay = forwardingData.tipAmountDisplay || tipAmount;
   
-  const tipPerRecipient = Math.floor(tipAmount / tipRecipients.length);
-  const remainder = tipAmount - (tipPerRecipient * tipRecipients.length);
-  const tipPerRecipientDisplay = tipAmountDisplay / tipRecipients.length;
+  // Calculate weighted tip amounts based on share percentages
+  let distributedSats = 0;
+  const recipientAmounts = tipRecipients.map((recipient, index) => {
+    const sharePercent = recipient.share || (100 / tipRecipients.length);
+    // For the last recipient, give them whatever is left to avoid rounding issues
+    if (index === tipRecipients.length - 1) {
+      return tipAmount - distributedSats;
+    }
+    const amount = Math.floor(tipAmount * sharePercent / 100);
+    distributedSats += amount;
+    return amount;
+  });
+  
+  console.log('💡 [Webhook] Processing tips with weighted shares:', {
+    totalTipSats: tipAmount,
+    recipientCount: tipRecipients.length,
+    distribution: tipRecipients.map((r, i) => `${r.username}: ${r.share || (100/tipRecipients.length)}% = ${recipientAmounts[i]} sats`)
+  });
   
   const tipResults = [];
   const isMultiple = tipRecipients.length > 1;
 
   for (let i = 0; i < tipRecipients.length; i++) {
     const recipient = tipRecipients[i];
-    // Distribute remainder evenly: first 'remainder' recipients get +1 sat each
-    const recipientTipAmount = i < remainder ? tipPerRecipient + 1 : tipPerRecipient;
+    // Use the pre-calculated weighted amount for this recipient
+    const recipientTipAmount = recipientAmounts[i];
+    const sharePercent = recipient.share || (100 / tipRecipients.length);
+    const recipientDisplayAmount = tipAmountDisplay * sharePercent / 100;
     
     // Skip recipients who would receive 0 sats (cannot create 0-sat invoice)
     if (recipientTipAmount <= 0) {
@@ -625,7 +642,7 @@ async function sendTips(blinkposAPI, blinkposBtcWalletId, tipAmount, tipRecipien
     if (displayCurrency === 'BTC') {
       tipMemo = `BlinkPOS Tip${splitInfo}: ${recipientTipAmount} sats`;
     } else {
-      const formattedAmount = formatCurrencyServer(tipPerRecipientDisplay, displayCurrency);
+      const formattedAmount = formatCurrencyServer(recipientDisplayAmount, displayCurrency);
       tipMemo = `BlinkPOS Tip${splitInfo}: ${formattedAmount} (${recipientTipAmount} sats)`;
     }
 

@@ -58,29 +58,37 @@ export default async function handler(req, res) {
     hybridStore = await getHybridStore();
     const blinkposAPI = new BlinkAPI(blinkposApiKey);
     
-    // Calculate tip amount per recipient
+    // Calculate weighted tip amounts based on share percentages
     const totalTipSats = Math.round(tipAmount);
-    const tipPerRecipient = Math.floor(totalTipSats / tipRecipients.length);
-    const remainder = totalTipSats - (tipPerRecipient * tipRecipients.length);
+    let distributedSats = 0;
+    const recipientAmounts = tipRecipients.map((recipient, index) => {
+      const sharePercent = recipient.share || (100 / tipRecipients.length);
+      // For the last recipient, give them whatever is left to avoid rounding issues
+      if (index === tipRecipients.length - 1) {
+        return totalTipSats - distributedSats;
+      }
+      const amount = Math.floor(totalTipSats * sharePercent / 100);
+      distributedSats += amount;
+      return amount;
+    });
     
-    console.log('💡 Processing tips for NWC payment:', {
+    console.log('💡 Processing tips for NWC payment with weighted shares:', {
       totalTipSats,
       recipientCount: tipRecipients.length,
-      tipPerRecipient,
-      remainder,
-      recipients: tipRecipients.map(r => r.username)
+      distribution: tipRecipients.map((r, i) => `${r.username}: ${r.share || (100/tipRecipients.length)}% = ${recipientAmounts[i]} sats`)
     });
 
     const tipAmountInDisplayCurrency = Number(tipAmountDisplay) || totalTipSats;
-    const tipPerRecipientDisplay = tipAmountInDisplayCurrency / tipRecipients.length;
     
     const tipResults = [];
     const isMultiple = tipRecipients.length > 1;
     
     for (let i = 0; i < tipRecipients.length; i++) {
       const recipient = tipRecipients[i];
-      // Distribute remainder evenly: first 'remainder' recipients get +1 sat each
-      const recipientTipAmount = i < remainder ? tipPerRecipient + 1 : tipPerRecipient;
+      // Use the pre-calculated weighted amount for this recipient
+      const recipientTipAmount = recipientAmounts[i];
+      const sharePercent = recipient.share || (100 / tipRecipients.length);
+      const recipientDisplayAmount = tipAmountInDisplayCurrency * sharePercent / 100;
       
       // Skip recipients who would receive 0 sats (cannot create 0-sat invoice)
       if (recipientTipAmount <= 0) {
@@ -97,6 +105,7 @@ export default async function handler(req, res) {
       
       console.log(`💡 Sending tip to ${recipient.username}:`, {
         amount: recipientTipAmount,
+        share: `${sharePercent}%`,
         index: i + 1,
         total: tipRecipients.length
       });
@@ -107,7 +116,7 @@ export default async function handler(req, res) {
       if (displayCurrency === 'BTC') {
         tipMemo = `BlinkPOS Tip${splitInfo}: ${recipientTipAmount} sats`;
       } else {
-        const formattedAmount = formatCurrencyServer(tipPerRecipientDisplay, displayCurrency);
+        const formattedAmount = formatCurrencyServer(recipientDisplayAmount, displayCurrency);
         tipMemo = `BlinkPOS Tip${splitInfo}: ${formattedAmount} (${recipientTipAmount} sats)`;
       }
 

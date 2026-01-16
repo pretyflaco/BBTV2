@@ -218,17 +218,27 @@ export default async function handler(req, res) {
     
     if (tipAmountNum > 0 && tipRecipients.length > 0) {
       try {
-        // Calculate tip amount per recipient (split evenly)
+        // Calculate tip amount per recipient based on their share percentage
         const totalTipSats = Math.round(Number(tipData.tipAmount));
-        const tipPerRecipient = Math.floor(totalTipSats / tipRecipients.length);
-        const remainder = totalTipSats - (tipPerRecipient * tipRecipients.length);
         
-        console.log('💡 Processing tip payment to multiple recipients:', {
+        // Calculate weighted tip amounts, ensuring we handle rounding properly
+        // Each recipient has a 'share' percentage (e.g., 70 for 70%)
+        let distributedSats = 0;
+        const recipientAmounts = tipRecipients.map((recipient, index) => {
+          const sharePercent = recipient.share || (100 / tipRecipients.length);
+          // For the last recipient, give them whatever is left to avoid rounding issues
+          if (index === tipRecipients.length - 1) {
+            return totalTipSats - distributedSats;
+          }
+          const amount = Math.floor(totalTipSats * sharePercent / 100);
+          distributedSats += amount;
+          return amount;
+        });
+        
+        console.log('💡 Processing tip payment with weighted shares:', {
           totalTipSats,
           recipientCount: tipRecipients.length,
-          tipPerRecipient,
-          remainder,
-          recipients: tipRecipients.map(r => r.username)
+          distribution: tipRecipients.map((r, i) => `${r.username}: ${r.share || (100/tipRecipients.length)}% = ${recipientAmounts[i]} sats`)
         });
 
         // Generate tip memo based on display currency and amounts
@@ -244,7 +254,6 @@ export default async function handler(req, res) {
 
         const displayCurrency = tipData.displayCurrency || 'BTC';
         const tipAmountInDisplayCurrency = Number(tipData.tipAmountDisplay) || totalTipSats;
-        const tipPerRecipientDisplay = tipAmountInDisplayCurrency / tipRecipients.length;
         
         // Send tips to all recipients
         const tipResults = [];
@@ -252,8 +261,10 @@ export default async function handler(req, res) {
         
         for (let i = 0; i < tipRecipients.length; i++) {
           const recipient = tipRecipients[i];
-          // Distribute remainder evenly: first 'remainder' recipients get +1 sat each
-          const recipientTipAmount = i < remainder ? tipPerRecipient + 1 : tipPerRecipient;
+          // Use the pre-calculated weighted amount for this recipient
+          const recipientTipAmount = recipientAmounts[i];
+          const sharePercent = recipient.share || (100 / tipRecipients.length);
+          const recipientDisplayAmount = tipAmountInDisplayCurrency * sharePercent / 100;
           
           // Skip recipients who would receive 0 sats (cannot create 0-sat invoice)
           if (recipientTipAmount <= 0) {
@@ -270,12 +281,13 @@ export default async function handler(req, res) {
           
           console.log(`💡 Sending tip to ${recipient.username}:`, {
             amount: recipientTipAmount,
+            share: `${sharePercent}%`,
             index: i + 1,
             total: tipRecipients.length
           });
 
           const tipMemo = generateTipMemo(
-            tipPerRecipientDisplay, 
+            recipientDisplayAmount, 
             recipientTipAmount, 
             displayCurrency,
             isMultiple,

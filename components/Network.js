@@ -47,7 +47,8 @@ const Network = forwardRef(({
   nostrProfile, // Nostr profile with picture, name, display_name
   darkMode, 
   toggleDarkMode,
-  onInternalTransition 
+  onInternalTransition,
+  hideHeader = false
 }, ref) => {
   // Convert publicKey (hex) to npub format for API calls
   const npubKey = useMemo(() => hexToNpub(publicKey), [publicKey]);
@@ -594,26 +595,39 @@ const Network = forwardRef(({
       <div className="h-full flex flex-col bg-white dark:bg-black overflow-hidden" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
         {/* Header */}
         <div className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Bitcoin Circular Economies
-              </h1>
+          {!hideHeader && (
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  Bitcoin Circular Economies
+                </h1>
+                {isSuperAdmin && (
+                  <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                    Super Admin
+                  </span>
+                )}
+              </div>
               {isSuperAdmin && (
-                <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">
-                  Super Admin
-                </span>
+                <button
+                  onClick={() => navigateToView('create')}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                >
+                  + Add Community
+                </button>
               )}
             </div>
-            {isSuperAdmin && (
+          )}
+          {/* Super Admin button when header is hidden */}
+          {hideHeader && isSuperAdmin && (
+            <div className="flex justify-end mb-4">
               <button
                 onClick={() => navigateToView('create')}
                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
               >
                 + Add Community
               </button>
-            )}
-          </div>
+            </div>
+          )}
           
           {/* Tab Navigation */}
           <div className="flex gap-2 mb-4 overflow-x-auto">
@@ -929,9 +943,11 @@ const Network = forwardRef(({
       <div className="h-full flex flex-col bg-white dark:bg-black overflow-hidden" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
         {/* Header */}
         <div className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-            My Communities
-          </h1>
+          {!hideHeader && (
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+              My Communities
+            </h1>
+          )}
           
           {/* Tab Navigation */}
           <div className="flex gap-2 overflow-x-auto">
@@ -1082,9 +1098,11 @@ const Network = forwardRef(({
       <div className="h-full flex flex-col bg-white dark:bg-black overflow-hidden" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
         {/* Header */}
         <div className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-            🏆 Most Active Communities
-          </h1>
+          {!hideHeader && (
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+              Most Active Communities
+            </h1>
+          )}
           
           {/* Tab Navigation */}
           <div className="flex gap-2 overflow-x-auto">

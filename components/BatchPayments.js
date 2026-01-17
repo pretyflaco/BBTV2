@@ -24,7 +24,8 @@ export default function BatchPayments({
   apiKey,
   walletId,
   darkMode,
-  onClose
+  onClose,
+  hideHeader = false
 }) {
   // Step state
   const [currentStep, setCurrentStep] = useState(STEPS.UPLOAD);
@@ -385,22 +386,24 @@ machankura@8333.mobi,2000,SATS,Payment to Machankura user`;
   // =====================
   if (currentStep === STEPS.UPLOAD) {
     return (
-      <div className="h-full flex flex-col bg-white dark:bg-black p-4" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Batch Payments
-          </h1>
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
-        </div>
+      <div className={`h-full flex flex-col bg-white dark:bg-black ${hideHeader ? '' : 'p-4'}`} style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
+        {!hideHeader && (
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Batch Payments
+            </h1>
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
 
         {renderStepIndicator()}
 

@@ -114,6 +114,7 @@ export default function Dashboard() {
   const [showAccountSettings, setShowAccountSettings] = useState(false);
   const [showKeyManagement, setShowKeyManagement] = useState(false);
   const [showBatchPayments, setShowBatchPayments] = useState(false);
+  const [showNetworkOverlay, setShowNetworkOverlay] = useState(false);
   const [showCurrencySettings, setShowCurrencySettings] = useState(false);
   const [showAddAccountForm, setShowAddAccountForm] = useState(false);
   const [newAccountApiKey, setNewAccountApiKey] = useState('');
@@ -2244,8 +2245,20 @@ export default function Dashboard() {
       // Check if cart is active and can handle keyboard navigation
       if (currentView === 'cart' && cartRef.current?.isCartNavActive?.()) {
         if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', 'Escape', 'Backspace', ' '].includes(e.key)) {
+          const handled = cartRef.current.handleCartKey(e.key);
+          if (handled) {
+            e.preventDefault();
+            return;
+          }
+          // If not handled (e.g., ArrowUp from Search), fall through to global navigation
+        }
+      }
+      
+      // If cart view but exited to global nav, DOWN arrow re-enters local cart navigation
+      if (currentView === 'cart' && e.key === 'ArrowDown' && cartRef.current?.enterLocalNav) {
+        if (!cartRef.current.isCartNavActive?.()) {
           e.preventDefault();
-          cartRef.current.handleCartKey(e.key);
+          cartRef.current.enterLocalNav();
           return;
         }
       }
@@ -2531,7 +2544,7 @@ export default function Dashboard() {
               
               {/* Navigation Dots - Center - Two rows layout */}
               <div className="flex flex-col items-center gap-1">
-                {/* Upper row: Cart - POS - History - Network */}
+                {/* Upper row: Cart - POS - History */}
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleViewTransition('cart')}
@@ -2563,19 +2576,8 @@ export default function Dashboard() {
                     }`}
                     aria-label="History"
                   />
-                  <button
-                    onClick={() => handleViewTransition('network')}
-                    disabled={isViewTransitioning}
-                    className={`w-2 h-2 rounded-full transition-colors ${
-                      currentView === 'network'
-                        ? 'bg-teal-500'
-                        : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
-                    }`}
-                    aria-label="Network"
-                    title="Bitcoin Circular Economies"
-                  />
                 </div>
-                {/* Lower row: Voucher (centered below POS) */}
+                {/* Lower row: Voucher (centered below POS - middle dot) */}
                 {voucherWallet && (
                   <div className="flex justify-center">
                     <button
@@ -2641,8 +2643,16 @@ export default function Dashboard() {
             {/* Menu Content */}
             <div className="max-w-md mx-auto px-4 py-6">
               <div className="space-y-4">
-                {/* Profile Info */}
-                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                {/* Profile Info - Clickable to access Key Management */}
+                <button
+                  onClick={() => {
+                    if (authMode === 'nostr') {
+                      setShowKeyManagement(true);
+                      setSideMenuOpen(false);
+                    }
+                  }}
+                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors ${authMode === 'nostr' ? 'cursor-pointer' : 'cursor-default'}`}
+                >
                   <div className="flex items-center gap-3">
                     {/* Avatar */}
                     {authMode === 'nostr' && nostrProfile?.picture ? (
@@ -2671,16 +2681,25 @@ export default function Dashboard() {
                           : (user?.username || 'User')}
                       </p>
                     </div>
+                    {/* Key icon indicator for nostr users */}
+                    {authMode === 'nostr' && (
+                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                        </svg>
+                        <span className="ml-1">›</span>
+                      </div>
+                    )}
                   </div>
-                </div>
+                </button>
 
-                {/* Wallet */}
+                {/* Receive Wallet */}
                 <button
                   onClick={() => setShowAccountSettings(true)}
                   className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">Wallet</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Receive Wallet</span>
                     <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                       <span>{activeNWC ? activeNWC.label : activeNpubCashWallet ? (activeNpubCashWallet.label || activeNpubCashWallet.lightningAddress) : (activeBlinkAccount?.label || activeBlinkAccount?.username || 'None')}</span>
                       <span className="ml-1">›</span>
@@ -2688,14 +2707,14 @@ export default function Dashboard() {
                   </div>
                 </button>
 
-                {/* Voucher Wallet - For voucher feature (requires Blink API key with WRITE scope) */}
+                {/* Send Wallet - For voucher feature (requires Blink API key with WRITE scope) */}
                 <button
                   onClick={() => setShowVoucherWalletSettings(true)}
                   className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">Voucher Wallet</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Send Wallet</span>
                       <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-purple-500/20 text-purple-400">Beta</span>
                     </div>
                     <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
@@ -2805,26 +2824,24 @@ export default function Dashboard() {
                   </button>
                 )}
 
-                {/* Key Management (for generated accounts) */}
-                {authMode === 'nostr' && (
-                  <button
-                    onClick={() => {
-                      setShowKeyManagement(true);
-                      setSideMenuOpen(false);
-                    }}
-                    className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">Key Management</span>
-                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                        </svg>
-                        <span className="ml-1">›</span>
-                      </div>
+                {/* Circular Economy Network */}
+                <button
+                  onClick={() => {
+                    setShowNetworkOverlay(true);
+                    setSideMenuOpen(false);
+                  }}
+                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Circular Economy Network</span>
+                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                      </svg>
+                      <span className="ml-1">›</span>
                     </div>
-                  </button>
-                )}
+                  </div>
+                </button>
 
                 {/* Action Buttons */}
                 <div className="space-y-3 pt-4">
@@ -2890,14 +2907,89 @@ export default function Dashboard() {
       )}
 
       {/* Batch Payments Overlay (uses Voucher wallet API key with WRITE permission) */}
+      {/* Batch Payments Overlay */}
       {showBatchPayments && voucherWallet?.apiKey && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50">
-          <BatchPayments
-            apiKey={voucherWallet.apiKey}
-            walletId={voucherWallet.walletId}
-            darkMode={darkMode}
-            onClose={() => setShowBatchPayments(false)}
-          />
+        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+            {/* Header */}
+            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center h-16">
+                  <button
+                    onClick={() => {
+                      setShowBatchPayments(false);
+                      setSideMenuOpen(true);
+                    }}
+                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
+                  >
+                    <span className="text-2xl mr-2">‹</span>
+                    <span className="text-lg">Back</span>
+                  </button>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Batch Payments
+                  </h1>
+                  <div className="w-16"></div>
+                </div>
+              </div>
+            </div>
+            {/* Content */}
+            <div className="max-w-md mx-auto px-4 py-6">
+              <BatchPayments
+                apiKey={voucherWallet.apiKey}
+                walletId={voucherWallet.walletId}
+                darkMode={darkMode}
+                onClose={() => {
+                  setShowBatchPayments(false);
+                  setSideMenuOpen(true);
+                }}
+                hideHeader={true}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Circular Economy Network Overlay */}
+      {showNetworkOverlay && (
+        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-hidden">
+          <div className="h-full flex flex-col" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+            {/* Header */}
+            <div className="flex-shrink-0 bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center h-16">
+                  <button
+                    onClick={() => {
+                      setShowNetworkOverlay(false);
+                      setSideMenuOpen(true);
+                    }}
+                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
+                  >
+                    <span className="text-2xl mr-2">‹</span>
+                    <span className="text-lg">Back</span>
+                  </button>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Circular Economy Network
+                  </h1>
+                  <div className="w-16"></div>
+                </div>
+              </div>
+            </div>
+            {/* Content */}
+            <div className="flex-1 overflow-hidden">
+              <Network
+                publicKey={publicKey}
+                nostrProfile={nostrProfile}
+                darkMode={darkMode}
+                toggleDarkMode={toggleDarkMode}
+                hideHeader={true}
+                onInternalTransition={() => {
+                  setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);
+                  setIsViewTransitioning(true);
+                  setTimeout(() => setIsViewTransitioning(false), 120);
+                }}
+              />
+            </div>
+          </div>
         </div>
       )}
 
@@ -6086,21 +6178,6 @@ export default function Dashboard() {
               onVoucherStateChange={setShowingVoucherQR}
               commissionEnabled={commissionEnabled}
               commissionPresets={commissionPresets}
-              onInternalTransition={() => {
-                // Rotate spinner color and show brief transition
-                setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);
-                setIsViewTransitioning(true);
-                setTimeout(() => setIsViewTransitioning(false), 120);
-              }}
-            />
-          </div>
-        ) : currentView === 'network' ? (
-          <div className="h-[calc(100vh-180px)] min-h-[400px]">
-            <Network
-              publicKey={publicKey}
-              nostrProfile={nostrProfile}
-              darkMode={darkMode}
-              toggleDarkMode={toggleDarkMode}
               onInternalTransition={() => {
                 // Rotate spinner color and show brief transition
                 setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);

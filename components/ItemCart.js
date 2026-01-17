@@ -44,6 +44,7 @@ const ItemCart = forwardRef(({
   // Keyboard navigation state
   // Navigation indices: 0=Search, 1=AddItem, 2...(2+items.length-1)=Items, then C and OK
   const [keyboardNavIndex, setKeyboardNavIndex] = useState(0); // Start with Search selected
+  const [exitedToGlobalNav, setExitedToGlobalNav] = useState(false); // Track if user exited to global nav
 
   // Helper function to get dynamic font size based on amount length
   const getDynamicFontSize = (displayText) => {
@@ -351,11 +352,17 @@ const ItemCart = forwardRef(({
   // Expose keyboard navigation handlers via ref
   useImperativeHandle(ref, () => ({
     // Check if cart is in a state where it can handle keyboard nav
-    isCartNavActive: () => !showAddForm && !editingItem && !confirmDelete && !isSearching,
+    isCartNavActive: () => !showAddForm && !editingItem && !confirmDelete && !isSearching && !exitedToGlobalNav,
     
     // Reset selection to Search when entering the view
     resetNavigation: () => {
       setKeyboardNavIndex(0);
+      setExitedToGlobalNav(false);
+    },
+    
+    // Re-enter local cart navigation (called when user navigates back to cart)
+    enterLocalNav: () => {
+      setExitedToGlobalNav(false);
     },
     
     // Handle keyboard navigation
@@ -431,6 +438,10 @@ const ItemCart = forwardRef(({
         } else if (keyboardNavIndex === indices.addItem) {
           // From AddItem, go to Search
           setKeyboardNavIndex(indices.search);
+        } else if (keyboardNavIndex === indices.search) {
+          // From Search, exit to global navigation
+          setExitedToGlobalNav(true);
+          return false;
         }
         return true;
       } else if (key === 'Enter') {
@@ -479,7 +490,7 @@ const ItemCart = forwardRef(({
       
       return false;
     },
-  }), [showAddForm, editingItem, confirmDelete, isSearching, keyboardNavIndex, filteredItems, selectedItems, total, getNavIndices, handleSearchClick, handleClear, handleCheckout, handleItemClick, handleRemoveFromSelection]);
+  }), [showAddForm, editingItem, confirmDelete, isSearching, exitedToGlobalNav, keyboardNavIndex, filteredItems, selectedItems, total, getNavIndices, handleSearchClick, handleClear, handleCheckout, handleItemClick, handleRemoveFromSelection]);
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-black relative overflow-hidden" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>

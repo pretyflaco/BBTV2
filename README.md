@@ -38,9 +38,21 @@ A production-ready, privacy-focused Bitcoin Lightning Point of Sale system built
 - **Server-side Proxy**: API keys never sent to browser
 
 ### Voucher System
-- **LNURL Vouchers**: Create redeemable Bitcoin vouchers with QR codes
-- **PDF Generation**: Generate printable voucher PDFs for distribution
-- **Status Tracking**: Monitor voucher redemption status
+- **Single Vouchers**: Create individual LNURL-withdraw vouchers with QR codes
+- **Multi-Voucher Batches**: Generate multiple vouchers at once (up to 24) for events or distributions
+- **Configurable Expiry**: Set voucher expiration (1 hour to never expires)
+- **Commission Support**: Optional commission percentage for resellers/distributors
+- **PDF Generation**: Print-ready PDFs in multiple formats:
+  - A4 and Letter paper sizes
+  - Thermal printer formats (58mm and 80mm)
+  - Grid layouts (2x2, 2x3, 3x3, 3x4 vouchers per page)
+- **Voucher Manager**: Comprehensive dashboard to track all vouchers
+  - Filter by status: Active, Claimed, Expired, Cancelled
+  - Sort by recent activity or soonest expiry
+  - Real-time status updates
+  - Cancel unclaimed vouchers
+  - View redemption details and timestamps
+- **PostgreSQL Persistence**: Vouchers persist across deployments
 
 ### Batch Payments
 - **CSV Import**: Upload recipient lists for bulk payments
@@ -132,18 +144,22 @@ BBTV2/
 │   ├── Dashboard.js           # Main dashboard interface
 │   ├── POS.js                 # Point of Sale interface
 │   ├── ItemCart.js            # Cart mode for multi-item transactions
-│   ├── Voucher.js             # Voucher creation and management
+│   ├── Voucher.js             # Single voucher creation
+│   ├── MultiVoucher.js        # Batch voucher generation
+│   ├── VoucherManager.js      # Voucher tracking and management
 │   ├── BatchPayments.js       # Bulk payment processing
 │   ├── Network.js             # Network analytics and heatmaps
 │   ├── TransactionDetail.js   # Transaction detail view
 │   ├── PaymentAnimation.js    # Payment celebration overlay
 │   ├── NFCPayment.js          # NFC payment handling
-│   ├── LoginForm.js           # Authentication form
+│   ├── ExpirySelector.js      # Voucher expiry configuration
 │   ├── auth/                  # Authentication components
 │   ├── wallet/                # Wallet setup components
 │   └── Settings/              # Settings page sections
 ├── lib/
 │   ├── blink-api.js           # Blink GraphQL API integration
+│   ├── voucher-store.js       # Voucher PostgreSQL storage
+│   ├── voucher-expiry.js      # Voucher expiration utilities
 │   ├── storage/               # Hybrid storage implementation
 │   ├── nostr/                 # Nostr authentication services
 │   ├── network/               # Network analytics
@@ -212,8 +228,12 @@ DATABASE_URL=postgresql://blinkpos:password@localhost:5432/blinkpos
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `POST /api/voucher/create` | POST | Create new voucher |
+| `GET /api/voucher/list` | GET | List all vouchers with filtering |
 | `GET /api/voucher/status/:chargeId` | GET | Check voucher status |
-| `GET /api/voucher/pdf` | GET | Generate voucher PDF |
+| `POST /api/voucher/cancel` | POST | Cancel an unclaimed voucher |
+| `POST /api/voucher/pdf` | POST | Generate voucher PDF (single or batch) |
+| `GET /api/voucher/lnurl/:chargeId/:amount` | GET | LNURL-withdraw endpoint |
+| `POST /api/voucher/callback` | POST | LNURL callback for redemption |
 
 ### Batch Payments
 | Endpoint | Method | Description |
@@ -270,7 +290,10 @@ docker-compose -f docker-compose.prod.yml up -d
 | Cross-Device Sync | Completed |
 | NFC Payments | Completed |
 | Nostr Authentication (NIP-07, NIP-55) | Completed |
-| Voucher System | Completed |
+| Single Voucher Creation | Completed |
+| Multi-Voucher Batch Generation | Completed |
+| Voucher Manager Dashboard | Completed |
+| Voucher PostgreSQL Persistence | Completed |
 | Batch Payments | Completed |
 | In-App Key Generation | In Progress |
 | WebAuthn/Passkeys | Planned |

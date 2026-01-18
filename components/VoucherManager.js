@@ -359,6 +359,38 @@ const VoucherManager = forwardRef(({
     return true;
   });
 
+  // Sort vouchers: most recent activity first, then by soonest expiry for active
+  // Activity = claimedAt, cancelledAt, expiresAt (for expired), or expiresAt (soonest first for active)
+  const sortedVouchers = [...filteredVouchers].sort((a, b) => {
+    // Get the "activity timestamp" for each voucher
+    // For non-active: use the timestamp when the status changed (most recent first)
+    // For active: use expiresAt (soonest expiry first)
+    const getActivityTime = (v) => {
+      if (v.status === 'CLAIMED' && v.claimedAt) return v.claimedAt;
+      if (v.status === 'CANCELLED' && v.cancelledAt) return v.cancelledAt;
+      if (v.status === 'EXPIRED' && v.expiresAt) return v.expiresAt;
+      // For ACTIVE, we'll handle separately
+      return null;
+    };
+
+    const aActivity = getActivityTime(a);
+    const bActivity = getActivityTime(b);
+
+    // If both have activity times (non-active vouchers), sort by most recent first
+    if (aActivity && bActivity) {
+      return bActivity - aActivity; // Most recent first
+    }
+
+    // Non-active vouchers come before active vouchers (they have recent activity)
+    if (aActivity && !bActivity) return -1;
+    if (!aActivity && bActivity) return 1;
+
+    // Both are active - sort by soonest expiry first
+    const aExpiry = a.expiresAt || Infinity;
+    const bExpiry = b.expiresAt || Infinity;
+    return aExpiry - bExpiry; // Soonest expiry first
+  });
+
   // Render voucher detail modal
   const renderVoucherDetail = () => {
     if (!selectedVoucher) return null;
@@ -677,7 +709,7 @@ const VoucherManager = forwardRef(({
           <div className="flex items-center justify-center h-40">
             <div className="animate-spin w-8 h-8 border-3 border-purple-600 border-t-transparent rounded-full"></div>
           </div>
-        ) : filteredVouchers.length === 0 ? (
+        ) : sortedVouchers.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 text-gray-500 dark:text-gray-400">
             <svg className="w-12 h-12 mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
@@ -691,7 +723,7 @@ const VoucherManager = forwardRef(({
           </div>
         ) : (
           <div className="space-y-2">
-            {filteredVouchers.map((voucher) => (
+            {sortedVouchers.map((voucher) => (
               <button
                 key={voucher.id}
                 onClick={() => {

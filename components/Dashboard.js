@@ -17,6 +17,7 @@ import KeyManagementSection from './Settings/KeyManagementSection';
 import NWCClient from '../lib/nwc/NWCClient';
 import { isNpubCashAddress, validateNpubCashAddress, probeNpubCashAddress } from '../lib/lnurl';
 import TransactionDetail, { getTransactionLabel, initTransactionLabels } from './TransactionDetail';
+import ExpirySelector from './ExpirySelector';
 import QRCode from 'react-qr-code';
 import { bech32 } from 'bech32';
 
@@ -2183,29 +2184,32 @@ export default function Dashboard() {
     // Navigation order (voucher row): MultiVoucher ← → Voucher
     
     // Horizontal swipes (left/right) - for cart, pos, transactions, and voucher row
+    // Direction convention: Swipe LEFT moves to the RIGHT item (finger drags content left, next item appears from right)
+    // Top row (left to right): Cart - POS - Transactions
+    // Bottom row (left to right): MultiVoucher - Voucher - VoucherManager
     if (isLeftSwipe && !showingInvoice && !isViewTransitioning) {
       if (currentView === 'cart') {
         handleViewTransition('pos');
       } else if (currentView === 'pos') {
         handleViewTransition('transactions');
-      } else if (currentView === 'vouchermanager' && voucherWallet) {
-        // Left from vouchermanager goes to voucher
+      } else if (currentView === 'multivoucher' && voucherWallet) {
+        // Left swipe from multivoucher goes to voucher (same as cart→pos)
         handleViewTransition('voucher');
       } else if (currentView === 'voucher' && voucherWallet) {
-        // Left from voucher goes to multivoucher
-        handleViewTransition('multivoucher');
+        // Left swipe from voucher goes to vouchermanager (same as pos→transactions)
+        handleViewTransition('vouchermanager');
       }
     } else if (isRightSwipe && !isViewTransitioning) {
       if (currentView === 'transactions') {
         handleViewTransition('pos');
       } else if (currentView === 'pos' && !showingInvoice) {
         handleViewTransition('cart');
-      } else if (currentView === 'multivoucher' && voucherWallet) {
-        // Right from multivoucher goes to voucher
+      } else if (currentView === 'vouchermanager' && voucherWallet) {
+        // Right swipe from vouchermanager goes to voucher (same as transactions→pos)
         handleViewTransition('voucher');
       } else if (currentView === 'voucher' && voucherWallet) {
-        // Right from voucher goes to vouchermanager
-        handleViewTransition('vouchermanager');
+        // Right swipe from voucher goes to multivoucher (same as pos→cart)
+        handleViewTransition('multivoucher');
       }
     }
     // Vertical swipes (up) - between POS and Voucher row
@@ -6132,67 +6136,78 @@ export default function Dashboard() {
         {/* Owner/Agent Display - Left aligned on POS, Cart, Voucher, MultiVoucher, and VoucherManager (hidden when showing voucher QR) */}
         {!showingInvoice && !showingVoucherQR && (currentView === 'pos' || currentView === 'cart' || currentView === 'voucher' || currentView === 'multivoucher' || currentView === 'vouchermanager') && (
           <div className="flex flex-col gap-1 mb-2 bg-white dark:bg-black">
-            {/* Owner Display - Show voucher wallet on voucher/multivoucher/vouchermanager view, regular wallet on POS/Cart */}
-            {(() => {
-              // For voucher, multivoucher, and vouchermanager views, show voucher wallet
-              if (currentView === 'voucher' || currentView === 'multivoucher' || currentView === 'vouchermanager') {
-                if (voucherWallet) {
-                  return (
-                    <div className="flex items-center gap-2">
-                      <img src="/purpledot.svg" alt="Voucher Wallet" className="w-2 h-2" />
-                      <span className="font-semibold text-purple-600 dark:text-purple-400" style={{fontSize: '11.2px'}}>
-                        {voucherWallet.label || voucherWallet.username || 'Voucher Wallet'}
-                      </span>
-                    </div>
-                  );
-                } else {
+            {/* Owner Display Row - with Expiry Selector on right for Voucher screen */}
+            <div className="flex items-center justify-between">
+              {/* Left side: Owner info */}
+              {(() => {
+                // For voucher, multivoucher, and vouchermanager views, show voucher wallet
+                if (currentView === 'voucher' || currentView === 'multivoucher' || currentView === 'vouchermanager') {
+                  if (voucherWallet) {
+                    return (
+                      <div className="flex items-center gap-2">
+                        <img src="/purpledot.svg" alt="Voucher Wallet" className="w-2 h-2" />
+                        <span className="font-semibold text-purple-600 dark:text-purple-400" style={{fontSize: '11.2px'}}>
+                          {voucherWallet.label || voucherWallet.username || 'Voucher Wallet'}
+                        </span>
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <button 
+                        onClick={() => setShowVoucherWalletSettings(true)}
+                        className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                      >
+                        <img src="/yellowdot.svg" alt="No Wallet" className="w-2 h-2" />
+                        <span className="font-semibold text-yellow-600 dark:text-yellow-400" style={{fontSize: '11.2px'}}>
+                          Connect voucher wallet
+                        </span>
+                      </button>
+                    );
+                  }
+                }
+                
+                // For POS/Cart view, show regular wallet
+                const hasWallet = activeNWC || activeNpubCashWallet || activeBlinkAccount;
+                const noWallet = !hasWallet;
+                const dotColor = activeNWC ? "/purpledot.svg" : activeNpubCashWallet ? "/tealdot.svg" : hasWallet ? "/bluedot.svg" : "/yellowdot.svg";
+                const textColorClass = activeNWC ? 'text-purple-600 dark:text-purple-400' : 
+                  activeNpubCashWallet ? 'text-teal-600 dark:text-teal-400' : 
+                  hasWallet ? 'text-blue-600 dark:text-blue-400' :
+                  'text-yellow-600 dark:text-yellow-400';
+                const displayText = activeNWC ? activeNWC.label : activeNpubCashWallet ? (activeNpubCashWallet.label || activeNpubCashWallet.lightningAddress) : (activeBlinkAccount?.label || activeBlinkAccount?.username || 'Connect wallet to start');
+                
+                if (noWallet) {
                   return (
                     <button 
-                      onClick={() => setShowVoucherWalletSettings(true)}
+                      onClick={() => setShowAccountSettings(true)}
                       className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                     >
-                      <img src="/yellowdot.svg" alt="No Wallet" className="w-2 h-2" />
-                      <span className="font-semibold text-yellow-600 dark:text-yellow-400" style={{fontSize: '11.2px'}}>
-                        Connect voucher wallet
+                      <img src={dotColor} alt="Owner" className="w-2 h-2" />
+                      <span className={`font-semibold ${textColorClass}`} style={{fontSize: '11.2px'}}>
+                        {displayText}
                       </span>
                     </button>
                   );
                 }
-              }
-              
-              // For POS/Cart view, show regular wallet
-              const hasWallet = activeNWC || activeNpubCashWallet || activeBlinkAccount;
-              const noWallet = !hasWallet;
-              const dotColor = activeNWC ? "/purpledot.svg" : activeNpubCashWallet ? "/tealdot.svg" : hasWallet ? "/bluedot.svg" : "/yellowdot.svg";
-              const textColorClass = activeNWC ? 'text-purple-600 dark:text-purple-400' : 
-                activeNpubCashWallet ? 'text-teal-600 dark:text-teal-400' : 
-                hasWallet ? 'text-blue-600 dark:text-blue-400' :
-                'text-yellow-600 dark:text-yellow-400';
-              const displayText = activeNWC ? activeNWC.label : activeNpubCashWallet ? (activeNpubCashWallet.label || activeNpubCashWallet.lightningAddress) : (activeBlinkAccount?.label || activeBlinkAccount?.username || 'Connect wallet to start');
-              
-              if (noWallet) {
+                
                 return (
-                  <button 
-                    onClick={() => setShowAccountSettings(true)}
-                    className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-                  >
+                  <div className="flex items-center gap-2">
                     <img src={dotColor} alt="Owner" className="w-2 h-2" />
                     <span className={`font-semibold ${textColorClass}`} style={{fontSize: '11.2px'}}>
                       {displayText}
                     </span>
-                  </button>
+                  </div>
                 );
-              }
+              })()}
               
-              return (
-                <div className="flex items-center gap-2">
-                  <img src={dotColor} alt="Owner" className="w-2 h-2" />
-                  <span className={`font-semibold ${textColorClass}`} style={{fontSize: '11.2px'}}>
-                    {displayText}
-                  </span>
-                </div>
-              );
-            })()}
+              {/* Right side: Expiry Selector (only on Voucher screen, not when voucher QR is showing) */}
+              {currentView === 'voucher' && voucherRef.current && !showingVoucherQR && (
+                <ExpirySelector
+                  value={voucherRef.current.getSelectedExpiry?.() || '6mo'}
+                  onChange={(expiryId) => voucherRef.current.setSelectedExpiry?.(expiryId)}
+                />
+              )}
+            </div>
             
             {/* Agent Display Row - Always reserve space for consistent numpad positioning */}
             {/* On POS/Cart: Show split profile if active, otherwise empty placeholder */}

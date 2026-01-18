@@ -1,11 +1,11 @@
 /**
  * ExpirySelector Component
  * 
- * Reusable component for selecting voucher expiry duration.
- * Styled as horizontal pill buttons to match the grid selector in MultiVoucher.
+ * Minimal dropdown component for selecting voucher expiry duration.
+ * Designed to sit on the right side of the Owner/Agent row in voucher screens.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 // Expiry preset options (must match lib/voucher-expiry.js)
 const EXPIRY_OPTIONS = [
@@ -20,22 +20,22 @@ const EXPIRY_OPTIONS = [
 const DEFAULT_EXPIRY = '6mo';
 
 /**
- * ExpirySelector - Horizontal pill button selector for voucher expiry
+ * ExpirySelector - Minimal dropdown selector for voucher expiry
  * 
  * @param {string} value - Currently selected expiry ID
  * @param {function} onChange - Callback when selection changes (receives expiry ID)
  * @param {string} className - Additional CSS classes
- * @param {boolean} compact - Use compact mode (smaller buttons)
  * @param {boolean} disabled - Disable the selector
  */
 export default function ExpirySelector({ 
   value = DEFAULT_EXPIRY, 
   onChange, 
   className = '',
-  compact = false,
   disabled = false 
 }) {
   const [selected, setSelected] = useState(value);
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
 
   // Sync with external value changes
   useEffect(() => {
@@ -44,52 +44,82 @@ export default function ExpirySelector({
     }
   }, [value]);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isOpen]);
+
   const handleSelect = (expiryId) => {
     if (disabled) return;
     setSelected(expiryId);
+    setIsOpen(false);
     if (onChange) {
       onChange(expiryId);
     }
   };
 
-  return (
-    <div className={`${className}`}>
-      {/* Label */}
-      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-        Voucher Expiry
-      </label>
-      
-      {/* Horizontal scrolling pill buttons */}
-      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-        {EXPIRY_OPTIONS.map(option => (
-          <button
-            key={option.id}
-            type="button"
-            onClick={() => handleSelect(option.id)}
-            disabled={disabled}
-            className={`
-              flex-shrink-0 
-              ${compact ? 'px-3 py-1.5 text-sm' : 'px-4 py-2'}
-              rounded-full border-2 font-medium transition-all duration-200
-              ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-              ${selected === option.id
-                ? 'border-purple-500 bg-purple-500 text-white shadow-md'
-                : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:border-purple-400 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30'
-              }
-            `}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+  const selectedOption = EXPIRY_OPTIONS.find(o => o.id === selected) || EXPIRY_OPTIONS[EXPIRY_OPTIONS.length - 1];
 
-      {/* Selected expiry description */}
-      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-        {selected === '6mo' 
-          ? 'Voucher valid for 6 months (recommended for gift cards)'
-          : `Voucher expires after ${EXPIRY_OPTIONS.find(o => o.id === selected)?.description || selected}`
-        }
-      </div>
+  return (
+    <div className={`relative ${className}`} ref={dropdownRef}>
+      {/* Dropdown trigger button */}
+      <button
+        type="button"
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
+        className={`
+          flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors
+          ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/30'}
+          text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20
+          border border-purple-200 dark:border-purple-800
+        `}
+      >
+        <span>{selectedOption.label}</span>
+        <svg 
+          className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} 
+          fill="none" 
+          stroke="currentColor" 
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {/* Dropdown menu */}
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1 z-50 min-w-[100px] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1">
+          {EXPIRY_OPTIONS.map(option => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => handleSelect(option.id)}
+              className={`
+                w-full px-3 py-1.5 text-left text-xs transition-colors
+                ${selected === option.id
+                  ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-medium'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }
+              `}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

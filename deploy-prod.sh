@@ -117,6 +117,19 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     echo "📁 Navigating to deployment directory..."
     cd ${PROD_PATH}
     
+    # Pre-deployment backup of voucher store (safety net before container rebuild)
+    echo ""
+    echo "💾 Pre-deployment backup: voucher store..."
+    if [ -f ".voucher-store.json" ]; then
+        VOUCHER_BACKUP="voucher-store-backup-\$(date +%Y%m%d-%H%M%S).json"
+        cp .voucher-store.json "/tmp/\${VOUCHER_BACKUP}"
+        VOUCHER_COUNT=\$(grep -o '"id":' .voucher-store.json 2>/dev/null | wc -l || echo "0")
+        echo "✅ Voucher store backed up: \${VOUCHER_BACKUP} (\${VOUCHER_COUNT} vouchers)"
+    else
+        echo "ℹ️  No .voucher-store.json found (using PostgreSQL or fresh install)"
+    fi
+    
+    echo ""
     echo "📥 Pulling latest changes from GitHub..."
     git fetch origin
     git reset --hard origin/${BRANCH}
@@ -276,6 +289,62 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
         echo "✅ Migration 006 already applied (skipping)"
     fi
     
+    # Refresh schema version
+    SCHEMA_VERSION=\$(get_schema_version)
+    
+    # Apply migration 007 (fix metrics overflow)
+    if [ "\${SCHEMA_VERSION}" -lt 7 ]; then
+        echo "🔄 Applying migration 007 (fix metrics overflow)..."
+        
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/007_fix_metrics_overflow.sql 2>&1 | tee /tmp/migration-007.log | grep -v "^$" | tail -20; then
+            echo ""
+            echo "❌ MIGRATION 007 FAILED!"
+            echo "📋 Check logs: /tmp/migration-007.log"
+            echo ""
+            echo "🔙 Rolling back deployment..."
+            docker-compose -f docker-compose.prod.yml down
+            echo "❌ Deployment stopped due to migration failure"
+            exit 1
+        fi
+        
+        echo "✅ Migration 007 applied successfully"
+    else
+        echo "✅ Migration 007 already applied (skipping)"
+    fi
+    
+    # Refresh schema version
+    SCHEMA_VERSION=\$(get_schema_version)
+    
+    # Apply migration 008 (vouchers table)
+    if [ "\${SCHEMA_VERSION}" -lt 8 ]; then
+        echo "🔄 Applying migration 008 (vouchers table for persistent storage)..."
+        
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/008_vouchers_table.sql 2>&1 | tee /tmp/migration-008.log | grep -v "^$" | tail -20; then
+            echo ""
+            echo "❌ MIGRATION 008 FAILED!"
+            echo "📋 Check logs: /tmp/migration-008.log"
+            echo ""
+            echo "🔙 Rolling back deployment..."
+            docker-compose -f docker-compose.prod.yml down
+            echo "❌ Deployment stopped due to migration failure"
+            exit 1
+        fi
+        
+        echo "✅ Migration 008 applied successfully"
+        
+        # Run one-time voucher migration from JSON to PostgreSQL
+        echo ""
+        echo "🔄 Checking for vouchers to migrate from JSON..."
+        if docker-compose -f docker-compose.prod.yml exec -T app sh -c "test -f .voucher-store.json && echo 'exists'" | grep -q 'exists'; then
+            echo "📦 Found .voucher-store.json, migrating vouchers to PostgreSQL..."
+            docker-compose -f docker-compose.prod.yml exec -T app node scripts/migrate-vouchers-to-postgres.js || echo "⚠️  Voucher migration encountered issues (non-fatal)"
+        else
+            echo "✅ No JSON voucher store found (fresh installation or already migrated)"
+        fi
+    else
+        echo "✅ Migration 008 already applied (skipping)"
+    fi
+    
     # Display final schema version
     FINAL_VERSION=\$(get_schema_version)
     echo ""
@@ -298,6 +367,23 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
         docker-compose -f docker-compose.prod.yml down
         echo "❌ Deployment stopped due to verification failure"
         exit 1
+    fi
+    
+    # Verify vouchers table exists
+    echo ""
+    echo "📋 Verifying vouchers table..."
+    VOUCHER_TABLE=\$(docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos -t -c \
+      "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'vouchers';" \
+      2>/dev/null | tr -d ' \n\r' || echo "0")
+    
+    if [ "\${VOUCHER_TABLE}" -ge 1 ]; then
+        VOUCHER_COUNT=\$(docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos -t -c \
+          "SELECT COUNT(*) FROM vouchers;" \
+          2>/dev/null | tr -d ' \n\r' || echo "0")
+        echo "✅ Vouchers table verified (\${VOUCHER_COUNT} vouchers in database)"
+    else
+        echo "❌ VOUCHERS TABLE NOT FOUND!"
+        echo "⚠️  Migration 008 may have failed"
     fi
     
     echo ""
@@ -346,11 +432,16 @@ print_info "Verifying database migrations..."
 # Check schema version
 DEPLOYED_SCHEMA=$(ssh ${PROD_USER}@${PROD_SERVER} "cd ${PROD_PATH} && docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos -t -c \"SELECT COALESCE(MAX(metric_value::int), 0) FROM system_metrics WHERE metric_name = 'schema_version';\" 2>/dev/null | tr -d ' \n\r'" || echo "0")
 
-if [ "${DEPLOYED_SCHEMA}" -ge 6 ]; then
+if [ "${DEPLOYED_SCHEMA}" -ge 8 ]; then
     print_success "Database schema up to date (version ${DEPLOYED_SCHEMA})"
 else
-    print_warning "Database schema may need attention (version ${DEPLOYED_SCHEMA}, expected 6+)"
+    print_warning "Database schema may need attention (version ${DEPLOYED_SCHEMA}, expected 8+)"
 fi
+
+# Check voucher persistence
+VOUCHER_COUNT=$(ssh ${PROD_USER}@${PROD_SERVER} "cd ${PROD_PATH} && docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos -t -c \"SELECT COUNT(*) FROM vouchers WHERE status = 'ACTIVE';\" 2>/dev/null | tr -d ' \n\r'" || echo "0")
+
+print_success "Vouchers in PostgreSQL: ${VOUCHER_COUNT} active"
 
 # Check if communities exist
 COMMUNITY_COUNT=$(ssh ${PROD_USER}@${PROD_SERVER} "cd ${PROD_PATH} && docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos -t -c \"SELECT COUNT(*) FROM communities;\" 2>/dev/null | tr -d ' \n\r'" || echo "0")

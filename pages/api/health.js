@@ -49,6 +49,26 @@ export default async function handler(req, res) {
       }
     }
 
+    // Check voucher store (PostgreSQL)
+    try {
+      const voucherStore = require('../../lib/voucher-store');
+      const voucherStats = await voucherStore.getStats();
+      health.checks.vouchers = {
+        status: 'up',
+        storage: 'postgresql',
+        stats: voucherStats
+      };
+    } catch (error) {
+      health.checks.vouchers = {
+        status: 'down',
+        error: error.message
+      };
+      // Voucher store failure degrades but doesn't fully break service
+      if (health.status === 'healthy') {
+        health.status = 'degraded';
+      }
+    }
+
     // Check Blink API credentials
     health.checks.blinkConfig = {
       status: process.env.BLINKPOS_API_KEY && process.env.BLINKPOS_BTC_WALLET_ID ? 'configured' : 'missing',

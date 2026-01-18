@@ -159,13 +159,8 @@ export default async function handler(req, res) {
       // Payment failed - unclaim the voucher so it can be retried
       console.error('❌ Payment failed, unclaiming voucher:', paymentError.message);
       
-      // Reload voucher and unclaim
-      const voucherToUnclaim = voucherStore.vouchers.get(chargeId);
-      if (voucherToUnclaim) {
-        voucherToUnclaim.claimed = false;
-        voucherStore.vouchers.set(chargeId, voucherToUnclaim);
-        voucherStore.saveToFile();
-      }
+      // Unclaim the voucher using proper method
+      await voucherStore.unclaimVoucher(chargeId);
 
       throw paymentError;
     }

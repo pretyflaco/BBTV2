@@ -130,16 +130,18 @@ const MultiVoucher = forwardRef(({
     return getCurrencyById(displayCurrency, currencies);
   };
 
-  // Helper function to get dynamic font size
+  // Helper function to get dynamic font size (same as Single Voucher)
   const getDynamicFontSize = (displayText) => {
     const numericOnly = String(displayText).replace(/[^0-9.]/g, '');
     const length = numericOnly.length;
     
-    if (length <= 6) return 'text-5xl';
-    if (length <= 9) return 'text-4xl';
-    if (length <= 11) return 'text-3xl';
-    if (length <= 13) return 'text-2xl';
-    return 'text-xl';
+    if (length <= 6) return 'text-6xl';
+    if (length <= 9) return 'text-5xl';
+    if (length <= 11) return 'text-4xl';
+    if (length <= 13) return 'text-3xl';
+    if (length <= 15) return 'text-2xl';
+    if (length <= 16) return 'text-xl';
+    return 'text-lg';
   };
 
   // Calculate commission amount
@@ -714,10 +716,10 @@ const MultiVoucher = forwardRef(({
     },
   }));
 
-  // Render amount input step
+  // Render amount input step (numpad screen - same size as Single Voucher)
   const renderAmountStep = () => (
     <div className="h-full flex flex-col bg-white dark:bg-black relative" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-      {/* Amount Display */}
+      {/* Amount Display - Same size as Single Voucher */}
       <div className="px-4">
         <div className="text-center">
           <div className={`font-semibold text-purple-600 dark:text-purple-400 min-h-[72px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${

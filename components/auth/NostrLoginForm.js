@@ -455,12 +455,12 @@ export default function NostrLoginForm() {
       <div className={`flex items-center justify-center ${isDev ? 'min-h-[calc(100vh-80px)]' : 'min-h-screen'}`}>
         <div className="max-w-md w-full space-y-8 p-8">
           {/* Logo */}
-          <div className={isDev ? 'text-left' : 'text-center'}>
+          <div className="text-center">
             {isDev ? (
               /* Terminal-style ASCII logo for development */
-              <div className="mb-6">
-                {/* ASCII art text - 30% bigger */}
-                <pre className="font-mono text-[13px] sm:text-base leading-tight text-purple-600 dark:text-purple-400 inline-block text-left">
+              <div className="mb-8 mt-4 flex justify-center">
+                {/* ASCII art text - 30% bigger, centered */}
+                <pre className="font-mono text-[13px] sm:text-base leading-tight text-purple-600 dark:text-purple-400 text-left">
 {`╔╗ ╦  ╦╔╗╔╦╔═  ╔╗ ╦╔╦╗╔═╗╔═╗╦╔╗╔
 ╠╩╗║  ║║║║╠╩╗  ╠╩╗║ ║ ║  ║ ║║║║║
 ╚═╝╩═╝╩╝╚╝╩ ╩  ╚═╝╩ ╩ ╚═╝╚═╝╩╝╚╝
@@ -729,6 +729,7 @@ export default function NostrLoginForm() {
         </div>
       </div>
     </div>
+  </div>
   );
 }
 

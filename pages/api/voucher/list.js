@@ -28,8 +28,8 @@ export default async function handler(req, res) {
     const { status: filterStatus } = req.query;
     const now = Date.now();
     
-    // Get all vouchers with status from the store
-    const allVouchers = voucherStore.getAllVouchers();
+    // Get all vouchers with status from the store (async)
+    const allVouchers = await voucherStore.getAllVouchers();
     
     // Format vouchers for response
     let vouchers = allVouchers.map(voucher => {

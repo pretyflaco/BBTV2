@@ -54,8 +54,8 @@ export default async function handler(req, res) {
       });
     }
 
-    // Get voucher from store
-    const voucher = voucherStore.getVoucher(chargeId);
+    // Get voucher from store (PostgreSQL)
+    const voucher = await voucherStore.getVoucher(chargeId);
 
     if (!voucher) {
       console.error('❌ Voucher not found or expired:', chargeId);

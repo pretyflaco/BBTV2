@@ -51,8 +51,8 @@ export default async function handler(req, res) {
     // Validate expiryId if provided
     const validExpiryId = expiryId && isValidExpiryId(expiryId) ? expiryId : DEFAULT_EXPIRY_ID;
 
-    // Create voucher charge with optional commission, expiry, and display info
-    const voucher = voucherStore.createVoucher(amountNum, apiKey, walletId, {
+    // Create voucher charge with optional commission, expiry, and display info (async)
+    const voucher = await voucherStore.createVoucher(amountNum, apiKey, walletId, {
       expiryId: validExpiryId,
       commissionPercent: commissionPercent || 0,
       displayAmount: displayAmount || null,

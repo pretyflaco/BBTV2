@@ -36,8 +36,8 @@ export default async function handler(req, res) {
       });
     }
 
-    // Get voucher with status to check current state
-    const voucher = voucherStore.getVoucherWithStatus(chargeId);
+    // Get voucher with status to check current state (async)
+    const voucher = await voucherStore.getVoucherWithStatus(chargeId);
     
     if (!voucher) {
       return res.status(404).json({ 
@@ -59,8 +59,8 @@ export default async function handler(req, res) {
       });
     }
 
-    // Cancel the voucher
-    const success = voucherStore.cancelVoucher(chargeId);
+    // Cancel the voucher (async)
+    const success = await voucherStore.cancelVoucher(chargeId);
     
     if (!success) {
       return res.status(500).json({ 

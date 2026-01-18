@@ -58,8 +58,8 @@ export default async function handler(req, res) {
 
     const chargeId = k1;
 
-    // Get voucher from store
-    const voucher = voucherStore.getVoucher(chargeId);
+    // Get voucher from store (PostgreSQL)
+    const voucher = await voucherStore.getVoucher(chargeId);
 
     if (!voucher) {
       console.error('❌ Voucher not found or expired:', chargeId);
@@ -95,7 +95,7 @@ export default async function handler(req, res) {
     });
 
     // Mark as claimed BEFORE paying to prevent double-spend
-    const claimed = voucherStore.claimVoucher(chargeId);
+    const claimed = await voucherStore.claimVoucher(chargeId);
     if (!claimed) {
       console.error('❌ Failed to claim voucher:', chargeId);
       return res.status(200).json({ 

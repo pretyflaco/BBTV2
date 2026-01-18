@@ -1,6 +1,6 @@
 # Blink Bitcoin Terminal
 
-A production-ready, privacy-focused Bitcoin Lightning Point of Sale system built on the Blink API. Accept Bitcoin payments with instant settlement, automatic payment forwarding, sophisticated tipping, and comprehensive merchant tools.
+A powerful Bitcoin Lightning terminal for Blink power users. Execute advanced operations, manage vouchers, process batch payments, accept payments with automatic forwarding, and leverage the full capabilities of your Blink account.
 
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
 ![Next.js](https://img.shields.io/badge/Next.js-12.3.4-black.svg)
@@ -9,33 +9,12 @@ A production-ready, privacy-focused Bitcoin Lightning Point of Sale system built
 
 ## Features
 
-### Core POS System
-- **Real-time Payment Detection**: Lazy-loaded WebSocket connections for instant payment notifications
-- **Dynamic Currency Support**: All 71+ fiat currencies from Blink with automatic discovery and formatting
+### Point of Sale
+- **Real-time Payment Detection**: WebSocket connections for instant payment notifications
+- **Dynamic Currency Support**: All 71+ fiat currencies from Blink with automatic formatting
 - **NFC Payments**: Web NFC integration for contactless payments (NTAG424DNA compatible)
 - **Item Cart Mode**: Optional cart for multi-item transactions
-- **Transaction History**: Comprehensive logs with status tracking, memo support, and CSV export
 - **Payment Animations**: Full-screen celebratory animations for incoming payments
-
-### Wallet Connectivity
-- **Blink Integration**: Direct connection to Blink API for zero-fee intraledger transactions
-- **NWC Support**: Connect external wallets via Nostr Wallet Connect
-  - Blink-based NWC benefits from zero-fee instant payments
-  - External NWC wallets fully supported for invoice creation and payments
-- **Multi-Wallet Management**: Link and manage multiple Blink accounts
-
-### Tipping & Payment Splitting
-- **Split Payments**: Automatically split customer payments between merchant and tip recipient
-- **Zero-Fee Forwarding**: Uses Blink intraledger transactions for instant, free forwarding
-- **Flexible Destinations**: Forward to Blink usernames, Lightning Addresses, or npub.cash addresses
-- **npub.cash Integration**: Special support for npub.cash addresses with zero-fee forwarding
-- **Configurable Presets**: Set custom tip percentages (e.g., 10%, 15%, 20%)
-
-### Authentication & Security
-- **Nostr Authentication**: NIP-07 (browser extensions) and NIP-55 (external signers like Amber)
-- **Cross-Device Sync**: Profile settings and credentials sync across devices when authenticated via Nostr
-- **Encrypted Storage**: Client-side encryption for sensitive credentials (API keys, NWC URIs)
-- **Server-side Proxy**: API keys never sent to browser
 
 ### Voucher System
 - **Single Vouchers**: Create individual LNURL-withdraw vouchers with QR codes
@@ -59,9 +38,29 @@ A production-ready, privacy-focused Bitcoin Lightning Point of Sale system built
 - **Validation**: Automatic validation of Lightning addresses and amounts
 - **Progress Tracking**: Real-time status updates during batch execution
 
-### Network Analytics
-- **Transaction Heatmaps**: Visualize payment activity over time
-- **Merchant Statistics**: Track payment volumes and trends
+### Payment Forwarding & Tipping
+- **Split Payments**: Automatically split payments between merchant and tip recipient
+- **Zero-Fee Forwarding**: Uses Blink intraledger transactions for instant, free forwarding
+- **Flexible Destinations**: Forward to Blink usernames, Lightning Addresses, or npub.cash addresses
+- **npub.cash Integration**: Special support for npub.cash addresses with zero-fee forwarding
+- **Configurable Presets**: Set custom tip percentages (e.g., 10%, 15%, 20%)
+
+### Wallet Connectivity
+- **Blink Integration**: Direct connection to Blink API for zero-fee intraledger transactions
+- **NWC Support**: Connect external wallets via Nostr Wallet Connect
+  - Blink-based NWC benefits from zero-fee instant payments
+  - External NWC wallets fully supported for invoice creation and payments
+- **Multi-Wallet Management**: Link and manage multiple Blink accounts
+
+### Authentication
+- **Nostr Authentication**: NIP-07 (browser extensions) and NIP-55 (external signers like Amber)
+- **Cross-Device Sync**: Profile settings and credentials sync across devices when authenticated via Nostr
+- **Encrypted Storage**: Client-side encryption for sensitive credentials (API keys, NWC URIs)
+
+### Transaction Management
+- **Transaction History**: Comprehensive logs with status tracking and memo support
+- **CSV Export**: Export transaction data for accounting
+- **Network Analytics**: Transaction heatmaps and statistics
 
 ## Architecture
 
@@ -81,7 +80,7 @@ Frontend (Next.js) → Direct Blink WebSocket → Instant Payment Detection
 
 ### Hybrid Storage Architecture
 - **Redis**: Sub-millisecond access to active payments and hot data (24h TTL)
-- **PostgreSQL**: Permanent storage for transaction history, audit trails, and analytics
+- **PostgreSQL**: Permanent storage for transaction history, vouchers, and analytics
 - **Automatic Migration**: Data flows from Redis to PostgreSQL after completion
 
 ## Quick Start
@@ -132,9 +131,9 @@ Frontend (Next.js) → Direct Blink WebSocket → Instant Payment Detection
 ### Usage
 
 1. **Authenticate**: Sign in with Nostr (NIP-07 extension or NIP-55 signer) or enter Blink credentials directly
-2. **Configure**: Set up your Blink account, NWC connections, and tipping preferences in Settings
-3. **Accept Payments**: Use the POS interface to create invoices and receive payments
-4. **Monitor**: Track transactions, balances, and tip statistics in the Dashboard
+2. **Configure**: Set up your Blink account, NWC connections, and preferences in Settings
+3. **Operate**: Use the terminal for payments, vouchers, batch operations, and more
+4. **Monitor**: Track transactions, balances, and statistics in the Dashboard
 
 ## Project Structure
 
@@ -280,7 +279,7 @@ docker-compose -f docker-compose.prod.yml up -d
 | Feature | Status |
 |---------|--------|
 | Hybrid Storage (Redis + PostgreSQL) | Completed |
-| Tipping System | Completed |
+| Payment Forwarding & Tipping | Completed |
 | Dynamic Currencies (71+) | Completed |
 | WebSocket Payment Detection | Completed |
 | Transaction History & CSV Export | Completed |
@@ -349,5 +348,3 @@ See the [LICENSE](LICENSE) file for details.
 ---
 
 **Built for the Bitcoin Lightning Network**
-
-*Enabling Bitcoin commerce at scale*

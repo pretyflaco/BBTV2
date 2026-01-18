@@ -1,67 +1,82 @@
-# Blink POS
+# Blink Bitcoin Terminal
 
-A modern, secure, and real-time Bitcoin Lightning Point of Sale system built with Next.js. Accept Bitcoin Lightning payments with instant notifications and a beautiful user interface.
+A production-ready, privacy-focused Bitcoin Lightning Point of Sale system built on the Blink API. Accept Bitcoin payments with instant settlement, automatic payment forwarding, sophisticated tipping, and comprehensive merchant tools.
 
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
 ![Next.js](https://img.shields.io/badge/Next.js-12.3.4-black.svg)
 ![React](https://img.shields.io/badge/React-18.0.0-blue.svg)
 ![Bitcoin](https://img.shields.io/badge/Bitcoin-Lightning-orange.svg)
 
-## 🚀 Features
+## Features
 
-### ✅ **Completed Features:**
-- **🔐 Secure Authentication**: Server-side API key encryption and JWT sessions
-- **⚡ Real-time WebSocket**: Direct connection to Blink API for instant payment detection
-- **🎉 Payment Animations**: Full-screen celebratory animations for incoming payments
-- **📊 Dashboard**: Clean UI showing wallet balances and transaction history
-- **📱 Responsive Design**: Works perfectly on desktop and mobile devices
-- **🔒 Privacy & Security**: Enterprise-grade encrypted storage, no API keys in browser
-- **💰 Multi-Currency Support**: Displays BTC (sats) and USD balances with proper formatting
-- **📅 Transaction History**: Complete transaction history with proper date formatting
+### Core POS System
+- **Real-time Payment Detection**: Lazy-loaded WebSocket connections for instant payment notifications
+- **Dynamic Currency Support**: All 71+ fiat currencies from Blink with automatic discovery and formatting
+- **NFC Payments**: Web NFC integration for contactless payments (NTAG424DNA compatible)
+- **Item Cart Mode**: Optional cart for multi-item transactions
+- **Transaction History**: Comprehensive logs with status tracking, memo support, and CSV export
+- **Payment Animations**: Full-screen celebratory animations for incoming payments
 
-### 🎯 **Key Improvements over V1:**
-- **✅ Working Payment Animations** - Instant celebratory animations that work 100% of the time
-- **✅ Direct WebSocket Connection** - Simplified architecture inspired by successful donation buttons
-- **✅ No Framework Conflicts** - Pure React/Next.js without complex server-side WebSocket management
-- **✅ Enterprise Security** - Encrypted API key storage with secure sessions
-- **✅ Better Performance** - Server-side rendering with optimized API calls
-- **✅ Production Ready** - Scalable architecture with proper error handling
+### Wallet Connectivity
+- **Blink Integration**: Direct connection to Blink API for zero-fee intraledger transactions
+- **NWC Support**: Connect external wallets via Nostr Wallet Connect
+  - Blink-based NWC benefits from zero-fee instant payments
+  - External NWC wallets fully supported for invoice creation and payments
+- **Multi-Wallet Management**: Link and manage multiple Blink accounts
 
-## 🏗️ Architecture
+### Tipping & Payment Splitting
+- **Split Payments**: Automatically split customer payments between merchant and tip recipient
+- **Zero-Fee Forwarding**: Uses Blink intraledger transactions for instant, free forwarding
+- **Flexible Destinations**: Forward to Blink usernames, Lightning Addresses, or npub.cash addresses
+- **npub.cash Integration**: Special support for npub.cash addresses with zero-fee forwarding
+- **Configurable Presets**: Set custom tip percentages (e.g., 10%, 15%, 20%)
 
-### **Simple & Effective Design:**
+### Authentication & Security
+- **Nostr Authentication**: NIP-07 (browser extensions) and NIP-55 (external signers like Amber)
+- **Cross-Device Sync**: Profile settings and credentials sync across devices when authenticated via Nostr
+- **Encrypted Storage**: Client-side encryption for sensitive credentials (API keys, NWC URIs)
+- **Server-side Proxy**: API keys never sent to browser
+
+### Voucher System
+- **LNURL Vouchers**: Create redeemable Bitcoin vouchers with QR codes
+- **PDF Generation**: Generate printable voucher PDFs for distribution
+- **Status Tracking**: Monitor voucher redemption status
+
+### Batch Payments
+- **CSV Import**: Upload recipient lists for bulk payments
+- **Validation**: Automatic validation of Lightning addresses and amounts
+- **Progress Tracking**: Real-time status updates during batch execution
+
+### Network Analytics
+- **Transaction Heatmaps**: Visualize payment activity over time
+- **Merchant Statistics**: Track payment volumes and trends
+
+## Architecture
+
+### System Overview
 ```
-Frontend → Direct Blink WebSocket → Instant Payment Animation
+Frontend (Next.js) → Direct Blink WebSocket → Instant Payment Detection
+                  → API Routes → Hybrid Storage (Redis + PostgreSQL)
+                              → Blink GraphQL API
 ```
 
-### **Key Components:**
+### Key Components
 - **Frontend**: Next.js with React hooks and Tailwind CSS
-- **Authentication**: JWT tokens with encrypted API key storage
+- **Authentication**: Nostr-based auth with JWT sessions
 - **Real-time**: Direct WebSocket connection to Blink API (wss://ws.blink.sv/graphql)
-- **Storage**: Encrypted user data with AES-256 encryption
-- **UI**: Responsive dashboard with payment celebration animations
+- **Storage**: Hybrid architecture with Redis (hot data) and PostgreSQL (cold data)
+- **PDF Generation**: React-PDF for vouchers and transaction receipts
 
-### **Security Model:**
-- API keys encrypted with AES-256 before storage
-- JWT-based sessions with httpOnly cookies (24h expiration)
-- Server-side API proxy (API keys never reach the browser)
-- Per-user isolated data storage
-- Environment-based configuration
+### Hybrid Storage Architecture
+- **Redis**: Sub-millisecond access to active payments and hot data (24h TTL)
+- **PostgreSQL**: Permanent storage for transaction history, audit trails, and analytics
+- **Automatic Migration**: Data flows from Redis to PostgreSQL after completion
 
-## 🎬 Payment Animation System
-
-The app features a **full-screen payment animation** that triggers instantly when Bitcoin payments are received:
-
-- **🎉 Visual Celebration**: Full-screen gradient animation with celebration text
-- **⚡ Instant Trigger**: Appears within milliseconds of payment detection
-- **💰 Payment Details**: Shows amount, currency, and memo
-- **🎯 Smart Timing**: Automatically disappears after 4 seconds
-- **📱 Responsive**: Works on all device sizes
-
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
-- Node.js 14+ 
+- Node.js 14+
+- Docker and Docker Compose (for Redis and PostgreSQL)
 - A Blink API key from [Blink Dashboard](https://dashboard.blink.sv)
 
 ### Installation
@@ -77,170 +92,147 @@ The app features a **full-screen payment animation** that triggers instantly whe
    npm install
    ```
 
-3. **Configure environment variables:**
+3. **Start database services:**
+   ```bash
+   docker-compose up -d
+   ```
+
+4. **Configure environment variables:**
    Create `.env.local` with:
    ```bash
    JWT_SECRET=your-strong-jwt-secret-key
    ENCRYPTION_KEY=your-strong-encryption-key
    NODE_ENV=development
+   
+   # Database
+   REDIS_URL=redis://localhost:6379
+   DATABASE_URL=postgresql://user:password@localhost:5432/blinkpos
    ```
 
-4. **Start the development server:**
+5. **Start the development server:**
    ```bash
    npm run dev
    ```
 
-5. **Access the application:**
-   Open [http://localhost:3000](http://localhost:3000) in your browser
+6. **Access the application:**
+   Open [http://localhost:3000](http://localhost:3000)
 
 ### Usage
 
-1. **Login**: Enter your Blink username and API key
-2. **Monitor**: Watch your wallet balances and transactions in real-time
-3. **Celebrate**: Get instant payment notifications with celebrations! 🎉
+1. **Authenticate**: Sign in with Nostr (NIP-07 extension or NIP-55 signer) or enter Blink credentials directly
+2. **Configure**: Set up your Blink account, NWC connections, and tipping preferences in Settings
+3. **Accept Payments**: Use the POS interface to create invoices and receive payments
+4. **Monitor**: Track transactions, balances, and tip statistics in the Dashboard
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 BBTV2/
 ├── components/
 │   ├── Dashboard.js           # Main dashboard interface
-│   ├── LoginForm.js          # Secure login form
-│   └── PaymentAnimation.js   # Payment celebration overlay
+│   ├── POS.js                 # Point of Sale interface
+│   ├── ItemCart.js            # Cart mode for multi-item transactions
+│   ├── Voucher.js             # Voucher creation and management
+│   ├── BatchPayments.js       # Bulk payment processing
+│   ├── Network.js             # Network analytics and heatmaps
+│   ├── TransactionDetail.js   # Transaction detail view
+│   ├── PaymentAnimation.js    # Payment celebration overlay
+│   ├── NFCPayment.js          # NFC payment handling
+│   ├── LoginForm.js           # Authentication form
+│   ├── auth/                  # Authentication components
+│   ├── wallet/                # Wallet setup components
+│   └── Settings/              # Settings page sections
 ├── lib/
-│   ├── auth.js              # Authentication & encryption utilities
-│   ├── blink-api.js         # Blink GraphQL API integration
-│   ├── storage.js           # Secure user data storage
-│   └── hooks/
-│       ├── useAuth.js       # Authentication hook
-│       └── useBlinkWebSocket.js # Direct Blink WebSocket hook
+│   ├── blink-api.js           # Blink GraphQL API integration
+│   ├── storage/               # Hybrid storage implementation
+│   ├── nostr/                 # Nostr authentication services
+│   ├── network/               # Network analytics
+│   ├── batch-payments/        # Batch payment processing
+│   ├── pdf/                   # PDF generation (vouchers, receipts)
+│   ├── nwc/                   # Nostr Wallet Connect
+│   └── migration/             # Data migration utilities
 ├── pages/
 │   ├── api/
-│   │   ├── auth/           # Authentication endpoints
-│   │   └── blink/          # Blink API proxy endpoints
-│   ├── _app.js             # App wrapper with auth provider
-│   └── index.js            # Main page (login/dashboard)
-├── public/
-│   └── css/
-│       └── globals.css     # Global styles and animation CSS
-├── utils/                  # Utility functions
-├── .env.local.example     # Environment variables template
-├── package.json           # Dependencies and scripts
-└── README.md              # This file
+│   │   ├── blink/             # Blink API proxy endpoints
+│   │   ├── voucher/           # Voucher management endpoints
+│   │   ├── batch-payments/    # Batch payment endpoints
+│   │   ├── network/           # Network analytics endpoints
+│   │   └── user/              # User management endpoints
+│   ├── _app.js                # App wrapper
+│   └── index.js               # Main page
+├── database/                  # Database schemas and migrations
+├── public/                    # Static assets
+├── scripts/                   # Utility scripts
+└── types/                     # TypeScript type definitions
 ```
 
-## 🔧 Configuration
+## Configuration
 
 ### Environment Variables
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `JWT_SECRET` | Strong secret for JWT token signing | Yes |
-| `ENCRYPTION_KEY` | Strong key for API key encryption | Yes |
+| `JWT_SECRET` | Secret for JWT token signing (64+ chars recommended) | Yes |
+| `ENCRYPTION_KEY` | Key for API key encryption (32+ chars recommended) | Yes |
 | `NODE_ENV` | Environment (development/production) | Yes |
+| `REDIS_URL` | Redis connection URL | Yes |
+| `DATABASE_URL` | PostgreSQL connection URL | Yes |
+| `WEBHOOK_SECRET` | Secret for Blink webhook verification | Optional |
 
 ### Example `.env.local`:
 ```bash
 JWT_SECRET=your-super-strong-jwt-secret-key-here
 ENCRYPTION_KEY=your-super-strong-encryption-key-here
 NODE_ENV=development
+REDIS_URL=redis://localhost:6379
+DATABASE_URL=postgresql://blinkpos:password@localhost:5432/blinkpos
 ```
 
-## 🔒 Security Features
+## API Endpoints
 
-- **🔐 API Key Encryption**: AES-256 encryption before storage
-- **🍪 Secure Sessions**: JWT tokens with httpOnly cookies
-- **🛡️ Server-side Proxy**: API keys never sent to browser
-- **👤 User Isolation**: Each user's data encrypted separately
-- **🌍 Environment Variables**: Sensitive keys in .env.local
-- **🔒 Session Management**: 24-hour token expiration
-
-## 🎯 API Endpoints
-
+### Authentication
 | Endpoint | Method | Description |
-|----------|---------|-------------|
+|----------|--------|-------------|
 | `POST /api/auth/login` | POST | Authenticate with Blink API key |
 | `POST /api/auth/logout` | POST | Clear user session |
 | `GET /api/auth/verify` | GET | Verify current session |
-| `GET /api/auth/get-api-key` | GET | Get user's decrypted API key |
+
+### Blink Integration
+| Endpoint | Method | Description |
+|----------|--------|-------------|
 | `GET /api/blink/balance` | GET | Get wallet balances |
 | `GET /api/blink/transactions` | GET | Get transaction history |
+| `POST /api/blink/create-invoice` | POST | Create Lightning invoice |
+| `GET /api/blink/check-payment` | GET | Check payment status |
+| `GET /api/blink/exchange-rate` | GET | Get current exchange rates |
+| `GET /api/blink/csv-export` | GET | Export transactions as CSV |
+| `POST /api/blink/webhook` | POST | Receive Blink webhooks |
 
-## 🔄 Real-time System
+### Vouchers
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `POST /api/voucher/create` | POST | Create new voucher |
+| `GET /api/voucher/status/:chargeId` | GET | Check voucher status |
+| `GET /api/voucher/pdf` | GET | Generate voucher PDF |
 
-### How Payment Detection Works:
+### Batch Payments
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `POST /api/batch-payments/validate` | POST | Validate recipient list |
+| `POST /api/batch-payments/execute` | POST | Execute batch payments |
 
-1. **User Login** → Frontend gets encrypted API key
-2. **WebSocket Connection** → Direct connection to `wss://ws.blink.sv/graphql`
-3. **Authentication** → API key sent in `connection_init` payload
-4. **Subscription** → Subscribe to `myUpdates` GraphQL subscription
-5. **Payment Received** → Blink sends real-time transaction data
-6. **Animation Triggered** → Instant full-screen celebration
-7. **UI Updated** → Balance and transaction history refresh
+## Real-time Payment Detection
 
-### WebSocket Message Flow:
-```javascript
-// Connection
-{ type: 'connection_init', payload: { 'X-API-KEY': 'blink_...' } }
+### How it Works:
+1. **Invoice Created**: Backend generates Lightning invoice via Blink API
+2. **WebSocket Connection**: Frontend establishes direct connection to `wss://ws.blink.sv/graphql`
+3. **Subscription**: Subscribes to `myUpdates` GraphQL subscription
+4. **Payment Received**: Blink sends real-time transaction data
+5. **Animation Triggered**: Full-screen celebration animation displays
+6. **Forwarding**: If configured, payment is automatically split and forwarded
+7. **Storage Updated**: Transaction recorded in Redis and archived to PostgreSQL
 
-// Subscription
-{ 
-  type: 'subscribe', 
-  payload: { 
-    query: 'subscription { myUpdates { ... } }' 
-  } 
-}
-
-// Payment Event
-{
-  type: 'next',
-  payload: {
-    data: {
-      myUpdates: {
-        update: {
-          transaction: {
-            direction: 'RECEIVE',
-            settlementAmount: 1000,
-            settlementCurrency: 'BTC'
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-## 🎨 Customization
-
-### Payment Animation
-
-The payment animation can be customized in `public/css/globals.css`:
-
-```css
-.payment-overlay {
-  background: linear-gradient(45deg, #00ff00, #32cd32, #90ee90, #ffff00);
-  animation: payment-celebration 4s ease-in-out;
-}
-
-.payment-text {
-  font-size: 4rem;
-  font-weight: bold;
-  animation: pulse 0.5s ease-in-out infinite alternate;
-}
-```
-
-### Theme Colors
-
-Customize the Blink theme colors in `tailwind.config.js`:
-
-```javascript
-colors: {
-  'blink-orange': '#FF6600',
-  'blink-dark': '#1a1a1a',
-}
-```
-
-## 🚀 Deployment
+## Deployment
 
 ### Development
 ```bash
@@ -253,43 +245,50 @@ npm run build
 npm start
 ```
 
-### Environment Variables for Production
-Set these in your production environment:
-- `JWT_SECRET`: Strong secret for JWT signing (64+ characters)
-- `ENCRYPTION_KEY`: Strong key for API key encryption (32+ characters)
-- `NODE_ENV=production`
+### Docker Deployment
+```bash
+docker-compose -f docker-compose.prod.yml up -d
+```
 
 ### Deployment Platforms
-This app can be deployed on:
-- **Vercel** (recommended for Next.js)
-- **Netlify**
-- **Railway**
-- **DigitalOcean App Platform**
-- **Any Node.js hosting service**
+- Vercel (recommended for Next.js)
+- Docker with Nginx reverse proxy
+- Any Node.js hosting with Redis and PostgreSQL
 
-## 🏆 Success Metrics
+## Implementation Status
 
-- **✅ Payment animations work 100% of the time**
-- **✅ Sub-second payment notifications**
-- **✅ Zero framework conflicts**
-- **✅ Enterprise-grade security**
-- **✅ Production-ready architecture**
-- **✅ Responsive design**
+| Feature | Status |
+|---------|--------|
+| Hybrid Storage (Redis + PostgreSQL) | Completed |
+| Tipping System | Completed |
+| Dynamic Currencies (71+) | Completed |
+| WebSocket Payment Detection | Completed |
+| Transaction History & CSV Export | Completed |
+| NWC Integration | Completed |
+| Lightning Address Forwarding | Completed |
+| npub.cash Integration | Completed |
+| Cross-Device Sync | Completed |
+| NFC Payments | Completed |
+| Nostr Authentication (NIP-07, NIP-55) | Completed |
+| Voucher System | Completed |
+| Batch Payments | Completed |
+| In-App Key Generation | In Progress |
+| WebAuthn/Passkeys | Planned |
 
-## 🔗 Related Projects
+## Related Resources
 
-- **[Blink API Documentation](https://dev.blink.sv/)** - Official Blink API docs
-- **[Blink Dashboard](https://dashboard.blink.sv)** - Get your API key
-- **[Blink Donation Button](https://github.com/blinkbitcoin/donation-button.blink.sv)** - Simple donation widget
+- [Blink API Documentation](https://dev.blink.sv/) - Official Blink API docs
+- [Blink Dashboard](https://dashboard.blink.sv) - Get your API key
+- [Nostr Wallet Connect (NIP-47)](https://github.com/nostr-protocol/nips/blob/master/47.md) - NWC specification
 
-## 🤝 Contributing
+## Contributing
 
-Contributions are welcome! This project is licensed under AGPL-3.0, which means:
+Contributions are welcome! This project is licensed under AGPL-3.0:
 
-- **✅ Free to use** for any purpose, including commercial
-- **✅ Modify and distribute** your changes
-- **📤 Share improvements** - if you host a modified version, make your code available
-- **🤝 Community benefits** - help make Bitcoin tools accessible to everyone
+- Free to use for any purpose, including commercial
+- Modify and distribute your changes
+- If you host a modified version, make your code available
+- Help make Bitcoin tools accessible to everyone
 
 ### Development Guidelines
 
@@ -299,40 +298,33 @@ Contributions are welcome! This project is licensed under AGPL-3.0, which means:
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📄 License
+## License
 
 This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
 
-**Why AGPL-3.0?** We chose this strong copyleft license to ensure that:
-- ✅ The software remains free and open source forever
-- ✅ Any improvements benefit the entire community
-- ✅ Network-deployed modifications must be shared
-- ✅ Commercial use is allowed while protecting the commons
+This license ensures that:
+- The software remains free and open source
+- Any improvements benefit the entire community
+- Network-deployed modifications must be shared
+- Commercial use is allowed while protecting the commons
 
 See the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
-- **Blink** for providing the Lightning payment infrastructure
-- **Bitcoin Lightning Network** for enabling instant, low-fee payments
-- **Next.js & React** for the excellent development framework
-- **Tailwind CSS** for beautiful, responsive styling
+- **Blink** for the Lightning payment infrastructure
+- **Bitcoin Lightning Network** for instant, low-fee payments
+- **Nostr Protocol** for decentralized authentication
+- **Next.js & React** for the development framework
 - **The open source community** for inspiration and tools
 
-## 📞 Support
+## Support
 
-- **🐛 Issues**: [GitHub Issues](https://github.com/pretyflaco/BBTV2/issues)
-- **📖 Documentation**: This README and inline code comments
-- **🔧 Blink Support**: [Blink Developer Docs](https://dev.blink.sv/)
-
-## 🔗 Links
-
-- **🏠 Repository**: [https://github.com/pretyflaco/BBTV2](https://github.com/pretyflaco/BBTV2)
-- **⚡ Blink Wallet**: [https://blink.sv](https://blink.sv)
-- **🌩️ Lightning Network**: [https://lightning.network](https://lightning.network)
+- **Issues**: [GitHub Issues](https://github.com/pretyflaco/BBTV2/issues)
+- **Blink Support**: [Blink Developer Docs](https://dev.blink.sv/)
 
 ---
 
-**Built with ⚡ for the Bitcoin Lightning Network**
+**Built for the Bitcoin Lightning Network**
 
-*"Making Bitcoin payments as easy as sending a text message"*
+*Enabling Bitcoin commerce at scale*

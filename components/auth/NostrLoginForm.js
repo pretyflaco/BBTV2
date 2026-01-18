@@ -442,6 +442,20 @@ export default function NostrLoginForm() {
           {isDev ? (
             /* Terminal-style ASCII logo for development */
             <div className="mb-6">
+              {/* Blink icon - same as dashboard header */}
+              <div className="flex justify-center mb-4">
+                <img 
+                  src="/logos/blink-icon-light.svg" 
+                  alt="Blink" 
+                  className="h-12 w-12 dark:hidden"
+                />
+                <img 
+                  src="/logos/blink-icon-dark.svg" 
+                  alt="Blink" 
+                  className="h-12 w-12 hidden dark:block"
+                />
+              </div>
+              {/* ASCII art text */}
               <pre className="font-mono text-[10px] sm:text-xs leading-tight text-purple-600 dark:text-purple-400 inline-block text-left">
 {`╔╗ ╦  ╦╔╗╔╦╔═  ╔╗ ╦╔╦╗╔═╗╔═╗╦╔╗╔
 ╠╩╗║  ║║║║╠╩╗  ╠╩╗║ ║ ║  ║ ║║║║║

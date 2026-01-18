@@ -597,51 +597,72 @@ const VoucherManager = forwardRef(({
         </div>
       </div>
       
-      {/* Filter Tabs */}
-      <div className="px-4 py-2 flex gap-2 border-b border-gray-200 dark:border-gray-800 overflow-x-auto">
-        {[
-          { id: 'all', label: 'All' },
-          { id: 'active', label: 'Active' },
-          { id: 'expiring', label: 'Expiring', highlight: stats.expiringSoon > 0 },
-          { id: 'claimed', label: 'Claimed' },
-          { id: 'cancelled', label: 'Cancelled' },
-          { id: 'expired', label: 'Expired' }
-        ].map(tab => (
+      {/* Filter Tabs - Two rows to avoid horizontal scrolling */}
+      <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-800">
+        <div className="grid grid-cols-3 gap-2 mb-2">
+          {[
+            { id: 'all', label: 'All' },
+            { id: 'active', label: 'Active' },
+            { id: 'expiring', label: 'Expiring', highlight: stats.expiringSoon > 0 }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => {
+                if (onInternalTransition) onInternalTransition();
+                setFilter(tab.id);
+              }}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                filter === tab.id
+                  ? tab.highlight 
+                    ? 'bg-yellow-500 text-white'
+                    : 'bg-purple-600 text-white'
+                  : tab.highlight
+                    ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-900/50'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              {tab.label}
+              {tab.id === 'expiring' && stats.expiringSoon > 0 && (
+                <span className="ml-1">({stats.expiringSoon})</span>
+              )}
+            </button>
+          ))}
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { id: 'claimed', label: 'Claimed' },
+            { id: 'cancelled', label: 'Cancelled' },
+            { id: 'expired', label: 'Expired' }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => {
+                if (onInternalTransition) onInternalTransition();
+                setFilter(tab.id);
+              }}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                filter === tab.id
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+          
+          {/* Refresh button */}
           <button
-            key={tab.id}
             onClick={() => {
               if (onInternalTransition) onInternalTransition();
-              setFilter(tab.id);
+              fetchVouchers();
             }}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
-              filter === tab.id
-                ? tab.highlight 
-                  ? 'bg-yellow-500 text-white'
-                  : 'bg-purple-600 text-white'
-                : tab.highlight
-                  ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-900/50'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-            }`}
+            className="p-1.5 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center justify-center"
           >
-            {tab.label}
-            {tab.id === 'expiring' && stats.expiringSoon > 0 && (
-              <span className="ml-1">({stats.expiringSoon})</span>
-            )}
+            <svg className={`w-4 h-4 text-gray-600 dark:text-gray-400 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
           </button>
-        ))}
-        
-        {/* Refresh button */}
-        <button
-          onClick={() => {
-            if (onInternalTransition) onInternalTransition();
-            fetchVouchers();
-          }}
-          className="ml-auto p-1.5 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
-        >
-          <svg className={`w-4 h-4 text-gray-600 dark:text-gray-400 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-        </button>
+        </div>
       </div>
       
       {/* Voucher List */}

@@ -1,10 +1,19 @@
 const voucherStore = require('../../../lib/voucher-store');
+const { isValidExpiryId, DEFAULT_EXPIRY_ID } = require('../../../lib/voucher-expiry');
 
 /**
  * API endpoint to create a new voucher charge
  * 
  * POST /api/voucher/create
- * Body: { amount: number (sats), apiKey: string, walletId: string }
+ * Body: { 
+ *   amount: number (sats), 
+ *   apiKey: string, 
+ *   walletId: string,
+ *   expiryId: string (optional, e.g., '6mo', '24h', '15m'),
+ *   commissionPercent: number (optional),
+ *   displayAmount: string (optional),
+ *   displayCurrency: string (optional)
+ * }
  */
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -12,7 +21,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { amount, apiKey, walletId, commissionPercent, displayAmount, displayCurrency } = req.body;
+    const { 
+      amount, 
+      apiKey, 
+      walletId, 
+      expiryId,
+      commissionPercent, 
+      displayAmount, 
+      displayCurrency 
+    } = req.body;
 
     // Validate required fields
     if (!amount || !apiKey || !walletId) {
@@ -31,8 +48,12 @@ export default async function handler(req, res) {
       });
     }
 
-    // Create voucher charge with optional commission and display info
+    // Validate expiryId if provided
+    const validExpiryId = expiryId && isValidExpiryId(expiryId) ? expiryId : DEFAULT_EXPIRY_ID;
+
+    // Create voucher charge with optional commission, expiry, and display info
     const voucher = voucherStore.createVoucher(amountNum, apiKey, walletId, {
+      expiryId: validExpiryId,
       commissionPercent: commissionPercent || 0,
       displayAmount: displayAmount || null,
       displayCurrency: displayCurrency || null
@@ -41,6 +62,8 @@ export default async function handler(req, res) {
     console.log('✅ Voucher created successfully:', {
       chargeId: voucher.id,
       amount: voucher.amount,
+      expiryId: voucher.expiryId,
+      expiresAt: new Date(voucher.expiresAt).toISOString(),
       commissionPercent: voucher.commissionPercent,
       displayAmount: voucher.displayAmount,
       displayCurrency: voucher.displayCurrency,
@@ -52,12 +75,21 @@ export default async function handler(req, res) {
       voucher: {
         id: voucher.id,
         amount: voucher.amount,
-        createdAt: voucher.createdAt
+        createdAt: voucher.createdAt,
+        expiresAt: voucher.expiresAt,
+        expiryId: voucher.expiryId
       }
     });
 
   } catch (error) {
     console.error('❌ Voucher creation error:', error);
+    
+    // Check for wallet limit error
+    if (error.message && error.message.includes('Maximum unclaimed vouchers')) {
+      return res.status(400).json({ 
+        error: error.message
+      });
+    }
     
     res.status(500).json({ 
       error: 'Failed to create voucher',
@@ -65,4 +97,3 @@ export default async function handler(req, res) {
     });
   }
 }
-

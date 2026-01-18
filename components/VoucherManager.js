@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { formatDisplayAmount as formatCurrency } from '../lib/currency-utils';
+import { ExpiryBadge, formatExpiryDate } from './ExpirySelector';
+import QRCode from 'react-qr-code';
+import { bech32 } from 'bech32';
 
 const VoucherManager = forwardRef(({ 
   voucherWallet, 
@@ -11,12 +14,16 @@ const VoucherManager = forwardRef(({
   onInternalTransition
 }, ref) => {
   const [vouchers, setVouchers] = useState([]);
+  const [stats, setStats] = useState({ total: 0, active: 0, claimed: 0, cancelled: 0, expired: 0, expiringSoon: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedVoucher, setSelectedVoucher] = useState(null);
-  const [filter, setFilter] = useState('all'); // 'all', 'active', 'claimed'
+  const [filter, setFilter] = useState('all'); // 'all', 'active', 'expiring', 'claimed', 'cancelled', 'expired'
+  const [cancelling, setCancelling] = useState(false);
+  const [reissuing, setReissuing] = useState(false);
   
   const pollingIntervalRef = useRef(null);
+  const qrRef = useRef(null);
 
   // Expose methods for keyboard navigation
   useImperativeHandle(ref, () => ({
@@ -39,6 +46,9 @@ const VoucherManager = forwardRef(({
       
       if (data.success) {
         setVouchers(data.vouchers);
+        if (data.stats) {
+          setStats(data.stats);
+        }
       } else {
         setError(data.error || 'Failed to load vouchers');
       }
@@ -50,12 +60,223 @@ const VoucherManager = forwardRef(({
     }
   }, []);
 
+  // Cancel voucher
+  const cancelVoucher = async (voucherId) => {
+    if (!voucherId) return;
+    
+    setCancelling(true);
+    try {
+      const response = await fetch('/api/voucher/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chargeId: voucherId }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Refresh vouchers list
+        await fetchVouchers();
+        setSelectedVoucher(null);
+      } else {
+        setError(data.error || 'Failed to cancel voucher');
+      }
+    } catch (err) {
+      console.error('Error cancelling voucher:', err);
+      setError('Failed to cancel voucher');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  // Encode LNURL
+  const encodeLnurl = (url) => {
+    try {
+      const bytes = new TextEncoder().encode(url);
+      const words = bech32.toWords(bytes);
+      const encoded = bech32.encode('lnurl', words, 2000);
+      return encoded.toUpperCase();
+    } catch (error) {
+      console.error('Failed to encode LNURL:', error);
+      throw error;
+    }
+  };
+
+  // Get QR code as data URL
+  const getQrDataUrl = (qrElement) => {
+    return new Promise((resolve, reject) => {
+      if (!qrElement) {
+        reject(new Error('QR element not found'));
+        return;
+      }
+      
+      const svg = qrElement.querySelector('svg');
+      if (!svg) {
+        reject(new Error('SVG element not found'));
+        return;
+      }
+      
+      const clonedSvg = svg.cloneNode(true);
+      clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      
+      const width = 256;
+      const height = 256;
+      clonedSvg.setAttribute('width', width);
+      clonedSvg.setAttribute('height', height);
+      
+      const svgData = new XMLSerializer().serializeToString(clonedSvg);
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const svgUrl = URL.createObjectURL(svgBlob);
+      
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        const pngDataUrl = canvas.toDataURL('image/png');
+        URL.revokeObjectURL(svgUrl);
+        resolve(pngDataUrl);
+      };
+      
+      img.onerror = () => {
+        URL.revokeObjectURL(svgUrl);
+        reject(new Error('Failed to load SVG image'));
+      };
+      
+      img.src = svgUrl;
+    });
+  };
+
+  // Get logo data URL
+  const getLogoDataUrl = () => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 300;
+        canvas.height = 125;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, 300, 125);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => {
+        console.warn('Could not load logo');
+        resolve(null);
+      };
+      img.src = '/blink-logo-black.svg';
+    });
+  };
+
+  // Generate voucher secret from charge ID
+  const generateVoucherSecret = (chargeId) => {
+    if (!chargeId) return null;
+    return chargeId.replace(/-/g, '').substring(0, 12);
+  };
+
+  // Reissue voucher as PDF with LNURL
+  const reissueVoucher = async (voucher) => {
+    if (!voucher) return;
+    
+    setReissuing(true);
+    setError('');
+    
+    try {
+      // Build the LNURL
+      const protocol = window.location.protocol;
+      const host = window.location.host;
+      const lnurlUrl = `${protocol}//${host}/api/voucher/lnurl/${voucher.id}/${voucher.amount}`;
+      const lnurl = encodeLnurl(lnurlUrl);
+      
+      console.log('📄 Reissuing voucher:', voucher.id, 'LNURL:', lnurl.substring(0, 30) + '...');
+      
+      // Wait a moment for QR to render
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Get QR code and logo
+      const [qrDataUrl, logoDataUrl] = await Promise.all([
+        getQrDataUrl(qrRef.current),
+        getLogoDataUrl()
+      ]);
+      
+      if (!qrDataUrl) {
+        throw new Error('Could not capture QR code');
+      }
+      
+      // Build fiat amount string
+      let fiatAmount = null;
+      if (voucher.displayCurrency && voucher.displayCurrency !== 'BTC') {
+        fiatAmount = formatCurrency(voucher.displayAmount, voucher.displayCurrency, currencies);
+      }
+      
+      // Call PDF API with reissue format
+      const response = await fetch('/api/voucher/pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vouchers: [{
+            satsAmount: voucher.amount,
+            fiatAmount: fiatAmount,
+            qrDataUrl: qrDataUrl,
+            logoDataUrl: logoDataUrl,
+            identifierCode: voucher.id?.substring(0, 8)?.toUpperCase() || null,
+            voucherSecret: generateVoucherSecret(voucher.id),
+            commissionPercent: voucher.commissionPercent || 0,
+            expiresAt: voucher.expiresAt || null,
+            lnurl: lnurl
+          }],
+          format: 'reissue'
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || data.message || 'Failed to generate PDF');
+      }
+      
+      // Convert base64 to blob and download
+      const byteCharacters = atob(data.pdf);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `blink-voucher-reissue-${voucher.shortId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      console.log('✅ Reissue PDF downloaded successfully');
+      
+    } catch (err) {
+      console.error('Reissue error:', err);
+      setError(err.message || 'Failed to reissue voucher');
+    } finally {
+      setReissuing(false);
+    }
+  };
+
   // Initial fetch and polling
   useEffect(() => {
     fetchVouchers();
     
-    // Poll every 5 seconds for updates
-    pollingIntervalRef.current = setInterval(fetchVouchers, 5000);
+    // Poll every 10 seconds for updates
+    pollingIntervalRef.current = setInterval(fetchVouchers, 10000);
     
     return () => {
       if (pollingIntervalRef.current) {
@@ -64,12 +285,19 @@ const VoucherManager = forwardRef(({
     };
   }, [fetchVouchers]);
 
-  // Format time remaining
+  // Format time remaining (handles longer durations)
   const formatTimeRemaining = (ms) => {
     if (!ms || ms <= 0) return 'Expired';
+    
     const minutes = Math.floor(ms / 60000);
-    const seconds = Math.floor((ms % 60000) / 1000);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    const hours = Math.floor(ms / 3600000);
+    const days = Math.floor(ms / 86400000);
+    
+    if (days > 0) return `${days}d ${hours % 24}h`;
+    if (hours > 0) return `${hours}h ${minutes % 60}m`;
+    
+    const secs = Math.floor((ms % 60000) / 1000);
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
   // Format date
@@ -79,40 +307,86 @@ const VoucherManager = forwardRef(({
     const diffMs = now - date;
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
     
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
     return date.toLocaleDateString();
+  };
+
+  // Get status color classes
+  const getStatusColor = (voucher) => {
+    if (voucher.status === 'CLAIMED') return 'text-green-600 dark:text-green-400';
+    if (voucher.status === 'CANCELLED') return 'text-gray-500 dark:text-gray-500';
+    if (voucher.status === 'EXPIRED') return 'text-red-600 dark:text-red-400';
+    
+    // Active voucher - check expiry time
+    if (voucher.timeRemaining && voucher.timeRemaining < 60 * 60 * 1000) {
+      return 'text-red-600 dark:text-red-400'; // Less than 1 hour
+    }
+    if (voucher.timeRemaining && voucher.timeRemaining < 24 * 60 * 60 * 1000) {
+      return 'text-yellow-600 dark:text-yellow-400'; // Less than 24 hours
+    }
+    return 'text-purple-600 dark:text-purple-400'; // Normal active
+  };
+
+  // Get status indicator color
+  const getStatusDotColor = (voucher) => {
+    if (voucher.status === 'CLAIMED') return 'bg-green-500';
+    if (voucher.status === 'CANCELLED') return 'bg-gray-400';
+    if (voucher.status === 'EXPIRED') return 'bg-red-500';
+    
+    // Active - check expiry
+    if (voucher.timeRemaining && voucher.timeRemaining < 60 * 60 * 1000) {
+      return 'bg-red-500 animate-pulse';
+    }
+    if (voucher.timeRemaining && voucher.timeRemaining < 24 * 60 * 60 * 1000) {
+      return 'bg-yellow-500 animate-pulse';
+    }
+    return 'bg-purple-500 animate-pulse';
   };
 
   // Filter vouchers
   const filteredVouchers = vouchers.filter(v => {
-    if (filter === 'active') return !v.claimed;
-    if (filter === 'claimed') return v.claimed;
+    if (filter === 'all') return true;
+    if (filter === 'active') return v.status === 'ACTIVE';
+    if (filter === 'expiring') return v.status === 'ACTIVE' && v.timeRemaining && v.timeRemaining < 24 * 60 * 60 * 1000;
+    if (filter === 'claimed') return v.status === 'CLAIMED';
+    if (filter === 'cancelled') return v.status === 'CANCELLED';
+    if (filter === 'expired') return v.status === 'EXPIRED';
     return true;
   });
-
-  // Stats
-  const activeCount = vouchers.filter(v => !v.claimed).length;
-  const claimedCount = vouchers.filter(v => v.claimed).length;
-  const totalSats = vouchers.reduce((sum, v) => sum + v.amount, 0);
-  const claimedSats = vouchers.filter(v => v.claimed).reduce((sum, v) => sum + v.amount, 0);
 
   // Render voucher detail modal
   const renderVoucherDetail = () => {
     if (!selectedVoucher) return null;
     
+    const canCancel = selectedVoucher.status === 'ACTIVE';
+    const canReissue = selectedVoucher.status === 'ACTIVE';
+    
+    // Build LNURL for the hidden QR code
+    const protocol = typeof window !== 'undefined' ? window.location.protocol : 'https:';
+    const host = typeof window !== 'undefined' ? window.location.host : '';
+    const lnurlUrl = `${protocol}//${host}/api/voucher/lnurl/${selectedVoucher.id}/${selectedVoucher.amount}`;
+    let lnurl = '';
+    try {
+      lnurl = encodeLnurl(lnurlUrl);
+    } catch (e) {
+      console.error('Failed to encode LNURL for reissue:', e);
+    }
+    
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-sm w-full p-6">
+        <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-sm w-full p-6 max-h-[90vh] overflow-y-auto">
           <div className="flex justify-between items-start mb-4">
             <div>
               <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
                 {selectedVoucher.shortId}
               </div>
-              <div className={`text-sm font-medium ${selectedVoucher.claimed ? 'text-green-600 dark:text-green-400' : 'text-purple-600 dark:text-purple-400'}`}>
-                {selectedVoucher.claimed ? 'Claimed' : 'Active'}
+              <div className={`text-sm font-medium ${getStatusColor(selectedVoucher)}`}>
+                {selectedVoucher.status}
               </div>
             </div>
             <button
@@ -154,11 +428,46 @@ const VoucherManager = forwardRef(({
               </div>
             </div>
             
-            {!selectedVoucher.claimed && selectedVoucher.timeRemaining && (
-              <div className="bg-yellow-50 dark:bg-yellow-900/30 rounded-lg p-3">
-                <div className="text-xs text-yellow-600 dark:text-yellow-400 mb-1">Time Remaining</div>
-                <div className="text-lg font-medium text-yellow-700 dark:text-yellow-300">
-                  {formatTimeRemaining(selectedVoucher.timeRemaining)}
+            {/* Expiry Info */}
+            {selectedVoucher.expiresAt && (
+              <div className={`rounded-lg p-3 ${
+                selectedVoucher.status === 'ACTIVE' && selectedVoucher.timeRemaining && selectedVoucher.timeRemaining < 24 * 60 * 60 * 1000
+                  ? 'bg-yellow-50 dark:bg-yellow-900/30'
+                  : 'bg-gray-50 dark:bg-gray-800'
+              }`}>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  {selectedVoucher.status === 'ACTIVE' ? 'Expires' : 'Expired'}
+                </div>
+                <div className="text-sm text-gray-900 dark:text-gray-100">
+                  {formatExpiryDate(selectedVoucher.expiresAt)}
+                </div>
+                {selectedVoucher.status === 'ACTIVE' && selectedVoucher.timeRemaining && (
+                  <div className="mt-1">
+                    <ExpiryBadge 
+                      expiresAt={selectedVoucher.expiresAt} 
+                      status={selectedVoucher.status}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Claimed At */}
+            {selectedVoucher.claimedAt && (
+              <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-3">
+                <div className="text-xs text-green-600 dark:text-green-400 mb-1">Claimed</div>
+                <div className="text-sm text-gray-900 dark:text-gray-100">
+                  {new Date(selectedVoucher.claimedAt).toLocaleString()}
+                </div>
+              </div>
+            )}
+            
+            {/* Cancelled At */}
+            {selectedVoucher.cancelledAt && (
+              <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3">
+                <div className="text-xs text-gray-500 dark:text-gray-500 mb-1">Cancelled</div>
+                <div className="text-sm text-gray-700 dark:text-gray-300">
+                  {new Date(selectedVoucher.cancelledAt).toLocaleString()}
                 </div>
               </div>
             )}
@@ -168,6 +477,67 @@ const VoucherManager = forwardRef(({
               <div className="text-xs text-gray-600 dark:text-gray-400 font-mono break-all">
                 {selectedVoucher.id}
               </div>
+            </div>
+            
+            {/* Hidden QR code for reissue PDF generation */}
+            {canReissue && lnurl && (
+              <div ref={qrRef} className="hidden">
+                <QRCode 
+                  value={lnurl} 
+                  size={256}
+                  bgColor="#ffffff"
+                  fgColor="#000000"
+                />
+              </div>
+            )}
+            
+            {/* Action Buttons */}
+            <div className="space-y-2 mt-4">
+              {/* Reissue Button - for active vouchers */}
+              {canReissue && (
+                <button
+                  onClick={() => reissueVoucher(selectedVoucher)}
+                  disabled={reissuing}
+                  className="w-full px-4 py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  {reissuing ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Generating PDF...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Reissue PDF (with LNURL)
+                    </>
+                  )}
+                </button>
+              )}
+              
+              {/* Cancel Button */}
+              {canCancel && (
+                <button
+                  onClick={() => cancelVoucher(selectedVoucher.id)}
+                  disabled={cancelling}
+                  className="w-full px-4 py-3 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  {cancelling ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Cancelling...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Cancel Voucher
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -184,33 +554,58 @@ const VoucherManager = forwardRef(({
             Voucher Manager
           </div>
           <div className="text-sm text-gray-500 dark:text-gray-400">
-            {vouchers.length} total voucher{vouchers.length !== 1 ? 's' : ''}
+            {stats.total} total voucher{stats.total !== 1 ? 's' : ''}
           </div>
         </div>
         
+        {/* Expiring Soon Banner */}
+        {stats.expiringSoon > 0 && (
+          <div className="mb-3 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg px-3 py-2 flex items-center gap-2">
+            <svg className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span className="text-sm text-yellow-700 dark:text-yellow-300 font-medium">
+              {stats.expiringSoon} voucher{stats.expiringSoon !== 1 ? 's' : ''} expiring within 24 hours
+            </span>
+            <button 
+              onClick={() => setFilter('expiring')}
+              className="ml-auto text-xs text-yellow-600 dark:text-yellow-400 hover:underline"
+            >
+              View
+            </button>
+          </div>
+        )}
+        
         {/* Stats Row */}
-        <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="grid grid-cols-4 gap-2 text-center">
           <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2">
-            <div className="text-lg font-semibold text-purple-600 dark:text-purple-400">{activeCount}</div>
+            <div className="text-lg font-semibold text-purple-600 dark:text-purple-400">{stats.active}</div>
             <div className="text-xs text-gray-500 dark:text-gray-400">Active</div>
           </div>
           <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2">
-            <div className="text-lg font-semibold text-green-600 dark:text-green-400">{claimedCount}</div>
+            <div className="text-lg font-semibold text-green-600 dark:text-green-400">{stats.claimed}</div>
             <div className="text-xs text-gray-500 dark:text-gray-400">Claimed</div>
           </div>
           <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-2">
-            <div className="text-lg font-semibold text-gray-700 dark:text-gray-300">{claimedSats.toLocaleString()}</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">Sats Out</div>
+            <div className="text-lg font-semibold text-gray-500 dark:text-gray-400">{stats.cancelled}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">Cancelled</div>
+          </div>
+          <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-2">
+            <div className="text-lg font-semibold text-red-600 dark:text-red-400">{stats.expired}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">Expired</div>
           </div>
         </div>
       </div>
       
       {/* Filter Tabs */}
-      <div className="px-4 py-2 flex gap-2 border-b border-gray-200 dark:border-gray-800">
+      <div className="px-4 py-2 flex gap-2 border-b border-gray-200 dark:border-gray-800 overflow-x-auto">
         {[
           { id: 'all', label: 'All' },
           { id: 'active', label: 'Active' },
-          { id: 'claimed', label: 'Claimed' }
+          { id: 'expiring', label: 'Expiring', highlight: stats.expiringSoon > 0 },
+          { id: 'claimed', label: 'Claimed' },
+          { id: 'cancelled', label: 'Cancelled' },
+          { id: 'expired', label: 'Expired' }
         ].map(tab => (
           <button
             key={tab.id}
@@ -218,13 +613,20 @@ const VoucherManager = forwardRef(({
               if (onInternalTransition) onInternalTransition();
               setFilter(tab.id);
             }}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
               filter === tab.id
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                ? tab.highlight 
+                  ? 'bg-yellow-500 text-white'
+                  : 'bg-purple-600 text-white'
+                : tab.highlight
+                  ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-900/50'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
             }`}
           >
             {tab.label}
+            {tab.id === 'expiring' && stats.expiringSoon > 0 && (
+              <span className="ml-1">({stats.expiringSoon})</span>
+            )}
           </button>
         ))}
         
@@ -234,7 +636,7 @@ const VoucherManager = forwardRef(({
             if (onInternalTransition) onInternalTransition();
             fetchVouchers();
           }}
-          className="ml-auto p-1.5 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+          className="ml-auto p-1.5 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
         >
           <svg className={`w-4 h-4 text-gray-600 dark:text-gray-400 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -280,7 +682,7 @@ const VoucherManager = forwardRef(({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     {/* Status indicator */}
-                    <div className={`w-2 h-2 rounded-full ${voucher.claimed ? 'bg-green-500' : 'bg-purple-500 animate-pulse'}`}></div>
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusDotColor(voucher)}`}></div>
                     
                     <div>
                       <div className="flex items-center gap-2">
@@ -300,11 +702,11 @@ const VoucherManager = forwardRef(({
                   </div>
                   
                   <div className="text-right">
-                    <div className={`text-sm font-medium ${voucher.claimed ? 'text-green-600 dark:text-green-400' : 'text-purple-600 dark:text-purple-400'}`}>
-                      {voucher.claimed ? 'Claimed' : 'Active'}
+                    <div className={`text-sm font-medium ${getStatusColor(voucher)}`}>
+                      {voucher.status}
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {!voucher.claimed && voucher.timeRemaining 
+                      {voucher.status === 'ACTIVE' && voucher.timeRemaining
                         ? formatTimeRemaining(voucher.timeRemaining)
                         : formatDate(voucher.createdAt)
                       }

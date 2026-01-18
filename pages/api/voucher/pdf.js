@@ -19,9 +19,11 @@ const getPdfModule = async () => {
  *     satsAmount: number,
  *     fiatAmount: string (optional, e.g. "$25.00 ARS"),
  *     qrDataUrl: string (base64 data URL of QR code),
- *     identifierCode: string (optional)
+ *     identifierCode: string (optional),
+ *     lnurl: string (optional, required for reissue format),
+ *     expiresAt: number (optional, timestamp)
  *   }],
- *   format: 'a4' | 'letter' | 'thermal-80' | 'thermal-58',
+ *   format: 'a4' | 'letter' | 'thermal-80' | 'thermal-58' | 'reissue',
  *   gridSize: '2x2' | '2x3' | '3x3' | '3x4' (optional, for multi-voucher grid layout)
  * }
  * 
@@ -60,19 +62,21 @@ export default async function handler(req, res) {
       BatchVoucherDocument, 
       ThermalVoucherDocument,
       GridVoucherDocument,
+      ReissueVoucherDocument,
       PAPER_FORMATS,
       GRID_CONFIGS,
       getAvailableFormats,
       getAvailableGrids
     } = await getPdfModule();
 
-    // Validate format
-    const validFormats = getAvailableFormats();
+    // Validate format (reissue is a special format that uses a4 paper)
+    const isReissue = format === 'reissue';
+    const validFormats = [...getAvailableFormats(), 'reissue'];
     if (!validFormats.includes(format)) {
       return res.status(400).json({ 
         error: 'Invalid format',
         validFormats,
-        hint: 'Choose from: a4, letter, thermal-80, thermal-58'
+        hint: 'Choose from: a4, letter, thermal-80, thermal-58, reissue'
       });
     }
 
@@ -110,11 +114,23 @@ export default async function handler(req, res) {
     // Determine which document type to use
     const isThermal = format.startsWith('thermal');
     const isSingle = vouchers.length === 1;
-    const useGridLayout = gridSize && !isThermal && vouchers.length > 1;
+    const useGridLayout = gridSize && !isThermal && !isReissue && vouchers.length > 1;
 
     let documentElement;
     
-    if (isThermal) {
+    if (isReissue) {
+      // Reissue format - single voucher with full LNURL text for replacement
+      if (!vouchers[0].lnurl) {
+        return res.status(400).json({ 
+          error: 'Reissue format requires lnurl field',
+          hint: 'Include the full LNURL string in the voucher data'
+        });
+      }
+      documentElement = React.createElement(ReissueVoucherDocument, {
+        voucher: vouchers[0],
+        format: 'a4'
+      });
+    } else if (isThermal) {
       // Thermal format always generates one voucher per page
       if (isSingle) {
         documentElement = React.createElement(ThermalVoucherDocument, {

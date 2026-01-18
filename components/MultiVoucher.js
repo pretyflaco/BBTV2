@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHand
 import QRCode from 'react-qr-code';
 import { bech32 } from 'bech32';
 import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
+import ExpirySelector, { DEFAULT_EXPIRY, getExpiryOption } from './ExpirySelector';
 
 // Grid configuration options
 const GRID_OPTIONS = [
@@ -32,6 +33,7 @@ const MultiVoucher = forwardRef(({
   const [quantity, setQuantity] = useState(4);
   const [gridSize, setGridSize] = useState('2x2');
   const [selectedCommissionPercent, setSelectedCommissionPercent] = useState(0);
+  const [selectedExpiry, setSelectedExpiry] = useState(DEFAULT_EXPIRY);
   
   // Generation state
   const [generating, setGenerating] = useState(false);
@@ -241,6 +243,7 @@ const MultiVoucher = forwardRef(({
     setShowPreview(false);
     setSelectedCommissionPercent(0);
     setShowCommissionDialog(false);
+    setSelectedExpiry(DEFAULT_EXPIRY);
   };
 
   const isValidAmount = () => {
@@ -362,6 +365,7 @@ const MultiVoucher = forwardRef(({
             amount: amountInSats,
             apiKey: voucherWallet.apiKey,
             walletId: voucherWallet.walletId,
+            expiryId: selectedExpiry,
             commissionPercent: selectedCommissionPercent,
             displayAmount: numericAmount,
             displayCurrency: displayCurrency
@@ -388,6 +392,7 @@ const MultiVoucher = forwardRef(({
             commissionPercent: selectedCommissionPercent,
             commissionAmount: commissionAmount,
             netAmount: netAmount,
+            expiresAt: data.voucher.expiresAt, // Include expiry for PDF
             index: i + 1
           });
         }
@@ -515,7 +520,8 @@ const MultiVoucher = forwardRef(({
             logoDataUrl: logoDataUrl,
             identifierCode: voucher.id?.substring(0, 8)?.toUpperCase() || null,
             voucherSecret: generateVoucherSecret(voucher.id),
-            commissionPercent: voucher.commissionPercent || 0
+            commissionPercent: voucher.commissionPercent || 0,
+            expiresAt: voucher.expiresAt || null
           };
         })
       );
@@ -854,6 +860,15 @@ const MultiVoucher = forwardRef(({
           </div>
         </div>
 
+        {/* Expiry Selector */}
+        <div className="mb-6">
+          <ExpirySelector
+            value={selectedExpiry}
+            onChange={setSelectedExpiry}
+            compact={false}
+          />
+        </div>
+
         {/* Summary */}
         <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 mb-4">
           <h4 className="font-medium text-gray-800 dark:text-gray-200 mb-2">Summary</h4>
@@ -869,6 +884,10 @@ const MultiVoucher = forwardRef(({
             <div className="flex justify-between">
               <span>Total:</span>
               <span className="font-medium">{formatDisplayAmount(parseFloat(amount) * quantity, displayCurrency)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Expiry:</span>
+              <span className="font-medium">{getExpiryOption(selectedExpiry)?.label || selectedExpiry}</span>
             </div>
             <div className="flex justify-between">
               <span>Pages:</span>

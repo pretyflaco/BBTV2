@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHand
 import QRCode from 'react-qr-code';
 import { bech32 } from 'bech32';
 import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
+import ExpirySelector, { DEFAULT_EXPIRY } from './ExpirySelector';
 
 const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMode, toggleDarkMode, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3] }, ref) => {
   const [amount, setAmount] = useState('');
@@ -21,6 +22,8 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
   const [selectedCommissionPercent, setSelectedCommissionPercent] = useState(0);
   const [pendingCommissionSelection, setPendingCommissionSelection] = useState(null);
   const [commissionOptionIndex, setCommissionOptionIndex] = useState(0); // Keyboard navigation index
+  // Expiry selection state
+  const [selectedExpiry, setSelectedExpiry] = useState(DEFAULT_EXPIRY);
   const pollingIntervalRef = useRef(null);
   const successSoundRef = useRef(null);
   const qrRef = useRef(null);
@@ -336,6 +339,8 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
     setSelectedCommissionPercent(0);
     setShowCommissionDialog(false);
     setPendingCommissionSelection(null);
+    // Reset expiry to default
+    setSelectedExpiry(DEFAULT_EXPIRY);
   };
 
   const isValidAmount = () => {
@@ -561,7 +566,8 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
         commissionAmount: commissionAmount,
         netAmount: netAmount,
         amountInSats: amountInSats,
-        exchangeRate: exchangeRate
+        exchangeRate: exchangeRate,
+        expiryId: selectedExpiry
       });
 
       // Create voucher charge
@@ -574,6 +580,7 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
           amount: amountInSats,
           apiKey: voucherWallet.apiKey,
           walletId: voucherWallet.walletId,
+          expiryId: selectedExpiry,
           // Include commission info for memo and printout
           commissionPercent: effectiveCommissionPercent,
           displayAmount: numericAmount,
@@ -608,7 +615,8 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
           displayCurrency: displayCurrency,
           commissionPercent: effectiveCommissionPercent,
           commissionAmount: commissionAmount,
-          netAmount: netAmount // Amount after commission deduction
+          netAmount: netAmount, // Amount after commission deduction
+          expiresAt: data.voucher.expiresAt // Include expiry for PDF
         });
 
         console.log('✅ Voucher created:', {
@@ -778,7 +786,8 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
             logoDataUrl: logoDataUrl,
             identifierCode: voucher.id?.substring(0, 8)?.toUpperCase() || null,
             voucherSecret: voucherSecret,
-            commissionPercent: voucher.commissionPercent || 0
+            commissionPercent: voucher.commissionPercent || 0,
+            expiresAt: voucher.expiresAt || null
           }],
           format: printFormat
         }),
@@ -1320,10 +1329,19 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
         </div>
       </div>
 
+      {/* Expiry Selector - Below amount, above numpad */}
+      <div className="px-4 pb-2">
+        <ExpirySelector
+          value={selectedExpiry}
+          onChange={setSelectedExpiry}
+          compact={true}
+        />
+      </div>
+
       {/* Numpad - Match POS layout exactly */}
       <div className="flex-1 px-4 pb-4 relative">
-        {/* Spacer to align numpad with item list (below Search/Add Item row level) */}
-        <div className="h-16 mb-2"></div>
+        {/* Spacer reduced since we have ExpirySelector above */}
+        <div className="h-4 mb-2"></div>
         <div className="grid grid-cols-4 gap-3 max-w-sm mx-auto" data-1p-ignore data-lpignore="true">
           {/* Row 1: 1, 2, 3, (empty) */}
           <button

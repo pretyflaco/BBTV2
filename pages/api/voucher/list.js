@@ -4,7 +4,11 @@ const voucherStore = require('../../../lib/voucher-store');
  * API endpoint to list all vouchers
  * 
  * GET /api/voucher/list
- * Returns all active vouchers (both claimed and unclaimed)
+ * Returns all vouchers with status information (ACTIVE, CLAIMED, CANCELLED, EXPIRED)
+ * 
+ * Query params:
+ * - status: Filter by status (optional): 'ACTIVE', 'CLAIMED', 'CANCELLED', 'EXPIRED', 'all'
+ *   Default: returns all vouchers
  */
 export default async function handler(req, res) {
   // Add CORS headers for compatibility
@@ -21,43 +25,68 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Reload from file to get latest data
-    voucherStore.loadFromFile();
-    
+    const { status: filterStatus } = req.query;
     const now = Date.now();
-    const VOUCHER_EXPIRY = 15 * 60 * 1000; // 15 minutes
     
-    // Get all vouchers and format them
-    const vouchers = [];
-    for (const [id, voucher] of voucherStore.vouchers.entries()) {
-      const age = now - voucher.createdAt;
-      const isExpired = !voucher.claimed && age > VOUCHER_EXPIRY;
+    // Get all vouchers with status from the store
+    const allVouchers = voucherStore.getAllVouchers();
+    
+    // Format vouchers for response
+    let vouchers = allVouchers.map(voucher => {
+      // Calculate time remaining for active vouchers
+      let timeRemaining = null;
+      if (voucher.status === 'ACTIVE' && voucher.expiresAt) {
+        timeRemaining = Math.max(0, voucher.expiresAt - now);
+      }
       
-      // Skip expired unclaimed vouchers
-      if (isExpired) continue;
-      
-      vouchers.push({
-        id: id,
-        shortId: id.substring(0, 8).toUpperCase(),
+      return {
+        id: voucher.id,
+        shortId: voucher.id.substring(0, 8).toUpperCase(),
         amount: voucher.amount,
         claimed: voucher.claimed,
         createdAt: voucher.createdAt,
+        claimedAt: voucher.claimedAt,
+        expiresAt: voucher.expiresAt,
+        expiryId: voucher.expiryId,
+        cancelledAt: voucher.cancelledAt,
         displayAmount: voucher.displayAmount,
         displayCurrency: voucher.displayCurrency,
         commissionPercent: voucher.commissionPercent || 0,
-        // Calculate time remaining for unclaimed vouchers
-        timeRemaining: !voucher.claimed ? Math.max(0, VOUCHER_EXPIRY - age) : null,
-        status: voucher.claimed ? 'CLAIMED' : 'ACTIVE'
-      });
+        timeRemaining: timeRemaining,
+        status: voucher.status
+      };
+    });
+    
+    // Filter by status if requested
+    if (filterStatus && filterStatus !== 'all') {
+      const validStatuses = ['ACTIVE', 'CLAIMED', 'CANCELLED', 'EXPIRED'];
+      const normalizedFilter = filterStatus.toUpperCase();
+      
+      if (validStatuses.includes(normalizedFilter)) {
+        vouchers = vouchers.filter(v => v.status === normalizedFilter);
+      }
     }
     
-    // Sort by creation time, newest first
-    vouchers.sort((a, b) => b.createdAt - a.createdAt);
+    // Calculate summary stats
+    const stats = {
+      total: allVouchers.length,
+      active: allVouchers.filter(v => v.status === 'ACTIVE').length,
+      claimed: allVouchers.filter(v => v.status === 'CLAIMED').length,
+      cancelled: allVouchers.filter(v => v.status === 'CANCELLED').length,
+      expired: allVouchers.filter(v => v.status === 'EXPIRED').length,
+      // Count vouchers expiring within 24 hours
+      expiringSoon: allVouchers.filter(v => 
+        v.status === 'ACTIVE' && 
+        v.expiresAt && 
+        (v.expiresAt - now) < 24 * 60 * 60 * 1000
+      ).length
+    };
 
     return res.status(200).json({
       success: true,
       vouchers: vouchers,
-      count: vouchers.length
+      count: vouchers.length,
+      stats: stats
     });
 
   } catch (error) {

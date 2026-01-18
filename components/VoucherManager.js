@@ -708,7 +708,9 @@ const VoucherManager = forwardRef(({
                     <div className="text-xs text-gray-500 dark:text-gray-400">
                       {voucher.status === 'ACTIVE' && voucher.timeRemaining
                         ? formatTimeRemaining(voucher.timeRemaining)
-                        : formatDate(voucher.createdAt)
+                        : voucher.status === 'CLAIMED' && voucher.claimedAt
+                          ? formatDate(voucher.claimedAt)
+                          : formatDate(voucher.createdAt)
                       }
                     </div>
                   </div>

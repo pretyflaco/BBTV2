@@ -2212,13 +2212,17 @@ export default function Dashboard() {
         handleViewTransition('multivoucher');
       }
     }
-    // Vertical swipes (up) - between POS and Voucher row
+    // Vertical swipes (up) - between POS and Single Voucher only
     // From POS: swipe up → Voucher
-    // From Voucher/MultiVoucher/VoucherManager: swipe up → POS (return to POS)
+    // From Voucher (Single): swipe up → POS (return to POS)
+    // NOTE: MultiVoucher and VoucherManager have scrollable content,
+    // so swipe UP is disabled to avoid conflicts with scrolling.
+    // Users can navigate horizontally to Single Voucher, then swipe up to POS.
     else if (isUpSwipe && !showingInvoice && !isViewTransitioning && voucherWallet) {
       if (currentView === 'pos') {
         handleViewTransition('voucher');
-      } else if (currentView === 'voucher' || currentView === 'multivoucher' || currentView === 'vouchermanager') {
+      } else if (currentView === 'voucher') {
+        // Only Single Voucher can swipe up to POS
         handleViewTransition('pos');
       }
     }

@@ -30,9 +30,6 @@ export default function NostrLoginForm() {
   const [signingIn, setSigningIn] = useState(false);
   const [localError, setLocalError] = useState(null);
   const [checkingReturn, setCheckingReturn] = useState(true);
-  const [showManualEntry, setShowManualEntry] = useState(false);
-  const [manualPubkey, setManualPubkey] = useState('');
-  const [isIOS] = useState(() => typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent));
   
   // In-app key generation state
   const [authMode, setAuthMode] = useState('main'); // 'main', 'create', 'password'
@@ -106,13 +103,8 @@ export default function NostrLoginForm() {
     if (result.pending) {
       // User will be redirected to external signer
       // When they return, the page reloads fresh with new state.
-      // However, if navigation fails silently, we should reset after a timeout.
+      // Reset signing state after timeout if navigation fails silently
       setTimeout(() => {
-        // If we're still on this page after 5 seconds, navigation likely failed
-        // On iOS, show manual entry option
-        if (isIOS) {
-          setShowManualEntry(true);
-        }
         setSigningIn(false);
       }, 3000);
       return;
@@ -124,32 +116,6 @@ export default function NostrLoginForm() {
     
     // Always reset signing state when not pending
     setSigningIn(false);
-  };
-
-  const handleManualPubkeySubmit = async (e) => {
-    e.preventDefault();
-    setSigningIn(true);
-    setLocalError(null);
-
-    try {
-      // Parse the pubkey (supports npub, hex, nostr:npub formats)
-      const parsedPubkey = NostrAuthService.parsePublicKey(manualPubkey.trim());
-      
-      if (!parsedPubkey) {
-        setLocalError('Invalid public key format. Please enter a valid npub or hex public key.');
-        setSigningIn(false);
-        return;
-      }
-
-      // Store the auth data
-      NostrAuthService.storeAuthData(parsedPubkey, 'externalSigner');
-      
-      // Trigger a page reload to complete the sign-in
-      window.location.reload();
-    } catch (err) {
-      setLocalError(err.message || 'Failed to process public key');
-      setSigningIn(false);
-    }
   };
 
   // Handle create new account with password
@@ -599,47 +565,6 @@ export default function NostrLoginForm() {
             </svg>
             Create New Account
           </button>
-
-          {/* iOS Manual Entry Fallback */}
-          {isIOS && showManualEntry && (
-            <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800">
-              <p className="text-sm text-amber-700 dark:text-amber-300 mb-3">
-                <strong>Signer app didn't open?</strong> Enter your public key manually:
-              </p>
-              <ol className="text-xs text-amber-600 dark:text-amber-400 mb-3 list-decimal list-inside space-y-1">
-                <li>Open <strong>Nowser</strong> app manually</li>
-                <li>Go to your profile or settings</li>
-                <li>Copy your <strong>npub</strong> or public key</li>
-                <li>Paste it below</li>
-              </ol>
-              <form onSubmit={handleManualPubkeySubmit} className="space-y-2">
-                <input
-                  type="text"
-                  value={manualPubkey}
-                  onChange={(e) => setManualPubkey(e.target.value)}
-                  placeholder="npub1... or hex public key"
-                  className="w-full px-3 py-2 text-sm border border-amber-300 dark:border-amber-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                />
-                <button
-                  type="submit"
-                  disabled={!manualPubkey.trim() || signingIn}
-                  className="w-full py-2 px-4 text-sm font-medium rounded-lg text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {signingIn ? 'Signing in...' : 'Sign in with Public Key'}
-                </button>
-              </form>
-            </div>
-          )}
-
-          {/* iOS hint to show manual entry option */}
-          {isIOS && !showManualEntry && (
-            <button
-              onClick={() => setShowManualEntry(true)}
-              className="text-xs text-center text-amber-600 dark:text-amber-400 hover:underline w-full"
-            >
-              Signer not opening? Enter public key manually
-            </button>
-          )}
 
           {/* Mobile hint */}
           {isMobile && (

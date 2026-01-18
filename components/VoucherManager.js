@@ -407,7 +407,7 @@ const VoucherManager = forwardRef(({
               </div>
               {selectedVoucher.displayAmount && selectedVoucher.displayCurrency && (
                 <div className="text-sm text-gray-600 dark:text-gray-400">
-                  {formatCurrency(selectedVoucher.displayAmount, selectedVoucher.displayCurrency)}
+                  {formatCurrency(selectedVoucher.displayAmount, selectedVoucher.displayCurrency, currencies)}
                 </div>
               )}
             </div>

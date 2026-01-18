@@ -40,6 +40,7 @@ const MultiVoucher = forwardRef(({
   const [generatedVouchers, setGeneratedVouchers] = useState([]);
   const [showPreview, setShowPreview] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [printing, setPrinting] = useState(false);
   
   // UI state
   const [currentStep, setCurrentStep] = useState('amount'); // 'amount', 'config', 'generating', 'preview'
@@ -571,6 +572,98 @@ const MultiVoucher = forwardRef(({
     }
   };
 
+  // Print vouchers - generates PDF and opens print dialog
+  const printVouchers = async () => {
+    if (generatedVouchers.length === 0) return;
+    
+    setPrinting(true);
+    setError('');
+    
+    try {
+      // Get logo
+      const logoDataUrl = await getLogoDataUrl();
+      
+      // Get QR codes for all vouchers
+      const voucherData = await Promise.all(
+        generatedVouchers.map(async (voucher, index) => {
+          const qrElement = qrRefs.current[index];
+          const qrDataUrl = qrElement ? await getQrDataUrl(qrElement) : null;
+          
+          let fiatAmount = null;
+          if (voucher.displayCurrency && voucher.displayCurrency !== 'BTC') {
+            fiatAmount = formatDisplayAmount(voucher.displayAmount, voucher.displayCurrency);
+          }
+          
+          return {
+            satsAmount: voucher.amount,
+            fiatAmount: fiatAmount,
+            qrDataUrl: qrDataUrl,
+            logoDataUrl: logoDataUrl,
+            identifierCode: voucher.id?.substring(0, 8)?.toUpperCase() || null,
+            voucherSecret: generateVoucherSecret(voucher.id),
+            commissionPercent: voucher.commissionPercent || 0,
+            expiresAt: voucher.expiresAt || null
+          };
+        })
+      );
+      
+      // Call PDF API with grid size
+      const response = await fetch('/api/voucher/pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vouchers: voucherData,
+          format: 'a4',
+          gridSize: gridSize
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || data.message || 'Failed to generate PDF');
+      }
+      
+      // Convert base64 to blob
+      const byteCharacters = atob(data.pdf);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      
+      // Open PDF in new window and trigger print
+      const url = URL.createObjectURL(blob);
+      const printWindow = window.open(url, '_blank');
+      
+      if (printWindow) {
+        printWindow.onload = () => {
+          printWindow.print();
+        };
+      } else {
+        // Fallback: if popup blocked, download instead
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `blink-vouchers-${quantity}x-${generatedVouchers[0]?.amount}sats.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+      
+      // Clean up after a delay to allow print dialog
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      
+      console.log('Print dialog opened');
+      
+    } catch (err) {
+      console.error('Print error:', err);
+      setError(err.message || 'Failed to print vouchers');
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   // Expose handlers for keyboard navigation
   useImperativeHandle(ref, () => ({
     handleDigitPress,
@@ -989,28 +1082,55 @@ const MultiVoucher = forwardRef(({
 
       {/* Action Buttons */}
       <div className="px-4 pb-4 space-y-3">
-        <button
-          onClick={downloadPdf}
-          disabled={downloadingPdf}
-          className="w-full h-14 bg-purple-600 dark:bg-purple-500 hover:bg-purple-700 dark:hover:bg-purple-600 text-white rounded-lg text-lg font-semibold transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
-        >
-          {downloadingPdf ? (
-            <>
-              <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
-              Generating PDF...
-            </>
-          ) : (
-            <>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Download PDF ({gridSize})
-            </>
-          )}
-        </button>
+        {/* Print and Download buttons row */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Print button - green outline (main action) */}
+          <button
+            onClick={printVouchers}
+            disabled={printing || downloadingPdf}
+            className="h-14 bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 disabled:border-gray-400 disabled:text-gray-400 disabled:cursor-not-allowed rounded-lg text-lg font-normal transition-colors shadow-md flex items-center justify-center gap-2"
+          >
+            {printing ? (
+              <>
+                <div className="animate-spin w-5 h-5 border-2 border-green-600 dark:border-green-400 border-t-transparent rounded-full"></div>
+                Printing...
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Print
+              </>
+            )}
+          </button>
+          
+          {/* Download PDF button - orange/yellow outline */}
+          <button
+            onClick={downloadPdf}
+            disabled={downloadingPdf || printing}
+            className="h-14 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 disabled:border-gray-400 disabled:text-gray-400 disabled:cursor-not-allowed rounded-lg text-lg font-normal transition-colors shadow-md flex items-center justify-center gap-2"
+          >
+            {downloadingPdf ? (
+              <>
+                <div className="animate-spin w-5 h-5 border-2 border-orange-500 dark:border-orange-400 border-t-transparent rounded-full"></div>
+                PDF...
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Download
+              </>
+            )}
+          </button>
+        </div>
+        
+        {/* Create New Batch button - purple outline */}
         <button
           onClick={handleClear}
-          className="w-full h-12 bg-white dark:bg-black border-2 border-red-500 dark:border-red-400 text-red-600 dark:text-red-400 rounded-lg text-lg font-normal transition-colors"
+          className="w-full h-12 bg-white dark:bg-black border-2 border-purple-500 dark:border-purple-400 hover:border-purple-600 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg text-lg font-normal transition-colors"
         >
           Create New Batch
         </button>

@@ -6201,10 +6201,10 @@ export default function Dashboard() {
               })()}
               
               {/* Right side: Expiry Selector (only on Voucher screen, not when voucher QR is showing) */}
-              {currentView === 'voucher' && voucherRef.current && !showingVoucherQR && (
+              {currentView === 'voucher' && !showingVoucherQR && (
                 <ExpirySelector
-                  value={voucherRef.current.getSelectedExpiry?.() || '6mo'}
-                  onChange={(expiryId) => voucherRef.current.setSelectedExpiry?.(expiryId)}
+                  value={voucherRef.current?.getSelectedExpiry?.() || '6mo'}
+                  onChange={(expiryId) => voucherRef.current?.setSelectedExpiry?.(expiryId)}
                 />
               )}
             </div>

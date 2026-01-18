@@ -722,7 +722,7 @@ const MultiVoucher = forwardRef(({
         <div className="text-center">
           <div className={`font-semibold text-purple-600 dark:text-purple-400 min-h-[72px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${
             getDynamicFontSize(formatDisplayAmount(amount || 0, displayCurrency))
-          }`}>
+          }`} style={{fontFamily: "'Source Sans Pro', sans-serif", wordBreak: 'keep-all', overflowWrap: 'normal'}}>
             <div className="max-w-full">
               {amount === '0' || amount === '0.' 
                 ? (displayCurrency === 'BTC' || getCurrentCurrency()?.fractionDigits === 0 
@@ -733,7 +733,7 @@ const MultiVoucher = forwardRef(({
             </div>
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-400">
-            <div className="mb-1 min-h-[20px]">
+            <div className="mb-1 min-h-[20px] max-w-full overflow-x-auto px-2">
               Multi-Voucher
             </div>
           </div>

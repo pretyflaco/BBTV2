@@ -1321,7 +1321,7 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-400">
             <div className="mb-1 min-h-[20px] max-w-full overflow-x-auto px-2">
-              Enter voucher amount
+              Single Voucher
             </div>
           </div>
           {error && (
@@ -1335,26 +1335,26 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
       {/* Numpad - Match POS layout exactly */}
       <div className="flex-1 px-4 pb-4 relative">
         {/* Spacer for consistent layout */}
-        <div className="h-6 mb-2"></div>
+        <div className="h-16 mb-2"></div>
         <div className="grid grid-cols-4 gap-3 max-w-sm mx-auto" data-1p-ignore data-lpignore="true">
           {/* Row 1: 1, 2, 3, (empty) */}
           <button
             onClick={() => handleDigitPress('1')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             1
           </button>
           <button
             onClick={() => handleDigitPress('2')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             2
           </button>
           <button
             onClick={() => handleDigitPress('3')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             3
@@ -1364,21 +1364,21 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
           {/* Row 2: 4, 5, 6, OK (starts) */}
           <button
             onClick={() => handleDigitPress('4')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             4
           </button>
           <button
             onClick={() => handleDigitPress('5')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             5
           </button>
           <button
             onClick={() => handleDigitPress('6')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             6
@@ -1395,21 +1395,21 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
           {/* Row 3: 7, 8, 9, OK (continues) */}
           <button
             onClick={() => handleDigitPress('7')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             7
           </button>
           <button
             onClick={() => handleDigitPress('8')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             8
           </button>
           <button
             onClick={() => handleDigitPress('9')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             9
@@ -1425,7 +1425,7 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
           </button>
           <button
             onClick={() => handleDigitPress('0')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             0
@@ -1433,7 +1433,7 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
           <button
             onClick={() => handleDigitPress('.')}
             disabled={displayCurrency === 'BTC' || (getCurrentCurrency()?.fractionDigits === 0)}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             .

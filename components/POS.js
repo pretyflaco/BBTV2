@@ -1183,12 +1183,14 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-400">
             <div className="mb-1 min-h-[20px] max-w-full overflow-x-auto px-2">
-              {items.length > 0 && (
+              {items.length > 0 ? (
                 <div className="whitespace-nowrap">
                   {items.join(' + ')}
                   {amount && ` + ${amount}`}
                   {!showTipDialog && total > 0 && amount && ` = ${formatDisplayAmount(total + (parseFloat(amount) || 0), displayCurrency)}`}
                 </div>
+              ) : (
+                'Point Of Sale'
               )}
             </div>
           </div>

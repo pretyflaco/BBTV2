@@ -8,6 +8,8 @@ import { useNFC } from './NFCPayment';
 import PaymentAnimation from './PaymentAnimation';
 import POS from './POS';
 import Voucher from './Voucher';
+import MultiVoucher from './MultiVoucher';
+import VoucherManager from './VoucherManager';
 import Network from './Network';
 import ItemCart from './ItemCart';
 import BatchPayments from './BatchPayments';
@@ -67,7 +69,7 @@ export default function Dashboard() {
   const [exportingData, setExportingData] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
-  const [currentView, setCurrentView] = useState('pos'); // 'cart', 'pos', 'voucher', or 'transactions'
+  const [currentView, setCurrentView] = useState('pos'); // 'cart', 'pos', 'voucher', 'multivoucher', or 'transactions'
   const [isViewTransitioning, setIsViewTransitioning] = useState(false); // Loading animation between views
   const [transitionColorIndex, setTransitionColorIndex] = useState(0); // Rotating spinner color
   const [cartCheckoutData, setCartCheckoutData] = useState(null); // Data from cart checkout to prefill POS
@@ -219,6 +221,8 @@ export default function Dashboard() {
   // Refs for keyboard navigation
   const posRef = useRef(null);
   const voucherRef = useRef(null);
+  const multiVoucherRef = useRef(null);
+  const voucherManagerRef = useRef(null);
   const cartRef = useRef(null);
   
   // Save sound preference to localStorage when it changes
@@ -2172,31 +2176,45 @@ export default function Dashboard() {
     // - On Cart screen (not showing any overlay)
     // - On POS numpad screen (not showing invoice/tips)
     // - On Voucher numpad screen (not showing voucher QR)
+    // - On MultiVoucher screen
     // - On transactions screen
     // Navigation order (horizontal): Cart ← → POS ← → Transactions
-    // Navigation order (vertical): POS ↕ Voucher (only when voucher wallet is configured)
+    // Navigation order (vertical): POS ↕ Voucher ↔ MultiVoucher
+    // Navigation order (voucher row): MultiVoucher ← → Voucher
     
-    // Horizontal swipes (left/right) - only for cart, pos, transactions (not voucher)
-    if (isLeftSwipe && !showingInvoice && !isViewTransitioning && currentView !== 'voucher') {
+    // Horizontal swipes (left/right) - for cart, pos, transactions, and voucher row
+    if (isLeftSwipe && !showingInvoice && !isViewTransitioning) {
       if (currentView === 'cart') {
         handleViewTransition('pos');
       } else if (currentView === 'pos') {
         handleViewTransition('transactions');
+      } else if (currentView === 'vouchermanager' && voucherWallet) {
+        // Left from vouchermanager goes to voucher
+        handleViewTransition('voucher');
+      } else if (currentView === 'voucher' && voucherWallet) {
+        // Left from voucher goes to multivoucher
+        handleViewTransition('multivoucher');
       }
-    } else if (isRightSwipe && !isViewTransitioning && currentView !== 'voucher') {
+    } else if (isRightSwipe && !isViewTransitioning) {
       if (currentView === 'transactions') {
         handleViewTransition('pos');
       } else if (currentView === 'pos' && !showingInvoice) {
         handleViewTransition('cart');
+      } else if (currentView === 'multivoucher' && voucherWallet) {
+        // Right from multivoucher goes to voucher
+        handleViewTransition('voucher');
+      } else if (currentView === 'voucher' && voucherWallet) {
+        // Right from voucher goes to vouchermanager
+        handleViewTransition('vouchermanager');
       }
     }
-    // Vertical swipes (up) - between POS and Voucher only, voucher wallet must be configured
+    // Vertical swipes (up) - between POS and Voucher row
     // From POS: swipe up → Voucher
-    // From Voucher: swipe up → POS (return to POS)
+    // From Voucher/MultiVoucher/VoucherManager: swipe up → POS (return to POS)
     else if (isUpSwipe && !showingInvoice && !isViewTransitioning && voucherWallet) {
       if (currentView === 'pos') {
         handleViewTransition('voucher');
-      } else if (currentView === 'voucher') {
+      } else if (currentView === 'voucher' || currentView === 'multivoucher' || currentView === 'vouchermanager') {
         handleViewTransition('pos');
       }
     }
@@ -2238,6 +2256,15 @@ export default function Dashboard() {
         if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', 'Escape'].includes(e.key)) {
           e.preventDefault();
           voucherRef.current.handleCommissionDialogKey(e.key);
+          return;
+        }
+      }
+
+      // Check if commission dialog is open on MultiVoucher - delegate keyboard
+      if (currentView === 'multivoucher' && multiVoucherRef.current?.isCommissionDialogOpen?.()) {
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', 'Escape'].includes(e.key)) {
+          e.preventDefault();
+          multiVoucherRef.current.handleCommissionDialogKey(e.key);
           return;
         }
       }
@@ -2302,24 +2329,32 @@ export default function Dashboard() {
         if (showingInvoice || showingVoucherQR || isViewTransitioning) return;
         
         if (e.key === 'ArrowLeft') {
-          // Navigate left: Transactions → POS → Cart
+          // Navigate left: Transactions → POS → Cart, VoucherManager → Voucher → MultiVoucher
           if (currentView === 'transactions') {
             handleViewTransition('pos');
           } else if (currentView === 'pos') {
             handleViewTransition('cart');
+          } else if (currentView === 'vouchermanager' && voucherWallet) {
+            handleViewTransition('voucher');
+          } else if (currentView === 'voucher' && voucherWallet) {
+            handleViewTransition('multivoucher');
           }
         } else if (e.key === 'ArrowRight') {
-          // Navigate right: Cart → POS → Transactions
+          // Navigate right: Cart → POS → Transactions, MultiVoucher → Voucher → VoucherManager
           if (currentView === 'cart') {
             handleViewTransition('pos');
           } else if (currentView === 'pos') {
             handleViewTransition('transactions');
+          } else if (currentView === 'multivoucher' && voucherWallet) {
+            handleViewTransition('voucher');
+          } else if (currentView === 'voucher' && voucherWallet) {
+            handleViewTransition('vouchermanager');
           }
         } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && voucherWallet) {
-          // Navigate up/down: POS ↔ Voucher
+          // Navigate up/down: POS ↔ Voucher row
           if (currentView === 'pos') {
             handleViewTransition('voucher');
-          } else if (currentView === 'voucher') {
+          } else if (currentView === 'voucher' || currentView === 'multivoucher' || currentView === 'vouchermanager') {
             handleViewTransition('pos');
           }
         }
@@ -2398,6 +2433,55 @@ export default function Dashboard() {
             voucherRef.current.handleSubmit();
           }
           return;
+        }
+      } else if (currentView === 'multivoucher' && multiVoucherRef.current) {
+        // MultiVoucher keyboard handling - only on amount step
+        const step = multiVoucherRef.current.getCurrentStep?.();
+        if (step === 'amount') {
+          // Digit keys
+          if (/^[0-9]$/.test(e.key)) {
+            e.preventDefault();
+            multiVoucherRef.current.handleDigitPress(e.key);
+            return;
+          }
+          // Decimal point
+          if (e.key === '.' || e.key === ',') {
+            e.preventDefault();
+            multiVoucherRef.current.handleDigitPress('.');
+            return;
+          }
+          // Backspace
+          if (e.key === 'Backspace') {
+            e.preventDefault();
+            multiVoucherRef.current.handleBackspace();
+            return;
+          }
+          // Escape = Clear
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            multiVoucherRef.current.handleClear();
+            return;
+          }
+          // Enter = Submit (proceed to config)
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            if (multiVoucherRef.current.hasValidAmount?.()) {
+              multiVoucherRef.current.handleSubmit();
+            }
+            return;
+          }
+        } else if (step === 'config' || step === 'preview') {
+          // On config/preview, Escape goes back, Enter proceeds
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            multiVoucherRef.current.handleClear();
+            return;
+          }
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            multiVoucherRef.current.handleSubmit();
+            return;
+          }
         }
       }
     };
@@ -2577,26 +2661,65 @@ export default function Dashboard() {
                     aria-label="History"
                   />
                 </div>
-                {/* Lower row: Voucher (centered below POS - middle dot) */}
+                {/* Lower row: MultiVoucher - Voucher - VoucherManager (below POS) */}
                 {voucherWallet && (
-                  <div className="flex justify-center">
+                  <div className="flex gap-2 justify-center">
+                    {/* MultiVoucher dot - left */}
                     <button
                       onClick={() => {
-                        // Only allow navigation to voucher from POS
-                        if (currentView === 'pos') {
+                        // Allow navigation from POS, voucher, multivoucher, or vouchermanager
+                        if (currentView === 'pos' || currentView === 'voucher' || currentView === 'multivoucher' || currentView === 'vouchermanager') {
+                          handleViewTransition('multivoucher');
+                        }
+                      }}
+                      disabled={isViewTransitioning || (currentView !== 'pos' && currentView !== 'voucher' && currentView !== 'multivoucher' && currentView !== 'vouchermanager')}
+                      className={`w-2 h-2 rounded-full transition-colors ${
+                        currentView === 'multivoucher'
+                          ? 'bg-purple-600 dark:bg-purple-400'
+                          : (currentView === 'pos' || currentView === 'voucher' || currentView === 'vouchermanager')
+                            ? 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+                            : 'bg-gray-200 dark:bg-gray-700 opacity-50 cursor-not-allowed'
+                      }`}
+                      aria-label="Multi-Voucher"
+                      title="Multi-Voucher (batch create)"
+                    />
+                    {/* Voucher dot - center */}
+                    <button
+                      onClick={() => {
+                        // Allow navigation from POS, voucher, multivoucher, or vouchermanager
+                        if (currentView === 'pos' || currentView === 'voucher' || currentView === 'multivoucher' || currentView === 'vouchermanager') {
                           handleViewTransition('voucher');
                         }
                       }}
-                      disabled={isViewTransitioning || currentView !== 'pos'}
+                      disabled={isViewTransitioning || (currentView !== 'pos' && currentView !== 'voucher' && currentView !== 'multivoucher' && currentView !== 'vouchermanager')}
                       className={`w-2 h-2 rounded-full transition-colors ${
                         currentView === 'voucher'
                           ? 'bg-purple-600 dark:bg-purple-400'
-                          : currentView === 'pos'
+                          : (currentView === 'pos' || currentView === 'multivoucher' || currentView === 'vouchermanager')
                             ? 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
                             : 'bg-gray-200 dark:bg-gray-700 opacity-50 cursor-not-allowed'
                       }`}
                       aria-label="Voucher"
-                      title={currentView !== 'pos' && currentView !== 'voucher' ? 'Navigate to POS first, then swipe up' : 'Voucher'}
+                      title="Single Voucher"
+                    />
+                    {/* VoucherManager dot - right */}
+                    <button
+                      onClick={() => {
+                        // Allow navigation from POS, voucher, multivoucher, or vouchermanager
+                        if (currentView === 'pos' || currentView === 'voucher' || currentView === 'multivoucher' || currentView === 'vouchermanager') {
+                          handleViewTransition('vouchermanager');
+                        }
+                      }}
+                      disabled={isViewTransitioning || (currentView !== 'pos' && currentView !== 'voucher' && currentView !== 'multivoucher' && currentView !== 'vouchermanager')}
+                      className={`w-2 h-2 rounded-full transition-colors ${
+                        currentView === 'vouchermanager'
+                          ? 'bg-purple-600 dark:bg-purple-400'
+                          : (currentView === 'pos' || currentView === 'voucher' || currentView === 'multivoucher')
+                            ? 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+                            : 'bg-gray-200 dark:bg-gray-700 opacity-50 cursor-not-allowed'
+                      }`}
+                      aria-label="Voucher Manager"
+                      title="Voucher Manager"
                     />
                   </div>
                 )}
@@ -6006,13 +6129,13 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Owner/Agent Display - Left aligned on POS, Cart, and Voucher (hidden when showing voucher QR) */}
-        {!showingInvoice && !showingVoucherQR && (currentView === 'pos' || currentView === 'cart' || currentView === 'voucher') && (
+        {/* Owner/Agent Display - Left aligned on POS, Cart, Voucher, MultiVoucher, and VoucherManager (hidden when showing voucher QR) */}
+        {!showingInvoice && !showingVoucherQR && (currentView === 'pos' || currentView === 'cart' || currentView === 'voucher' || currentView === 'multivoucher' || currentView === 'vouchermanager') && (
           <div className="flex flex-col gap-1 mb-2 bg-white dark:bg-black">
-            {/* Owner Display - Show voucher wallet on voucher view, regular wallet on POS/Cart */}
+            {/* Owner Display - Show voucher wallet on voucher/multivoucher/vouchermanager view, regular wallet on POS/Cart */}
             {(() => {
-              // For voucher view, show voucher wallet
-              if (currentView === 'voucher') {
+              // For voucher, multivoucher, and vouchermanager views, show voucher wallet
+              if (currentView === 'voucher' || currentView === 'multivoucher' || currentView === 'vouchermanager') {
                 if (voucherWallet) {
                   return (
                     <div className="flex items-center gap-2">
@@ -6073,9 +6196,9 @@ export default function Dashboard() {
             
             {/* Agent Display Row - Always reserve space for consistent numpad positioning */}
             {/* On POS/Cart: Show split profile if active, otherwise empty placeholder */}
-            {/* On Voucher: Always show empty placeholder to match POS layout */}
+            {/* On Voucher/MultiVoucher/VoucherManager: Always show empty placeholder to match POS layout */}
             <div className="flex items-center gap-2 min-h-[18px]">
-              {activeSplitProfile && currentView !== 'voucher' && (
+              {activeSplitProfile && currentView !== 'voucher' && currentView !== 'multivoucher' && currentView !== 'vouchermanager' && (
                 <>
                   <img 
                     src="/greendot.svg" 
@@ -6165,6 +6288,26 @@ export default function Dashboard() {
             }}
             triggerPaymentAnimation={triggerPaymentAnimation}
           />
+        ) : currentView === 'multivoucher' ? (
+          <div className="h-[calc(100vh-180px)] min-h-[400px]">
+            <MultiVoucher
+              ref={multiVoucherRef}
+              voucherWallet={voucherWallet}
+              displayCurrency={displayCurrency}
+              currencies={currencies}
+              darkMode={darkMode}
+              toggleDarkMode={toggleDarkMode}
+              soundEnabled={soundEnabled}
+              commissionEnabled={commissionEnabled}
+              commissionPresets={commissionPresets}
+              onInternalTransition={() => {
+                // Rotate spinner color and show brief transition
+                setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);
+                setIsViewTransitioning(true);
+                setTimeout(() => setIsViewTransitioning(false), 120);
+              }}
+            />
+          </div>
         ) : currentView === 'voucher' ? (
           <div className="h-[calc(100vh-180px)] min-h-[400px]">
             <Voucher
@@ -6178,6 +6321,24 @@ export default function Dashboard() {
               onVoucherStateChange={setShowingVoucherQR}
               commissionEnabled={commissionEnabled}
               commissionPresets={commissionPresets}
+              onInternalTransition={() => {
+                // Rotate spinner color and show brief transition
+                setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);
+                setIsViewTransitioning(true);
+                setTimeout(() => setIsViewTransitioning(false), 120);
+              }}
+            />
+          </div>
+        ) : currentView === 'vouchermanager' ? (
+          <div className="h-[calc(100vh-180px)] min-h-[400px]">
+            <VoucherManager
+              ref={voucherManagerRef}
+              voucherWallet={voucherWallet}
+              displayCurrency={displayCurrency}
+              currencies={currencies}
+              darkMode={darkMode}
+              toggleDarkMode={toggleDarkMode}
+              soundEnabled={soundEnabled}
               onInternalTransition={() => {
                 // Rotate spinner color and show brief transition
                 setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);

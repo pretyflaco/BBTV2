@@ -21,7 +21,8 @@ const getPdfModule = async () => {
  *     qrDataUrl: string (base64 data URL of QR code),
  *     identifierCode: string (optional)
  *   }],
- *   format: 'a4' | 'letter' | 'thermal-80' | 'thermal-58'
+ *   format: 'a4' | 'letter' | 'thermal-80' | 'thermal-58',
+ *   gridSize: '2x2' | '2x3' | '3x3' | '3x4' (optional, for multi-voucher grid layout)
  * }
  * 
  * Returns: PDF as base64 string
@@ -35,11 +36,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { vouchers, format = 'a4' } = req.body;
+    const { vouchers, format = 'a4', gridSize } = req.body;
 
     console.log('📄 PDF API called with:', { 
       voucherCount: vouchers?.length, 
       format,
+      gridSize,
       firstVoucherSats: vouchers?.[0]?.satsAmount,
       qrDataUrlLength: vouchers?.[0]?.qrDataUrl?.length
     });
@@ -57,8 +59,11 @@ export default async function handler(req, res) {
       SingleVoucherDocument, 
       BatchVoucherDocument, 
       ThermalVoucherDocument,
+      GridVoucherDocument,
       PAPER_FORMATS,
-      getAvailableFormats 
+      GRID_CONFIGS,
+      getAvailableFormats,
+      getAvailableGrids
     } = await getPdfModule();
 
     // Validate format
@@ -69,6 +74,18 @@ export default async function handler(req, res) {
         validFormats,
         hint: 'Choose from: a4, letter, thermal-80, thermal-58'
       });
+    }
+
+    // Validate grid size if provided
+    if (gridSize) {
+      const validGrids = getAvailableGrids();
+      if (!validGrids.includes(gridSize)) {
+        return res.status(400).json({ 
+          error: 'Invalid grid size',
+          validGrids,
+          hint: 'Choose from: 2x2, 2x3, 3x3, 3x4'
+        });
+      }
     }
 
     // Validate each voucher
@@ -88,11 +105,12 @@ export default async function handler(req, res) {
       }
     }
 
-    console.log(`📄 Generating PDF: ${vouchers.length} voucher(s), format: ${format}`);
+    console.log(`📄 Generating PDF: ${vouchers.length} voucher(s), format: ${format}, grid: ${gridSize || 'default'}`);
 
     // Determine which document type to use
     const isThermal = format.startsWith('thermal');
     const isSingle = vouchers.length === 1;
+    const useGridLayout = gridSize && !isThermal && vouchers.length > 1;
 
     let documentElement;
     
@@ -110,6 +128,13 @@ export default async function handler(req, res) {
           format
         });
       }
+    } else if (useGridLayout) {
+      // Use grid layout for multi-voucher with specified grid size
+      documentElement = React.createElement(GridVoucherDocument, {
+        vouchers,
+        gridSize,
+        paperFormat: format
+      });
     } else if (isSingle) {
       // Single voucher on standard paper
       documentElement = React.createElement(SingleVoucherDocument, {
@@ -117,7 +142,7 @@ export default async function handler(req, res) {
         format
       });
     } else {
-      // Multiple vouchers on standard paper (batch)
+      // Multiple vouchers on standard paper (batch) - default 2x2 grid
       documentElement = React.createElement(BatchVoucherDocument, {
         vouchers,
         format
@@ -136,6 +161,7 @@ export default async function handler(req, res) {
       success: true,
       pdf: pdfBase64,
       format,
+      gridSize: gridSize || (isSingle ? null : '2x2'),
       voucherCount: vouchers.length
     });
 

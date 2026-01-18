@@ -91,7 +91,8 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION cleanup_old_vouchers()
 RETURNS INTEGER AS $$
 DECLARE
-    deleted_count INTEGER;
+    deleted_count INTEGER := 0;
+    tmp_count INTEGER;
     now_ms BIGINT;
     claimed_retention_ms BIGINT := 30 * 24 * 60 * 60 * 1000;    -- 30 days
     cancelled_retention_ms BIGINT := 30 * 24 * 60 * 60 * 1000;  -- 30 days
@@ -105,7 +106,8 @@ BEGIN
       AND claimed_at IS NOT NULL
       AND (now_ms - claimed_at) > claimed_retention_ms;
     
-    GET DIAGNOSTICS deleted_count = ROW_COUNT;
+    GET DIAGNOSTICS tmp_count = ROW_COUNT;
+    deleted_count := deleted_count + tmp_count;
     
     -- Delete old cancelled vouchers
     DELETE FROM vouchers
@@ -113,7 +115,8 @@ BEGIN
       AND cancelled_at IS NOT NULL
       AND (now_ms - cancelled_at) > cancelled_retention_ms;
     
-    GET DIAGNOSTICS deleted_count = deleted_count + ROW_COUNT;
+    GET DIAGNOSTICS tmp_count = ROW_COUNT;
+    deleted_count := deleted_count + tmp_count;
     
     -- Delete old expired vouchers
     DELETE FROM vouchers
@@ -121,7 +124,8 @@ BEGIN
       AND expires_at IS NOT NULL
       AND (now_ms - expires_at) > expired_retention_ms;
     
-    GET DIAGNOSTICS deleted_count = deleted_count + ROW_COUNT;
+    GET DIAGNOSTICS tmp_count = ROW_COUNT;
+    deleted_count := deleted_count + tmp_count;
     
     RETURN deleted_count;
 END;

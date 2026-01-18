@@ -431,58 +431,40 @@ export default function NostrLoginForm() {
   }
 
   // Main View (default)
-  // Check if we're in development mode for new terminal-style logo
-  const isDev = process.env.NODE_ENV === 'development';
   
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-black">
-      {/* Dev mode: Fixed header with logo like dashboard */}
-      {isDev && (
-        <div className="px-4 py-4">
-          <img 
-            src="/logos/blink-icon-light.svg" 
-            alt="Blink" 
-            className="h-12 w-12 dark:hidden"
-          />
-          <img 
-            src="/logos/blink-icon-dark.svg" 
-            alt="Blink" 
-            className="h-12 w-12 hidden dark:block"
-          />
-        </div>
-      )}
+      {/* Fixed header with logo like dashboard */}
+      <div className="px-4 py-4">
+        <img 
+          src="/logos/blink-icon-light.svg" 
+          alt="Blink" 
+          className="h-12 w-12 dark:hidden"
+        />
+        <img 
+          src="/logos/blink-icon-dark.svg" 
+          alt="Blink" 
+          className="h-12 w-12 hidden dark:block"
+        />
+      </div>
       
-      <div className={`flex items-center justify-center ${isDev ? 'min-h-[calc(100vh-80px)]' : 'min-h-screen'}`}>
+      <div className="flex items-center justify-center min-h-[calc(100vh-80px)]">
         <div className="max-w-md w-full space-y-8 p-8">
           {/* Logo */}
           <div className="text-center">
-            {isDev ? (
-              /* Terminal-style ASCII logo for development */
-              <div className="mb-8 mt-4 flex justify-center">
-                {/* ASCII art text - 30% bigger, centered */}
-                <pre className="font-mono text-[13px] sm:text-base leading-tight text-purple-600 dark:text-purple-400 text-left">
+            {/* Terminal-style ASCII logo */}
+            <div className="mb-8 mt-4 flex justify-center">
+              {/* ASCII art text - centered */}
+              <pre className="font-mono text-[13px] sm:text-base leading-tight text-purple-600 dark:text-purple-400 text-left">
 {`╔╗ ╦  ╦╔╗╔╦╔═  ╔╗ ╦╔╦╗╔═╗╔═╗╦╔╗╔
 ╠╩╗║  ║║║║╠╩╗  ╠╩╗║ ║ ║  ║ ║║║║║
 ╚═╝╩═╝╩╝╚╝╩ ╩  ╚═╝╩ ╩ ╚═╝╚═╝╩╝╚╝
       ╔╦╗╔═╗╦═╗╔╦╗╦╔╗╔╔═╗╦
        ║ ║╣ ╠╦╝║║║║║║║╠═╣║
        ╩ ╚═╝╩╚═╩ ╩╩╝╚╝╩ ╩╩═╝`}
-                </pre>
-              </div>
-            ) : (
-              /* Original logo for production */
-              <div className="flex justify-center mb-6">
-                <img 
-                  src={darkMode ? "/logos/blink-logo-full.svg" : "/logos/blink-logo-full-dark.svg"} 
-                  alt="Blink POS" 
-                  className="h-24"
-                />
-              </div>
-            )}
-            <h2 className="text-3xl font-extrabold text-gray-900 dark:text-gray-100">
-              {isDev ? '' : 'Blink POS'}
-            </h2>
-            <p className={`mt-2 text-sm text-gray-600 dark:text-gray-400 ${isDev ? '' : ''}`}>
+              </pre>
+            </div>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
               Sign in with your Nostr identity
             </p>
           </div>

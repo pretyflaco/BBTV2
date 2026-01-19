@@ -57,6 +57,7 @@ export default async function handler(req, res) {
     // If amount is specified, set min=max for fixed amount
     let minSendable = blinkData.minSendable;
     let maxSendable = blinkData.maxSendable;
+    let isFixedAmount = false;
 
     if (amount) {
       const amountSats = parseInt(amount);
@@ -64,7 +65,24 @@ export default async function handler(req, res) {
         const amountMsats = amountSats * 1000; // Convert to millisatoshis
         minSendable = amountMsats;
         maxSendable = amountMsats;
+        isFixedAmount = true;
         console.log('[paycode/lnurlp] Fixed amount:', amountSats, 'sats =', amountMsats, 'msats');
+      }
+    }
+
+    // For fixed-amount paycodes, we need to modify the metadata to remove the 
+    // text/identifier field. This prevents Blink mobile from detecting it as a
+    // Blink user and converting to intraledger payment (which loses the fixed amount).
+    let metadata = blinkData.metadata;
+    if (isFixedAmount) {
+      try {
+        const metadataArray = JSON.parse(blinkData.metadata);
+        // Remove text/identifier entries to prevent Blink intraledger detection
+        const filteredMetadata = metadataArray.filter(item => item[0] !== 'text/identifier');
+        metadata = JSON.stringify(filteredMetadata);
+        console.log('[paycode/lnurlp] Modified metadata for fixed amount (removed text/identifier)');
+      } catch (e) {
+        console.error('[paycode/lnurlp] Failed to parse metadata:', e);
       }
     }
 
@@ -75,7 +93,7 @@ export default async function handler(req, res) {
       callback: callbackUrl,
       minSendable,
       maxSendable,
-      metadata: blinkData.metadata
+      metadata
     };
 
     // Only include commentAllowed if > 0 (LNbits omits when 0)

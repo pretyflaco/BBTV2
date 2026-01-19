@@ -3189,7 +3189,7 @@ export default function Dashboard() {
         // Use our custom LNURL-pay endpoint for fixed amounts (sets min=max)
         // Use Blink's endpoint for variable amounts
         const lnurlPayEndpoint = hasFixedAmount
-          ? `https://pos.blink.sv/api/paycode/lnurlp/${username}?amount=${paycodeAmount}`
+          ? `https://track.twentyone.ist/api/paycode/lnurlp/${username}?amount=${paycodeAmount}`
           : `https://pay.blink.sv/.well-known/lnurlp/${username}`;
         
         // Encode to LNURL using bech32

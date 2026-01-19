@@ -1,0 +1,98 @@
+/**
+ * Custom LNURL-pay endpoint that supports fixed amounts
+ * Proxies to Blink's LNURL-pay but allows setting min=max for fixed amounts
+ * 
+ * GET /api/paycode/lnurlp/[username]?amount=1000 (optional, in sats)
+ * 
+ * Following LUD-06 spec: https://github.com/lnurl/luds/blob/luds/06.md
+ */
+export default async function handler(req, res) {
+  // Add CORS headers for LNURL compatibility
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Content-Type', 'application/json');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  if (req.method !== 'GET') {
+    return res.status(200).json({ 
+      status: 'ERROR',
+      reason: 'Method not allowed' 
+    });
+  }
+
+  try {
+    const { username, amount } = req.query;
+
+    if (!username) {
+      return res.status(200).json({ 
+        status: 'ERROR',
+        reason: 'Username required' 
+      });
+    }
+
+    console.log('[paycode/lnurlp] Request:', { username, amount });
+
+    // Fetch the original LNURL-pay metadata from Blink
+    const blinkResponse = await fetch(`https://pay.blink.sv/.well-known/lnurlp/${username}`);
+    
+    if (!blinkResponse.ok) {
+      console.error('[paycode/lnurlp] Blink error:', blinkResponse.status);
+      return res.status(200).json({ 
+        status: 'ERROR',
+        reason: 'User not found' 
+      });
+    }
+
+    const blinkData = await blinkResponse.json();
+
+    // Build our callback URL
+    const protocol = req.headers['x-forwarded-proto'] || 'https';
+    const host = req.headers['x-forwarded-host'] || req.headers.host;
+    const callbackUrl = `${protocol}://${host}/api/paycode/lnurlp/callback/${username}`;
+
+    // If amount is specified, set min=max for fixed amount
+    let minSendable = blinkData.minSendable;
+    let maxSendable = blinkData.maxSendable;
+
+    if (amount) {
+      const amountSats = parseInt(amount);
+      if (!isNaN(amountSats) && amountSats > 0) {
+        const amountMsats = amountSats * 1000; // Convert to millisatoshis
+        minSendable = amountMsats;
+        maxSendable = amountMsats;
+        console.log('[paycode/lnurlp] Fixed amount:', amountSats, 'sats =', amountMsats, 'msats');
+      }
+    }
+
+    // Return LNURL-pay response with our callback
+    const response = {
+      callback: callbackUrl,
+      minSendable,
+      maxSendable,
+      metadata: blinkData.metadata,
+      commentAllowed: blinkData.commentAllowed || 0,
+      tag: 'payRequest',
+      allowsNostr: blinkData.allowsNostr || false,
+      nostrPubkey: blinkData.nostrPubkey
+    };
+
+    console.log('[paycode/lnurlp] Response:', { 
+      callback: callbackUrl, 
+      minSendable, 
+      maxSendable 
+    });
+
+    return res.status(200).json(response);
+
+  } catch (error) {
+    console.error('[paycode/lnurlp] Error:', error);
+    return res.status(200).json({ 
+      status: 'ERROR',
+      reason: 'Internal server error'
+    });
+  }
+}

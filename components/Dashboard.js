@@ -173,6 +173,8 @@ export default function Dashboard() {
   });
   // Paycode state
   const [showPaycode, setShowPaycode] = useState(false);
+  const [paycodeAmount, setPaycodeAmount] = useState(''); // Amount in sats (empty = any amount)
+  const [paycodeGeneratingPdf, setPaycodeGeneratingPdf] = useState(false);
   const [activeTipProfile, setActiveTipProfile] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('blinkpos-active-tip-profile');
@@ -2967,7 +2969,7 @@ export default function Dashboard() {
                   </div>
                 </button>
 
-                {/* Printable Paycode (only show if user has active Blink account with username) */}
+                {/* Paycodes (only show if user has active Blink account with username) */}
                 {activeBlinkAccount?.username && (
                   <button
                     onClick={() => {
@@ -2977,7 +2979,7 @@ export default function Dashboard() {
                     className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">Printable Paycode</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Paycodes</span>
                       <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -3178,20 +3180,75 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Printable Paycode Overlay */}
+      {/* Paycodes Overlay */}
       {showPaycode && activeBlinkAccount?.username && (() => {
         // Generate LNURL for the paycode
         const username = activeBlinkAccount.username;
-        const lnurlPayEndpoint = `https://pay.blink.sv/.well-known/lnurlp/${username}`;
+        const hasFixedAmount = paycodeAmount && parseInt(paycodeAmount) > 0;
+        
+        // Use our custom LNURL-pay endpoint for fixed amounts (sets min=max)
+        // Use Blink's endpoint for variable amounts
+        const lnurlPayEndpoint = hasFixedAmount
+          ? `https://pos.blink.sv/api/paycode/lnurlp/${username}?amount=${paycodeAmount}`
+          : `https://pay.blink.sv/.well-known/lnurlp/${username}`;
         
         // Encode to LNURL using bech32
         const words = bech32.toWords(Buffer.from(lnurlPayEndpoint, 'utf8'));
         const lnurl = bech32.encode('lnurl', words, 1500);
         
-        // Create the full paycode URL (uppercase for less dense QR)
-        const webURL = `https://pay.blink.sv/${username}`;
-        const paycodeURL = (webURL + '?lightning=' + lnurl).toUpperCase();
+        // For the QR, use just the LNURL (uppercase for less dense QR)
+        // This is what wallets will scan and it properly encodes the fixed amount
+        const paycodeURL = lnurl.toUpperCase();
         const lightningAddress = `${username}@blink.sv`;
+        const webURL = `https://pay.blink.sv/${username}`;
+
+        // Generate PDF function
+        const generatePaycodePdf = async () => {
+          setPaycodeGeneratingPdf(true);
+          try {
+            // Create a canvas from the QR code to get data URL
+            const qrCanvas = document.createElement('canvas');
+            const QRCodeLib = await import('qrcode');
+            await QRCodeLib.toCanvas(qrCanvas, paycodeURL, {
+              width: 400,
+              margin: 2,
+              errorCorrectionLevel: 'H'
+            });
+            const qrDataUrl = qrCanvas.toDataURL('image/png');
+
+            // Call the PDF API
+            const response = await fetch('/api/paycode/pdf', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                lightningAddress,
+                qrDataUrl,
+                amount: paycodeAmount ? parseInt(paycodeAmount) : null,
+                displayAmount: paycodeAmount ? `${parseInt(paycodeAmount).toLocaleString()} sats` : null,
+                webUrl: webURL
+              })
+            });
+
+            if (!response.ok) {
+              throw new Error('Failed to generate PDF');
+            }
+
+            const { pdf } = await response.json();
+            
+            // Download the PDF
+            const link = document.createElement('a');
+            link.href = `data:application/pdf;base64,${pdf}`;
+            link.download = `paycode-${username}${paycodeAmount ? `-${paycodeAmount}sats` : ''}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          } catch (error) {
+            console.error('Error generating PDF:', error);
+            alert('Failed to generate PDF. Please try again.');
+          } finally {
+            setPaycodeGeneratingPdf(false);
+          }
+        };
 
         return (
           <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
@@ -3201,14 +3258,17 @@ export default function Dashboard() {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                   <div className="flex justify-between items-center h-16">
                     <button
-                      onClick={() => setShowPaycode(false)}
+                      onClick={() => {
+                        setShowPaycode(false);
+                        setPaycodeAmount('');
+                      }}
                       className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
                     >
                       <span className="text-2xl mr-2">‹</span>
                       <span className="text-lg">Back</span>
                     </button>
                     <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                      Printable Paycode
+                      Paycodes
                     </h1>
                     <div className="w-16"></div>
                   </div>
@@ -3224,7 +3284,34 @@ export default function Dashboard() {
                       Pay {lightningAddress}
                     </p>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                      Display this static QR code online or in person to allow anybody to pay {username}.
+                      Display this static QR code to accept Lightning payments.
+                    </p>
+                  </div>
+
+                  {/* Amount Configuration */}
+                  <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Fixed Amount (optional)
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={paycodeAmount}
+                        onChange={(e) => setPaycodeAmount(e.target.value)}
+                        placeholder="Any amount"
+                        min="1"
+                        className={`flex-1 px-3 py-2 rounded-lg border text-center ${
+                          darkMode 
+                            ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' 
+                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                        } focus:outline-none focus:ring-2 focus:ring-purple-500`}
+                      />
+                      <span className="text-sm text-gray-500 dark:text-gray-400">sats</span>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                      {paycodeAmount && parseInt(paycodeAmount) > 0 
+                        ? `QR will request exactly ${parseInt(paycodeAmount).toLocaleString()} sats`
+                        : 'Leave empty to allow payer to choose any amount'}
                     </p>
                   </div>
 
@@ -3241,21 +3328,50 @@ export default function Dashboard() {
                     </div>
                   </div>
 
+                  {/* Amount Display (if set) */}
+                  {paycodeAmount && parseInt(paycodeAmount) > 0 && (
+                    <div className="bg-purple-100 dark:bg-purple-900/30 px-4 py-2 rounded-lg">
+                      <p className="text-lg font-bold text-purple-700 dark:text-purple-300">
+                        {parseInt(paycodeAmount).toLocaleString()} sats
+                      </p>
+                    </div>
+                  )}
+
                   {/* Troubleshooting Note */}
-                  <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      <strong>Having trouble scanning this QR code with your wallet?</strong>{' '}
-                      Some wallets do not support printed QR codes like this one. Scan with the camera app on your phone to be taken to a webpage where you can create a fresh invoice for paying from any Lightning wallet.
+                  <div className={`p-4 rounded-lg ${darkMode ? 'bg-yellow-900/30' : 'bg-yellow-50'}`}>
+                    <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                      <strong>Having trouble scanning?</strong>{' '}
+                      Some wallets don't support static QR codes. Scan with your phone's camera app to open a webpage for creating a fresh invoice.
                     </p>
                   </div>
 
                   {/* Action Buttons */}
                   <div className="space-y-3">
+                    {/* Download PDF Button */}
+                    <button
+                      onClick={generatePaycodePdf}
+                      disabled={paycodeGeneratingPdf}
+                      className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg text-base font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                      {paycodeGeneratingPdf ? (
+                        <>
+                          <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                          Generating PDF...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Download PDF
+                        </>
+                      )}
+                    </button>
+
                     {/* Copy Lightning Address */}
                     <button
                       onClick={() => {
                         navigator.clipboard.writeText(lightningAddress);
-                        // Optional: show toast notification
                       }}
                       className="w-full py-3 bg-blink-accent hover:bg-blue-600 text-white rounded-lg text-base font-medium transition-colors flex items-center justify-center gap-2"
                     >
@@ -3280,101 +3396,6 @@ export default function Dashboard() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                       </svg>
                       Copy Paycode URL
-                    </button>
-
-                    {/* Print Button */}
-                    <button
-                      onClick={() => {
-                        // Create a print-friendly version
-                        const printWindow = window.open('', '_blank');
-                        if (printWindow) {
-                          printWindow.document.write(`
-                            <!DOCTYPE html>
-                            <html>
-                            <head>
-                              <title>Paycode - ${lightningAddress}</title>
-                              <style>
-                                body {
-                                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                                  display: flex;
-                                  flex-direction: column;
-                                  align-items: center;
-                                  justify-content: center;
-                                  min-height: 100vh;
-                                  margin: 0;
-                                  padding: 20px;
-                                  box-sizing: border-box;
-                                }
-                                .container {
-                                  text-align: center;
-                                  max-width: 600px;
-                                }
-                                h1 {
-                                  font-size: 24px;
-                                  margin-bottom: 10px;
-                                  color: #0066cc;
-                                }
-                                .description {
-                                  font-size: 14px;
-                                  color: #666;
-                                  margin-bottom: 30px;
-                                }
-                                .qr-container {
-                                  display: inline-block;
-                                  padding: 20px;
-                                  border: 2px solid #ddd;
-                                  border-radius: 12px;
-                                  margin-bottom: 30px;
-                                }
-                                .note {
-                                  font-size: 12px;
-                                  color: #888;
-                                  max-width: 400px;
-                                  margin: 0 auto;
-                                  line-height: 1.5;
-                                }
-                                @media print {
-                                  body { padding: 0; }
-                                  .qr-container { border-color: #000; }
-                                }
-                              </style>
-                            </head>
-                            <body>
-                              <div class="container">
-                                <h1>Pay ${lightningAddress}</h1>
-                                <p class="description">Display this static QR code to accept Lightning payments.</p>
-                                <div class="qr-container">
-                                  <div id="qr-code"></div>
-                                </div>
-                                <p class="note">
-                                  <strong>Having trouble scanning?</strong> Some wallets do not support printed QR codes.
-                                  Scan with your phone's camera app to open a webpage for creating a fresh invoice.
-                                </p>
-                              </div>
-                              <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-                              <script>
-                                QRCode.toCanvas(document.createElement('canvas'), '${paycodeURL}', {
-                                  width: 400,
-                                  margin: 2,
-                                  errorCorrectionLevel: 'H'
-                                }, function(error, canvas) {
-                                  if (error) console.error(error);
-                                  document.getElementById('qr-code').appendChild(canvas);
-                                  setTimeout(function() { window.print(); }, 500);
-                                });
-                              </script>
-                            </body>
-                            </html>
-                          `);
-                          printWindow.document.close();
-                        }
-                      }}
-                      className="w-full py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg text-base font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                      </svg>
-                      Print QR Code
                     </button>
                   </div>
 

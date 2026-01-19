@@ -911,7 +911,7 @@ const MultiVoucher = forwardRef(({
       <div className="flex-1 px-4 py-4 overflow-y-auto">
         {/* Quantity Selector */}
         <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 text-center">
             Number of Vouchers
           </label>
           <div className="flex items-center justify-center gap-4">

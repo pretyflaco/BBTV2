@@ -2187,7 +2187,8 @@ export default function Dashboard() {
     // Direction convention: Swipe LEFT moves to the RIGHT item (finger drags content left, next item appears from right)
     // Top row (left to right): Cart - POS - Transactions
     // Bottom row (left to right): MultiVoucher - Voucher - VoucherManager
-    if (isLeftSwipe && !showingInvoice && !isViewTransitioning) {
+    // IMPORTANT: Disable swipes when showing invoice (POS checkout) or voucher QR (voucher checkout)
+    if (isLeftSwipe && !showingInvoice && !showingVoucherQR && !isViewTransitioning) {
       if (currentView === 'cart') {
         handleViewTransition('pos');
       } else if (currentView === 'pos') {
@@ -2199,7 +2200,7 @@ export default function Dashboard() {
         // Left swipe from voucher goes to vouchermanager (same as pos→transactions)
         handleViewTransition('vouchermanager');
       }
-    } else if (isRightSwipe && !isViewTransitioning) {
+    } else if (isRightSwipe && !showingVoucherQR && !isViewTransitioning) {
       if (currentView === 'transactions') {
         handleViewTransition('pos');
       } else if (currentView === 'pos' && !showingInvoice) {
@@ -2218,7 +2219,8 @@ export default function Dashboard() {
     // NOTE: MultiVoucher and VoucherManager have scrollable content,
     // so swipe UP is disabled to avoid conflicts with scrolling.
     // Users can navigate horizontally to Single Voucher, then swipe up to POS.
-    else if (isUpSwipe && !showingInvoice && !isViewTransitioning && voucherWallet) {
+    // IMPORTANT: Disable swipes when showing voucher QR (voucher checkout)
+    else if (isUpSwipe && !showingInvoice && !showingVoucherQR && !isViewTransitioning && voucherWallet) {
       if (currentView === 'pos') {
         handleViewTransition('voucher');
       } else if (currentView === 'voucher') {

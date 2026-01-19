@@ -430,6 +430,58 @@ export default function Dashboard() {
     }
   }, [publicKey]);
 
+  // Migration: Fetch missing username for voucher wallet (for wallets created before username was added)
+  useEffect(() => {
+    const migrateVoucherWalletUsername = async () => {
+      if (!voucherWallet || !voucherWallet.apiKey || voucherWallet.username) {
+        return; // No wallet, no API key, or already has username
+      }
+      
+      console.log('[Dashboard] Migrating voucher wallet: fetching username...');
+      
+      try {
+        const response = await fetch('https://api.blink.sv/graphql', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-KEY': voucherWallet.apiKey
+          },
+          body: JSON.stringify({
+            query: '{ me { username } }'
+          })
+        });
+        
+        if (!response.ok) {
+          console.warn('[Dashboard] Failed to fetch username for voucher wallet migration');
+          return;
+        }
+        
+        const data = await response.json();
+        const username = data.data?.me?.username;
+        
+        if (username) {
+          console.log('[Dashboard] ✓ Voucher wallet username fetched:', username);
+          
+          // Update wallet data with username
+          const updatedWallet = { ...voucherWallet, username };
+          setVoucherWallet(updatedWallet);
+          
+          // Save to localStorage
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('blinkpos-voucher-wallet', JSON.stringify(updatedWallet));
+          }
+          
+          // Sync to server
+          syncVoucherWalletToServer(updatedWallet);
+        }
+      } catch (err) {
+        console.error('[Dashboard] Failed to migrate voucher wallet username:', err);
+      }
+    };
+    
+    migrateVoucherWalletUsername();
+  }, [voucherWallet?.apiKey]); // Only run when voucherWallet.apiKey changes (initial load)
+
   // Sync preferences to server when they change
   useEffect(() => {
     if (!publicKey) return;

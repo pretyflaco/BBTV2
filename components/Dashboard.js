@@ -3196,11 +3196,15 @@ export default function Dashboard() {
         const words = bech32.toWords(Buffer.from(lnurlPayEndpoint, 'utf8'));
         const lnurl = bech32.encode('lnurl', words, 1500);
         
-        // For the QR, use just the LNURL (uppercase for less dense QR)
-        // This is what wallets will scan and it properly encodes the fixed amount
-        const paycodeURL = lnurl.toUpperCase();
-        const lightningAddress = `${username}@blink.sv`;
+        // Web fallback URL - for wallets that don't support LNURL, camera apps open this page
+        // where users can generate a fresh invoice to pay from any Lightning wallet
         const webURL = `https://pay.blink.sv/${username}`;
+        
+        // QR encodes both: web URL (fallback) + lightning parameter (for LNURL-capable wallets)
+        // - Lightning wallets extract the ?lightning= param and use LNURL directly
+        // - Camera apps open the web page as fallback for invoice generation
+        const paycodeURL = (webURL + '?lightning=' + lnurl).toUpperCase();
+        const lightningAddress = `${username}@blink.sv`;
 
         // Generate PDF function
         const generatePaycodePdf = async () => {

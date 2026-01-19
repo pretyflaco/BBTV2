@@ -3385,7 +3385,7 @@ export default function Dashboard() {
                       Copy Lightning Address
                     </button>
 
-                    {/* Copy Paycode URL */}
+                    {/* Copy Paycode LNURL */}
                     <button
                       onClick={() => {
                         navigator.clipboard.writeText(paycodeURL);
@@ -3399,16 +3399,8 @@ export default function Dashboard() {
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                       </svg>
-                      Copy Paycode URL
+                      Copy Paycode LNURL
                     </button>
-                  </div>
-
-                  {/* Lightning Address Display */}
-                  <div className={`mt-6 p-4 rounded-lg ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Lightning Address</p>
-                    <p className="text-base font-mono text-gray-900 dark:text-white break-all">
-                      {lightningAddress}
-                    </p>
                   </div>
                 </div>
               </div>

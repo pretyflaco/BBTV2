@@ -790,7 +790,8 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
             identifierCode: voucher.id?.substring(0, 8)?.toUpperCase() || null,
             voucherSecret: voucherSecret,
             commissionPercent: voucher.commissionPercent || 0,
-            expiresAt: voucher.expiresAt || null
+            expiresAt: voucher.expiresAt || null,
+            issuedBy: voucherWallet?.username || null
           }],
           format: printFormat
         }),

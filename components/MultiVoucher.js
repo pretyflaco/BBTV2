@@ -524,7 +524,8 @@ const MultiVoucher = forwardRef(({
             identifierCode: voucher.id?.substring(0, 8)?.toUpperCase() || null,
             voucherSecret: generateVoucherSecret(voucher.id),
             commissionPercent: voucher.commissionPercent || 0,
-            expiresAt: voucher.expiresAt || null
+            expiresAt: voucher.expiresAt || null,
+            issuedBy: voucherWallet?.username || null
           };
         })
       );
@@ -604,7 +605,8 @@ const MultiVoucher = forwardRef(({
             identifierCode: voucher.id?.substring(0, 8)?.toUpperCase() || null,
             voucherSecret: generateVoucherSecret(voucher.id),
             commissionPercent: voucher.commissionPercent || 0,
-            expiresAt: voucher.expiresAt || null
+            expiresAt: voucher.expiresAt || null,
+            issuedBy: voucherWallet?.username || null
           };
         })
       );

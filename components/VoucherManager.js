@@ -231,7 +231,8 @@ const VoucherManager = forwardRef(({
             voucherSecret: generateVoucherSecret(voucher.id),
             commissionPercent: voucher.commissionPercent || 0,
             expiresAt: voucher.expiresAt || null,
-            lnurl: lnurl
+            lnurl: lnurl,
+            issuedBy: voucherWallet?.username || null
           }],
           format: 'reissue'
         }),

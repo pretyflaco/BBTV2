@@ -21,7 +21,8 @@ const getPdfModule = async () => {
  *     qrDataUrl: string (base64 data URL of QR code),
  *     identifierCode: string (optional),
  *     lnurl: string (optional, required for reissue format),
- *     expiresAt: number (optional, timestamp)
+ *     expiresAt: number (optional, timestamp),
+ *     issuedBy: string (optional, Blink username who issued the voucher)
  *   }],
  *   format: 'a4' | 'letter' | 'thermal-80' | 'thermal-58' | 'reissue',
  *   gridSize: '2x2' | '2x3' | '3x3' | '3x4' (optional, for multi-voucher grid layout)

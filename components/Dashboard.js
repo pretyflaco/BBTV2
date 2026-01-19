@@ -6258,11 +6258,17 @@ export default function Dashboard() {
                 );
               })()}
               
-              {/* Right side: Expiry Selector (only on Voucher screen, not when voucher QR is showing) */}
+              {/* Right side: Expiry Selector (on Voucher and MultiVoucher screens) */}
               {currentView === 'voucher' && !showingVoucherQR && (
                 <ExpirySelector
-                  value={voucherRef.current?.getSelectedExpiry?.() || '6mo'}
+                  value={voucherRef.current?.getSelectedExpiry?.() || '7d'}
                   onChange={(expiryId) => voucherRef.current?.setSelectedExpiry?.(expiryId)}
+                />
+              )}
+              {currentView === 'multivoucher' && (
+                <ExpirySelector
+                  value={multiVoucherRef.current?.getSelectedExpiry?.() || '7d'}
+                  onChange={(expiryId) => multiVoucherRef.current?.setSelectedExpiry?.(expiryId)}
                 />
               )}
             </div>

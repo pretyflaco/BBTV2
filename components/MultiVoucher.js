@@ -684,6 +684,8 @@ const MultiVoucher = forwardRef(({
     },
     hasValidAmount: () => isValidAmount(),
     getCurrentStep: () => currentStep,
+    getSelectedExpiry: () => selectedExpiry,
+    setSelectedExpiry: (expiryId) => setSelectedExpiry(expiryId),
     isCommissionDialogOpen: () => showCommissionDialog,
     handleCommissionDialogKey: (key) => {
       if (!showCommissionDialog) return false;
@@ -888,7 +890,7 @@ const MultiVoucher = forwardRef(({
   // Render configuration step
   const renderConfigStep = () => (
     <div className="h-full flex flex-col bg-white dark:bg-black" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-      {/* Header */}
+      {/* Header - centered */}
       <div className="px-4 pt-4 pb-2">
         <div className="text-center">
           <div className="text-3xl font-semibold text-purple-600 dark:text-purple-400 mb-2">
@@ -955,15 +957,6 @@ const MultiVoucher = forwardRef(({
               </button>
             ))}
           </div>
-        </div>
-
-        {/* Expiry Selector */}
-        <div className="mb-6">
-          <ExpirySelector
-            value={selectedExpiry}
-            onChange={setSelectedExpiry}
-            compact={false}
-          />
         </div>
 
         {/* Summary */}

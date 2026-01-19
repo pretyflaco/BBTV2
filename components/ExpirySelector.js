@@ -17,7 +17,7 @@ const EXPIRY_OPTIONS = [
   { id: '6mo', label: '6 months', description: '6 months' },
 ];
 
-const DEFAULT_EXPIRY = '6mo';
+const DEFAULT_EXPIRY = '7d';
 
 /**
  * ExpirySelector - Minimal dropdown selector for voucher expiry

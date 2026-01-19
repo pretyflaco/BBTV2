@@ -30,15 +30,16 @@
     "ws": "^8.18.3"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.0",
+    "@types/crypto-js": "^4.2.0",
+    "@types/jsonwebtoken": "^9.0.0",
     "@types/node": "^20.0.0",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
-    "@types/crypto-js": "^4.2.0",
-    "@types/jsonwebtoken": "^9.0.0",
-    "@types/bcryptjs": "^2.4.0",
-    "typescript": "^5.0.0",
-    "tailwindcss": "^3.0.0",
     "autoprefixer": "^10.0.0",
-    "postcss": "^8.0.0"
+    "lnurl-pay": "^5.0.2",
+    "postcss": "^8.0.0",
+    "tailwindcss": "^3.0.0",
+    "typescript": "^5.0.0"
   }
 }

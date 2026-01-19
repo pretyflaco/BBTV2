@@ -3197,13 +3197,13 @@ export default function Dashboard() {
         const lnurl = bech32.encode('lnurl', words, 1500);
         
         // Web fallback URL - for wallets that don't support LNURL, camera apps open this page
-        // where users can generate a fresh invoice to pay from any Lightning wallet
         const webURL = `https://pay.blink.sv/${username}`;
         
-        // QR encodes both: web URL (fallback) + lightning parameter (for LNURL-capable wallets)
-        // - Lightning wallets extract the ?lightning= param and use LNURL directly
-        // - Camera apps open the web page as fallback for invoice generation
-        const paycodeURL = (webURL + '?lightning=' + lnurl).toUpperCase();
+        // INTERIM FIX: Use raw LNURL for Blink mobile compatibility
+        // Blink mobile has a bug where it doesn't properly handle URLs with ?lightning= param
+        // See: https://github.com/blinkbitcoin/blink-mobile/issues/3583
+        // Once fixed, we can restore the web fallback: (webURL + '?lightning=' + lnurl).toUpperCase()
+        const paycodeURL = lnurl.toUpperCase();
         const lightningAddress = `${username}@blink.sv`;
 
         // Generate PDF function

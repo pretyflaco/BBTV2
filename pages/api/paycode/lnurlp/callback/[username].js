@@ -62,8 +62,19 @@ export default async function handler(req, res) {
       hasPr: !!blinkData.pr 
     });
 
-    // Return Blink's response directly
-    return res.status(200).json(blinkData);
+    // Format response to match LNbits format
+    // LNbits doesn't include 'status' or 'verify' fields
+    const response = {
+      pr: blinkData.pr,
+      routes: blinkData.routes || []
+    };
+
+    // Only include successAction if present
+    if (blinkData.successAction) {
+      response.successAction = blinkData.successAction;
+    }
+
+    return res.status(200).json(response);
 
   } catch (error) {
     console.error('[paycode/callback] Error:', error);

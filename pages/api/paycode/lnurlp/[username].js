@@ -69,16 +69,25 @@ export default async function handler(req, res) {
     }
 
     // Return LNURL-pay response with our callback
+    // Match LNbits format: only include optional fields when they have meaningful values
     const response = {
+      tag: 'payRequest',  // LNbits puts tag first
       callback: callbackUrl,
       minSendable,
       maxSendable,
-      metadata: blinkData.metadata,
-      commentAllowed: blinkData.commentAllowed || 0,
-      tag: 'payRequest',
-      allowsNostr: blinkData.allowsNostr || false,
-      nostrPubkey: blinkData.nostrPubkey
+      metadata: blinkData.metadata
     };
+
+    // Only include commentAllowed if > 0 (LNbits omits when 0)
+    if (blinkData.commentAllowed && blinkData.commentAllowed > 0) {
+      response.commentAllowed = blinkData.commentAllowed;
+    }
+
+    // Only include nostr fields if enabled (LNbits omits when not applicable)
+    if (blinkData.allowsNostr && blinkData.nostrPubkey) {
+      response.allowsNostr = true;
+      response.nostrPubkey = blinkData.nostrPubkey;
+    }
 
     console.log('[paycode/lnurlp] Response:', { 
       callback: callbackUrl, 

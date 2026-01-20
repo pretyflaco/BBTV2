@@ -1006,40 +1006,11 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
   if (invoice) {
     return (
       <div className="h-full flex flex-col bg-white dark:bg-black overflow-hidden" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-        {/* Header with Cancel button */}
+        {/* Header - Match main header structure exactly */}
         <div className="bg-white dark:bg-blink-dark border-b border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-black flex-shrink-0">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between py-3">
-              {/* Cancel/Back Button - Left */}
-              <button 
-                onClick={handleClear}
-                className="flex items-center text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 focus:outline-none"
-                aria-label="Cancel"
-              >
-                <svg className="w-6 h-6 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                <span className="text-base font-medium">Cancel</span>
-              </button>
-              
-              {/* NFC Icon - Center (only if supported) */}
-              {nfcState && nfcState.isNfcSupported && (
-                <button
-                  onClick={nfcState.activateNfcScan}
-                  disabled={nfcState.hasNFCPermission}
-                  className="flex items-center justify-center transition-all hover:scale-110 disabled:cursor-default"
-                  aria-label={nfcState.hasNFCPermission ? "NFC Activated" : "Activate NFC"}
-                  title={nfcState.hasNFCPermission ? "NFC ready - tap your card now" : "Click to activate NFC"}
-                >
-                  <img 
-                    src={nfcState.hasNFCPermission ? "/greennfc.svg" : "/bluenfc.svg"}
-                    alt="NFC" 
-                    className="h-10 w-10"
-                  />
-                </button>
-              )}
-              
-              {/* Dark mode toggle - Right */}
+            <div className="flex items-center justify-between py-4">
+              {/* Blink Logo - Left (tap to toggle dark mode) */}
               <button 
                 onClick={toggleDarkMode}
                 className="flex items-center focus:outline-none"
@@ -1048,28 +1019,50 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                 <img 
                   src="/logos/blink-icon-light.svg" 
                   alt="Blink" 
-                  className="h-10 w-10 dark:hidden"
+                  className="h-12 w-12 dark:hidden"
                 />
                 <img 
                   src="/logos/blink-icon-dark.svg" 
                   alt="Blink" 
-                  className="h-10 w-10 hidden dark:block"
+                  className="h-12 w-12 hidden dark:block"
                 />
               </button>
+              
+              {/* NFC Icon - Center (only if supported) */}
+              {nfcState && nfcState.isNfcSupported && (
+                <div className="absolute left-1/2 transform -translate-x-1/2">
+                  <button
+                    onClick={nfcState.activateNfcScan}
+                    disabled={nfcState.hasNFCPermission}
+                    className="flex items-center justify-center transition-all hover:scale-110 disabled:cursor-default"
+                    aria-label={nfcState.hasNFCPermission ? "NFC Activated" : "Activate NFC"}
+                    title={nfcState.hasNFCPermission ? "NFC ready - tap your card now" : "Click to activate NFC"}
+                  >
+                    <img 
+                      src={nfcState.hasNFCPermission ? "/greennfc.svg" : "/bluenfc.svg"}
+                      alt="NFC" 
+                      className="h-10 w-10"
+                    />
+                  </button>
+                </div>
+              )}
+              
+              {/* Spacer for layout balance */}
+              <div className="w-12"></div>
             </div>
           </div>
         </div>
 
         {/* Invoice Display - Scrollable content area */}
-        <div className="flex-1 overflow-y-auto overscroll-contain">
-          {/* Amount Display - Compact */}
+        <div className="flex-1 overflow-y-auto overscroll-contain flex flex-col">
+          {/* Amount - Fixed at top position */}
           <div className="px-4 pt-4 pb-2">
             <div className="text-center">
-              <div className="text-5xl font-semibold text-gray-800 dark:text-gray-100 leading-none tracking-normal">
+              <div className="text-6xl font-semibold text-gray-800 dark:text-gray-100 mb-1 leading-none tracking-normal">
                 {invoice.displayCurrency !== 'BTC' ? (
                   <div>
                     <div>{formatDisplayAmount(invoice.displayAmount, invoice.displayCurrency)}</div>
-                    <div className="text-base text-gray-600 dark:text-gray-400 mt-1">({invoice.satAmount} sats)</div>
+                    <div className="text-lg text-gray-600 dark:text-gray-400 mt-1">({invoice.satAmount} sats)</div>
                   </div>
                 ) : (
                   formatDisplayAmount(invoice.amount, invoice.currency)
@@ -1078,46 +1071,55 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
             </div>
           </div>
 
-          {/* QR Code - Responsive size */}
-          <div className="flex justify-center px-4 py-2">
-            <div className="bg-white dark:bg-white p-3 rounded-lg shadow-lg border-2 border-gray-200 dark:border-gray-600">
+          {/* QR Code and Invoice - Centered */}
+          <div className="flex-1 flex flex-col items-center justify-center space-y-4 px-6">
+            {/* QR Code */}
+            <div className="bg-white dark:bg-white p-4 rounded-lg shadow-lg border-2 border-gray-200 dark:border-gray-600">
               <QRCode 
                 value={invoice.paymentRequest} 
-                size={220}
+                size={256}
                 bgColor="#ffffff"
                 fgColor="#000000"
               />
             </div>
-          </div>
 
-          {/* Payment Request - Compact */}
-          <div className="px-4 py-2">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Lightning Invoice
-            </label>
-            <div className="flex">
-              <input
-                type="text"
-                value={invoice.paymentRequest}
-                readOnly
-                autoComplete="off"
-                data-1p-ignore
-                data-lpignore="true"
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-l-md bg-gray-50 dark:bg-blink-dark text-sm font-mono text-black dark:text-gray-100"
-              />
-              <button
-                onClick={() => copyToClipboard(invoice.paymentRequest)}
-                className="px-4 py-2 bg-blue-500 dark:bg-blue-600 text-white rounded-r-md hover:bg-blue-600 dark:hover:bg-blue-700 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-              </button>
+            {/* Payment Request */}
+            <div className="w-full max-w-md">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Lightning Invoice
+              </label>
+              <div className="flex">
+                <input
+                  type="text"
+                  value={invoice.paymentRequest}
+                  readOnly
+                  autoComplete="off"
+                  data-1p-ignore
+                  data-lpignore="true"
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-l-md bg-gray-50 dark:bg-blink-dark text-sm font-mono text-black dark:text-gray-100"
+                />
+                <button
+                  onClick={() => copyToClipboard(invoice.paymentRequest)}
+                  className="px-4 py-2 bg-blue-500 dark:bg-blue-600 text-white rounded-r-md hover:bg-blue-600 dark:hover:bg-blue-700 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Bottom padding for safe area */}
-          <div className="h-4"></div>
+          {/* Cancel Button - Bottom */}
+          <div className="px-4 pb-4 pt-4">
+            <button
+              onClick={handleClear}
+              className="w-full h-12 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+              style={{fontFamily: "'Source Sans Pro', sans-serif"}}
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       </div>
     );

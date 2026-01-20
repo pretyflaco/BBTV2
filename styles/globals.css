@@ -14,6 +14,31 @@ html, body {
   max-width: 100vw;
 }
 
+/* iOS Safari: Prevent elastic/bounce scrolling on fixed views */
+/* This prevents the "wobbling" effect on iOS when the page shouldn't scroll */
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  height: 100%;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent overscroll/bounce on iOS for fixed-height views */
+.overflow-hidden {
+  overflow: hidden !important;
+  -webkit-overflow-scrolling: auto;
+}
+
+/* Fixed full-screen views should not allow any scrolling */
+.fixed.inset-0 {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
+}
+
 /* Dark mode background */
 html.dark {
   background-color: #000000;
@@ -207,4 +232,33 @@ input::-webkit-credentials-auto-fill-button {
   html {
     color-scheme: dark;
   }
+}
+
+/* iOS Safari: Prevent bounce/elastic scroll on fixed dashboard views */
+/* Applied via JavaScript when on POS/Cart/Voucher views */
+@supports (-webkit-touch-callout: none) {
+  /* iOS only */
+  .h-screen.overflow-hidden {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+}
+
+/* Prevent pull-to-refresh and overscroll bounce on touch devices */
+.h-screen.overflow-hidden,
+.fixed.inset-0.overflow-hidden {
+  touch-action: none;
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: auto;
+}
+
+/* Allow touch interactions within the fixed view but prevent page scroll */
+.h-screen.overflow-hidden main,
+.h-screen.overflow-hidden .mobile-content {
+  touch-action: pan-x pan-y;
+  overscroll-behavior: contain;
 }

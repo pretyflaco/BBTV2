@@ -2656,8 +2656,11 @@ export default function Dashboard() {
     );
   }
 
+  // Determine if current view should prevent scrolling (POS-style fixed views)
+  const isFixedView = currentView === 'pos' || currentView === 'cart' || currentView === 'voucher' || currentView === 'multivoucher' || currentView === 'vouchermanager';
+  
   return (
-    <div className="min-h-screen bg-white dark:bg-black">
+    <div className={`bg-white dark:bg-black ${isFixedView ? 'h-screen overflow-hidden fixed inset-0' : 'min-h-screen'}`}>
       {/* Payment Animation Overlay */}
       <PaymentAnimation 
         show={showAnimation} 
@@ -6197,7 +6200,7 @@ export default function Dashboard() {
       )}
 
       <main 
-        className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 mobile-content"
+        className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mobile-content ${isFixedView ? 'h-[calc(100vh-80px)] overflow-hidden py-2' : 'py-6'}`}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}

@@ -14,6 +14,7 @@ const SUPER_ADMIN_NPUB = 'npub1flac02t5hw6jljk8x7mec22uq37ert8d3y3mpwzcma726g5pz
 const WHITELISTED_LEADERS = [
   'npub1zkr064avsxmxzaasppamps86ge0npwvft9yu3ymgxmk9umx3xyeq9sk6ec', // Bitcoin Ekasi
   'npub1xxcyzef28e5qcjncwmn6z2nmwaezs2apxc2v2f7unnvxw3r5edfsactfly', // Bitcoin Victoria Falls
+  'npub1kk20h7w79xd79nzm9fj9aqugwf57qpx0letx6rncfjecrhd4x4yqn7rq3x', // Bitbiashara - Nairobi, Kenya
 ];
 
 export default async function handler(req, res) {

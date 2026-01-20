@@ -30,10 +30,12 @@ export default async function handler(req, res) {
     }
 
     // Get voucher from store (PostgreSQL)
-    const voucher = await voucherStore.getVoucher(chargeId);
+    // Use getVoucherWithStatus to include claimed/cancelled/expired vouchers
+    // so the polling client can detect when redemption succeeds
+    const voucher = await voucherStore.getVoucherWithStatus(chargeId);
 
     if (!voucher) {
-      // Voucher not found - might be expired or never existed
+      // Voucher truly doesn't exist
       return res.status(200).json({
         found: false,
         status: 'NOT_FOUND',
@@ -43,8 +45,8 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       found: true,
-      status: voucher.claimed ? 'CLAIMED' : 'ACTIVE',
-      claimed: voucher.claimed,
+      status: voucher.status,
+      claimed: voucher.claimed || voucher.status === 'CLAIMED',
       amount: voucher.amount,
       createdAt: voucher.createdAt
     });

@@ -6408,26 +6408,24 @@ export default function Dashboard() {
             />
           </div>
         ) : currentView === 'voucher' ? (
-          <div className="h-[calc(100vh-180px)] min-h-[400px]">
-            <Voucher
-              ref={voucherRef}
-              voucherWallet={voucherWallet}
-              displayCurrency={displayCurrency}
-              currencies={currencies}
-              darkMode={darkMode}
-              toggleDarkMode={toggleDarkMode}
-              soundEnabled={soundEnabled}
-              onVoucherStateChange={setShowingVoucherQR}
-              commissionEnabled={commissionEnabled}
-              commissionPresets={commissionPresets}
-              onInternalTransition={() => {
-                // Rotate spinner color and show brief transition
-                setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);
-                setIsViewTransitioning(true);
-                setTimeout(() => setIsViewTransitioning(false), 120);
-              }}
-            />
-          </div>
+          <Voucher
+            ref={voucherRef}
+            voucherWallet={voucherWallet}
+            displayCurrency={displayCurrency}
+            currencies={currencies}
+            darkMode={darkMode}
+            toggleDarkMode={toggleDarkMode}
+            soundEnabled={soundEnabled}
+            onVoucherStateChange={setShowingVoucherQR}
+            commissionEnabled={commissionEnabled}
+            commissionPresets={commissionPresets}
+            onInternalTransition={() => {
+              // Rotate spinner color and show brief transition
+              setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);
+              setIsViewTransitioning(true);
+              setTimeout(() => setIsViewTransitioning(false), 120);
+            }}
+          />
         ) : currentView === 'vouchermanager' ? (
           <div className="h-[calc(100vh-180px)] min-h-[400px]">
             <VoucherManager

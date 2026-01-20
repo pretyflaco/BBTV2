@@ -345,6 +345,29 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
         echo "✅ Migration 008 already applied (skipping)"
     fi
     
+    # Refresh schema version
+    SCHEMA_VERSION=\$(get_schema_version)
+    
+    # Apply migration 009 (add Bitbiashara community)
+    if [ "\${SCHEMA_VERSION}" -lt 9 ]; then
+        echo "🔄 Applying migration 009 (add Bitbiashara community)..."
+        
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/009_add_bitbiashara.sql 2>&1 | tee /tmp/migration-009.log | grep -v "^$" | tail -20; then
+            echo ""
+            echo "❌ MIGRATION 009 FAILED!"
+            echo "📋 Check logs: /tmp/migration-009.log"
+            echo ""
+            echo "🔙 Rolling back deployment..."
+            docker-compose -f docker-compose.prod.yml down
+            echo "❌ Deployment stopped due to migration failure"
+            exit 1
+        fi
+        
+        echo "✅ Migration 009 applied successfully"
+    else
+        echo "✅ Migration 009 already applied (skipping)"
+    fi
+    
     # Display final schema version
     FINAL_VERSION=\$(get_schema_version)
     echo ""

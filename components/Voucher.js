@@ -1287,7 +1287,6 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
               </div>
             </div>
           )}
-        </div>
       </div>
     );
   }

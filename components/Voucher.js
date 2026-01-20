@@ -1050,119 +1050,121 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
 
   if (voucher) {
     return (
-      <div className="h-full flex flex-col bg-white dark:bg-black overflow-hidden" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-        {/* Header - Match main header structure exactly */}
-        <div className="bg-white dark:bg-blink-dark border-b border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-black flex-shrink-0">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between py-4">
-              {/* Blink Logo - Left (tap to toggle dark mode) */}
-              <button 
-                onClick={toggleDarkMode}
-                className="flex items-center focus:outline-none"
-                aria-label="Toggle dark mode"
+      <>
+        <div className="h-full flex flex-col bg-white dark:bg-black overflow-hidden" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+          {/* Header - Match main header structure exactly */}
+          <div className="bg-white dark:bg-blink-dark border-b border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-black flex-shrink-0">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex items-center justify-between py-4">
+                {/* Blink Logo - Left (tap to toggle dark mode) */}
+                <button 
+                  onClick={toggleDarkMode}
+                  className="flex items-center focus:outline-none"
+                  aria-label="Toggle dark mode"
+                >
+                  <img 
+                    src="/logos/blink-icon-light.svg" 
+                    alt="Blink" 
+                    className="h-12 w-12 dark:hidden"
+                  />
+                  <img 
+                    src="/logos/blink-icon-dark.svg" 
+                    alt="Blink" 
+                    className="h-12 w-12 hidden dark:block"
+                  />
+                </button>
+                
+                {/* Print Icon - Center */}
+                <div className="absolute left-1/2 transform -translate-x-1/2">
+                  <button
+                    onClick={() => setShowPrintModal(true)}
+                    className="flex items-center justify-center transition-all hover:scale-110"
+                    aria-label="Print voucher"
+                    title="Print voucher"
+                  >
+                    <svg className="h-10 w-10 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                  </button>
+                </div>
+                
+                {/* Spacer for layout balance */}
+                <div className="w-12"></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Voucher Display */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Amount - Fixed at top position */}
+            <div className="px-4 pt-4 pb-2 flex-shrink-0">
+              <div className="text-center">
+                <div className="text-6xl font-semibold text-purple-600 dark:text-purple-400 mb-1 leading-none tracking-normal">
+                  {voucher.displayCurrency && voucher.displayCurrency !== 'BTC' ? (
+                    <div>
+                      <div>{formatDisplayAmount(voucher.displayAmount, voucher.displayCurrency)}</div>
+                      <div className="text-lg text-gray-600 dark:text-gray-400 mt-1">({voucher.amount} sats)</div>
+                    </div>
+                  ) : (
+                    <div>{voucher.amount} sats</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* QR Code and LNURL - Centered */}
+            <div className="flex-1 flex flex-col items-center justify-center space-y-4 px-6">
+              {/* QR Code */}
+              <div ref={qrRef} className="bg-white dark:bg-white p-4 rounded-lg shadow-lg border-2 border-gray-200 dark:border-gray-600">
+                <QRCode 
+                  value={voucher.lnurl} 
+                  size={256}
+                  bgColor="#ffffff"
+                  fgColor="#000000"
+                />
+              </div>
+
+              {/* LNURL */}
+              <div className="w-full max-w-md">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  LNURL-withdraw
+                </label>
+                <div className="flex">
+                  <input
+                    type="text"
+                    value={voucher.lnurl}
+                    readOnly
+                    autoComplete="off"
+                    data-1p-ignore
+                    data-lpignore="true"
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-l-md bg-gray-50 dark:bg-blink-dark text-sm font-mono text-black dark:text-gray-100"
+                  />
+                  <button
+                    onClick={() => copyToClipboard(voucher.lnurl)}
+                    className="px-4 py-2 bg-purple-500 dark:bg-purple-600 text-white rounded-r-md hover:bg-purple-600 dark:hover:bg-purple-700 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Cancel Button - Bottom */}
+            <div className="px-4 pb-4 pt-4 flex-shrink-0">
+              <button
+                onClick={handleClear}
+                className="w-full h-12 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                style={{fontFamily: "'Source Sans Pro', sans-serif"}}
               >
-                <img 
-                  src="/logos/blink-icon-light.svg" 
-                  alt="Blink" 
-                  className="h-12 w-12 dark:hidden"
-                />
-                <img 
-                  src="/logos/blink-icon-dark.svg" 
-                  alt="Blink" 
-                  className="h-12 w-12 hidden dark:block"
-                />
+                Cancel
               </button>
-              
-              {/* Print Icon - Center */}
-              <div className="absolute left-1/2 transform -translate-x-1/2">
-                <button
-                  onClick={() => setShowPrintModal(true)}
-                  className="flex items-center justify-center transition-all hover:scale-110"
-                  aria-label="Print voucher"
-                  title="Print voucher"
-                >
-                  <svg className="h-10 w-10 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                  </svg>
-                </button>
-              </div>
-              
-              {/* Spacer for layout balance */}
-              <div className="w-12"></div>
             </div>
           </div>
         </div>
 
-        {/* Voucher Display - Scrollable content area */}
-        <div className="flex-1 overflow-y-auto overscroll-contain flex flex-col">
-          {/* Amount - Fixed at top position */}
-          <div className="px-4 pt-4 pb-2">
-            <div className="text-center">
-              <div className="text-6xl font-semibold text-purple-600 dark:text-purple-400 mb-1 leading-none tracking-normal">
-                {voucher.displayCurrency && voucher.displayCurrency !== 'BTC' ? (
-                  <div>
-                    <div>{formatDisplayAmount(voucher.displayAmount, voucher.displayCurrency)}</div>
-                    <div className="text-lg text-gray-600 dark:text-gray-400 mt-1">({voucher.amount} sats)</div>
-                  </div>
-                ) : (
-                  <div>{voucher.amount} sats</div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* QR Code and LNURL - Centered */}
-          <div className="flex-1 flex flex-col items-center justify-center space-y-4 px-6">
-            {/* QR Code */}
-            <div ref={qrRef} className="bg-white dark:bg-white p-4 rounded-lg shadow-lg border-2 border-gray-200 dark:border-gray-600">
-              <QRCode 
-                value={voucher.lnurl} 
-                size={256}
-                bgColor="#ffffff"
-                fgColor="#000000"
-              />
-            </div>
-
-            {/* LNURL */}
-            <div className="w-full max-w-md">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                LNURL-withdraw
-              </label>
-              <div className="flex">
-                <input
-                  type="text"
-                  value={voucher.lnurl}
-                  readOnly
-                  autoComplete="off"
-                  data-1p-ignore
-                  data-lpignore="true"
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-l-md bg-gray-50 dark:bg-blink-dark text-sm font-mono text-black dark:text-gray-100"
-                />
-                <button
-                  onClick={() => copyToClipboard(voucher.lnurl)}
-                  className="px-4 py-2 bg-purple-500 dark:bg-purple-600 text-white rounded-r-md hover:bg-purple-600 dark:hover:bg-purple-700 transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Cancel Button - Bottom */}
-          <div className="px-4 pb-4 pt-4">
-            <button
-              onClick={handleClear}
-              className="w-full h-12 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-lg font-normal transition-colors shadow-md"
-              style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-
-        {/* Print Modal */}
+        {/* Print Modal - Outside main container */}
         {showPrintModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
               <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-sm w-full p-6">
@@ -1289,7 +1291,7 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
               </div>
             </div>
           )}
-      </div>
+      </>
     );
   }
 

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    
+    <!-- Internet permission -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    
+    <!-- Bluetooth permissions for generic thermal printers -->
+    <uses-permission android:name="android.permission.BLUETOOTH" 
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" 
+        android:maxSdkVersion="30" />
+    
+    <!-- Android 12+ Bluetooth permissions -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" 
+        android:usesPermissionFlags="neverForLocation" />
+    
+    <!-- Optional: Bluetooth is not required (works with Nyx SDK alone) -->
+    <uses-feature android:name="android.hardware.bluetooth" 
+        android:required="false" />
+
+    <queries>
+        <!-- Nyx printer service for Bitcoinize POS -->
+        <package android:name="net.nyx.printerservice" />
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.PosPrinter"
+        tools:targetApi="31">
+
+        <meta-data android:name="asset_statements" android:resource="@string/asset_statements" />
+
+        <activity
+            android:name="com.blink.pos.companion.MainActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:exported="true">
+            
+            <!-- Deep link handler -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:host="print"
+                    android:scheme="blink-pos-companion" />
+            </intent-filter>
+            
+            <!-- Launcher activity -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

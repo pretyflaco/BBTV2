@@ -3,6 +3,7 @@ import QRCode from 'react-qr-code';
 import { bech32 } from 'bech32';
 import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
 import { DEFAULT_EXPIRY } from './ExpirySelector';
+import { useThermalPrint } from '../lib/escpos/hooks/useThermalPrint';
 
 const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMode, toggleDarkMode, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3] }, ref) => {
   const [amount, setAmount] = useState('');
@@ -24,9 +25,25 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
   const [commissionOptionIndex, setCommissionOptionIndex] = useState(0); // Keyboard navigation index
   // Expiry selection state
   const [selectedExpiry, setSelectedExpiry] = useState(DEFAULT_EXPIRY);
+  // Thermal print state
+  const [thermalPrintMethod, setThermalPrintMethod] = useState('auto');
+  const [showThermalOptions, setShowThermalOptions] = useState(false);
   const pollingIntervalRef = useRef(null);
   const successSoundRef = useRef(null);
   const qrRef = useRef(null);
+
+  // Thermal print hook
+  const {
+    print: thermalPrint,
+    printMethods,
+    selectedMethod: activePrintMethod,
+    selectMethod: setActivePrintMethod,
+    isPrinting: isThermalPrinting,
+    error: thermalPrintError,
+    recommendations: printRecommendations,
+    isLoading: isPrintSystemLoading,
+    isMobile: checkIsMobile,
+  } = useThermalPrint({ paperWidth: printFormat === 'thermal-58' ? 58 : 80 });
 
   // Notify parent when voucher QR or commission dialog is showing (to hide header elements)
   useEffect(() => {
@@ -834,8 +851,56 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
     }
   };
 
-  // Print voucher using companion app (like Blink voucher app does)
-  const printVoucher = () => {
+  // Print voucher using ESC/POS thermal printing system
+  const printVoucher = async () => {
+    if (!voucher) return;
+    
+    setPrinting(true);
+    setError('');
+    
+    try {
+      // Build voucher data for thermal print
+      const voucherData = {
+        lnurl: voucher.lnurl,
+        satsAmount: voucher.amount,
+        displayAmount: voucher.displayAmount,
+        displayCurrency: voucher.displayCurrency,
+        voucherSecret: voucher.id?.replace(/-/g, '').substring(0, 12) || '',
+        identifierCode: voucher.id?.substring(0, 8)?.toUpperCase() || '',
+        commissionPercent: voucher.commissionPercent || 0,
+        expiresAt: voucher.expiresAt || null,
+        issuedBy: voucherWallet?.username || null,
+      };
+      
+      // Determine paper width from format
+      const paperWidth = printFormat === 'thermal-58' ? 58 : 80;
+      
+      console.log('🖨️ Printing via thermal system:', { method: activePrintMethod, paperWidth });
+      
+      // Use thermal print system
+      const result = await thermalPrint(voucherData, {
+        paperWidth,
+        autoCut: false,
+        useNativeQR: true,
+      });
+      
+      if (result.success) {
+        console.log('✅ Thermal print successful:', result);
+        setShowPrintModal(false);
+      } else {
+        console.error('❌ Thermal print failed:', result.error);
+        setError(result.error || 'Print failed');
+      }
+    } catch (err) {
+      console.error('Print error:', err);
+      setError(err.message || 'Failed to print');
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  // Legacy companion app print (fallback if needed)
+  const printVoucherLegacy = () => {
     if (!voucher) return;
     
     // Build the display amounts
@@ -852,7 +917,7 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
     // Build companion app deep link URL (same format as Blink voucher app)
     const deepLinkUrl = `blink-pos-companion://print?app=voucher&lnurl=${encodeURIComponent(voucher.lnurl)}&voucherPrice=${encodeURIComponent(voucherPrice)}&voucherAmount=${encodeURIComponent(voucherAmount)}&voucherSecret=${encodeURIComponent(voucherSecret)}&commissionPercentage=${encodeURIComponent(commissionPercent)}&identifierCode=${encodeURIComponent(identifierCode)}`;
     
-    console.log('🖨️ Printing via companion app:', deepLinkUrl);
+    console.log('🖨️ Printing via legacy companion app:', deepLinkUrl);
     
     // Use window.location.href to trigger the deep link (same as Blink voucher app)
     window.location.href = deepLinkUrl;
@@ -1167,10 +1232,56 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
         {/* Print Modal - Outside main container */}
         {showPrintModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-sm w-full p-6">
+              <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-sm w-full p-6 max-h-[90vh] overflow-y-auto">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
                   Print Voucher
                 </h3>
+                
+                {/* Print Method Selection (for thermal formats) */}
+                {(printFormat === 'thermal-80' || printFormat === 'thermal-58') && (
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Print Method
+                    </label>
+                    <div className="space-y-2">
+                      {printMethods.filter(m => m.available && m.type !== 'pdf').map((method) => (
+                        <button
+                          key={method.type}
+                          onClick={() => setActivePrintMethod(method.type)}
+                          className={`w-full p-3 rounded-lg border-2 transition-colors text-left ${
+                            activePrintMethod === method.type
+                              ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30'
+                              : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className={`font-medium ${activePrintMethod === method.type ? 'text-purple-700 dark:text-purple-300' : 'text-gray-700 dark:text-gray-300'}`}>
+                                {method.name}
+                              </div>
+                              <div className="text-xs opacity-70 text-gray-600 dark:text-gray-400">
+                                {method.type === 'localprint' && 'Local printer via print server'}
+                                {method.type === 'companion' && 'Bluetooth via mobile app'}
+                                {method.type === 'webserial' && 'Direct USB connection'}
+                                {method.type === 'websocket' && 'Network printer'}
+                              </div>
+                            </div>
+                            {method.recommended && (
+                              <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-1 rounded">
+                                Recommended
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    {printRecommendations?.tips?.length > 0 && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        {printRecommendations.tips[0]}
+                      </p>
+                    )}
+                  </div>
+                )}
                 
                 {/* Format Selection */}
                 <div className="mb-6">
@@ -1225,28 +1336,49 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
                   </div>
                 </div>
                 
+                {/* Error Display */}
+                {(error || thermalPrintError) && (
+                  <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg">
+                    <p className="text-sm text-red-700 dark:text-red-300">{error || thermalPrintError}</p>
+                  </div>
+                )}
+                
                 {/* Action Buttons */}
                 <div className="flex flex-col gap-3">
-                  {/* Thermal Print Button - For POS devices with companion app */}
-                  <button
-                    onClick={printVoucher}
-                    className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                    </svg>
-                    Print (Thermal)
-                  </button>
+                  {/* Thermal Print Button - For thermal formats */}
+                  {(printFormat === 'thermal-80' || printFormat === 'thermal-58') && (
+                    <button
+                      onClick={printVoucher}
+                      disabled={printing || isThermalPrinting}
+                      className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {(printing || isThermalPrinting) ? (
+                        <>
+                          <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+                          Printing...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                          </svg>
+                          Print Thermal
+                        </>
+                      )}
+                    </button>
+                  )}
                   
                   {/* Download PDF Button */}
                   <button
                     onClick={generatePdf}
                     disabled={generatingPdf}
-                    className="w-full px-4 py-3 border-2 border-purple-600 text-purple-600 dark:text-purple-400 dark:border-purple-400 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className={`w-full px-4 py-3 border-2 border-purple-600 text-purple-600 dark:text-purple-400 dark:border-purple-400 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                      (printFormat === 'a4' || printFormat === 'letter') ? 'bg-purple-600 text-white hover:bg-purple-700 border-purple-600' : ''
+                    }`}
                   >
                     {generatingPdf ? (
                       <>
-                        <div className="animate-spin w-4 h-4 border-2 border-purple-600 dark:border-purple-400 border-t-transparent rounded-full"></div>
+                        <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full"></div>
                         Generating...
                       </>
                     ) : (

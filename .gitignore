@@ -81,3 +81,6 @@ _bmad-output/
 # Test files for thermal printing
 test-thermal-print.mjs
 test-thermal-standalone.js
+
+# Companion app (lives in separate repo: pretyflaco/pos-print-companion)
+companion-app-update/

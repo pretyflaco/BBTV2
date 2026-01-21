@@ -77,3 +77,7 @@ PROJECT_STATUS_UPDATE_DEC_2025.md
 .opencode/
 _bmad/
 _bmad-output/
+
+# Test files for thermal printing
+test-thermal-print.mjs
+test-thermal-standalone.js

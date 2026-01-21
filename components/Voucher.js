@@ -913,9 +913,19 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
     const voucherSecret = voucher.id?.replace(/-/g, '').substring(0, 12) || '';
     const identifierCode = voucher.id?.substring(0, 8)?.toUpperCase() || '';
     const commissionPercent = voucher.commissionPercent || 0;
+    const expiresAt = voucher.expiresAt || '';
+    const issuedBy = voucherWallet?.username || '';
     
     // Build companion app deep link URL (same format as Blink voucher app)
-    const deepLinkUrl = `blink-pos-companion://print?app=voucher&lnurl=${encodeURIComponent(voucher.lnurl)}&voucherPrice=${encodeURIComponent(voucherPrice)}&voucherAmount=${encodeURIComponent(voucherAmount)}&voucherSecret=${encodeURIComponent(voucherSecret)}&commissionPercentage=${encodeURIComponent(commissionPercent)}&identifierCode=${encodeURIComponent(identifierCode)}`;
+    let deepLinkUrl = `blink-pos-companion://print?app=voucher&lnurl=${encodeURIComponent(voucher.lnurl)}&voucherPrice=${encodeURIComponent(voucherPrice)}&voucherAmount=${encodeURIComponent(voucherAmount)}&voucherSecret=${encodeURIComponent(voucherSecret)}&commissionPercentage=${encodeURIComponent(commissionPercent)}&identifierCode=${encodeURIComponent(identifierCode)}`;
+    
+    // Add optional fields
+    if (expiresAt) {
+      deepLinkUrl += `&expiresAt=${encodeURIComponent(expiresAt)}`;
+    }
+    if (issuedBy) {
+      deepLinkUrl += `&issuedBy=${encodeURIComponent(issuedBy)}`;
+    }
     
     console.log('🖨️ Printing via legacy companion app:', deepLinkUrl);
     

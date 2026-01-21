@@ -45,8 +45,17 @@ export default async function handler(req, res) {
       voucherCount: vouchers?.length, 
       format,
       gridSize,
-      firstVoucherSats: vouchers?.[0]?.satsAmount,
-      qrDataUrlLength: vouchers?.[0]?.qrDataUrl?.length
+      firstVoucher: vouchers?.[0] ? {
+        satsAmount: vouchers[0].satsAmount,
+        fiatAmount: vouchers[0].fiatAmount,
+        identifierCode: vouchers[0].identifierCode,
+        voucherSecret: vouchers[0].voucherSecret ? 'present' : 'missing',
+        expiresAt: vouchers[0].expiresAt,
+        issuedBy: vouchers[0].issuedBy,
+        commissionPercent: vouchers[0].commissionPercent,
+        hasQr: !!vouchers[0].qrDataUrl,
+        hasLogo: !!vouchers[0].logoDataUrl
+      } : null
     });
 
     // Validate input

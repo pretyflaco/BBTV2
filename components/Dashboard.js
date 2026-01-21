@@ -2904,7 +2904,7 @@ export default function Dashboard() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">Send Wallet</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Sending Wallet</span>
                       <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-purple-500/20 text-purple-400">Beta</span>
                     </div>
                     <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
@@ -5585,7 +5585,7 @@ export default function Dashboard() {
                   </button>
                   <div className="flex items-center gap-2">
                     <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                      Voucher Wallet
+                      Sending Wallet
                     </h1>
                     <span className="px-2 py-0.5 text-xs font-medium rounded bg-purple-500/20 text-purple-400">Beta</span>
                   </div>
@@ -5605,10 +5605,10 @@ export default function Dashboard() {
                     </svg>
                     <div>
                       <p className={`text-sm font-medium ${darkMode ? 'text-purple-300' : 'text-purple-800'}`}>
-                        Voucher Wallet Requirements
+                        Sending Wallet Requirements
                       </p>
                       <p className={`text-xs mt-1 ${darkMode ? 'text-purple-400/80' : 'text-purple-600'}`}>
-                        This wallet is used for voucher operations. It requires a Blink API key with <strong>WRITE</strong> scope to create and manage vouchers.
+                        This wallet is used for sending operations like Vouchers and Batch Payments. It requires a Blink API key with <strong>WRITE</strong> scope.
                       </p>
                     </div>
                   </div>
@@ -5626,7 +5626,7 @@ export default function Dashboard() {
                         </div>
                         <div className="min-w-0">
                           <h5 className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                            {voucherWallet.label || 'Voucher Wallet'}
+                            {voucherWallet.label || 'Sending Wallet'}
                           </h5>
                           <p className={`text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                             @{voucherWallet.username}
@@ -5752,7 +5752,7 @@ export default function Dashboard() {
                         const walletData = {
                           apiKey: voucherWalletApiKey.trim(),
                           walletId: btcWallet.id,
-                          label: voucherWalletLabel.trim() || 'Voucher Wallet',
+                          label: voucherWalletLabel.trim() || 'Sending Wallet',
                           username: userData.data.me.username,
                           userId: userData.data.me.id,
                           displayCurrency: userData.data.me.defaultAccount?.displayCurrency || 'BTC',
@@ -5787,7 +5787,7 @@ export default function Dashboard() {
                           type="text"
                           value={voucherWalletLabel}
                           onChange={(e) => setVoucherWalletLabel(e.target.value)}
-                          placeholder="My Voucher Wallet"
+                          placeholder="My Sending Wallet"
                           autoComplete="off"
                           data-1p-ignore="true"
                           data-lpignore="true"
@@ -5879,7 +5879,7 @@ export default function Dashboard() {
                       >
                         {voucherWalletLoading 
                           ? (voucherWalletValidating ? 'Checking scopes...' : 'Adding...') 
-                          : 'Add Voucher Wallet'
+                          : 'Add Sending Wallet'
                         }
                       </button>
                     </form>
@@ -5888,9 +5888,9 @@ export default function Dashboard() {
 
                 {/* Help Section */}
                 <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                  <p className="font-medium mb-1">About Voucher Wallet:</p>
+                  <p className="font-medium mb-1">About Sending Wallet:</p>
                   <ul className="list-disc list-inside space-y-0.5">
-                    <li>Used exclusively for voucher creation and redemption</li>
+                    <li>Used for Vouchers and Batch Payments</li>
                     <li>Separate from your main receiving wallet</li>
                     <li>Requires API key with WRITE permission</li>
                   </ul>

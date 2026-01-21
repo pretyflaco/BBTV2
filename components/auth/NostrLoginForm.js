@@ -580,14 +580,23 @@ export default function NostrLoginForm() {
               </a>
               {' '}(Android) or{' '}
               <a 
-                href="https://testflight.apple.com/join/b4zVVxaM" 
+                href="https://apps.apple.com/cy/app/nostash/id6744309333" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="text-amber-600 dark:text-amber-400 underline"
               >
-                Nowser
+                Nostash
               </a>
-              {' '}(iOS)
+              {' '}extension for Safari (iOS).{' '}
+              <a
+                href="nostr:npub1flac02t5hw6jljk8x7mec22uq37ert8d3y3mpwzcma726g5pz4lsmfzlk6"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-400 hover:text-amber-400 underline"
+              >
+                Tag flaco
+              </a>
+              {' '}if you know a NIP-46 mobile signer for iOS.
             </p>
           )}
         </div>
@@ -626,7 +635,7 @@ export default function NostrLoginForm() {
                 <strong>Browser extensions</strong> (keys.band, Alby) keep your keys secure on desktop.
               </p>
               <p className="mt-2">
-                <strong>Mobile signers</strong> like Amber (Android) and Nowser (iOS) securely manage your Nostr keys on mobile.
+                <strong>Mobile signers</strong> like Amber (Android) securely manage your Nostr keys on mobile. For iOS, use the Nostash extension for Safari.
               </p>
               <p className="mt-2">
                 <strong>Create New Account</strong> generates a Nostr identity protected by your password - works everywhere!

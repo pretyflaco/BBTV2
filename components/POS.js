@@ -231,10 +231,12 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                       console.log('✅ NWC invoice created, paying from BlinkPOS...');
                       
                       // Step 3: Pay NWC invoice from BlinkPOS
+                      // SECURITY: paymentHash is required to authenticate this is a legitimate BlinkPOS payment
                       const payResponse = await fetch('/api/blink/pay-invoice', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
+                          paymentHash: invoice.paymentHash,
                           paymentRequest: nwcInvoiceResult.invoice,
                           memo: enhancedMemo
                         })

@@ -95,7 +95,7 @@ export default async function handler(req, res) {
       const metrics = await db.calculateMetricsForPeriod(community.id, periodRange.start, periodRange.end);
       
       // Get BTC preference for the community
-      const btcPreference = await db.getCommunityBtcPreference(community.id, periodRange.end);
+      const btcPreference = await db.getCommunityBitcoinPreference(community.id, periodRange.end);
       
       return {
         id: community.id,

@@ -1377,6 +1377,26 @@ const Network = forwardRef(({
                 </div>
                 <div className="text-sm text-pink-700 dark:text-pink-300">Txs/Member</div>
               </div>
+              {/* Bitcoin Preference metric */}
+              {periodMetrics.bitcoin_preference && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 relative group">
+                  <div className="text-3xl font-bold text-amber-600 dark:text-amber-400">
+                    {periodMetrics.bitcoin_preference.btc_preference_pct?.toFixed(0) || 0}%
+                  </div>
+                  <div className="text-sm text-amber-700 dark:text-amber-300 flex items-center gap-1">
+                    <span>₿</span> BTC Preference
+                  </div>
+                  {/* Tooltip */}
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10">
+                    <div className="bg-gray-900 text-white text-xs rounded py-2 px-3 whitespace-nowrap shadow-lg">
+                      <p className="font-medium mb-1">Bitcoin Preference</p>
+                      <p>% of member balances held in BTC vs StableSats</p>
+                      <p className="mt-1 text-gray-300">Based on {periodMetrics.bitcoin_preference.members_with_balance} member(s)</p>
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </>
           ) : periodMetrics && periodMetrics.total_synced_txs > 0 ? (
             <div className="col-span-2 text-center py-4 text-gray-500 dark:text-gray-400">
@@ -1740,6 +1760,17 @@ const Network = forwardRef(({
                     {selectedCommunity.velocity || 0}
                   </p>
                 </div>
+                {/* Bitcoin Preference */}
+                {selectedCommunity.bitcoin_preference && (
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                      <span className="text-amber-500">₿</span> BTC Preference
+                    </p>
+                    <p className="text-xl font-bold text-amber-600 dark:text-amber-400">
+                      {selectedCommunity.bitcoin_preference.btc_preference_pct?.toFixed(0) || 0}%
+                    </p>
+                  </div>
+                )}
               </div>
               
               {syncResult && (

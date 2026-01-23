@@ -18,6 +18,14 @@ export default async function handler(req, res) {
         communities.map(async (community) => {
           const metrics = await db.getLatestMetrics(community.id);
           
+          // Get Bitcoin Preference metric (may fail if migration 012 hasn't run)
+          let btcPreference = null;
+          try {
+            btcPreference = await db.getCommunityBitcoinPreference(community.id);
+          } catch (btcPrefError) {
+            // Table doesn't exist yet - that's OK
+          }
+          
           return {
             id: community.id,
             name: community.name,
@@ -43,7 +51,14 @@ export default async function handler(req, res) {
             avg_tx_size: metrics?.avg_tx_size || 0,
             period_start: metrics?.period_start || null,
             period_end: metrics?.period_end || null,
-            metrics_last_updated: metrics?.computed_at || null
+            metrics_last_updated: metrics?.computed_at || null,
+            // Bitcoin Preference metric
+            bitcoin_preference: btcPreference?.has_data ? {
+              btc_preference_pct: btcPreference.btc_preference_pct,
+              total_btc_sats: btcPreference.total_btc_sats,
+              total_stablesats_sats: btcPreference.total_stablesats_sats,
+              members_with_balance: btcPreference.members_with_balance
+            } : null
           };
         })
       );

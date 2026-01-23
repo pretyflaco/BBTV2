@@ -123,6 +123,15 @@ export default async function handler(req, res) {
     // Get data coverage info from database
     const dataCoverage = await db.getDataCoverage(communityId);
     
+    // Get Bitcoin Preference metric (latest snapshot)
+    let bitcoinPreference = null;
+    try {
+      bitcoinPreference = await db.getCommunityBitcoinPreference(communityId);
+    } catch (btcPrefError) {
+      // Table might not exist yet if migration 012 hasn't run
+      console.log('Bitcoin preference not available:', btcPrefError.message);
+    }
+    
     // Check if selected period extends beyond our data coverage
     let coverageWarning = null;
     if (dataCoverage.oldest && dataCoverage.newest) {
@@ -175,7 +184,15 @@ export default async function handler(req, res) {
       period_start: periodRange.start.toISOString(),
       period_end: periodRange.end.toISOString(),
       ...metrics,
-      total_synced_txs: dataCoverage.total_transactions
+      total_synced_txs: dataCoverage.total_transactions,
+      // Bitcoin Preference metric (from balance snapshots)
+      bitcoin_preference: bitcoinPreference?.has_data ? {
+        btc_preference_pct: bitcoinPreference.btc_preference_pct,
+        total_btc_sats: bitcoinPreference.total_btc_sats,
+        total_stablesats_sats: bitcoinPreference.total_stablesats_sats,
+        total_balance_sats: bitcoinPreference.total_balance_sats,
+        members_with_balance: bitcoinPreference.members_with_balance
+      } : null
     };
 
     return res.status(200).json({

@@ -368,6 +368,29 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
         echo "✅ Migration 009 already applied (skipping)"
     fi
     
+    # Refresh schema version
+    SCHEMA_VERSION=\$(get_schema_version)
+    
+    # Apply migration 010 (add Afribit Kibera community)
+    if [ "\${SCHEMA_VERSION}" -lt 10 ]; then
+        echo "🔄 Applying migration 010 (add Afribit Kibera community)..."
+        
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/010_add_afribit.sql 2>&1 | tee /tmp/migration-010.log | grep -v "^$" | tail -20; then
+            echo ""
+            echo "❌ MIGRATION 010 FAILED!"
+            echo "📋 Check logs: /tmp/migration-010.log"
+            echo ""
+            echo "🔙 Rolling back deployment..."
+            docker-compose -f docker-compose.prod.yml down
+            echo "❌ Deployment stopped due to migration failure"
+            exit 1
+        fi
+        
+        echo "✅ Migration 010 applied successfully"
+    else
+        echo "✅ Migration 010 already applied (skipping)"
+    fi
+    
     # Display final schema version
     FINAL_VERSION=\$(get_schema_version)
     echo ""
@@ -455,10 +478,10 @@ print_info "Verifying database migrations..."
 # Check schema version
 DEPLOYED_SCHEMA=$(ssh ${PROD_USER}@${PROD_SERVER} "cd ${PROD_PATH} && docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos -t -c \"SELECT COALESCE(MAX(metric_value::int), 0) FROM system_metrics WHERE metric_name = 'schema_version';\" 2>/dev/null | tr -d ' \n\r'" || echo "0")
 
-if [ "${DEPLOYED_SCHEMA}" -ge 8 ]; then
+if [ "${DEPLOYED_SCHEMA}" -ge 10 ]; then
     print_success "Database schema up to date (version ${DEPLOYED_SCHEMA})"
 else
-    print_warning "Database schema may need attention (version ${DEPLOYED_SCHEMA}, expected 8+)"
+    print_warning "Database schema may need attention (version ${DEPLOYED_SCHEMA}, expected 10+)"
 fi
 
 # Check voucher persistence
@@ -469,10 +492,10 @@ print_success "Vouchers in PostgreSQL: ${VOUCHER_COUNT} active"
 # Check if communities exist
 COMMUNITY_COUNT=$(ssh ${PROD_USER}@${PROD_SERVER} "cd ${PROD_PATH} && docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos -t -c \"SELECT COUNT(*) FROM communities;\" 2>/dev/null | tr -d ' \n\r'" || echo "0")
 
-if [ "${COMMUNITY_COUNT}" -ge 3 ]; then
+if [ "${COMMUNITY_COUNT}" -ge 5 ]; then
     print_success "Communities seeded (${COMMUNITY_COUNT} communities found)"
 else
-    print_warning "Communities may need verification (${COMMUNITY_COUNT} found, expected 3+)"
+    print_warning "Communities may need verification (${COMMUNITY_COUNT} found, expected 5+)"
 fi
 
 echo ""
@@ -486,7 +509,7 @@ echo "  • Open https://track.twentyone.ist in incognito mode"
 echo "  • Check that UI changes are visible"
 echo "  • Test key functionality (create invoice, NFC, etc.)"
 echo "  • Check browser console for errors"
-echo "  • Verify Network communities: Should show 3 pioneer communities (Bitcoin Ekasi, Victoria Falls, Blink Team)"
+echo "  • Verify Network communities: Should show 5 pioneer communities (Bitcoin Ekasi, Victoria Falls, Blink Team, Bitbiashara, Afribit Kibera)"
 echo "  • Test membership application and approval flow"
 echo "  • Deploy again to verify member data persists across deployments"
 echo ""

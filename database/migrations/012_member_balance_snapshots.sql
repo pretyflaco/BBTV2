@@ -83,10 +83,10 @@ BEGIN
     FROM member_balance_snapshots mbs
     WHERE mbs.community_id = p_community_id
       AND mbs.snapshot_date = (
-          SELECT MAX(snapshot_date) 
-          FROM member_balance_snapshots 
-          WHERE community_id = p_community_id 
-            AND snapshot_date <= p_date
+          SELECT MAX(mbs2.snapshot_date) 
+          FROM member_balance_snapshots mbs2
+          WHERE mbs2.community_id = p_community_id 
+            AND mbs2.snapshot_date <= p_date
       );
 END;
 $$ LANGUAGE plpgsql;

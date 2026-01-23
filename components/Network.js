@@ -1328,21 +1328,16 @@ const Network = forwardRef(({
                           </p>
                         </div>
                       </div>
-                      {c.milestones?.length > 0 && (
-                        <div className="flex gap-1">
-                          {c.milestones.slice(0, 3).map((m, i) => (
-                            <span key={i} title={m.label} className="text-lg">{m.badge}</span>
-                          ))}
-                        </div>
-                      )}
                     </div>
                     
                     {/* Metrics Grid - BTC Preference first, then Members */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                      {/* BTC Preference - First and prominent */}
+                      {/* BTC Preference - First and prominent (never round to 100% unless truly 100%) */}
                       <div className="bg-gradient-to-br from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/20 rounded-lg p-2 border border-orange-200 dark:border-orange-800/50">
                         <div className="font-bold text-lg text-orange-600 dark:text-orange-400">
-                          {c.btc_preference_pct != null ? `${Math.round(c.btc_preference_pct)}%` : '—'}
+                          {c.btc_preference_pct != null 
+                            ? `${c.btc_preference_pct >= 100 ? 100 : Math.floor(c.btc_preference_pct)}%` 
+                            : '—'}
                         </div>
                         <div className="text-xs text-orange-700 dark:text-orange-300 font-medium flex items-center justify-center gap-1">
                           <span>₿</span> BTC Pref
@@ -1544,7 +1539,9 @@ const Network = forwardRef(({
               {periodMetrics.bitcoin_preference && (
                 <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 relative group">
                   <div className="text-3xl font-bold text-amber-600 dark:text-amber-400">
-                    {periodMetrics.bitcoin_preference.btc_preference_pct?.toFixed(0) || 0}%
+                    {periodMetrics.bitcoin_preference.btc_preference_pct != null
+                      ? `${periodMetrics.bitcoin_preference.btc_preference_pct >= 100 ? 100 : Math.floor(periodMetrics.bitcoin_preference.btc_preference_pct)}`
+                      : 0}%
                   </div>
                   <div className="text-sm text-amber-700 dark:text-amber-300 flex items-center gap-1">
                     <span>₿</span> BTC Preference
@@ -1973,7 +1970,9 @@ const Network = forwardRef(({
                       <span className="text-amber-500">₿</span> BTC Preference
                     </p>
                     <p className="text-xl font-bold text-amber-600 dark:text-amber-400">
-                      {selectedCommunity.bitcoin_preference.btc_preference_pct?.toFixed(0) || 0}%
+                      {selectedCommunity.bitcoin_preference.btc_preference_pct != null
+                        ? `${selectedCommunity.bitcoin_preference.btc_preference_pct >= 100 ? 100 : Math.floor(selectedCommunity.bitcoin_preference.btc_preference_pct)}`
+                        : 0}%
                     </p>
                   </div>
                 )}

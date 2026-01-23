@@ -97,6 +97,13 @@ const Network = forwardRef(({
   const [applyingTo, setApplyingTo] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Member management state (for leaders)
+  const [communityMembers, setCommunityMembers] = useState([]);
+  const [memberProfiles, setMemberProfiles] = useState({}); // npub -> profile data
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [removingMemberId, setRemovingMemberId] = useState(null);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(null); // membership id to confirm removal
+
   // Fetch communities on mount
   useEffect(() => {
     fetchCommunities();
@@ -119,6 +126,13 @@ const Network = forwardRef(({
       fetchPeriodMetrics(selectedCommunity.id, selectedPeriod);
     }
   }, [selectedCommunity?.id, selectedPeriod, currentView]);
+
+  // Fetch community members when viewing leader dashboard
+  useEffect(() => {
+    if (selectedCommunity?.id && currentView === 'leader') {
+      fetchCommunityMembers(selectedCommunity.id);
+    }
+  }, [selectedCommunity?.id, currentView]);
 
   const fetchCommunities = async () => {
     try {
@@ -338,6 +352,91 @@ const Network = forwardRef(({
       setError(err.message);
     } finally {
       setSyncing(false);
+    }
+  };
+
+  // Fetch community members (for leader management)
+  const fetchCommunityMembers = async (communityId) => {
+    if (!npubKey || !communityId) return;
+    
+    setLoadingMembers(true);
+    try {
+      const response = await fetch(`/api/network/members?communityId=${communityId}`, {
+        headers: {
+          'X-User-Npub': npubKey
+        }
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        setCommunityMembers(data.members || []);
+        // Fetch Nostr profiles for all members
+        fetchMemberProfiles(data.members || []);
+      }
+    } catch (err) {
+      console.error('Error fetching members:', err);
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
+  // Fetch Nostr profiles for community members
+  const fetchMemberProfiles = async (members) => {
+    const uniqueNpubs = [...new Set(members.map(m => m.user_npub).filter(Boolean))];
+    
+    for (const npub of uniqueNpubs) {
+      // Skip if already fetched
+      if (memberProfiles[npub]) continue;
+      
+      try {
+        const response = await fetch(`/api/network/profiles?npub=${encodeURIComponent(npub)}`);
+        const data = await response.json();
+        
+        if (data.success && data.profile) {
+          setMemberProfiles(prev => ({
+            ...prev,
+            [npub]: data.profile
+          }));
+        }
+      } catch (err) {
+        console.error(`Error fetching profile for ${npub}:`, err);
+      }
+    }
+  };
+
+  // Remove a member from the community
+  const removeMember = async (membershipId) => {
+    if (!npubKey || !selectedCommunity) return;
+    
+    setRemovingMemberId(membershipId);
+    setError('');
+    
+    try {
+      const response = await fetch(`/api/network/members?communityId=${selectedCommunity.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Npub': npubKey
+        },
+        body: JSON.stringify({ membershipId })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Remove from local state
+        setCommunityMembers(prev => prev.filter(m => m.id !== membershipId));
+        setShowRemoveConfirm(null);
+        // Refresh communities to update member counts
+        fetchCommunities();
+      } else {
+        throw new Error(data.error || 'Failed to remove member');
+      }
+    } catch (err) {
+      console.error('Error removing member:', err);
+      setError(err.message);
+    } finally {
+      setRemovingMemberId(null);
     }
   };
 
@@ -1657,44 +1756,87 @@ const Network = forwardRef(({
             </div>
           ) : (
             <div className="space-y-4">
-              {communityApplications.map((app) => (
-                <div
-                  key={app.id}
-                  className="bg-gray-50 dark:bg-blink-dark rounded-lg p-4 border border-gray-200 dark:border-gray-700"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900 dark:text-white font-mono text-sm break-all">
-                        {app.user_npub}
-                      </p>
-                      {app.application_note && (
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 italic">
-                          "{app.application_note}"
+              {communityApplications.map((app) => {
+                const profile = memberProfiles[app.user_npub];
+                const displayName = profile?.name || profile?.display_name || 'Unknown';
+                const shortNpub = app.user_npub ? `${app.user_npub.slice(0, 12)}...${app.user_npub.slice(-8)}` : '';
+                
+                // Fetch profile if not cached
+                if (!profile && app.user_npub && !memberProfiles[app.user_npub]) {
+                  fetchMemberProfiles([{ user_npub: app.user_npub }]);
+                }
+                
+                return (
+                  <div
+                    key={app.id}
+                    className="bg-gray-50 dark:bg-blink-dark rounded-lg p-4 border border-gray-200 dark:border-gray-700"
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* Profile Photo */}
+                      <div className="flex-shrink-0">
+                        {profile?.picture ? (
+                          <img 
+                            src={profile.picture}
+                            alt={displayName}
+                            className="w-12 h-12 rounded-full object-cover ring-2 ring-yellow-400"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.nextElementSibling.style.display = 'flex';
+                            }}
+                          />
+                        ) : null}
+                        <div 
+                          className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center text-white font-bold text-lg"
+                          style={{ display: profile?.picture ? 'none' : 'flex' }}
+                        >
+                          {displayName.charAt(0).toUpperCase()}
+                        </div>
+                      </div>
+                      
+                      {/* Applicant Info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {displayName}
                         </p>
-                      )}
-                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
-                        Applied {getTimeAgo(app.applied_at)}
-                      </p>
-                    </div>
-                    <div className="flex gap-2 ml-4">
-                      <button 
-                        onClick={() => reviewApplication(app.id, 'reject')}
-                        disabled={reviewingId === app.id}
-                        className="px-3 py-1.5 bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 rounded-lg text-sm hover:bg-red-200 dark:hover:bg-red-800 disabled:opacity-50"
-                      >
-                        {reviewingId === app.id ? '...' : 'Reject'}
-                      </button>
-                      <button 
-                        onClick={() => reviewApplication(app.id, 'approve')}
-                        disabled={reviewingId === app.id}
-                        className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 disabled:opacity-50"
-                      >
-                        {reviewingId === app.id ? '...' : 'Approve'}
-                      </button>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                          {shortNpub}
+                        </p>
+                        {app.application_note && (
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 italic bg-gray-100 dark:bg-gray-800 p-2 rounded">
+                            "{app.application_note}"
+                          </p>
+                        )}
+                        {!app.application_note && (
+                          <p className="text-sm text-gray-400 dark:text-gray-500 mt-2 italic">
+                            No message provided
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                          Applied {getTimeAgo(app.applied_at)}
+                        </p>
+                      </div>
+                      
+                      {/* Action Buttons */}
+                      <div className="flex gap-2 flex-shrink-0">
+                        <button 
+                          onClick={() => reviewApplication(app.id, 'reject')}
+                          disabled={reviewingId === app.id}
+                          className="px-3 py-1.5 bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 rounded-lg text-sm hover:bg-red-200 dark:hover:bg-red-800 disabled:opacity-50"
+                        >
+                          {reviewingId === app.id ? '...' : 'Reject'}
+                        </button>
+                        <button 
+                          onClick={() => reviewApplication(app.id, 'approve')}
+                          disabled={reviewingId === app.id}
+                          className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 disabled:opacity-50"
+                        >
+                          {reviewingId === app.id ? '...' : 'Approve'}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -1796,6 +1938,133 @@ const Network = forwardRef(({
                 </p>
               )}
             </div>
+          </div>
+
+          {/* Member Management Section */}
+          <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                👥 Community Members ({communityMembers.length})
+              </h3>
+              <button
+                onClick={() => fetchCommunityMembers(selectedCommunity.id)}
+                className="text-sm text-teal-600 dark:text-teal-400 hover:underline"
+              >
+                Refresh
+              </button>
+            </div>
+            
+            {loadingMembers ? (
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                Loading members...
+              </div>
+            ) : communityMembers.length === 0 ? (
+              <div className="text-center py-8 bg-gray-50 dark:bg-blink-dark rounded-lg">
+                <div className="text-4xl mb-2">👥</div>
+                <p className="text-gray-500 dark:text-gray-400">
+                  No members yet
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {communityMembers.map((member) => {
+                  const profile = memberProfiles[member.user_npub];
+                  const isLeaderMember = member.role === 'leader';
+                  const displayName = profile?.name || profile?.display_name || member.blink_username || 'Unknown';
+                  const shortNpub = member.user_npub ? `${member.user_npub.slice(0, 12)}...${member.user_npub.slice(-8)}` : '';
+                  
+                  return (
+                    <div
+                      key={member.id}
+                      className="bg-gray-50 dark:bg-blink-dark rounded-lg p-4 border border-gray-200 dark:border-gray-700"
+                    >
+                      <div className="flex items-center gap-3">
+                        {/* Profile Photo */}
+                        <div className="flex-shrink-0">
+                          {profile?.picture ? (
+                            <img 
+                              src={profile.picture}
+                              alt={displayName}
+                              className="w-12 h-12 rounded-full object-cover ring-2 ring-gray-200 dark:ring-gray-700"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextElementSibling.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <div 
+                            className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-teal-500 flex items-center justify-center text-white font-bold text-lg"
+                            style={{ display: profile?.picture ? 'none' : 'flex' }}
+                          >
+                            {displayName.charAt(0).toUpperCase()}
+                          </div>
+                        </div>
+                        
+                        {/* Member Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-gray-900 dark:text-white truncate">
+                              {displayName}
+                            </p>
+                            {isLeaderMember && (
+                              <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 text-xs rounded-full">
+                                Leader
+                              </span>
+                            )}
+                            {member.consent_given && (
+                              <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 text-xs rounded-full">
+                                📊 Sharing
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 font-mono truncate">
+                            {shortNpub}
+                          </p>
+                          {member.blink_username && (
+                            <p className="text-xs text-blue-600 dark:text-blue-400">
+                              @{member.blink_username}
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                            Joined {member.approved_at ? new Date(member.approved_at).toLocaleDateString() : 'Unknown'}
+                          </p>
+                        </div>
+                        
+                        {/* Actions */}
+                        {!isLeaderMember && (
+                          <div className="flex-shrink-0">
+                            {showRemoveConfirm === member.id ? (
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => setShowRemoveConfirm(null)}
+                                  className="px-2 py-1 text-xs text-gray-600 dark:text-gray-400 hover:underline"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={() => removeMember(member.id)}
+                                  disabled={removingMemberId === member.id}
+                                  className="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 disabled:opacity-50"
+                                >
+                                  {removingMemberId === member.id ? '...' : 'Confirm'}
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setShowRemoveConfirm(member.id)}
+                                className="px-3 py-1.5 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-sm"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>

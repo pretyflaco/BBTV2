@@ -391,6 +391,29 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
         echo "✅ Migration 010 already applied (skipping)"
     fi
     
+    # Refresh schema version
+    SCHEMA_VERSION=\$(get_schema_version)
+    
+    # Apply migration 011 (fix Victoria Falls country ZW -> ZM)
+    if [ "\${SCHEMA_VERSION}" -lt 11 ]; then
+        echo "🔄 Applying migration 011 (fix Victoria Falls country to Zambia)..."
+        
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/011_fix_victoria_falls_country.sql 2>&1 | tee /tmp/migration-011.log | grep -v "^$" | tail -20; then
+            echo ""
+            echo "❌ MIGRATION 011 FAILED!"
+            echo "📋 Check logs: /tmp/migration-011.log"
+            echo ""
+            echo "🔙 Rolling back deployment..."
+            docker-compose -f docker-compose.prod.yml down
+            echo "❌ Deployment stopped due to migration failure"
+            exit 1
+        fi
+        
+        echo "✅ Migration 011 applied successfully"
+    else
+        echo "✅ Migration 011 already applied (skipping)"
+    fi
+    
     # Display final schema version
     FINAL_VERSION=\$(get_schema_version)
     echo ""
@@ -478,10 +501,10 @@ print_info "Verifying database migrations..."
 # Check schema version
 DEPLOYED_SCHEMA=$(ssh ${PROD_USER}@${PROD_SERVER} "cd ${PROD_PATH} && docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos -t -c \"SELECT COALESCE(MAX(metric_value::int), 0) FROM system_metrics WHERE metric_name = 'schema_version';\" 2>/dev/null | tr -d ' \n\r'" || echo "0")
 
-if [ "${DEPLOYED_SCHEMA}" -ge 10 ]; then
+if [ "${DEPLOYED_SCHEMA}" -ge 11 ]; then
     print_success "Database schema up to date (version ${DEPLOYED_SCHEMA})"
 else
-    print_warning "Database schema may need attention (version ${DEPLOYED_SCHEMA}, expected 10+)"
+    print_warning "Database schema may need attention (version ${DEPLOYED_SCHEMA}, expected 11+)"
 fi
 
 # Check voucher persistence

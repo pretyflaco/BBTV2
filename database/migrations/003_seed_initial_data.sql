@@ -59,7 +59,7 @@ VALUES (
     'npub1xxcyzef28e5qcjncwmn6z2nmwaezs2apxc2v2f7unnvxw3r5edfsactfly',
     'Bitcoin Victoria Falls Leader',
     'npub1flac02t5hw6jljk8x7mec22uq37ert8d3y3mpwzcma726g5pz4lsmfzlk6',
-    'Pioneer community leader - Bitcoin Victoria Falls, Zimbabwe',
+    'Pioneer community leader - Bitcoin Victoria Falls, Zambia',
     'active'
 )
 ON CONFLICT (npub) DO UPDATE SET
@@ -135,12 +135,12 @@ VALUES (
     'a1b2c3d4-e5f6-7890-abcd-ef1234567002',
     'Bitcoin Victoria Falls',
     'bitcoin-victoria-falls',
-    'Zimbabwe''s Bitcoin circular economy centered around the majestic Victoria Falls. Building a sustainable Bitcoin ecosystem for tourism and local commerce.',
-    'ZW',
-    'Matabeleland North',
-    'Victoria Falls',
-    -17.9243,
-    25.8572,
+    'Zambia''s Bitcoin circular economy centered around the majestic Victoria Falls. Building a sustainable Bitcoin ecosystem for tourism and local commerce.',
+    'ZM',
+    'Southern Province',
+    'Livingstone',
+    -17.9154,
+    25.8614,
     'npub1xxcyzef28e5qcjncwmn6z2nmwaezs2apxc2v2f7unnvxw3r5edfsactfly',
     'active'
 )
@@ -265,7 +265,7 @@ BEGIN
     RAISE NOTICE 'Super Admin: npub1flac02t5hw6jljk8x7mec22uq37ert8d3y3mpwzcma726g5pz4lsmfzlk6';
     RAISE NOTICE 'Pioneer Communities:';
     RAISE NOTICE '  - Bitcoin Ekasi (South Africa)';
-    RAISE NOTICE '  - Bitcoin Victoria Falls (Zimbabwe)';
+    RAISE NOTICE '  - Bitcoin Victoria Falls (Zambia)';
     RAISE NOTICE '  - Blink Team (Honduras)';
     RAISE NOTICE '  - Test Community (Super Admin is leader)';
 END $$;

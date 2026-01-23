@@ -461,7 +461,7 @@ const Network = forwardRef(({
 
   const fetchLeaderboard = async (period = 'current_month') => {
     try {
-      const response = await fetch(`/api/network/leaderboard?period=${period}&sortBy=volume`);
+      const response = await fetch(`/api/network/leaderboard?period=${period}&sortBy=members_volume`);
       const data = await response.json();
       
       if (data.success) {
@@ -1246,72 +1246,136 @@ const Network = forwardRef(({
           ) : (
             <div className="space-y-4">
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Communities ranked by transaction volume and activity
+                Communities ranked by members and Bitcoin activity
               </p>
               
-              {leaderboard.map((c) => (
-                <div
-                  key={c.id}
-                  onClick={() => {
-                    const community = communities.find(comm => comm.id === c.id);
-                    if (community) {
-                      navigateToView('community', community);
-                    }
-                  }}
-                  className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 cursor-pointer hover:border-teal-500 transition-colors"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <span className={`font-bold text-2xl ${
-                        c.rank === 1 ? 'text-yellow-500' :
-                        c.rank === 2 ? 'text-gray-400' :
-                        c.rank === 3 ? 'text-amber-600' :
-                        'text-gray-500 dark:text-gray-400'
-                      }`}>
-                        #{c.rank}
-                      </span>
-                      <div>
-                        <h3 className="font-semibold text-gray-800 dark:text-white">{c.name}</h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {c.city}, {c.country_code === 'ZA' ? '🇿🇦 South Africa' : c.country_code === 'ZW' ? '🇿🇼 Zimbabwe' : '🌍'}
-                        </p>
+              {leaderboard.map((c) => {
+                const leaderProfile = leaderProfiles[c.leader_npub];
+                // Country flag mapping
+                const countryFlags = {
+                  'ZA': '🇿🇦 South Africa',
+                  'ZM': '🇿🇲 Zambia',
+                  'ZW': '🇿🇼 Zimbabwe',
+                  'KE': '🇰🇪 Kenya',
+                  'HN': '🇭🇳 Honduras',
+                  'SV': '🇸🇻 El Salvador',
+                  'GT': '🇬🇹 Guatemala',
+                  'NG': '🇳🇬 Nigeria',
+                  'GH': '🇬🇭 Ghana',
+                  'TZ': '🇹🇿 Tanzania',
+                  'UG': '🇺🇬 Uganda',
+                  'US': '🇺🇸 USA',
+                  'BR': '🇧🇷 Brazil',
+                  'AR': '🇦🇷 Argentina',
+                  'MX': '🇲🇽 Mexico',
+                  'CO': '🇨🇴 Colombia',
+                  'PE': '🇵🇪 Peru',
+                  'CL': '🇨🇱 Chile',
+                  'VE': '🇻🇪 Venezuela',
+                  'CR': '🇨🇷 Costa Rica',
+                  'PA': '🇵🇦 Panama'
+                };
+                const countryDisplay = countryFlags[c.country_code] || `🌍 ${c.country_code || 'Global'}`;
+                
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => {
+                      const community = communities.find(comm => comm.id === c.id);
+                      if (community) {
+                        navigateToView('community', community);
+                      }
+                    }}
+                    className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 cursor-pointer hover:border-teal-500 transition-colors"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        {/* Rank Badge */}
+                        <span className={`font-bold text-2xl ${
+                          c.rank === 1 ? 'text-yellow-500' :
+                          c.rank === 2 ? 'text-gray-400' :
+                          c.rank === 3 ? 'text-amber-600' :
+                          'text-gray-500 dark:text-gray-400'
+                        }`}>
+                          #{c.rank}
+                        </span>
+                        
+                        {/* Leader Profile Photo */}
+                        <div className="flex-shrink-0">
+                          {leaderProfile?.picture ? (
+                            <img 
+                              src={leaderProfile.picture}
+                              alt={leaderProfile?.name || c.name}
+                              className="w-12 h-12 rounded-full object-cover ring-2 ring-orange-500/30"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextElementSibling.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <div 
+                            className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-500 to-yellow-500 flex items-center justify-center text-white font-bold text-lg"
+                            style={{ display: leaderProfile?.picture ? 'none' : 'flex' }}
+                          >
+                            {c.name.charAt(0)}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <h3 className="font-semibold text-gray-800 dark:text-white">{c.name}</h3>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {c.city}, {countryDisplay}
+                          </p>
+                        </div>
+                      </div>
+                      {c.milestones?.length > 0 && (
+                        <div className="flex gap-1">
+                          {c.milestones.slice(0, 3).map((m, i) => (
+                            <span key={i} title={m.label} className="text-lg">{m.badge}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Metrics Grid - BTC Preference first, then Members */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                      {/* BTC Preference - First and prominent */}
+                      <div className="bg-gradient-to-br from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/20 rounded-lg p-2 border border-orange-200 dark:border-orange-800/50">
+                        <div className="font-bold text-lg text-orange-600 dark:text-orange-400">
+                          {c.btc_preference_pct != null ? `${Math.round(c.btc_preference_pct)}%` : '—'}
+                        </div>
+                        <div className="text-xs text-orange-700 dark:text-orange-300 font-medium flex items-center justify-center gap-1">
+                          <span>₿</span> BTC Pref
+                        </div>
+                      </div>
+                      
+                      {/* Members */}
+                      <div className="bg-white dark:bg-gray-900 rounded-lg p-2">
+                        <div className="font-bold text-lg text-teal-600 dark:text-teal-400">{c.member_count}</div>
+                        <div className="text-xs text-gray-500">Members</div>
+                      </div>
+                      
+                      {/* Volume */}
+                      <div className="bg-white dark:bg-gray-900 rounded-lg p-2">
+                        <div className="font-bold text-lg text-purple-600 dark:text-purple-400">
+                          {c.transaction_volume_sats >= 1000000
+                            ? `${(c.transaction_volume_sats / 1000000).toFixed(1)}M`
+                            : c.transaction_volume_sats >= 1000 
+                            ? `${(c.transaction_volume_sats / 1000).toFixed(1)}k` 
+                            : c.transaction_volume_sats}
+                        </div>
+                        <div className="text-xs text-gray-500">Sats</div>
+                      </div>
+                      
+                      {/* Transactions */}
+                      <div className="bg-white dark:bg-gray-900 rounded-lg p-2">
+                        <div className="font-bold text-lg text-blue-600 dark:text-blue-400">{c.transaction_count}</div>
+                        <div className="text-xs text-gray-500">Txns</div>
                       </div>
                     </div>
-                    {c.milestones?.length > 0 && (
-                      <div className="flex gap-1">
-                        {c.milestones.slice(0, 3).map((m, i) => (
-                          <span key={i} title={m.label} className="text-lg">{m.badge}</span>
-                        ))}
-                      </div>
-                    )}
                   </div>
-                  
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                    <div className="bg-white dark:bg-gray-900 rounded-lg p-2">
-                      <div className="font-bold text-lg text-teal-600 dark:text-teal-400">{c.member_count}</div>
-                      <div className="text-xs text-gray-500">Members</div>
-                    </div>
-                    <div className="bg-white dark:bg-gray-900 rounded-lg p-2">
-                      <div className="font-bold text-lg text-blue-600 dark:text-blue-400">{c.transaction_count}</div>
-                      <div className="text-xs text-gray-500">Transactions</div>
-                    </div>
-                    <div className="bg-white dark:bg-gray-900 rounded-lg p-2">
-                      <div className="font-bold text-lg text-purple-600 dark:text-purple-400">
-                        {c.transaction_volume_sats >= 1000000
-                          ? `${(c.transaction_volume_sats / 1000000).toFixed(1)}M`
-                          : c.transaction_volume_sats >= 1000 
-                          ? `${(c.transaction_volume_sats / 1000).toFixed(1)}k` 
-                          : c.transaction_volume_sats}
-                      </div>
-                      <div className="text-xs text-gray-500">Sats</div>
-                    </div>
-                    <div className="bg-white dark:bg-gray-900 rounded-lg p-2">
-                      <div className="font-bold text-lg text-green-600 dark:text-green-400">{c.closed_loop_ratio}%</div>
-                      <div className="text-xs text-gray-500">Closed Loop</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

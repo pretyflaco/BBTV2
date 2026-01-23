@@ -3,7 +3,7 @@
  * 
  * GET: Get the leaderboard of communities by various metrics
  * Query params:
- *   - sortBy: 'volume' | 'transactions' | 'members' | 'closed_loop' (default: 'volume')
+ *   - sortBy: 'volume' | 'transactions' | 'members' | 'closed_loop' | 'members_volume' (default: 'members_volume')
  *   - period: 'current_week' | 'last_week' | 'current_month' | 'last_month' | 'all' (default: 'current_month')
  */
 
@@ -74,7 +74,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { sortBy = 'volume', period = 'current_month' } = req.query;
+  const { sortBy = 'members_volume', period = 'current_month' } = req.query;
 
   try {
     // Get all communities from database
@@ -94,12 +94,16 @@ export default async function handler(req, res) {
       // Calculate metrics for the period from database
       const metrics = await db.calculateMetricsForPeriod(community.id, periodRange.start, periodRange.end);
       
+      // Get BTC preference for the community
+      const btcPreference = await db.getCommunityBtcPreference(community.id, periodRange.end);
+      
       return {
         id: community.id,
         name: community.name,
         slug: community.slug,
         country_code: community.country_code,
         city: community.city,
+        leader_npub: community.leader_npub,
         member_count: memberCount,
         data_sharing_count: dataSharingCount,
         transaction_count: metrics.transaction_count,
@@ -107,7 +111,8 @@ export default async function handler(req, res) {
         intra_community_count: metrics.intra_community_count,
         closed_loop_ratio: metrics.closed_loop_ratio,
         velocity: metrics.velocity,
-        avg_tx_size: metrics.avg_tx_size
+        avg_tx_size: metrics.avg_tx_size,
+        btc_preference_pct: btcPreference.btc_preference_pct
       };
     }));
     
@@ -121,10 +126,17 @@ export default async function handler(req, res) {
       volume: (a, b) => b.transaction_volume_sats - a.transaction_volume_sats,
       transactions: (a, b) => b.transaction_count - a.transaction_count,
       members: (a, b) => b.member_count - a.member_count,
-      closed_loop: (a, b) => b.closed_loop_ratio - a.closed_loop_ratio
+      closed_loop: (a, b) => b.closed_loop_ratio - a.closed_loop_ratio,
+      // Primary sort by members, secondary by volume
+      members_volume: (a, b) => {
+        if (b.member_count !== a.member_count) {
+          return b.member_count - a.member_count;
+        }
+        return b.transaction_volume_sats - a.transaction_volume_sats;
+      }
     };
     
-    const sortFn = sortFunctions[sortBy] || sortFunctions.volume;
+    const sortFn = sortFunctions[sortBy] || sortFunctions.members_volume;
     leaderboard.sort(sortFn);
     
     // Add rank

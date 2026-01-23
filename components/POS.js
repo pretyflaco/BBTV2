@@ -3,7 +3,7 @@ import QRCode from 'react-qr-code';
 import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
 import { useNFC } from './NFCPayment';
 
-const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation }, ref) => {
+const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation, isPublicPOS = false, publicUsername = null }, ref) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -98,13 +98,14 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
 
   // Fetch exchange rate when currency changes
   // For NWC-only or LN Address users (no apiKey), use BlinkPOS credentials via useBlinkpos flag
+  // For public POS mode, also use BlinkPOS credentials
   useEffect(() => {
-    if (displayCurrency !== 'BTC' && (apiKey || activeNWC || hasBlinkLnAddressWallet || hasNpubCashWallet)) {
+    if (displayCurrency !== 'BTC' && (apiKey || activeNWC || hasBlinkLnAddressWallet || hasNpubCashWallet || isPublicPOS)) {
       fetchExchangeRate();
     } else if (displayCurrency === 'BTC') {
       setExchangeRate({ satPriceInCurrency: 1, currency: 'BTC' });
     }
-  }, [displayCurrency, apiKey, activeNWC, hasBlinkLnAddressWallet, hasNpubCashWallet]);
+  }, [displayCurrency, apiKey, activeNWC, hasBlinkLnAddressWallet, hasNpubCashWallet, isPublicPOS]);
 
   // Clear invoice when payment is received
   useEffect(() => {
@@ -344,8 +345,8 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
         body: JSON.stringify({
           apiKey: apiKey,
           currency: displayCurrency,
-          // For NWC-only, LN Address, or npub.cash users, use BlinkPOS credentials to fetch exchange rate
-          useBlinkpos: !apiKey && (!!activeNWC || hasBlinkLnAddressWallet || hasNpubCashWallet)
+          // For NWC-only, LN Address, npub.cash, or public POS users, use BlinkPOS credentials to fetch exchange rate
+          useBlinkpos: !apiKey && (!!activeNWC || hasBlinkLnAddressWallet || hasNpubCashWallet || isPublicPOS)
         }),
       });
       
@@ -724,27 +725,33 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
       return;
     }
 
-    // Invoices are always created via Blink's blinkpos account
-    // Payments are forwarded to either:
-    // - User's Blink wallet via API key (if they have one), OR
-    // - User's Blink wallet via Lightning Address (if they have one), OR
-    // - User's NWC wallet (if active)
-    const hasBlinkApiKeyWallet = selectedWallet && apiKey;
-    const hasNwcWallet = activeNWC && nwcClientReady;
-    
-    if (!hasBlinkApiKeyWallet && !hasNwcWallet && !hasBlinkLnAddressWallet && !hasNpubCashWallet) {
-      setError('No wallet available. Please connect a Blink, NWC, or npub.cash wallet.');
-      return;
-    }
-
-    // Connect BlinkPOS WebSocket if not already connected (lazy-loading)
-    if (!blinkposConnected && blinkposConnect) {
-      console.log('🔗 Connecting BlinkPOS WebSocket before invoice creation...');
-      blinkposConnect();
+    // PUBLIC POS MODE: Skip wallet validation - invoices go directly to user's wallet
+    if (isPublicPOS && publicUsername) {
+      console.log('🌐 Public POS mode - creating invoice directly to:', publicUsername);
+      // Continue to invoice creation (no wallet required on our side)
+    } else {
+      // AUTHENTICATED MODE: Invoices are created via Blink's blinkpos account
+      // Payments are forwarded to either:
+      // - User's Blink wallet via API key (if they have one), OR
+      // - User's Blink wallet via Lightning Address (if they have one), OR
+      // - User's NWC wallet (if active)
+      const hasBlinkApiKeyWallet = selectedWallet && apiKey;
+      const hasNwcWallet = activeNWC && nwcClientReady;
       
-      // Give it a moment to connect before proceeding
-      // Note: The invoice will be created even if connection is still in progress
-      // The WebSocket will pick up the payment when it connects
+      if (!hasBlinkApiKeyWallet && !hasNwcWallet && !hasBlinkLnAddressWallet && !hasNpubCashWallet) {
+        setError('No wallet available. Please connect a Blink, NWC, or npub.cash wallet.');
+        return;
+      }
+
+      // Connect BlinkPOS WebSocket if not already connected (lazy-loading)
+      if (!blinkposConnected && blinkposConnect) {
+        console.log('🔗 Connecting BlinkPOS WebSocket before invoice creation...');
+        blinkposConnect();
+        
+        // Give it a moment to connect before proceeding
+        // Note: The invoice will be created even if connection is still in progress
+        // The WebSocket will pick up the payment when it connects
+      }
     }
 
     setLoading(true);
@@ -824,65 +831,109 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
         finalTotalInSats = Math.round(totalWithTip);
       }
 
-      // Create invoice via Blink API (always through blinkpos account)
-      // For NWC-only or LN Address users, Blink wallet fields are optional
-      // Calculate base and tip amounts in sats
-      // CRITICAL: Calculate tip as (total - base) to avoid rounding errors
-      // When base and tip are rounded independently, their sum may differ from total
-      const baseInSats = convertToSatoshis(finalTotal, displayCurrency !== 'BTC' ? displayCurrency : 'BTC');
-      // Tip is the difference between total invoice and base (ensures base + tip = total)
-      const tipInSats = effectiveTipPercent > 0 ? Math.max(0, finalTotalInSats - baseInSats) : 0;
-      
-      // Get NWC connection URI for server-side forwarding (if NWC is active)
-      let nwcConnectionUri = null;
-      if (activeNWC && nwcClientReady && getActiveNWCUri) {
-        try {
-          nwcConnectionUri = await getActiveNWCUri();
-          if (nwcConnectionUri) {
-            console.log('📱 NWC URI retrieved for server-side forwarding');
-          }
-        } catch (nwcUriError) {
-          console.error('Failed to get NWC URI:', nwcUriError);
+      // PUBLIC POS MODE: Create invoice directly to user's wallet
+      if (isPublicPOS && publicUsername) {
+        console.log('🌐 Creating public invoice for:', publicUsername, 'Amount:', finalTotalInSats);
+        
+        const response = await fetch('/api/blink/public-invoice', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            username: publicUsername,
+            amount: finalTotalInSats,
+            memo: memo || `Payment to ${publicUsername}`,
+            walletCurrency: 'BTC'
+          }),
+        });
+
+        const data = await response.json();
+
+        console.log('Public invoice response:', data);
+
+        if (!response.ok) {
+          throw new Error(data.error || `Server error: ${response.status}`);
         }
-      }
-      
-      const requestBody = {
-        amount: finalTotalInSats,
-        currency: 'BTC', // Always create BTC invoices
-        memo: memo, // Show calculation in memo
-        displayCurrency: displayCurrency, // Pass the actual display currency for tip memo
-        // Tip information for payment splitting
-        baseAmount: baseInSats,
-        tipAmount: tipInSats,
-        tipPercent: effectiveTipPercent,
-        tipRecipients: tipRecipients || [],
-        // Display currency amounts for memo calculation
-        baseAmountDisplay: finalTotal,
-        tipAmountDisplay: tipAmount,
-        // Include Blink wallet info only if available (for Blink API key forwarding)
-        // NWC-only or LN Address users won't have these
-        ...(selectedWallet && {
-          walletId: selectedWallet.id,
-          userWalletId: selectedWallet.id
-        }),
-        ...(apiKey && { apiKey }),
-        // Flag to indicate if NWC is active (for forwarding logic)
-        nwcActive: !!activeNWC && nwcClientReady,
-        // NWC connection URI for server-side webhook forwarding
-        // This allows the webhook to forward payments even when the app is in background
-        ...(nwcConnectionUri && { nwcConnectionUri }),
-        // Flag and data for Blink Lightning Address wallet (no API key required)
-        ...(hasBlinkLnAddressWallet && {
-          blinkLnAddress: true,
-          blinkLnAddressWalletId: activeBlinkAccount.walletId,
-          blinkLnAddressUsername: activeBlinkAccount.username
-        }),
-        // Flag and data for npub.cash wallet (uses LNURL-pay)
-        ...(hasNpubCashWallet && {
-          npubCashActive: true,
-          npubCashLightningAddress: activeNpubCashWallet.lightningAddress
-        })
-      };
+
+        if (data.success && data.invoice) {
+          // Enhance invoice with display currency information
+          const enhancedInvoice = {
+            ...data.invoice,
+            displayAmount: totalWithTip,
+            displayCurrency: displayCurrency,
+            satAmount: finalTotalInSats,
+            memo: memo
+          };
+          setInvoice(enhancedInvoice);
+          // Notify parent of invoice creation with full invoice data
+          if (onInvoiceChange) {
+            console.log('📋 Public invoice created with payment hash:', data.invoice.paymentHash?.substring(0, 16) + '...');
+            onInvoiceChange(enhancedInvoice);
+          }
+        } else {
+          throw new Error('Invalid response from server');
+        }
+      } else {
+        // AUTHENTICATED MODE: Create invoice via Blink API (through blinkpos account)
+        // For NWC-only or LN Address users, Blink wallet fields are optional
+        // Calculate base and tip amounts in sats
+        // CRITICAL: Calculate tip as (total - base) to avoid rounding errors
+        // When base and tip are rounded independently, their sum may differ from total
+        const baseInSats = convertToSatoshis(finalTotal, displayCurrency !== 'BTC' ? displayCurrency : 'BTC');
+        // Tip is the difference between total invoice and base (ensures base + tip = total)
+        const tipInSats = effectiveTipPercent > 0 ? Math.max(0, finalTotalInSats - baseInSats) : 0;
+        
+        // Get NWC connection URI for server-side forwarding (if NWC is active)
+        let nwcConnectionUri = null;
+        if (activeNWC && nwcClientReady && getActiveNWCUri) {
+          try {
+            nwcConnectionUri = await getActiveNWCUri();
+            if (nwcConnectionUri) {
+              console.log('📱 NWC URI retrieved for server-side forwarding');
+            }
+          } catch (nwcUriError) {
+            console.error('Failed to get NWC URI:', nwcUriError);
+          }
+        }
+        
+        const requestBody = {
+          amount: finalTotalInSats,
+          currency: 'BTC', // Always create BTC invoices
+          memo: memo, // Show calculation in memo
+          displayCurrency: displayCurrency, // Pass the actual display currency for tip memo
+          // Tip information for payment splitting
+          baseAmount: baseInSats,
+          tipAmount: tipInSats,
+          tipPercent: effectiveTipPercent,
+          tipRecipients: tipRecipients || [],
+          // Display currency amounts for memo calculation
+          baseAmountDisplay: finalTotal,
+          tipAmountDisplay: tipAmount,
+          // Include Blink wallet info only if available (for Blink API key forwarding)
+          // NWC-only or LN Address users won't have these
+          ...(selectedWallet && {
+            walletId: selectedWallet.id,
+            userWalletId: selectedWallet.id
+          }),
+          ...(apiKey && { apiKey }),
+          // Flag to indicate if NWC is active (for forwarding logic)
+          nwcActive: !!activeNWC && nwcClientReady,
+          // NWC connection URI for server-side webhook forwarding
+          // This allows the webhook to forward payments even when the app is in background
+          ...(nwcConnectionUri && { nwcConnectionUri }),
+          // Flag and data for Blink Lightning Address wallet (no API key required)
+          ...(hasBlinkLnAddressWallet && {
+            blinkLnAddress: true,
+            blinkLnAddressWalletId: activeBlinkAccount.walletId,
+            blinkLnAddressUsername: activeBlinkAccount.username
+          }),
+          // Flag and data for npub.cash wallet (uses LNURL-pay)
+          ...(hasNpubCashWallet && {
+            npubCashActive: true,
+            npubCashLightningAddress: activeNpubCashWallet.lightningAddress
+          })
+        };
 
         console.log('Creating invoice with request body:', requestBody);
 
@@ -908,20 +959,19 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
             ...data.invoice,
             displayAmount: totalWithTip, // Use totalWithTip to include tip amount
             displayCurrency: displayCurrency,
-            satAmount: finalTotalInSats
+            satAmount: finalTotalInSats,
+            memo: memo
           };
           setInvoice(enhancedInvoice);
           // Notify parent of invoice creation for NFC scanning and payment hash tracking
           if (onInvoiceChange) {
             console.log('📋 Invoice created with payment hash:', data.invoice.paymentHash?.substring(0, 16) + '...');
-            onInvoiceChange({
-              paymentRequest: data.invoice.paymentRequest,
-              paymentHash: data.invoice.paymentHash
-            });
+            onInvoiceChange(enhancedInvoice);
           }
         } else {
           throw new Error('Invalid response from server');
         }
+      }
 
     } catch (err) {
       console.error('Invoice creation error:', err);
@@ -1067,7 +1117,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                     <div className="text-lg text-gray-600 dark:text-gray-400 mt-1">({invoice.satAmount} sats)</div>
                   </div>
                 ) : (
-                  formatDisplayAmount(invoice.amount, invoice.currency)
+                  formatDisplayAmount(invoice.satAmount || invoice.displayAmount, 'BTC')
                 )}
               </div>
             </div>
@@ -1198,29 +1248,29 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
 
       </div>
 
-      {/* Redesigned Numpad */}
+      {/* Redesigned Numpad - Scaled up for better visibility */}
       <div className="flex-1 px-4 pb-4 relative">
         {/* Spacer to align numpad with item list (below Search/Add Item row level) */}
-        <div className="h-16 mb-2"></div>
-        <div className="grid grid-cols-4 gap-3 max-w-sm mx-auto" data-1p-ignore data-lpignore="true">
+        <div className="h-12 mb-2"></div>
+        <div className="grid grid-cols-4 gap-3 max-w-md mx-auto" data-1p-ignore data-lpignore="true">
           {/* Row 1: 1, 2, 3, + */}
           <button
             onClick={() => handleDigitPress('1')}
-            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             1
           </button>
           <button
             onClick={() => handleDigitPress('2')}
-            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             2
           </button>
           <button
             onClick={() => handleDigitPress('3')}
-            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             3
@@ -1228,7 +1278,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
           <button
             onClick={handlePlusPress}
             disabled={!amount || parseFloat(amount) <= 0}
-            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center"
+            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             +
@@ -1237,29 +1287,29 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
           {/* Row 2: 4, 5, 6, OK (starts) */}
           <button
             onClick={() => handleDigitPress('4')}
-            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             4
           </button>
           <button
             onClick={() => handleDigitPress('5')}
-            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             5
           </button>
           <button
             onClick={() => handleDigitPress('6')}
-            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             6
           </button>
           <button
             onClick={() => createInvoice()}
-            disabled={!hasValidAmount() || loading || (!selectedWallet && !activeNWC && !hasBlinkLnAddressWallet && !hasNpubCashWallet) || (displayCurrency !== 'BTC' && !exchangeRate) || loadingRate}
-            className={`h-[136px] ${!hasValidAmount() || loading ? 'bg-gray-200 dark:bg-blink-dark border-2 border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500' : 'bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'} disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-lg text-lg font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center row-span-2`}
+            disabled={!hasValidAmount() || loading || (!(isPublicPOS && publicUsername) && !selectedWallet && !activeNWC && !hasBlinkLnAddressWallet && !hasNpubCashWallet) || (displayCurrency !== 'BTC' && !exchangeRate) || loadingRate}
+            className={`h-[172px] ${!hasValidAmount() || loading ? 'bg-gray-200 dark:bg-blink-dark border-2 border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500' : 'bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'} disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center row-span-2`}
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             {loading ? 'Creating...' : 'OK'}
@@ -1268,21 +1318,21 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
           {/* Row 3: 7, 8, 9, OK (continues) */}
           <button
             onClick={() => handleDigitPress('7')}
-            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             7
           </button>
           <button
             onClick={() => handleDigitPress('8')}
-            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             8
           </button>
           <button
             onClick={() => handleDigitPress('9')}
-            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             9
@@ -1291,14 +1341,14 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
           {/* Row 4: C, 0, ., ⌫ */}
           <button
             onClick={handleClear}
-            className="h-16 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-lg font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-20 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             C
           </button>
           <button
             onClick={() => handleDigitPress('0')}
-            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             0
@@ -1306,17 +1356,17 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
           <button
             onClick={() => handleDigitPress('.')}
             disabled={displayCurrency === 'BTC' || (getCurrentCurrency()?.fractionDigits === 0)}
-            className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             .
           </button>
           <button
             onClick={handleBackspace}
-            className="h-16 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 rounded-lg text-lg font-normal leading-none tracking-normal transition-colors flex items-center justify-center shadow-md"
+            className="h-20 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors flex items-center justify-center shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
             </svg>
           </button>
@@ -1333,7 +1383,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
           
           return (
           <div className="absolute inset-0 bg-white dark:bg-black z-30 pt-24">
-            <div className="grid grid-cols-4 gap-3 max-w-sm mx-auto" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+            <div className="grid grid-cols-4 gap-3 max-w-md mx-auto" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
               <h3 className="col-span-4 text-xl font-bold mb-2 text-center text-gray-800 dark:text-white">Tip Options</h3>
               
               {/* Tip preset buttons in grid */}
@@ -1343,14 +1393,14 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                   onClick={() => {
                     setPendingTipSelection(percent);
                   }}
-                  className={`col-span-2 h-16 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal transition-colors shadow-md ${
+                  className={`col-span-2 h-20 bg-white dark:bg-black border-2 rounded-lg text-xl font-normal transition-colors shadow-md ${
                     tipOptionIndex === idx 
                       ? 'border-green-400 ring-2 ring-green-400 bg-green-50 dark:bg-green-900 text-green-700 dark:text-green-300' 
                       : 'border-green-500 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'
                   }`}
                 >
                   {percent}%
-                  <div className="text-sm">
+                  <div className="text-base">
                     +{formatDisplayAmount(calculateTipAmount(total + (parseFloat(amount) || 0), percent), displayCurrency)}
                   </div>
                 </button>
@@ -1363,7 +1413,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                     setShowCustomTipInput(true);
                     setCustomTipValue('');
                 }}
-                className={`col-span-2 h-16 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal transition-colors shadow-md ${
+                className={`col-span-2 h-20 bg-white dark:bg-black border-2 rounded-lg text-xl font-normal transition-colors shadow-md ${
                   tipOptionIndex === customIndex 
                     ? 'border-blue-400 ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300' 
                     : 'border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300'
@@ -1379,7 +1429,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                   if (onInternalTransition) onInternalTransition();
                   setShowTipDialog(false);
                 }}
-                className={`col-span-2 h-16 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal transition-colors shadow-md ${
+                className={`col-span-2 h-20 bg-white dark:bg-black border-2 rounded-lg text-xl font-normal transition-colors shadow-md ${
                   tipOptionIndex === cancelIndex 
                     ? 'border-red-400 ring-2 ring-red-400 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-300' 
                     : 'border-red-500 hover:border-red-600 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300'
@@ -1391,7 +1441,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                 onClick={() => {
                   setPendingTipSelection(0);
                 }}
-                className={`col-span-2 h-16 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal transition-colors shadow-md ${
+                className={`col-span-2 h-20 bg-white dark:bg-black border-2 rounded-lg text-xl font-normal transition-colors shadow-md ${
                   tipOptionIndex === noTipIndex 
                     ? 'border-yellow-400 ring-2 ring-yellow-400 bg-yellow-50 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300' 
                     : 'border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300'
@@ -1407,10 +1457,10 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
         {/* Custom Tip Input Overlay */}
         {showTipDialog && showCustomTipInput && (
           <div className="absolute inset-0 bg-white dark:bg-black flex items-center justify-center z-30">
-            <div className="max-w-sm w-full" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-              <h3 className="text-xl font-bold mb-4 text-center text-gray-800 dark:text-white">Custom Tip</h3>
+            <div className="max-w-md w-full px-4" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+              <h3 className="text-2xl font-bold mb-4 text-center text-gray-800 dark:text-white">Custom Tip</h3>
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 text-center">
+                <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2 text-center">
                   Enter Tip Percentage
                 </label>
                 <input
@@ -1421,11 +1471,11 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                   min="0"
                   max="100"
                   step="0.5"
-                  className="w-full px-4 py-3 text-center text-2xl border-2 border-blue-600 dark:border-blue-500 rounded-lg bg-white dark:bg-blink-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600"
+                  className="w-full px-4 py-4 text-center text-3xl border-2 border-blue-600 dark:border-blue-500 rounded-lg bg-white dark:bg-blink-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600"
                   autoFocus
                 />
                 {customTipValue && parseFloat(customTipValue) > 0 && (
-                  <div className="mt-2 text-center text-gray-600 dark:text-gray-400">
+                  <div className="mt-2 text-center text-lg text-gray-600 dark:text-gray-400">
                     +{formatDisplayAmount(calculateTipAmount(total + (parseFloat(amount) || 0), parseFloat(customTipValue)), displayCurrency)}
                   </div>
                 )}
@@ -1436,7 +1486,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                     setShowCustomTipInput(false);
                     setCustomTipValue('');
                   }}
-                  className="h-16 bg-white dark:bg-black border-2 border-gray-500 hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                  className="h-20 bg-white dark:bg-black border-2 border-gray-500 hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 rounded-lg text-xl font-normal transition-colors shadow-md"
                 >
                   Back
                 </button>
@@ -1450,7 +1500,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                     }
                   }}
                   disabled={!customTipValue || parseFloat(customTipValue) < 0 || parseFloat(customTipValue) > 100}
-                  className="h-16 bg-white dark:bg-black border-2 border-green-500 hover:border-green-600 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 disabled:border-gray-400 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-black rounded-lg text-lg font-normal transition-colors shadow-md"
+                  className="h-20 bg-white dark:bg-black border-2 border-green-500 hover:border-green-600 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 disabled:border-gray-400 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-black rounded-lg text-xl font-normal transition-colors shadow-md"
                 >
                   Apply
               </button>

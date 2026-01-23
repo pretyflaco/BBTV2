@@ -69,9 +69,42 @@ const ItemCart = forwardRef(({
     }
   };
 
-  // Fetch cart items from server
+  // Helper for localStorage key
+  const getLocalStorageKey = () => 'publicpos-cart-items';
+  
+  // Load cart items from localStorage (for public mode)
+  const loadLocalCartItems = useCallback(() => {
+    try {
+      const stored = localStorage.getItem(getLocalStorageKey());
+      if (stored) {
+        const items = JSON.parse(stored);
+        setCartItems(items);
+      } else {
+        setCartItems([]);
+      }
+    } catch (err) {
+      console.error('Error loading local cart items:', err);
+      setCartItems([]);
+    }
+    setLoading(false);
+  }, []);
+
+  // Save cart items to localStorage (for public mode)
+  const saveLocalCartItems = useCallback((items) => {
+    try {
+      localStorage.setItem(getLocalStorageKey(), JSON.stringify(items));
+    } catch (err) {
+      console.error('Error saving local cart items:', err);
+    }
+  }, []);
+
+  // Fetch cart items from server (for authenticated mode)
   const fetchCartItems = useCallback(async () => {
-    if (!publicKey) return;
+    // For public mode (no publicKey), use localStorage
+    if (!publicKey) {
+      loadLocalCartItems();
+      return;
+    }
     
     try {
       setLoading(true);
@@ -91,7 +124,7 @@ const ItemCart = forwardRef(({
     } finally {
       setLoading(false);
     }
-  }, [publicKey]);
+  }, [publicKey, loadLocalCartItems]);
 
   useEffect(() => {
     fetchCartItems();
@@ -186,6 +219,32 @@ const ItemCart = forwardRef(({
     setAddingItem(true);
     setError('');
     
+    // For public mode (no publicKey), use localStorage
+    if (!publicKey) {
+      try {
+        const newItem = {
+          id: `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          name: newItemName.trim(),
+          price: parseFloat(newItemPrice),
+          currency: displayCurrency,
+          createdAt: new Date().toISOString()
+        };
+        const updatedItems = [...cartItems, newItem];
+        setCartItems(updatedItems);
+        saveLocalCartItems(updatedItems);
+        setNewItemName('');
+        setNewItemPrice('');
+        setShowAddForm(false);
+      } catch (err) {
+        console.error('Error adding local item:', err);
+        setError('Failed to add item');
+      } finally {
+        setAddingItem(false);
+      }
+      return;
+    }
+    
+    // Authenticated mode - use server
     try {
       const response = await fetch('/api/user/cart-items', {
         method: 'POST',
@@ -219,6 +278,23 @@ const ItemCart = forwardRef(({
 
   // Delete item
   const handleDeleteItem = async (itemId) => {
+    // For public mode (no publicKey), use localStorage
+    if (!publicKey) {
+      try {
+        const updatedItems = cartItems.filter(item => item.id !== itemId);
+        setCartItems(updatedItems);
+        saveLocalCartItems(updatedItems);
+        setSelectedItems(selectedItems.filter(s => s.item.id !== itemId));
+        setConfirmDelete(null);
+        setError('');
+      } catch (err) {
+        console.error('Error deleting local item:', err);
+        setError('Failed to delete item');
+      }
+      return;
+    }
+    
+    // Authenticated mode - use server
     try {
       console.log('Deleting item:', itemId, 'pubkey:', publicKey);
       const response = await fetch('/api/user/cart-items', {
@@ -253,6 +329,24 @@ const ItemCart = forwardRef(({
   const handleUpdateItem = async () => {
     if (!editingItem) return;
     
+    // For public mode (no publicKey), use localStorage
+    if (!publicKey) {
+      try {
+        const updatedItem = { ...editingItem, updatedAt: new Date().toISOString() };
+        const updatedItems = cartItems.map(item => 
+          item.id === editingItem.id ? updatedItem : item
+        );
+        setCartItems(updatedItems);
+        saveLocalCartItems(updatedItems);
+        setEditingItem(null);
+      } catch (err) {
+        console.error('Error updating local item:', err);
+        setError('Failed to update item');
+      }
+      return;
+    }
+    
+    // Authenticated mode - use server
     try {
       const response = await fetch('/api/user/cart-items', {
         method: 'PATCH',
@@ -538,11 +632,11 @@ const ItemCart = forwardRef(({
         ) : showAddForm ? (
           /* Add Item Form - scrollable for mobile keyboard */
           <div className="flex-1 overflow-y-auto">
-            <div className="max-w-sm mx-auto space-y-4 pb-4">
-              <h3 className="text-lg font-semibold text-center text-gray-800 dark:text-white">Add New Item</h3>
+            <div className="max-w-md mx-auto space-y-4 pb-4">
+              <h3 className="text-xl font-semibold text-center text-gray-800 dark:text-white">Add New Item</h3>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Item Name
                 </label>
                 <input
@@ -557,13 +651,13 @@ const ItemCart = forwardRef(({
                     }
                   }}
                   placeholder="e.g., Ice Cream"
-                  className="w-full px-3 py-2 border-2 border-blue-600 dark:border-blue-500 rounded-lg bg-white dark:bg-blink-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 text-lg border-2 border-blue-600 dark:border-blue-500 rounded-lg bg-white dark:bg-blink-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   autoFocus
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Price
                 </label>
                 <input
@@ -580,7 +674,7 @@ const ItemCart = forwardRef(({
                   placeholder="1"
                   min="0"
                   step="any"
-                  className="w-full px-3 py-2 border-2 border-blue-600 dark:border-blue-500 rounded-lg bg-white dark:bg-blink-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 text-lg border-2 border-blue-600 dark:border-blue-500 rounded-lg bg-white dark:bg-blink-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               
@@ -591,7 +685,7 @@ const ItemCart = forwardRef(({
                     setNewItemName('');
                     setNewItemPrice('');
                   }}
-                  className="h-12 bg-white dark:bg-black border-2 border-gray-500 hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 rounded-lg text-lg font-normal transition-colors shadow-md"
+                  className="h-14 bg-white dark:bg-black border-2 border-gray-500 hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 rounded-lg text-lg font-normal transition-colors shadow-md"
                 >
                   Cancel
                 </button>
@@ -599,7 +693,7 @@ const ItemCart = forwardRef(({
                   ref={addItemButtonRef}
                   onClick={handleAddItem}
                   disabled={addingItem || !newItemName.trim() || !newItemPrice}
-                  className="h-12 bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 disabled:border-gray-400 disabled:text-gray-400 disabled:cursor-not-allowed rounded-lg text-lg font-normal transition-colors shadow-md"
+                  className="h-14 bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 disabled:border-gray-400 disabled:text-gray-400 disabled:cursor-not-allowed rounded-lg text-lg font-normal transition-colors shadow-md"
                 >
                   {addingItem ? 'Adding...' : 'Add'}
                 </button>
@@ -609,24 +703,24 @@ const ItemCart = forwardRef(({
         ) : editingItem ? (
           /* Edit Item Form - scrollable for mobile keyboard */
           <div className="flex-1 overflow-y-auto">
-            <div className="max-w-sm mx-auto space-y-4 pb-4">
-              <h3 className="text-lg font-semibold text-center text-gray-800 dark:text-white">Edit Item</h3>
+            <div className="max-w-md mx-auto space-y-4 pb-4">
+              <h3 className="text-xl font-semibold text-center text-gray-800 dark:text-white">Edit Item</h3>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Item Name
                 </label>
                 <input
                   type="text"
                   value={editingItem.name}
                   onChange={(e) => setEditingItem({...editingItem, name: e.target.value})}
-                  className="w-full px-3 py-2 border-2 border-blue-600 dark:border-blue-500 rounded-lg bg-white dark:bg-blink-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 text-lg border-2 border-blue-600 dark:border-blue-500 rounded-lg bg-white dark:bg-blink-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   autoFocus
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Price
                 </label>
                 <input
@@ -635,20 +729,20 @@ const ItemCart = forwardRef(({
                   onChange={(e) => setEditingItem({...editingItem, price: parseFloat(e.target.value) || 0})}
                   min="0"
                   step="any"
-                  className="w-full px-3 py-2 border-2 border-blue-600 dark:border-blue-500 rounded-lg bg-white dark:bg-blink-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 text-lg border-2 border-blue-600 dark:border-blue-500 rounded-lg bg-white dark:bg-blink-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               
               <div className="grid grid-cols-2 gap-3 pt-4">
                 <button
                   onClick={() => setEditingItem(null)}
-                  className="h-12 bg-white dark:bg-black border-2 border-gray-500 hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 rounded-lg text-lg font-normal transition-colors shadow-md"
+                  className="h-14 bg-white dark:bg-black border-2 border-gray-500 hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 rounded-lg text-lg font-normal transition-colors shadow-md"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleUpdateItem}
-                  className="h-12 bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 rounded-lg text-lg font-normal transition-colors shadow-md"
+                  className="h-14 bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 rounded-lg text-lg font-normal transition-colors shadow-md"
                 >
                   Save
                 </button>
@@ -657,22 +751,22 @@ const ItemCart = forwardRef(({
           </div>
         ) : confirmDelete ? (
           /* Delete Confirmation */
-          <div className="max-w-sm mx-auto space-y-4">
-            <h3 className="text-lg font-semibold text-center text-gray-800 dark:text-white">Delete Item?</h3>
-            <p className="text-center text-gray-600 dark:text-gray-400">
+          <div className="max-w-md mx-auto space-y-4">
+            <h3 className="text-xl font-semibold text-center text-gray-800 dark:text-white">Delete Item?</h3>
+            <p className="text-center text-lg text-gray-600 dark:text-gray-400">
               Are you sure you want to delete "{confirmDelete.name}"?
             </p>
             
             <div className="grid grid-cols-2 gap-3 pt-4">
               <button
                 onClick={() => setConfirmDelete(null)}
-                className="h-12 bg-white dark:bg-black border-2 border-gray-500 hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 rounded-lg text-lg font-normal transition-colors shadow-md"
+                className="h-14 bg-white dark:bg-black border-2 border-gray-500 hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 rounded-lg text-lg font-normal transition-colors shadow-md"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleDeleteItem(confirmDelete.id)}
-                className="h-12 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 rounded-lg text-lg font-normal transition-colors shadow-md"
+                className="h-14 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 rounded-lg text-lg font-normal transition-colors shadow-md"
               >
                 Delete
               </button>
@@ -682,12 +776,12 @@ const ItemCart = forwardRef(({
           /* Items List with fixed header and footer */
           <div className="flex-1 flex flex-col min-h-0">
             {/* Fixed top row: Search and Add Item buttons */}
-            <div className="flex-shrink-0 max-w-sm mx-auto w-full mb-2">
+            <div className="flex-shrink-0 max-w-md mx-auto w-full mb-2">
               {isSearching ? (
                 /* Expanded Search Input */
-                <div className="w-full h-14 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 rounded-lg flex items-center shadow-md">
-                  <div className="flex items-center justify-center w-12 text-orange-500 dark:text-orange-400">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-full h-16 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 rounded-lg flex items-center shadow-md">
+                  <div className="flex items-center justify-center w-14 text-orange-500 dark:text-orange-400">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                   </div>
@@ -710,31 +804,31 @@ const ItemCart = forwardRef(({
                       }
                     }}
                     placeholder="Search items..."
-                    className="flex-1 h-full bg-transparent text-gray-900 dark:text-white focus:outline-none text-base"
+                    className="flex-1 h-full bg-transparent text-gray-900 dark:text-white focus:outline-none text-lg"
                     autoFocus
                   />
                   <button
                     onClick={handleSearchClose}
-                    className="w-12 h-full flex items-center justify-center text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                    className="w-14 h-full flex items-center justify-center text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 </div>
               ) : (
                 /* Search and Add Item buttons row */
-                <div className="grid grid-cols-2 gap-2 w-full">
+                <div className="grid grid-cols-2 gap-3 w-full">
                   {/* Search Button */}
                   <button
                     onClick={handleSearchClick}
-                    className={`w-full h-14 bg-white dark:bg-black border-2 rounded-lg text-base font-normal transition-colors shadow-md flex items-center justify-center gap-2 ${
+                    className={`w-full h-16 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal transition-colors shadow-md flex items-center justify-center gap-2 ${
                       keyboardNavIndex === 0
                         ? 'border-orange-400 ring-2 ring-orange-400 bg-orange-50 dark:bg-orange-900 text-orange-700 dark:text-orange-300'
                         : 'border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300'
                     }`}
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                     Search
@@ -743,13 +837,13 @@ const ItemCart = forwardRef(({
                   {/* Add Item Button */}
                   <button
                     onClick={() => setShowAddForm(true)}
-                    className={`w-full h-14 bg-white dark:bg-black border-2 border-dashed rounded-lg text-base font-normal transition-colors shadow-md flex items-center justify-center gap-2 ${
+                    className={`w-full h-16 bg-white dark:bg-black border-2 border-dashed rounded-lg text-lg font-normal transition-colors shadow-md flex items-center justify-center gap-2 ${
                       keyboardNavIndex === 1
                         ? 'border-orange-400 ring-2 ring-orange-400 bg-orange-50 dark:bg-orange-900 text-orange-700 dark:text-orange-300'
                         : 'border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300'
                     }`}
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
                     </svg>
                     Add item
@@ -760,7 +854,7 @@ const ItemCart = forwardRef(({
 
             {/* Scrollable items area - takes remaining space between fixed elements */}
             <div className="flex-1 overflow-y-auto min-h-0">
-              <div className="flex flex-col gap-2 max-w-sm mx-auto pb-2">
+              <div className="flex flex-col gap-3 max-w-md mx-auto pb-2">
                 {/* Item Buttons */}
                 {filteredItems.map((item, itemIndex) => {
                   const quantity = getSelectedQuantity(item.id);
@@ -772,7 +866,7 @@ const ItemCart = forwardRef(({
                       ref={el => itemRefs.current[itemIndex] = el}
                     >
                       <div
-                        className={`w-full h-14 bg-white dark:bg-black border-2 rounded-lg transition-colors shadow-md flex items-center ${
+                        className={`w-full h-16 bg-white dark:bg-black border-2 rounded-lg transition-colors shadow-md flex items-center ${
                           isKeyboardSelected
                             ? 'border-blue-400 ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-900'
                             : quantity > 0
@@ -783,7 +877,7 @@ const ItemCart = forwardRef(({
                         {/* Main clickable area for item selection */}
                         <button
                           onClick={() => handleItemClick(item)}
-                          className={`flex-1 h-full flex flex-col justify-center px-3 text-left ${
+                          className={`flex-1 h-full flex flex-col justify-center px-4 text-left ${
                             isKeyboardSelected
                               ? 'text-blue-700 dark:text-blue-300'
                               : quantity > 0
@@ -791,8 +885,8 @@ const ItemCart = forwardRef(({
                               : 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300'
                           }`}
                         >
-                          <span className="text-sm font-medium truncate">{item.name}</span>
-                          <span className="text-xs opacity-75">{formatDisplayAmount(item.price, displayCurrency)}</span>
+                          <span className="text-base font-medium truncate">{item.name}</span>
+                          <span className="text-sm opacity-75">{formatDisplayAmount(item.price, displayCurrency)}</span>
                         </button>
                         
                         {/* Edit and Delete icons - moved towards center */}
@@ -803,10 +897,10 @@ const ItemCart = forwardRef(({
                               e.stopPropagation();
                               setEditingItem({...item});
                             }}
-                            className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded"
+                            className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded"
                             title="Edit item"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
                           </button>
@@ -817,10 +911,10 @@ const ItemCart = forwardRef(({
                               e.stopPropagation();
                               setConfirmDelete(item);
                             }}
-                            className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors rounded"
+                            className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors rounded"
                             title="Delete item"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
                           </button>
@@ -833,7 +927,7 @@ const ItemCart = forwardRef(({
                               e.stopPropagation();
                               handleRemoveFromSelection(item.id);
                             }}
-                            className="h-full px-4 bg-blink-accent text-white font-bold flex items-center justify-center rounded-r-md hover:bg-orange-600 transition-colors min-w-[48px]"
+                            className="h-full px-5 bg-blink-accent text-white font-bold text-lg flex items-center justify-center rounded-r-md hover:bg-orange-600 transition-colors min-w-[56px]"
                             title="Click to remove one"
                           >
                             {quantity}
@@ -866,17 +960,17 @@ const ItemCart = forwardRef(({
             </div>
 
             {/* Fixed bottom row: C and OK buttons */}
-            <div className="flex-shrink-0 pt-2 max-w-sm mx-auto w-full">
+            <div className="flex-shrink-0 pt-3 max-w-md mx-auto w-full">
               {(() => {
                 const clearIndex = 2 + filteredItems.length;
                 const okIndex = 2 + filteredItems.length + 1;
                 return (
-              <div className="grid grid-cols-2 gap-2 w-full">
+              <div className="grid grid-cols-2 gap-3 w-full">
                 {/* Clear button */}
                 <button
                   onClick={handleClear}
                   disabled={selectedItems.length === 0}
-                  className={`w-full h-14 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal leading-none tracking-normal transition-colors shadow-md ${
+                  className={`w-full h-16 bg-white dark:bg-black border-2 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md ${
                     keyboardNavIndex === clearIndex
                       ? 'border-red-400 ring-2 ring-red-400 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-300'
                       : selectedItems.length === 0
@@ -892,7 +986,7 @@ const ItemCart = forwardRef(({
                 <button
                   onClick={handleCheckout}
                   disabled={total <= 0}
-                  className={`w-full h-14 border-2 rounded-lg text-lg font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center ${
+                  className={`w-full h-16 border-2 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center ${
                     keyboardNavIndex === okIndex
                       ? 'bg-green-50 dark:bg-green-900 border-green-400 ring-2 ring-green-400 text-green-700 dark:text-green-300'
                       : total <= 0 

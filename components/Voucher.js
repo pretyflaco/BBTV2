@@ -6,7 +6,7 @@ import { formatNumber } from '../lib/number-format';
 import { DEFAULT_EXPIRY } from './ExpirySelector';
 import { useThermalPrint } from '../lib/escpos/hooks/useThermalPrint';
 
-const Voucher = forwardRef(({ voucherWallet, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, darkMode, toggleDarkMode, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3] }, ref) => {
+const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, darkMode, toggleDarkMode, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3] }, ref) => {
   const [amount, setAmount] = useState('');
   const [voucher, setVoucher] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -437,6 +437,29 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, numberFormat = 'au
     return true;
   };
 
+  // Check if current amount exceeds wallet balance
+  const isBalanceExceeded = useCallback(() => {
+    if (walletBalance === null) return false;
+    if (!amount || amount === '' || amount === '0') return false;
+    
+    const numericAmount = parseFloat(amount);
+    if (isNaN(numericAmount) || numericAmount <= 0) return false;
+    
+    let amountInSats;
+    if (isBitcoinCurrency(displayCurrency)) {
+      amountInSats = Math.round(numericAmount);
+    } else if (exchangeRate?.satPriceInCurrency) {
+      const currency = getCurrencyById(displayCurrency, currencies);
+      const fractionDigits = currency?.fractionDigits ?? 2;
+      const amountInMinorUnits = numericAmount * Math.pow(10, fractionDigits);
+      amountInSats = Math.round(amountInMinorUnits / exchangeRate.satPriceInCurrency);
+    } else {
+      return false; // Can't determine, allow creation
+    }
+    
+    return amountInSats > walletBalance;
+  }, [amount, walletBalance, displayCurrency, exchangeRate, currencies]);
+
   const encodeLnurl = (url) => {
     try {
       console.log('🔨 Encoding URL to LNURL:', url);
@@ -483,6 +506,22 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, numberFormat = 'au
     hasVoucher: () => !!voucher,
     hasValidAmount: () => isValidAmount(),
     isRedeemed: () => redeemed,
+    // Get current amount in sats (for capacity indicator in Dashboard)
+    getAmountInSats: () => {
+      if (!amount || amount === '' || amount === '0') return 0;
+      const numericAmount = parseFloat(amount);
+      if (isNaN(numericAmount) || numericAmount <= 0) return 0;
+      
+      if (isBitcoinCurrency(displayCurrency)) {
+        return Math.round(numericAmount);
+      } else if (exchangeRate?.satPriceInCurrency) {
+        const currency = getCurrencyById(displayCurrency, currencies);
+        const fractionDigits = currency?.fractionDigits ?? 2;
+        const amountInMinorUnits = numericAmount * Math.pow(10, fractionDigits);
+        return Math.round(amountInMinorUnits / exchangeRate.satPriceInCurrency);
+      }
+      return 0;
+    },
     // Expiry state for external rendering
     getSelectedExpiry: () => selectedExpiry,
     setSelectedExpiry: (expiryId) => setSelectedExpiry(expiryId),
@@ -570,6 +609,12 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, numberFormat = 'au
 
     if (!isValidAmount()) {
       setError('Please enter a valid amount (minimum 1 sat)');
+      return;
+    }
+
+    // Check if amount exceeds wallet balance
+    if (walletBalance !== null && isBalanceExceeded()) {
+      setError('Insufficient balance');
       return;
     }
 
@@ -1519,6 +1564,11 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, numberFormat = 'au
               ) : null}
             </div>
           </div>
+          {isBalanceExceeded() && walletBalance !== null && (
+            <div className="text-xs text-red-500 dark:text-red-400 font-medium">
+              Exceeds wallet balance
+            </div>
+          )}
           {error && (
             <div className="mt-2 bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 px-3 py-2 rounded text-sm animate-pulse">
               {error}
@@ -1580,8 +1630,8 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, numberFormat = 'au
           </button>
           <button
             onClick={createVoucher}
-            disabled={!isValidAmount() || loading}
-            className={`h-[136px] md:h-[172px] ${!isValidAmount() || loading ? 'bg-gray-200 dark:bg-blink-dark border-2 border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500' : 'bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'} disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-lg text-lg md:text-xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center row-span-2`}
+            disabled={!isValidAmount() || loading || isBalanceExceeded()}
+            className={`h-[136px] md:h-[172px] ${!isValidAmount() || loading || isBalanceExceeded() ? 'bg-gray-200 dark:bg-blink-dark border-2 border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500' : 'bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'} disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-lg text-lg md:text-xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center row-span-2`}
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             OK

@@ -21,7 +21,7 @@ import TransactionDetail, { getTransactionLabel, initTransactionLabels } from '.
 import ExpirySelector from './ExpirySelector';
 import QRCode from 'react-qr-code';
 import { bech32 } from 'bech32';
-import { FORMAT_OPTIONS, FORMAT_LABELS, FORMAT_DESCRIPTIONS, getFormatPreview, BITCOIN_FORMAT_OPTIONS, BITCOIN_FORMAT_LABELS, BITCOIN_FORMAT_DESCRIPTIONS, getBitcoinFormatPreview } from '../lib/number-format';
+import { FORMAT_OPTIONS, FORMAT_LABELS, FORMAT_DESCRIPTIONS, getFormatPreview, BITCOIN_FORMAT_OPTIONS, BITCOIN_FORMAT_LABELS, BITCOIN_FORMAT_DESCRIPTIONS, getBitcoinFormatPreview, formatNumber } from '../lib/number-format';
 
 // Spinner colors matching the numpad buttons (rotates on each transition)
 const SPINNER_COLORS = [
@@ -168,6 +168,10 @@ export default function Dashboard() {
   const [voucherWalletError, setVoucherWalletError] = useState(null);
   const [voucherWalletValidating, setVoucherWalletValidating] = useState(false);
   const [voucherWalletScopes, setVoucherWalletScopes] = useState(null); // Scopes returned from authorization query
+  const [voucherWalletBalance, setVoucherWalletBalance] = useState(null); // BTC balance in sats
+  const [voucherWalletUsdBalance, setVoucherWalletUsdBalance] = useState(null); // USD balance in cents (for future Stablesats feature)
+  const [voucherWalletBalanceLoading, setVoucherWalletBalanceLoading] = useState(false);
+  const [currentAmountInSats, setCurrentAmountInSats] = useState(0); // For capacity indicator polling
   
   // Tip Profile state
   const [showTipProfileSettings, setShowTipProfileSettings] = useState(false);
@@ -836,6 +840,61 @@ export default function Dashboard() {
     }
   }, [currentView]);
 
+  // Fetch voucher wallet balance when switching to voucher/multivoucher view
+  useEffect(() => {
+    if (voucherWallet?.apiKey && (currentView === 'voucher' || currentView === 'multivoucher')) {
+      fetchVoucherWalletBalance();
+    }
+  }, [voucherWallet?.apiKey, currentView, fetchVoucherWalletBalance]);
+
+  // Poll for current amount from child components (for capacity indicator)
+  useEffect(() => {
+    if (currentView !== 'voucher' && currentView !== 'multivoucher') {
+      setCurrentAmountInSats(0);
+      return;
+    }
+    
+    const pollAmount = () => {
+      const amount = currentView === 'voucher'
+        ? (voucherRef.current?.getAmountInSats?.() || 0)
+        : (multiVoucherRef.current?.getAmountInSats?.() || 0);
+      setCurrentAmountInSats(amount);
+    };
+    
+    pollAmount(); // Initial
+    const interval = setInterval(pollAmount, 300); // Poll every 300ms
+    
+    return () => clearInterval(interval);
+  }, [currentView]);
+
+  // Get capacity indicator color based on amount vs wallet balance
+  const getCapacityColor = useCallback((amountInSats, balance) => {
+    // Gray: Balance unknown/loading OR amount is 0
+    if (balance === null || amountInSats === 0) {
+      return 'bg-gray-400 dark:bg-gray-500';
+    }
+    
+    const percentage = (amountInSats / balance) * 100;
+    
+    // Green: Amount ≤ 50% of balance
+    if (percentage <= 50) {
+      return 'bg-green-500';
+    }
+    // Yellow: Amount > 50% and ≤ 90% of balance
+    if (percentage <= 90) {
+      return 'bg-yellow-500';
+    }
+    // Red: Amount > 90% of balance OR exceeds
+    return 'bg-red-500';
+  }, []);
+
+  // Fetch balance when Send Wallet overlay opens
+  useEffect(() => {
+    if (showVoucherWalletSettings && voucherWallet?.apiKey) {
+      fetchVoucherWalletBalance();
+    }
+  }, [showVoucherWalletSettings, voucherWallet?.apiKey, fetchVoucherWalletBalance]);
+
   // Refresh transaction data when active wallet changes (NWC or Blink)
   // This ensures we show the correct wallet's transactions
   const prevActiveNWCRef = useRef(activeNWC?.id);
@@ -1130,6 +1189,43 @@ export default function Dashboard() {
       console.error('Failed to fetch wallets:', err);
     }
   }, [apiKey]);
+
+  // Fetch voucher wallet balance (BTC and USD)
+  const fetchVoucherWalletBalance = useCallback(async () => {
+    if (!voucherWallet?.apiKey) {
+      setVoucherWalletBalance(null);
+      setVoucherWalletUsdBalance(null);
+      return;
+    }
+    
+    setVoucherWalletBalanceLoading(true);
+    try {
+      const response = await fetch('/api/blink/wallets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: voucherWallet.apiKey })
+      });
+      
+      const data = await response.json();
+      if (data.success && data.wallets) {
+        const btcWallet = data.wallets.find(w => w.walletCurrency === 'BTC');
+        const usdWallet = data.wallets.find(w => w.walletCurrency === 'USD');
+        setVoucherWalletBalance(btcWallet?.balance || 0);
+        setVoucherWalletUsdBalance(usdWallet?.balance ?? null); // null if no USD wallet
+        console.log('[VoucherWallet] Balance fetched - BTC:', btcWallet?.balance || 0, 'sats, USD:', usdWallet?.balance ?? 'N/A', 'cents');
+      } else {
+        console.error('[VoucherWallet] Failed to fetch balance:', data.error);
+        setVoucherWalletBalance(null);
+        setVoucherWalletUsdBalance(null);
+      }
+    } catch (error) {
+      console.error('[VoucherWallet] Failed to fetch balance:', error);
+      setVoucherWalletBalance(null);
+      setVoucherWalletUsdBalance(null);
+    } finally {
+      setVoucherWalletBalanceLoading(false);
+    }
+  }, [voucherWallet?.apiKey]);
 
   // Fetch split profiles from server
   const fetchSplitProfiles = useCallback(async () => {
@@ -5895,6 +5991,47 @@ export default function Dashboard() {
                               </span>
                             ))}
                           </div>
+                          {/* Balance Display Section */}
+                          <div className={`mt-3 pt-3 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                            <div className="flex items-center justify-between">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>BTC Wallet:</span>
+                                  <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    {voucherWalletBalanceLoading ? (
+                                      <span className="text-gray-400">Loading...</span>
+                                    ) : voucherWalletBalance !== null ? (
+                                      `${formatNumber(voucherWalletBalance, numberFormat, 0)} sats`
+                                    ) : (
+                                      <span className="text-gray-400">--</span>
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>USD Wallet:</span>
+                                  <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    {voucherWalletBalanceLoading ? (
+                                      <span className="text-gray-400">Loading...</span>
+                                    ) : voucherWalletUsdBalance !== null ? (
+                                      `$${(voucherWalletUsdBalance / 100).toFixed(2)} USD`
+                                    ) : (
+                                      <span className="text-gray-400">--</span>
+                                    )}
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={fetchVoucherWalletBalance}
+                                disabled={voucherWalletBalanceLoading}
+                                className={`p-2 rounded transition-colors ${darkMode ? 'text-gray-400 hover:text-purple-400 hover:bg-gray-800' : 'text-gray-500 hover:text-purple-500 hover:bg-gray-100'} disabled:opacity-50`}
+                                title="Refresh balance"
+                              >
+                                <svg className={`w-4 h-4 ${voucherWalletBalanceLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                       <button
@@ -6539,26 +6676,26 @@ export default function Dashboard() {
                 </span>
               </div>
               
-              {/* Right side: Expiry Selector (on Voucher and MultiVoucher screens) or spacer */}
+              {/* Right side: Capacity Indicator (on Voucher and MultiVoucher screens) */}
               <div className="flex-1 flex justify-end">
-                {currentView === 'voucher' && !showingVoucherQR && (
-                  <ExpirySelector
-                    value={voucherRef.current?.getSelectedExpiry?.() || '7d'}
-                    onChange={(expiryId) => voucherRef.current?.setSelectedExpiry?.(expiryId)}
-                  />
-                )}
-                {currentView === 'multivoucher' && (
-                  <ExpirySelector
-                    value={multiVoucherRef.current?.getSelectedExpiry?.() || '7d'}
-                    onChange={(expiryId) => multiVoucherRef.current?.setSelectedExpiry?.(expiryId)}
-                  />
+                {(currentView === 'voucher' || currentView === 'multivoucher') && !showingVoucherQR && (
+                  <div 
+                    className="flex items-center" 
+                    title="Wallet capacity"
+                  >
+                    {voucherWalletBalanceLoading ? (
+                      <div className="animate-spin w-2.5 h-2.5 border border-gray-400 border-t-transparent rounded-full"></div>
+                    ) : (
+                      <div className={`w-2.5 h-2.5 rounded-full ${getCapacityColor(currentAmountInSats, voucherWalletBalance)}`}></div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
             
             {/* Agent Display Row - Always reserve space for consistent numpad positioning */}
             {/* On POS/Cart: Show split profile if active, otherwise empty placeholder */}
-            {/* On Voucher/MultiVoucher/VoucherManager: Always show empty placeholder to match POS layout */}
+            {/* On Voucher/MultiVoucher/VoucherManager: Show Expiry selector on right, or empty placeholder */}
             <div className="flex items-center gap-2 min-h-[18px]">
               {activeSplitProfile && currentView !== 'voucher' && currentView !== 'multivoucher' && currentView !== 'vouchermanager' && (
                 <>
@@ -6571,6 +6708,23 @@ export default function Dashboard() {
                     {activeSplitProfile.label}
                   </span>
                 </>
+              )}
+              {/* Expiry Selector - Right aligned on Voucher and MultiVoucher views */}
+              {(currentView === 'voucher' || currentView === 'multivoucher') && !showingVoucherQR && (
+                <div className="flex-1 flex justify-end">
+                  {currentView === 'voucher' && (
+                    <ExpirySelector
+                      value={voucherRef.current?.getSelectedExpiry?.() || '7d'}
+                      onChange={(expiryId) => voucherRef.current?.setSelectedExpiry?.(expiryId)}
+                    />
+                  )}
+                  {currentView === 'multivoucher' && (
+                    <ExpirySelector
+                      value={multiVoucherRef.current?.getSelectedExpiry?.() || '7d'}
+                      onChange={(expiryId) => multiVoucherRef.current?.setSelectedExpiry?.(expiryId)}
+                    />
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -6660,6 +6814,7 @@ export default function Dashboard() {
             <MultiVoucher
               ref={multiVoucherRef}
               voucherWallet={voucherWallet}
+              walletBalance={voucherWalletBalance}
               displayCurrency={displayCurrency}
               numberFormat={numberFormat}
               bitcoinFormat={bitcoinFormat}
@@ -6681,6 +6836,7 @@ export default function Dashboard() {
           <Voucher
             ref={voucherRef}
             voucherWallet={voucherWallet}
+            walletBalance={voucherWalletBalance}
             displayCurrency={displayCurrency}
             numberFormat={numberFormat}
             bitcoinFormat={bitcoinFormat}

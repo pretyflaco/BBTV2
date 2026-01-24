@@ -64,7 +64,7 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
   });
   const [bitcoinFormat, setBitcoinFormat] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('publicpos-bitcoinFormat') || 'bip177';
+      return localStorage.getItem('publicpos-bitcoinFormat') || 'sats';
     }
     return 'bip177';
   });

@@ -4,7 +4,7 @@ import { formatDisplayAmount as formatCurrency, getCurrencyById, isBitcoinCurren
 import { formatNumber } from '../lib/number-format';
 import { useNFC } from './NFCPayment';
 
-const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'bip177', currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation, isPublicPOS = false, publicUsername = null }, ref) => {
+const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation, isPublicPOS = false, publicUsername = null }, ref) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);

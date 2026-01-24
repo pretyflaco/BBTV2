@@ -87,7 +87,7 @@ export default function Dashboard() {
   const [bitcoinFormat, setBitcoinFormat] = useState(() => {
     // Load Bitcoin format preference from localStorage, default to 'bip177'
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('blinkpos-bitcoin-format') || 'bip177';
+      return localStorage.getItem('blinkpos-bitcoin-format') || 'sats';
     }
     return 'bip177';
   });

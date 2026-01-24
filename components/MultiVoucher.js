@@ -17,7 +17,7 @@ const MultiVoucher = forwardRef(({
   voucherWallet, 
   displayCurrency, 
   numberFormat = 'auto',
-  bitcoinFormat = 'bip177',
+  bitcoinFormat = 'sats',
   currencies, 
   darkMode, 
   toggleDarkMode, 

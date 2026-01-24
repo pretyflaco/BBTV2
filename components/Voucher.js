@@ -6,7 +6,7 @@ import { formatNumber } from '../lib/number-format';
 import { DEFAULT_EXPIRY } from './ExpirySelector';
 import { useThermalPrint } from '../lib/escpos/hooks/useThermalPrint';
 
-const Voucher = forwardRef(({ voucherWallet, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'bip177', currencies, darkMode, toggleDarkMode, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3] }, ref) => {
+const Voucher = forwardRef(({ voucherWallet, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, darkMode, toggleDarkMode, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3] }, ref) => {
   const [amount, setAmount] = useState('');
   const [voucher, setVoucher] = useState(null);
   const [loading, setLoading] = useState(false);

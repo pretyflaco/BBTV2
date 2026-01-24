@@ -5,7 +5,7 @@ import { formatNumber } from '../lib/number-format';
 const ItemCart = forwardRef(({ 
   displayCurrency, 
   numberFormat = 'auto',
-  bitcoinFormat = 'bip177',
+  bitcoinFormat = 'sats',
   currencies, 
   publicKey, 
   onCheckout,

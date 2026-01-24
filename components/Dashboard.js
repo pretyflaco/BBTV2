@@ -20,6 +20,7 @@ import TransactionDetail, { getTransactionLabel, initTransactionLabels } from '.
 import ExpirySelector from './ExpirySelector';
 import QRCode from 'react-qr-code';
 import { bech32 } from 'bech32';
+import { FORMAT_OPTIONS, FORMAT_LABELS, FORMAT_DESCRIPTIONS, getFormatPreview } from '../lib/number-format';
 
 // Spinner colors matching the numpad buttons (rotates on each transition)
 const SPINNER_COLORS = [
@@ -75,6 +76,13 @@ export default function Dashboard() {
   const [transitionColorIndex, setTransitionColorIndex] = useState(0); // Rotating spinner color
   const [cartCheckoutData, setCartCheckoutData] = useState(null); // Data from cart checkout to prefill POS
   const [displayCurrency, setDisplayCurrency] = useState('USD'); // 'USD' or 'BTC'
+  const [numberFormat, setNumberFormat] = useState(() => {
+    // Load number format preference from localStorage, default to 'auto' (browser locale)
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('blinkpos-number-format') || 'auto';
+    }
+    return 'auto';
+  });
   const [wallets, setWallets] = useState([]);
   const [soundEnabled, setSoundEnabled] = useState(() => {
     // Load sound preference from localStorage, default to true
@@ -119,6 +127,7 @@ export default function Dashboard() {
   const [showBatchPayments, setShowBatchPayments] = useState(false);
   const [showNetworkOverlay, setShowNetworkOverlay] = useState(false);
   const [showCurrencySettings, setShowCurrencySettings] = useState(false);
+  const [showRegionalSettings, setShowRegionalSettings] = useState(false);
   const [showAddAccountForm, setShowAddAccountForm] = useState(false);
   const [newAccountApiKey, setNewAccountApiKey] = useState('');
   const [newAccountLabel, setNewAccountLabel] = useState('');
@@ -268,6 +277,13 @@ export default function Dashboard() {
     }
   }, [commissionPresets]);
 
+  // Persist number format to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('blinkpos-number-format', numberFormat);
+    }
+  }, [numberFormat]);
+
   // Persist active tip profile and update tipPresets when profile changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -367,6 +383,10 @@ export default function Dashboard() {
           if (serverPrefs.displayCurrency) {
             setDisplayCurrency(serverPrefs.displayCurrency);
           }
+          if (serverPrefs.numberFormat) {
+            setNumberFormat(serverPrefs.numberFormat);
+            localStorage.setItem('blinkpos-number-format', serverPrefs.numberFormat);
+          }
           
           lastSyncedPrefsRef.current = JSON.stringify(serverPrefs);
         } else {
@@ -376,7 +396,8 @@ export default function Dashboard() {
             soundTheme,
             tipsEnabled,
             tipPresets,
-            displayCurrency
+            displayCurrency,
+            numberFormat
           };
           syncPreferencesToServer(currentPrefs);
         }
@@ -493,7 +514,8 @@ export default function Dashboard() {
       soundTheme,
       tipsEnabled,
       tipPresets,
-      displayCurrency
+      displayCurrency,
+      numberFormat
     };
     
     const currentPrefsStr = JSON.stringify(currentPrefs);
@@ -502,7 +524,7 @@ export default function Dashboard() {
     if (lastSyncedPrefsRef.current && lastSyncedPrefsRef.current !== currentPrefsStr) {
       syncPreferencesToServer(currentPrefs);
     }
-  }, [publicKey, soundEnabled, soundTheme, tipsEnabled, tipPresets, displayCurrency, syncPreferencesToServer]);
+  }, [publicKey, soundEnabled, soundTheme, tipsEnabled, tipPresets, displayCurrency, numberFormat, syncPreferencesToServer]);
 
   // Cleanup server sync timer on unmount
   useEffect(() => {
@@ -2928,6 +2950,20 @@ export default function Dashboard() {
                   </div>
                 </button>
 
+                {/* Regional Settings (Number Format) */}
+                <button
+                  onClick={() => setShowRegionalSettings(true)}
+                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Regional</span>
+                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                      <span>{FORMAT_LABELS[numberFormat]}</span>
+                      <span className="ml-1">›</span>
+                    </div>
+                  </div>
+                </button>
+
                 {/* Payment Splits */}
                 <button
                   onClick={() => setShowTipSettings(true)}
@@ -4482,6 +4518,114 @@ export default function Dashboard() {
                     </button>
                   ))
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Regional Settings Overlay */}
+      {showRegionalSettings && (
+        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+            {/* Header */}
+            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center h-16">
+                  <button
+                    onClick={() => setShowRegionalSettings(false)}
+                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
+                  >
+                    <span className="text-2xl mr-2">‹</span>
+                    <span className="text-lg">Back</span>
+                  </button>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Regional
+                  </h1>
+                  <div className="w-16"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Regional Settings Content */}
+            <div className="max-w-md mx-auto px-4 py-6 space-y-6">
+              {/* Number Format Section */}
+              <div>
+                <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Number Format
+                </h3>
+                <div className="space-y-2">
+                  {FORMAT_OPTIONS.map((format) => (
+                    <button
+                      key={format}
+                      onClick={() => setNumberFormat(format)}
+                      className={`w-full p-3 rounded-lg text-left transition-all ${
+                        numberFormat === format
+                          ? 'bg-blink-accent/20 border-2 border-blink-accent'
+                          : darkMode
+                            ? 'bg-gray-900 hover:bg-gray-800 border-2 border-transparent'
+                            : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                            {FORMAT_LABELS[format]}
+                          </span>
+                          <p className={`text-xs mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {FORMAT_DESCRIPTIONS[format]}
+                          </p>
+                        </div>
+                        {numberFormat === format && (
+                          <svg className="w-5 h-5 text-blink-accent flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Live Preview */}
+                <div className={`mt-4 p-4 rounded-lg ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                  <h4 className={`text-xs font-medium mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Preview
+                  </h4>
+                  <div className={`space-y-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    <div className="flex justify-between text-sm">
+                      <span>Bitcoin:</span>
+                      <span className="font-mono">₿{getFormatPreview(numberFormat).integer}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>USD:</span>
+                      <span className="font-mono">${getFormatPreview(numberFormat).decimal}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Language Section (Placeholder) */}
+              <div>
+                <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Language
+                </h3>
+                <div 
+                  className={`p-3 rounded-lg ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} opacity-60 cursor-not-allowed`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        English
+                      </span>
+                      <p className={`text-xs mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        More languages coming soon
+                      </p>
+                    </div>
+                    <svg className="w-5 h-5 text-blink-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -6326,6 +6470,7 @@ export default function Dashboard() {
             <ItemCart
               ref={cartRef}
               displayCurrency={displayCurrency}
+              numberFormat={numberFormat}
               currencies={currencies}
               publicKey={publicKey}
               onCheckout={(checkoutData) => {
@@ -6345,6 +6490,7 @@ export default function Dashboard() {
             apiKey={apiKey}
             user={user}
             displayCurrency={displayCurrency}
+            numberFormat={numberFormat}
             currencies={currencies}
             wallets={wallets}
             onPaymentReceived={posPaymentReceivedRef}
@@ -6393,6 +6539,7 @@ export default function Dashboard() {
               ref={multiVoucherRef}
               voucherWallet={voucherWallet}
               displayCurrency={displayCurrency}
+              numberFormat={numberFormat}
               currencies={currencies}
               darkMode={darkMode}
               toggleDarkMode={toggleDarkMode}
@@ -6412,6 +6559,7 @@ export default function Dashboard() {
             ref={voucherRef}
             voucherWallet={voucherWallet}
             displayCurrency={displayCurrency}
+            numberFormat={numberFormat}
             currencies={currencies}
             darkMode={darkMode}
             toggleDarkMode={toggleDarkMode}

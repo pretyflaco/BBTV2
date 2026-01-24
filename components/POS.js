@@ -1,9 +1,9 @@
 import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import QRCode from 'react-qr-code';
-import { formatDisplayAmount as formatCurrency, getCurrencyById, isBitcoinCurrency } from '../lib/currency-utils';
+import { formatDisplayAmount as formatCurrency, getCurrencyById, isBitcoinCurrency, parseAmountParts } from '../lib/currency-utils';
 import { useNFC } from './NFCPayment';
 
-const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation, isPublicPOS = false, publicUsername = null }, ref) => {
+const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation, isPublicPOS = false, publicUsername = null }, ref) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -372,8 +372,27 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
   };
 
   const formatDisplayAmount = (value, currency) => {
-    // Use dynamic currency formatting from currency-utils
-    return formatCurrency(value, currency, currencies);
+    // Use dynamic currency formatting from currency-utils with numberFormat preference
+    return formatCurrency(value, currency, currencies, numberFormat);
+  };
+
+  // Render amount with properly styled Bitcoin symbol (smaller ₿ for BIP-177)
+  const renderStyledAmount = (value, currency, className = '') => {
+    const formatted = formatDisplayAmount(value, currency);
+    const parts = parseAmountParts(formatted, currency);
+    
+    if (parts.isBip177) {
+      // Render BIP-177 with smaller, lighter Bitcoin symbol moved up 10%
+      return (
+        <span className={className}>
+          <span style={{ fontSize: '0.75em', fontWeight: 300, position: 'relative', top: '-0.07em' }}>{parts.symbol}</span>
+          {parts.value}
+        </span>
+      );
+    }
+    
+    // For all other currencies, render as-is
+    return <span className={className}>{formatted}</span>;
   };
 
   // Get current currency metadata
@@ -1195,11 +1214,11 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
               {showTipDialog ? (
                 // When tip dialog is showing, show the combined total in white/black (not orange)
                 <div className="max-w-full">
-                  <span className="text-gray-800 dark:text-white">{formatDisplayAmount(total + (parseFloat(amount) || 0), displayCurrency)}</span>
+                  {renderStyledAmount(total + (parseFloat(amount) || 0), displayCurrency, "text-gray-800 dark:text-white")}
                 </div>
               ) : total > 0 ? (
                 <div className="max-w-full flex flex-wrap items-center justify-center gap-2">
-                  <span className="text-blink-accent">{formatDisplayAmount(total, displayCurrency)}</span>
+                  {renderStyledAmount(total, displayCurrency, "text-blink-accent")}
                   {amount && (
                     <span className={`text-gray-600 dark:text-gray-400 ${
                       // Secondary amount is 2 sizes smaller than main amount (with desktop scaling)
@@ -1214,15 +1233,17 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                 </div>
               ) : (
                 <div className="max-w-full">
-                  {(amount === '0' || amount === '0.') ? (isBitcoinCurrency(displayCurrency) || getCurrencyById(displayCurrency, currencies)?.fractionDigits === 0 ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency))}
+                  {(amount === '0' || amount === '0.') 
+                    ? (isBitcoinCurrency(displayCurrency) || getCurrencyById(displayCurrency, currencies)?.fractionDigits === 0 ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') 
+                    : renderStyledAmount(amount || 0, displayCurrency)}
                 </div>
               )}
             </div>
             {selectedTipPercent > 0 && (
               <div className={`text-green-600 dark:text-green-400 font-semibold max-w-full overflow-hidden px-2 ${getDynamicFontSize(formatDisplayAmount(getTipAmount(), displayCurrency)).includes('text-6xl') ? 'text-2xl md:text-3xl' : getDynamicFontSize(formatDisplayAmount(getTipAmount(), displayCurrency)).includes('text-5xl') ? 'text-xl md:text-2xl' : 'text-lg md:text-xl'}`}>
-                + {selectedTipPercent}% tip ({formatDisplayAmount(getTipAmount(), displayCurrency)})
+                + {selectedTipPercent}% tip ({renderStyledAmount(getTipAmount(), displayCurrency)})
                 <div className={`text-green-700 dark:text-green-400 mt-1 max-w-full ${getDynamicFontSize(formatDisplayAmount(getTotalWithTip(), displayCurrency))}`} style={{wordBreak: 'keep-all', overflowWrap: 'normal'}}>
-                  Total: {formatDisplayAmount(getTotalWithTip(), displayCurrency)}
+                  Total: {renderStyledAmount(getTotalWithTip(), displayCurrency)}
                 </div>
               </div>
             )}

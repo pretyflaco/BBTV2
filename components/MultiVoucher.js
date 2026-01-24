@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import QRCode from 'react-qr-code';
 import { bech32 } from 'bech32';
-import { formatDisplayAmount as formatCurrency, getCurrencyById, isBitcoinCurrency } from '../lib/currency-utils';
+import { formatDisplayAmount as formatCurrency, getCurrencyById, isBitcoinCurrency, parseAmountParts } from '../lib/currency-utils';
 import ExpirySelector, { DEFAULT_EXPIRY, getExpiryOption } from './ExpirySelector';
 
 // Grid configuration options
@@ -15,6 +15,7 @@ const GRID_OPTIONS = [
 const MultiVoucher = forwardRef(({ 
   voucherWallet, 
   displayCurrency, 
+  numberFormat = 'auto',
   currencies, 
   darkMode, 
   toggleDarkMode, 
@@ -122,7 +123,26 @@ const MultiVoucher = forwardRef(({
 
   // Format display amount
   const formatDisplayAmount = (value, currency) => {
-    return formatCurrency(value, currency, currencies);
+    return formatCurrency(value, currency, currencies, numberFormat);
+  };
+
+  // Render amount with properly styled Bitcoin symbol (smaller ₿ for BIP-177)
+  const renderStyledAmount = (value, currency, className = '') => {
+    const formatted = formatDisplayAmount(value, currency);
+    const parts = parseAmountParts(formatted, currency);
+    
+    if (parts.isBip177) {
+      // Render BIP-177 with smaller, lighter Bitcoin symbol moved up 10%
+      return (
+        <span className={className}>
+          <span style={{ fontSize: '0.75em', fontWeight: 300, position: 'relative', top: '-0.07em' }}>{parts.symbol}</span>
+          {parts.value}
+        </span>
+      );
+    }
+    
+    // For all other currencies, render as-is
+    return <span className={className}>{formatted}</span>;
   };
 
   // Get current currency metadata
@@ -736,7 +756,7 @@ const MultiVoucher = forwardRef(({
                 ? (isBitcoinCurrency(displayCurrency) || getCurrentCurrency()?.fractionDigits === 0 
                     ? '0' 
                     : getCurrentCurrency()?.symbol + '0.')
-                : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency))
+                : renderStyledAmount(amount || 0, displayCurrency)
               }
             </div>
           </div>

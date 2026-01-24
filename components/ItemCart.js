@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
-import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
+import { formatDisplayAmount as formatCurrency, getCurrencyById, parseAmountParts } from '../lib/currency-utils';
 
 const ItemCart = forwardRef(({ 
   displayCurrency, 
+  numberFormat = 'auto',
   currencies, 
   publicKey, 
   onCheckout,
@@ -141,7 +142,26 @@ const ItemCart = forwardRef(({
   }, [selectedItems]);
 
   const formatDisplayAmount = (value, currency) => {
-    return formatCurrency(value, currency, currencies);
+    return formatCurrency(value, currency, currencies, numberFormat);
+  };
+
+  // Render amount with properly styled Bitcoin symbol (smaller ₿ for BIP-177)
+  const renderStyledAmount = (value, currency, className = '') => {
+    const formatted = formatDisplayAmount(value, currency);
+    const parts = parseAmountParts(formatted, currency);
+    
+    if (parts.isBip177) {
+      // Render BIP-177 with smaller, lighter Bitcoin symbol moved up 10%
+      return (
+        <span className={className}>
+          <span style={{ fontSize: '0.75em', fontWeight: 300, position: 'relative', top: '-0.07em' }}>{parts.symbol}</span>
+          {parts.value}
+        </span>
+      );
+    }
+    
+    // For all other currencies, render as-is
+    return <span className={className}>{formatted}</span>;
   };
 
   // Handle item click - add to selection
@@ -596,9 +616,9 @@ const ItemCart = forwardRef(({
           <div className="text-center">
             <div className={`font-semibold text-gray-800 dark:text-gray-100 min-h-[72px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${getDynamicFontSize(formatDisplayAmount(total, displayCurrency))}`} style={{fontFamily: "'Source Sans Pro', sans-serif", wordBreak: 'keep-all', overflowWrap: 'normal'}}>
               {total > 0 ? (
-                <span className="text-blink-accent">{formatDisplayAmount(total, displayCurrency)}</span>
+                renderStyledAmount(total, displayCurrency, "text-blink-accent")
               ) : (
-                formatDisplayAmount(0, displayCurrency)
+                renderStyledAmount(0, displayCurrency)
               )}
             </div>
           </div>

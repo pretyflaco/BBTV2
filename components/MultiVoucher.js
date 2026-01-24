@@ -777,8 +777,8 @@ const MultiVoucher = forwardRef(({
       <div className="flex-1 px-4 pb-4 relative">
         <div className="h-16 mb-2"></div>
         <div className="grid grid-cols-4 gap-3 max-w-sm md:max-w-md mx-auto">
-          {/* Row 1: 1, 2, 3 */}
-          {['1', '2', '3'].map(digit => (
+          {/* Row 1: 7, 8, 9 */}
+          {['7', '8', '9'].map(digit => (
             <button
               key={digit}
               onClick={() => handleDigitPress(digit)}
@@ -807,8 +807,8 @@ const MultiVoucher = forwardRef(({
             OK
           </button>
 
-          {/* Row 3: 7, 8, 9 */}
-          {['7', '8', '9'].map(digit => (
+          {/* Row 3: 1, 2, 3 */}
+          {['1', '2', '3'].map(digit => (
             <button
               key={digit}
               onClick={() => handleDigitPress(digit)}

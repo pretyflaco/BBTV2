@@ -1518,27 +1518,27 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, numberFormat = 'au
         {/* Spacer for consistent layout */}
         <div className="h-16 mb-2"></div>
         <div className="grid grid-cols-4 gap-3 max-w-sm md:max-w-md mx-auto" data-1p-ignore data-lpignore="true">
-          {/* Row 1: 1, 2, 3 */}
+          {/* Row 1: 7, 8, 9 */}
           <button
-            onClick={() => handleDigitPress('1')}
+            onClick={() => handleDigitPress('7')}
             className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
-            1
+            7
           </button>
           <button
-            onClick={() => handleDigitPress('2')}
+            onClick={() => handleDigitPress('8')}
             className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
-            2
+            8
           </button>
           <button
-            onClick={() => handleDigitPress('3')}
+            onClick={() => handleDigitPress('9')}
             className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
-            3
+            9
           </button>
           <div></div>
 
@@ -1573,27 +1573,27 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, numberFormat = 'au
             OK
           </button>
 
-          {/* Row 3: 7, 8, 9 */}
+          {/* Row 3: 1, 2, 3 */}
           <button
-            onClick={() => handleDigitPress('7')}
+            onClick={() => handleDigitPress('1')}
             className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
-            7
+            1
           </button>
           <button
-            onClick={() => handleDigitPress('8')}
+            onClick={() => handleDigitPress('2')}
             className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
-            8
+            2
           </button>
           <button
-            onClick={() => handleDigitPress('9')}
+            onClick={() => handleDigitPress('3')}
             className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
-            9
+            3
           </button>
 
           {/* Row 4: C, 0, ., Backspace */}

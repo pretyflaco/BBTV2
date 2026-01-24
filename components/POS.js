@@ -4,7 +4,7 @@ import { formatDisplayAmount as formatCurrency, getCurrencyById, isBitcoinCurren
 import { formatNumber } from '../lib/number-format';
 import { useNFC } from './NFCPayment';
 
-const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation, isPublicPOS = false, publicUsername = null }, ref) => {
+const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'bip177', currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation, isPublicPOS = false, publicUsername = null }, ref) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -373,14 +373,14 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
   };
 
   const formatDisplayAmount = (value, currency) => {
-    // Use dynamic currency formatting from currency-utils with numberFormat preference
-    return formatCurrency(value, currency, currencies, numberFormat);
+    // Use dynamic currency formatting from currency-utils with numberFormat and bitcoinFormat preferences
+    return formatCurrency(value, currency, currencies, numberFormat, bitcoinFormat);
   };
 
   // Render amount with properly styled Bitcoin symbol (smaller ₿ for BIP-177)
   const renderStyledAmount = (value, currency, className = '') => {
     const formatted = formatDisplayAmount(value, currency);
-    const parts = parseAmountParts(formatted, currency);
+    const parts = parseAmountParts(formatted, currency, bitcoinFormat);
     
     if (parts.isBip177) {
       // Render BIP-177 with smaller, lighter Bitcoin symbol moved up 10%

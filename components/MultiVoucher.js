@@ -17,6 +17,7 @@ const MultiVoucher = forwardRef(({
   voucherWallet, 
   displayCurrency, 
   numberFormat = 'auto',
+  bitcoinFormat = 'bip177',
   currencies, 
   darkMode, 
   toggleDarkMode, 
@@ -124,13 +125,13 @@ const MultiVoucher = forwardRef(({
 
   // Format display amount
   const formatDisplayAmount = (value, currency) => {
-    return formatCurrency(value, currency, currencies, numberFormat);
+    return formatCurrency(value, currency, currencies, numberFormat, bitcoinFormat);
   };
 
   // Render amount with properly styled Bitcoin symbol (smaller ₿ for BIP-177)
   const renderStyledAmount = (value, currency, className = '') => {
     const formatted = formatDisplayAmount(value, currency);
-    const parts = parseAmountParts(formatted, currency);
+    const parts = parseAmountParts(formatted, currency, bitcoinFormat);
     
     if (parts.isBip177) {
       // Render BIP-177 with smaller, lighter Bitcoin symbol moved up 10%

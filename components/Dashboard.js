@@ -21,7 +21,7 @@ import TransactionDetail, { getTransactionLabel, initTransactionLabels } from '.
 import ExpirySelector from './ExpirySelector';
 import QRCode from 'react-qr-code';
 import { bech32 } from 'bech32';
-import { FORMAT_OPTIONS, FORMAT_LABELS, FORMAT_DESCRIPTIONS, getFormatPreview } from '../lib/number-format';
+import { FORMAT_OPTIONS, FORMAT_LABELS, FORMAT_DESCRIPTIONS, getFormatPreview, BITCOIN_FORMAT_OPTIONS, BITCOIN_FORMAT_LABELS, BITCOIN_FORMAT_DESCRIPTIONS, getBitcoinFormatPreview } from '../lib/number-format';
 
 // Spinner colors matching the numpad buttons (rotates on each transition)
 const SPINNER_COLORS = [
@@ -83,6 +83,13 @@ export default function Dashboard() {
       return localStorage.getItem('blinkpos-number-format') || 'auto';
     }
     return 'auto';
+  });
+  const [bitcoinFormat, setBitcoinFormat] = useState(() => {
+    // Load Bitcoin format preference from localStorage, default to 'bip177'
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('blinkpos-bitcoin-format') || 'bip177';
+    }
+    return 'bip177';
   });
   const [wallets, setWallets] = useState([]);
   const [soundEnabled, setSoundEnabled] = useState(() => {
@@ -288,6 +295,13 @@ export default function Dashboard() {
       localStorage.setItem('blinkpos-number-format', numberFormat);
     }
   }, [numberFormat]);
+
+  // Persist Bitcoin format to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('blinkpos-bitcoin-format', bitcoinFormat);
+    }
+  }, [bitcoinFormat]);
 
   // Fetch exchange rate when currency changes (for sats equivalent display in ItemCart)
   useEffect(() => {
@@ -4641,13 +4655,56 @@ export default function Dashboard() {
                   <div className={`space-y-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                     <div className="flex justify-between text-sm">
                       <span>Bitcoin:</span>
-                      <span className="font-mono">₿{getFormatPreview(numberFormat).integer}</span>
+                      <span className="font-mono">{getBitcoinFormatPreview(bitcoinFormat, numberFormat)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>USD:</span>
                       <span className="font-mono">${getFormatPreview(numberFormat).decimal}</span>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Bitcoin Format Section */}
+              <div>
+                <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Bitcoin Format
+                </h3>
+                <div className="space-y-2">
+                  {BITCOIN_FORMAT_OPTIONS.map((format) => (
+                    <button
+                      key={format}
+                      onClick={() => setBitcoinFormat(format)}
+                      className={`w-full p-3 rounded-lg text-left transition-all ${
+                        bitcoinFormat === format
+                          ? 'bg-blink-accent/20 border-2 border-blink-accent'
+                          : darkMode
+                            ? 'bg-gray-900 hover:bg-gray-800 border-2 border-transparent'
+                            : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-3">
+                            <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                              {BITCOIN_FORMAT_LABELS[format]}
+                            </span>
+                            <span className={`text-sm font-mono ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {getBitcoinFormatPreview(format, numberFormat)}
+                            </span>
+                          </div>
+                          <p className={`text-xs mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {BITCOIN_FORMAT_DESCRIPTIONS[format]}
+                          </p>
+                        </div>
+                        {bitcoinFormat === format && (
+                          <svg className="w-5 h-5 text-blink-accent flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -6533,6 +6590,7 @@ export default function Dashboard() {
               ref={cartRef}
               displayCurrency={displayCurrency}
               numberFormat={numberFormat}
+              bitcoinFormat={bitcoinFormat}
               currencies={currencies}
               publicKey={publicKey}
               onCheckout={(checkoutData) => {
@@ -6554,6 +6612,7 @@ export default function Dashboard() {
             user={user}
             displayCurrency={displayCurrency}
             numberFormat={numberFormat}
+            bitcoinFormat={bitcoinFormat}
             currencies={currencies}
             wallets={wallets}
             onPaymentReceived={posPaymentReceivedRef}
@@ -6603,6 +6662,7 @@ export default function Dashboard() {
               voucherWallet={voucherWallet}
               displayCurrency={displayCurrency}
               numberFormat={numberFormat}
+              bitcoinFormat={bitcoinFormat}
               currencies={currencies}
               darkMode={darkMode}
               toggleDarkMode={toggleDarkMode}
@@ -6623,6 +6683,7 @@ export default function Dashboard() {
             voucherWallet={voucherWallet}
             displayCurrency={displayCurrency}
             numberFormat={numberFormat}
+            bitcoinFormat={bitcoinFormat}
             currencies={currencies}
             darkMode={darkMode}
             toggleDarkMode={toggleDarkMode}

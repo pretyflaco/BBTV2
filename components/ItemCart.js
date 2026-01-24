@@ -5,6 +5,7 @@ import { formatNumber } from '../lib/number-format';
 const ItemCart = forwardRef(({ 
   displayCurrency, 
   numberFormat = 'auto',
+  bitcoinFormat = 'bip177',
   currencies, 
   publicKey, 
   onCheckout,
@@ -144,13 +145,13 @@ const ItemCart = forwardRef(({
   }, [selectedItems]);
 
   const formatDisplayAmount = (value, currency) => {
-    return formatCurrency(value, currency, currencies, numberFormat);
+    return formatCurrency(value, currency, currencies, numberFormat, bitcoinFormat);
   };
 
   // Render amount with properly styled Bitcoin symbol (smaller ₿ for BIP-177)
   const renderStyledAmount = (value, currency, className = '') => {
     const formatted = formatDisplayAmount(value, currency);
-    const parts = parseAmountParts(formatted, currency);
+    const parts = parseAmountParts(formatted, currency, bitcoinFormat);
     
     if (parts.isBip177) {
       // Render BIP-177 with smaller, lighter Bitcoin symbol moved up 10%

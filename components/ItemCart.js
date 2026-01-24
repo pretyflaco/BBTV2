@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
-import { formatDisplayAmount as formatCurrency, getCurrencyById, parseAmountParts } from '../lib/currency-utils';
+import { formatDisplayAmount as formatCurrency, getCurrencyById, isBitcoinCurrency, parseAmountParts } from '../lib/currency-utils';
+import { formatNumber } from '../lib/number-format';
 
 const ItemCart = forwardRef(({ 
   displayCurrency, 
@@ -11,6 +12,7 @@ const ItemCart = forwardRef(({
   darkMode,
   toggleDarkMode,
   isViewTransitioning = false,
+  exchangeRate = null,
   onActivate // Called when view becomes active
 }, ref) => {
   const [cartItems, setCartItems] = useState([]);
@@ -162,6 +164,17 @@ const ItemCart = forwardRef(({
     
     // For all other currencies, render as-is
     return <span className={className}>{formatted}</span>;
+  };
+
+  // Calculate sats equivalent for fiat amounts
+  const getSatsEquivalent = (fiatAmount) => {
+    if (!exchangeRate?.satPriceInCurrency) return '0';
+    if (fiatAmount <= 0) return '0';
+    const currency = getCurrencyById(displayCurrency, currencies);
+    const fractionDigits = currency?.fractionDigits ?? 2;
+    const amountInMinorUnits = fiatAmount * Math.pow(10, fractionDigits);
+    const sats = Math.round(amountInMinorUnits / exchangeRate.satPriceInCurrency);
+    return formatNumber(sats, numberFormat, 0);
   };
 
   // Handle item click - add to selection
@@ -621,6 +634,12 @@ const ItemCart = forwardRef(({
                 renderStyledAmount(0, displayCurrency)
               )}
             </div>
+            {/* Sats equivalent for fiat currencies */}
+            {!isBitcoinCurrency(displayCurrency) && (
+              <div className="text-sm text-gray-500 dark:text-gray-400 -mt-1">
+                ({getSatsEquivalent(total)} sats)
+              </div>
+            )}
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-400">
             <div className="mb-1 min-h-[20px] max-w-full overflow-x-auto px-2">

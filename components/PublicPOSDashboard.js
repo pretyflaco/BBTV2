@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useCurrencies } from '../lib/hooks/useCurrencies';
 import { useDarkMode } from '../lib/hooks/useDarkMode';
+import { useNFC } from './NFCPayment';
+import { isBitcoinCurrency } from '../lib/currency-utils';
 import POS from './POS';
 import ItemCart from './ItemCart';
 import QRCode from 'react-qr-code';
@@ -48,7 +50,11 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [paymentData, setPaymentData] = useState(null); // For PaymentAnimation
   
-  // Settings state
+  // Exchange rate state for sats equivalent display
+  const [exchangeRate, setExchangeRate] = useState(null);
+  const [loadingRate, setLoadingRate] = useState(false);
+  
+  // Settings state (must be declared before useNFC which uses soundEnabled/soundTheme)
   const [displayCurrency, setDisplayCurrency] = useState('USD');
   const [numberFormat, setNumberFormat] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -69,6 +75,20 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
       return saved || 'success';
     }
     return 'success';
+  });
+  
+  // Setup NFC for Boltcard payments (after soundEnabled/soundTheme are declared)
+  const nfcState = useNFC({
+    paymentRequest: currentInvoice?.paymentRequest,
+    onPaymentSuccess: () => {
+      console.log('🎉 NFC Boltcard payment successful (Public POS)');
+      // Payment will be picked up by polling
+    },
+    onPaymentError: (error) => {
+      console.error('NFC payment error (Public POS):', error);
+    },
+    soundEnabled,
+    soundTheme,
   });
   
   // Menu state
@@ -195,6 +215,47 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
       localStorage.setItem('publicpos-numberFormat', numberFormat);
     }
   }, [numberFormat]);
+
+  // Fetch exchange rate when currency changes (for sats equivalent display)
+  const fetchExchangeRate = async () => {
+    if (isBitcoinCurrency(displayCurrency)) {
+      setExchangeRate({ satPriceInCurrency: 1, currency: 'BTC' });
+      return;
+    }
+    
+    setLoadingRate(true);
+    try {
+      const response = await fetch('/api/blink/exchange-rate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currency: displayCurrency,
+          useBlinkpos: true // Public POS always uses BlinkPOS credentials
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setExchangeRate({
+          satPriceInCurrency: data.satPriceInCurrency,
+          currency: data.currency
+        });
+        console.log(`Exchange rate for ${displayCurrency}:`, data.satPriceInCurrency);
+      } else {
+        console.error('Failed to fetch exchange rate:', data.error);
+      }
+    } catch (error) {
+      console.error('Exchange rate error:', error);
+    } finally {
+      setLoadingRate(false);
+    }
+  };
+  
+  // Fetch exchange rate on mount and when display currency changes
+  useEffect(() => {
+    fetchExchangeRate();
+  }, [displayCurrency]);
 
   // View transition handler
   const handleViewTransition = useCallback((newView) => {
@@ -1090,11 +1151,25 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
         {/* Spacer - Fixed height to prevent numpad jumping when switching views */}
         {!showingInvoice && (
           <div className="h-16 mb-2 flex flex-col justify-center bg-white dark:bg-black">
-            <div className="flex items-center gap-2">
-              <img src="/bluedot.svg" alt="Owner" className="w-2 h-2" />
-              <span className="font-semibold text-blue-600 dark:text-blue-400" style={{fontSize: '11.2px'}}>
-                {username}
-              </span>
+            {/* Owner Display Row - 3-column layout: Owner | View Label | Spacer */}
+            <div className="flex items-center justify-between">
+              {/* Left side: Owner info */}
+              <div className="flex-1 flex items-center gap-2">
+                <img src="/bluedot.svg" alt="Owner" className="w-2 h-2" />
+                <span className="font-semibold text-blue-600 dark:text-blue-400" style={{fontSize: '11.2px'}}>
+                  {username}
+                </span>
+              </div>
+              
+              {/* Center: View label */}
+              <div className="flex-1 text-center">
+                <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                  {currentView === 'cart' ? 'Item Cart' : 'Point Of Sale'}
+                </span>
+              </div>
+              
+              {/* Right side: Spacer for balance */}
+              <div className="flex-1"></div>
             </div>
           </div>
         )}
@@ -1132,6 +1207,7 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
               darkMode={darkMode}
               toggleDarkMode={toggleDarkMode}
               isViewTransitioning={isViewTransitioning}
+              exchangeRate={exchangeRate}
             />
           </div>
         ) : (
@@ -1153,6 +1229,7 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
             onInvoiceChange={handleInvoiceChange}
             darkMode={darkMode}
             toggleDarkMode={toggleDarkMode}
+            nfcState={nfcState}
             activeBlinkAccount={{ username, type: 'public' }}
             cartCheckoutData={cartCheckoutData}
             onCartCheckoutProcessed={() => setCartCheckoutData(null)}

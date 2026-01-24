@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHand
 import QRCode from 'react-qr-code';
 import { bech32 } from 'bech32';
 import { formatDisplayAmount as formatCurrency, getCurrencyById, isBitcoinCurrency, parseAmountParts } from '../lib/currency-utils';
+import { formatNumber } from '../lib/number-format';
 import { DEFAULT_EXPIRY } from './ExpirySelector';
 import { useThermalPrint } from '../lib/escpos/hooks/useThermalPrint';
 
@@ -280,6 +281,17 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, numberFormat = 'au
     const satsAmount = Math.round(amountInMinorUnits / exchangeRate.satPriceInCurrency);
     
     return satsAmount;
+  };
+
+  // Calculate sats equivalent from fiat amount using user's number format
+  const getSatsEquivalent = (fiatAmount) => {
+    if (!exchangeRate?.satPriceInCurrency) return '0';
+    if (fiatAmount <= 0) return '0';
+    const currency = getCurrencyById(displayCurrency, currencies);
+    const fractionDigits = currency?.fractionDigits ?? 2;
+    const amountInMinorUnits = fiatAmount * Math.pow(10, fractionDigits);
+    const sats = Math.round(amountInMinorUnits / exchangeRate.satPriceInCurrency);
+    return formatNumber(sats, numberFormat, 0);
   };
 
   const handleDigitPress = (digit) => {
@@ -1502,7 +1514,9 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, numberFormat = 'au
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-400">
             <div className="mb-1 min-h-[20px] max-w-full overflow-x-auto px-2">
-              Single Voucher
+              {!isBitcoinCurrency(displayCurrency) ? (
+                `(${getSatsEquivalent(parseFloat(amount) || 0)} sats)`
+              ) : null}
             </div>
           </div>
           {error && (

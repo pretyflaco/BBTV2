@@ -1,6 +1,7 @@
 import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import QRCode from 'react-qr-code';
 import { formatDisplayAmount as formatCurrency, getCurrencyById, isBitcoinCurrency, parseAmountParts } from '../lib/currency-utils';
+import { formatNumber } from '../lib/number-format';
 import { useNFC } from './NFCPayment';
 
 const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation, isPublicPOS = false, publicUsername = null }, ref) => {
@@ -488,6 +489,17 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
     }
     
     return finalTotal;
+  };
+
+  // Calculate sats equivalent from fiat amount using user's number format
+  const getSatsEquivalent = (fiatAmount) => {
+    if (!exchangeRate?.satPriceInCurrency) return '0';
+    if (fiatAmount <= 0) return '0';
+    const currency = getCurrencyById(displayCurrency, currencies);
+    const fractionDigits = currency?.fractionDigits ?? 2;
+    const amountInMinorUnits = fiatAmount * Math.pow(10, fractionDigits);
+    const sats = Math.round(amountInMinorUnits / exchangeRate.satPriceInCurrency);
+    return formatNumber(sats, numberFormat, 0);
   };
 
   // Get tip amount in current display currency
@@ -1244,6 +1256,9 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
                 + {selectedTipPercent}% tip ({renderStyledAmount(getTipAmount(), displayCurrency)})
                 <div className={`text-green-700 dark:text-green-400 mt-1 max-w-full ${getDynamicFontSize(formatDisplayAmount(getTotalWithTip(), displayCurrency))}`} style={{wordBreak: 'keep-all', overflowWrap: 'normal'}}>
                   Total: {renderStyledAmount(getTotalWithTip(), displayCurrency)}
+                  {!isBitcoinCurrency(displayCurrency) && (
+                    <span className="text-sm ml-2">({getSatsEquivalent(getTotalWithTip())} sats)</span>
+                  )}
                 </div>
               </div>
             )}
@@ -1256,9 +1271,9 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
                   {amount && ` + ${amount}`}
                   {!showTipDialog && total > 0 && amount && ` = ${formatDisplayAmount(total + (parseFloat(amount) || 0), displayCurrency)}`}
                 </div>
-              ) : (
-                'Point Of Sale'
-              )}
+              ) : !isBitcoinCurrency(displayCurrency) ? (
+                `(${getSatsEquivalent(parseFloat(amount) || 0)} sats)`
+              ) : null}
             </div>
           </div>
           {/* Error Message - inline below amount */}

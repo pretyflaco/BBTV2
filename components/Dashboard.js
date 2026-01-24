@@ -5,6 +5,7 @@ import { useBlinkPOSWebSocket } from '../lib/hooks/useBlinkPOSWebSocket';
 import { useCurrencies } from '../lib/hooks/useCurrencies';
 import { useDarkMode } from '../lib/hooks/useDarkMode';
 import { useNFC } from './NFCPayment';
+import { isBitcoinCurrency } from '../lib/currency-utils';
 import PaymentAnimation from './PaymentAnimation';
 import POS from './POS';
 import Voucher from './Voucher';
@@ -218,6 +219,10 @@ export default function Dashboard() {
   const [selectedTransaction, setSelectedTransaction] = useState(null); // Transaction detail modal
   const [labelUpdateTrigger, setLabelUpdateTrigger] = useState(0); // Trigger re-render when labels change
 
+  // Exchange rate state for sats equivalent display in ItemCart
+  const [exchangeRate, setExchangeRate] = useState(null);
+  const [loadingRate, setLoadingRate] = useState(false);
+
   // Transaction search state
   const [isSearchingTx, setIsSearchingTx] = useState(false);
   const [txSearchInput, setTxSearchInput] = useState(''); // Input field value
@@ -283,6 +288,48 @@ export default function Dashboard() {
       localStorage.setItem('blinkpos-number-format', numberFormat);
     }
   }, [numberFormat]);
+
+  // Fetch exchange rate when currency changes (for sats equivalent display in ItemCart)
+  useEffect(() => {
+    const fetchExchangeRate = async () => {
+      if (isBitcoinCurrency(displayCurrency)) {
+        setExchangeRate({ satPriceInCurrency: 1, currency: 'BTC' });
+        return;
+      }
+      
+      setLoadingRate(true);
+      try {
+        const response = await fetch('/api/blink/exchange-rate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            apiKey: apiKey,
+            currency: displayCurrency,
+            // Use BlinkPOS credentials if no API key available
+            useBlinkpos: !apiKey
+          }),
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          setExchangeRate({
+            satPriceInCurrency: data.satPriceInCurrency,
+            currency: data.currency
+          });
+          console.log(`Exchange rate for ${displayCurrency}:`, data.satPriceInCurrency);
+        } else {
+          console.error('Failed to fetch exchange rate:', data.error);
+        }
+      } catch (error) {
+        console.error('Exchange rate error:', error);
+      } finally {
+        setLoadingRate(false);
+      }
+    };
+    
+    fetchExchangeRate();
+  }, [displayCurrency, apiKey]);
 
   // Persist active tip profile and update tipPresets when profile changes
   useEffect(() => {
@@ -6358,83 +6405,98 @@ export default function Dashboard() {
         {/* Owner/Agent Display - Left aligned on POS, Cart, Voucher, MultiVoucher, and VoucherManager (hidden when showing voucher QR) */}
         {!showingInvoice && !showingVoucherQR && (currentView === 'pos' || currentView === 'cart' || currentView === 'voucher' || currentView === 'multivoucher' || currentView === 'vouchermanager') && (
           <div className="flex flex-col gap-1 mb-2 bg-white dark:bg-black">
-            {/* Owner Display Row - with Expiry Selector on right for Voucher screen */}
+            {/* Owner Display Row - 3-column layout: Owner | View Label | Expiry Selector */}
             <div className="flex items-center justify-between">
               {/* Left side: Owner info */}
-              {(() => {
-                // For voucher, multivoucher, and vouchermanager views, show voucher wallet
-                if (currentView === 'voucher' || currentView === 'multivoucher' || currentView === 'vouchermanager') {
-                  if (voucherWallet) {
-                    return (
-                      <div className="flex items-center gap-2">
-                        <img src="/purpledot.svg" alt="Voucher Wallet" className="w-2 h-2" />
-                        <span className="font-semibold text-purple-600 dark:text-purple-400" style={{fontSize: '11.2px'}}>
-                          {voucherWallet.label || voucherWallet.username || 'Voucher Wallet'}
-                        </span>
-                      </div>
-                    );
-                  } else {
+              <div className="flex-1">
+                {(() => {
+                  // For voucher, multivoucher, and vouchermanager views, show voucher wallet
+                  if (currentView === 'voucher' || currentView === 'multivoucher' || currentView === 'vouchermanager') {
+                    if (voucherWallet) {
+                      return (
+                        <div className="flex items-center gap-2">
+                          <img src="/purpledot.svg" alt="Voucher Wallet" className="w-2 h-2" />
+                          <span className="font-semibold text-purple-600 dark:text-purple-400" style={{fontSize: '11.2px'}}>
+                            {voucherWallet.label || voucherWallet.username || 'Voucher Wallet'}
+                          </span>
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <button 
+                          onClick={() => setShowVoucherWalletSettings(true)}
+                          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                        >
+                          <img src="/yellowdot.svg" alt="No Wallet" className="w-2 h-2" />
+                          <span className="font-semibold text-yellow-600 dark:text-yellow-400" style={{fontSize: '11.2px'}}>
+                            Connect voucher wallet
+                          </span>
+                        </button>
+                      );
+                    }
+                  }
+                  
+                  // For POS/Cart view, show regular wallet
+                  const hasWallet = activeNWC || activeNpubCashWallet || activeBlinkAccount;
+                  const noWallet = !hasWallet;
+                  const dotColor = activeNWC ? "/purpledot.svg" : activeNpubCashWallet ? "/tealdot.svg" : hasWallet ? "/bluedot.svg" : "/yellowdot.svg";
+                  const textColorClass = activeNWC ? 'text-purple-600 dark:text-purple-400' : 
+                    activeNpubCashWallet ? 'text-teal-600 dark:text-teal-400' : 
+                    hasWallet ? 'text-blue-600 dark:text-blue-400' :
+                    'text-yellow-600 dark:text-yellow-400';
+                  const displayText = activeNWC ? activeNWC.label : activeNpubCashWallet ? (activeNpubCashWallet.label || activeNpubCashWallet.lightningAddress) : (activeBlinkAccount?.label || activeBlinkAccount?.username || 'Connect wallet to start');
+                  
+                  if (noWallet) {
                     return (
                       <button 
-                        onClick={() => setShowVoucherWalletSettings(true)}
+                        onClick={() => setShowAccountSettings(true)}
                         className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                       >
-                        <img src="/yellowdot.svg" alt="No Wallet" className="w-2 h-2" />
-                        <span className="font-semibold text-yellow-600 dark:text-yellow-400" style={{fontSize: '11.2px'}}>
-                          Connect voucher wallet
+                        <img src={dotColor} alt="Owner" className="w-2 h-2" />
+                        <span className={`font-semibold ${textColorClass}`} style={{fontSize: '11.2px'}}>
+                          {displayText}
                         </span>
                       </button>
                     );
                   }
-                }
-                
-                // For POS/Cart view, show regular wallet
-                const hasWallet = activeNWC || activeNpubCashWallet || activeBlinkAccount;
-                const noWallet = !hasWallet;
-                const dotColor = activeNWC ? "/purpledot.svg" : activeNpubCashWallet ? "/tealdot.svg" : hasWallet ? "/bluedot.svg" : "/yellowdot.svg";
-                const textColorClass = activeNWC ? 'text-purple-600 dark:text-purple-400' : 
-                  activeNpubCashWallet ? 'text-teal-600 dark:text-teal-400' : 
-                  hasWallet ? 'text-blue-600 dark:text-blue-400' :
-                  'text-yellow-600 dark:text-yellow-400';
-                const displayText = activeNWC ? activeNWC.label : activeNpubCashWallet ? (activeNpubCashWallet.label || activeNpubCashWallet.lightningAddress) : (activeBlinkAccount?.label || activeBlinkAccount?.username || 'Connect wallet to start');
-                
-                if (noWallet) {
+                  
                   return (
-                    <button 
-                      onClick={() => setShowAccountSettings(true)}
-                      className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-                    >
+                    <div className="flex items-center gap-2">
                       <img src={dotColor} alt="Owner" className="w-2 h-2" />
                       <span className={`font-semibold ${textColorClass}`} style={{fontSize: '11.2px'}}>
                         {displayText}
                       </span>
-                    </button>
+                    </div>
                   );
-                }
-                
-                return (
-                  <div className="flex items-center gap-2">
-                    <img src={dotColor} alt="Owner" className="w-2 h-2" />
-                    <span className={`font-semibold ${textColorClass}`} style={{fontSize: '11.2px'}}>
-                      {displayText}
-                    </span>
-                  </div>
-                );
-              })()}
+                })()}
+              </div>
               
-              {/* Right side: Expiry Selector (on Voucher and MultiVoucher screens) */}
-              {currentView === 'voucher' && !showingVoucherQR && (
-                <ExpirySelector
-                  value={voucherRef.current?.getSelectedExpiry?.() || '7d'}
-                  onChange={(expiryId) => voucherRef.current?.setSelectedExpiry?.(expiryId)}
-                />
-              )}
-              {currentView === 'multivoucher' && (
-                <ExpirySelector
-                  value={multiVoucherRef.current?.getSelectedExpiry?.() || '7d'}
-                  onChange={(expiryId) => multiVoucherRef.current?.setSelectedExpiry?.(expiryId)}
-                />
-              )}
+              {/* Center: View label */}
+              <div className="flex-1 text-center">
+                <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                  {currentView === 'pos' ? 'Point Of Sale' :
+                   currentView === 'cart' ? 'Item Cart' :
+                   currentView === 'voucher' ? 'Single Voucher' :
+                   currentView === 'multivoucher' ? 'Multi-Voucher' :
+                   currentView === 'vouchermanager' ? 'Voucher Manager' : ''}
+                </span>
+              </div>
+              
+              {/* Right side: Expiry Selector (on Voucher and MultiVoucher screens) or spacer */}
+              <div className="flex-1 flex justify-end">
+                {currentView === 'voucher' && !showingVoucherQR && (
+                  <ExpirySelector
+                    value={voucherRef.current?.getSelectedExpiry?.() || '7d'}
+                    onChange={(expiryId) => voucherRef.current?.setSelectedExpiry?.(expiryId)}
+                  />
+                )}
+                {currentView === 'multivoucher' && (
+                  <ExpirySelector
+                    value={multiVoucherRef.current?.getSelectedExpiry?.() || '7d'}
+                    onChange={(expiryId) => multiVoucherRef.current?.setSelectedExpiry?.(expiryId)}
+                  />
+                )}
+              </div>
             </div>
             
             {/* Agent Display Row - Always reserve space for consistent numpad positioning */}
@@ -6482,6 +6544,7 @@ export default function Dashboard() {
               darkMode={darkMode}
               toggleDarkMode={toggleDarkMode}
               isViewTransitioning={isViewTransitioning}
+              exchangeRate={exchangeRate}
             />
           </div>
         ) : currentView === 'pos' ? (

@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useAuth } from '../lib/hooks/useAuth';
-import { useDarkMode } from '../lib/hooks/useDarkMode';
+import { useTheme } from '../lib/hooks/useTheme';
 
 export default function LoginForm() {
-  const { darkMode } = useDarkMode();
+  const { darkMode } = useTheme();
   const [apiKey, setApiKey] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');

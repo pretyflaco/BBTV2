@@ -14,10 +14,10 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { useDarkMode } from '../../lib/hooks/useDarkMode';
+import { useTheme } from '../../lib/hooks/useTheme';
 
 export default function BlinkLnAddressSetup({ onComplete, onCancel }) {
-  const { darkMode } = useDarkMode();
+  const { darkMode } = useTheme();
   
   const [lnAddress, setLnAddress] = useState('');
   const [label, setLabel] = useState('');

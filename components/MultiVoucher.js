@@ -4,6 +4,7 @@ import { bech32 } from 'bech32';
 import { formatDisplayAmount as formatCurrency, getCurrencyById, isBitcoinCurrency, parseAmountParts } from '../lib/currency-utils';
 import { formatNumber } from '../lib/number-format';
 import ExpirySelector, { DEFAULT_EXPIRY, getExpiryOption } from './ExpirySelector';
+import Numpad from './Numpad';
 
 // Grid configuration options
 const GRID_OPTIONS = [
@@ -21,7 +22,8 @@ const MultiVoucher = forwardRef(({
   bitcoinFormat = 'sats',
   currencies, 
   darkMode, 
-  toggleDarkMode, 
+  theme,
+  cycleTheme, 
   soundEnabled, 
   onInternalTransition,
   commissionEnabled,
@@ -859,77 +861,18 @@ const MultiVoucher = forwardRef(({
       {/* Numpad */}
       <div className="flex-1 px-4 pb-4 relative">
         <div className="h-16 mb-2"></div>
-        <div className="grid grid-cols-4 gap-3 max-w-sm md:max-w-md mx-auto">
-          {/* Row 1: 7, 8, 9 */}
-          {['7', '8', '9'].map(digit => (
-            <button
-              key={digit}
-              onClick={() => handleDigitPress(digit)}
-              className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 rounded-lg text-xl md:text-2xl font-normal transition-colors shadow-md"
-            >
-              {digit}
-            </button>
-          ))}
-          <div></div>
-
-          {/* Row 2: 4, 5, 6, OK */}
-          {['4', '5', '6'].map(digit => (
-            <button
-              key={digit}
-              onClick={() => handleDigitPress(digit)}
-              className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 rounded-lg text-xl md:text-2xl font-normal transition-colors shadow-md"
-            >
-              {digit}
-            </button>
-          ))}
-          <button
-            onClick={handleOkPress}
-            disabled={!isValidAmount() || isBalanceExceeded()}
-            className={`h-[136px] md:h-[172px] ${!isValidAmount() || isBalanceExceeded() ? 'bg-gray-200 dark:bg-blink-dark border-2 border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500' : 'bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400'} rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md flex items-center justify-center row-span-2`}
-          >
-            OK
-          </button>
-
-          {/* Row 3: 1, 2, 3 */}
-          {['1', '2', '3'].map(digit => (
-            <button
-              key={digit}
-              onClick={() => handleDigitPress(digit)}
-              className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 rounded-lg text-xl md:text-2xl font-normal transition-colors shadow-md"
-            >
-              {digit}
-            </button>
-          ))}
-
-          {/* Row 4: C, 0, ., Backspace */}
-          <button
-            onClick={handleClear}
-            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md"
-          >
-            C
-          </button>
-          <button
-            onClick={() => handleDigitPress('0')}
-            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 rounded-lg text-xl md:text-2xl font-normal transition-colors shadow-md"
-          >
-            0
-          </button>
-          <button
-            onClick={() => handleDigitPress('.')}
-            disabled={isBitcoinCurrency(displayCurrency) || getCurrentCurrency()?.fractionDigits === 0}
-            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-lg text-xl md:text-2xl font-normal transition-colors shadow-md"
-          >
-            .
-          </button>
-          <button
-            onClick={handleBackspace}
-            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 rounded-lg text-lg md:text-xl font-normal transition-colors flex items-center justify-center shadow-md"
-          >
-            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
-            </svg>
-          </button>
-        </div>
+        <Numpad
+          theme={theme}
+          onDigitPress={handleDigitPress}
+          onClear={handleClear}
+          onBackspace={handleBackspace}
+          onOkPress={handleOkPress}
+          okDisabled={!isValidAmount() || isBalanceExceeded()}
+          okLabel="OK"
+          decimalDisabled={isBitcoinCurrency(displayCurrency) || getCurrentCurrency()?.fractionDigits === 0}
+          accentColor="purple"
+          showPlus={false}
+        />
 
         {/* Commission Selection Overlay */}
         {showCommissionDialog && (() => {

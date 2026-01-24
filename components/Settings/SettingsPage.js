@@ -2,12 +2,12 @@
  * SettingsPage - Profile settings
  */
 
-import { useDarkMode } from '../../lib/hooks/useDarkMode';
+import { useTheme } from '../../lib/hooks/useTheme';
 import ProfileSection from './ProfileSection';
 import KeyManagementSection from './KeyManagementSection';
 
 export default function SettingsPage({ onClose }) {
-  const { darkMode } = useDarkMode();
+  const { darkMode } = useTheme();
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center">

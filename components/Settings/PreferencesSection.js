@@ -4,12 +4,12 @@
 
 import { useState, useEffect } from 'react';
 import { useCombinedAuth } from '../../lib/hooks/useCombinedAuth';
-import { useDarkMode } from '../../lib/hooks/useDarkMode';
+import { useTheme, THEMES } from '../../lib/hooks/useTheme';
 import { useCurrencies } from '../../lib/hooks/useCurrencies';
 
 export default function PreferencesSection() {
   const { preferences, updatePreferences } = useCombinedAuth();
-  const { darkMode, toggleDarkMode } = useDarkMode();
+  const { theme, setTheme, darkMode } = useTheme();
   const { currencies, getAllCurrencies } = useCurrencies();
   
   const [defaultCurrency, setDefaultCurrency] = useState(preferences?.defaultCurrency ?? 'USD');
@@ -77,19 +77,64 @@ export default function PreferencesSection() {
 
   return (
     <div className="space-y-4">
-      {/* Dark Mode */}
+      {/* Theme Selector */}
       <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-        <div className="flex items-center justify-between">
-          <h4 className={`font-medium text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-            Dark Mode
-          </h4>
-          <div className="flex items-center gap-2">
-            <Toggle value={darkMode} onChange={toggleDarkMode} />
-            <span className={`text-sm ${darkMode ? 'text-white' : 'text-gray-700'}`}>
-              {darkMode ? 'ON' : 'OFF'}
-            </span>
-          </div>
+        <h4 className={`font-medium text-sm mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+          Theme
+        </h4>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => setTheme(THEMES.DARK)}
+            className={`py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+              theme === THEMES.DARK
+                ? 'bg-blink-accent text-black'
+                : darkMode
+                  ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Dark
+          </button>
+          <button
+            onClick={() => setTheme(THEMES.BLINK_CLASSIC_DARK)}
+            className={`py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+              theme === THEMES.BLINK_CLASSIC_DARK
+                ? 'bg-blink-accent text-black'
+                : darkMode
+                  ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            BC Dark
+          </button>
+          <button
+            onClick={() => setTheme(THEMES.LIGHT)}
+            className={`py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+              theme === THEMES.LIGHT
+                ? 'bg-blink-accent text-black'
+                : darkMode
+                  ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Light
+          </button>
+          <button
+            onClick={() => setTheme(THEMES.BLINK_CLASSIC_LIGHT)}
+            className={`py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+              theme === THEMES.BLINK_CLASSIC_LIGHT
+                ? 'bg-blink-accent text-black'
+                : darkMode
+                  ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            BC Light
+          </button>
         </div>
+        <p className={`text-xs mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+          Tip: Tap the Blink logo to quickly cycle through themes
+        </p>
       </div>
 
       {/* Default Currency */}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useCurrencies } from '../lib/hooks/useCurrencies';
-import { useDarkMode } from '../lib/hooks/useDarkMode';
+import { useTheme, THEMES } from '../lib/hooks/useTheme';
 import { useNFC } from './NFCPayment';
 import { isBitcoinCurrency } from '../lib/currency-utils';
 import POS from './POS';
@@ -36,7 +36,73 @@ const SPINNER_COLORS = [
 
 export default function PublicPOSDashboard({ username, walletCurrency }) {
   const { currencies, loading: currenciesLoading, getAllCurrencies } = useCurrencies();
-  const { darkMode, toggleDarkMode } = useDarkMode();
+  const { theme, cycleTheme, darkMode } = useTheme();
+  
+  // Helper functions for consistent theme styling across all menus/submenus
+  const isBlinkClassic = theme === 'blink-classic-dark' || theme === 'blink-classic-light';
+  
+  // Menu tile styling (for main menu items)
+  const getMenuTileClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'bg-transparent border border-blink-classic-border hover:bg-blink-classic-bg hover:border-blink-classic-amber';
+      case 'blink-classic-light':
+        return 'bg-transparent border border-blink-classic-border-light hover:bg-blink-classic-hover-light hover:border-blink-classic-amber';
+      case 'light':
+        return 'bg-gray-50 hover:bg-gray-100';
+      case 'dark':
+      default:
+        return 'bg-gray-900 hover:bg-gray-800';
+    }
+  };
+  
+  // Submenu overlay background
+  const getSubmenuBgClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'bg-black';
+      case 'blink-classic-light':
+        return 'bg-white';
+      default:
+        return 'bg-white dark:bg-black';
+    }
+  };
+  
+  // Submenu header styling
+  const getSubmenuHeaderClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'bg-black border-b border-blink-classic-border';
+      case 'blink-classic-light':
+        return 'bg-white border-b border-blink-classic-border-light';
+      default:
+        return 'bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black';
+    }
+  };
+  
+  // Selection tile styling (for option buttons in submenus) - unselected state
+  const getSelectionTileClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'border-blink-classic-border bg-transparent hover:bg-blink-classic-bg hover:border-blink-classic-amber';
+      case 'blink-classic-light':
+        return 'border-blink-classic-border-light bg-transparent hover:bg-blink-classic-hover-light hover:border-blink-classic-amber';
+      default:
+        return 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600';
+    }
+  };
+  
+  // Selection tile styling - selected/active state
+  const getSelectionTileActiveClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'border-blink-classic-amber bg-blink-classic-bg';
+      case 'blink-classic-light':
+        return 'border-blink-classic-amber bg-blink-classic-hover-light';
+      default:
+        return 'border-blink-accent bg-blink-accent/10';
+    }
+  };
   
   // View state
   const [currentView, setCurrentView] = useState('pos'); // 'cart' or 'pos' only
@@ -430,24 +496,25 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
       
       {/* Header - Hidden when showing invoice */}
       {!showingInvoice && (
-        <header className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-40">
+        <header className={`${theme === 'blink-classic-dark' ? 'bg-black' : 'bg-gray-50 dark:bg-blink-dark'} shadow dark:shadow-black sticky top-0 z-40`}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between py-4">
-              {/* Blink Logo - Left (tap to toggle dark mode) */}
+              {/* Blink Logo - Left (tap to cycle theme) */}
               <button 
-                onClick={toggleDarkMode}
+                onClick={cycleTheme}
                 className="flex items-center focus:outline-none"
-                aria-label="Toggle dark mode"
+                aria-label="Cycle theme"
               >
+                {/* For Blink Classic Dark, header is black so show dark logo */}
                 <img 
                   src="/logos/blink-icon-light.svg" 
                   alt="Blink" 
-                  className="h-12 w-12 dark:hidden"
+                  className={`h-12 w-12 ${theme === 'light' || theme === 'blink-classic-light' ? 'block' : 'hidden'}`}
                 />
                 <img 
                   src="/logos/blink-icon-dark.svg" 
                   alt="Blink" 
-                  className="h-12 w-12 hidden dark:block"
+                  className={`h-12 w-12 ${theme === 'light' || theme === 'blink-classic-light' ? 'hidden' : 'block'}`}
                 />
               </button>
               
@@ -492,10 +559,10 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
 
       {/* Side Menu */}
       {sideMenuOpen && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
           <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
             {/* Menu Header */}
-            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                   <button
@@ -518,7 +585,7 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
                 {/* Profile - Links to sign in */}
                 <a
                   href="/"
-                  className={`block w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                  className={`block w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center bg-blink-accent/20`}>
@@ -534,10 +601,24 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
                   </div>
                 </a>
 
+                {/* Theme Selection */}
+                <button
+                  onClick={cycleTheme}
+                  className={`w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Theme</span>
+                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                      <span>{theme === 'dark' ? 'Dark' : theme === 'blink-classic-dark' ? 'BC Dark' : theme === 'light' ? 'Light' : 'BC Light'}</span>
+                      <span className="ml-1 text-xs">(tap to change)</span>
+                    </div>
+                  </div>
+                </button>
+
                 {/* Display Currency */}
                 <button
                   onClick={() => setShowCurrencySettings(true)}
-                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                  className={`w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Display Currency</span>
@@ -551,7 +632,7 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
                 {/* Regional Settings (Number Format) */}
                 <button
                   onClick={() => setShowRegionalSettings(true)}
-                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                  className={`w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Regional</span>
@@ -568,7 +649,7 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
                     setShowPaycode(true);
                     setSideMenuOpen(false);
                   }}
-                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                  className={`w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Paycodes</span>
@@ -579,7 +660,7 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
                 {/* Sound Effects */}
                 <button
                   onClick={() => setShowSoundSettings(true)}
-                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                  className={`w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Sound Effects</span>
@@ -598,9 +679,9 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
 
       {/* Currency Settings Overlay */}
       {showCurrencySettings && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
           <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                   <button
@@ -657,10 +738,10 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
 
       {/* Regional Settings Overlay */}
       {showRegionalSettings && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
           <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
             {/* Header */}
-            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                   <button
@@ -808,9 +889,9 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
 
       {/* Sound Settings Overlay */}
       {showSoundSettings && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
           <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                   <button
@@ -836,8 +917,8 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
                   }}
                   className={`w-full p-4 rounded-lg border-2 transition-all ${
                     !soundEnabled
-                      ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
+                      ? getSelectionTileActiveClasses()
+                      : getSelectionTileClasses()
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -864,8 +945,8 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
                   }}
                   className={`w-full p-4 rounded-lg border-2 transition-all ${
                     soundEnabled && soundTheme === 'success'
-                      ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
+                      ? getSelectionTileActiveClasses()
+                      : getSelectionTileClasses()
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -892,8 +973,8 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
                   }}
                   className={`w-full p-4 rounded-lg border-2 transition-all ${
                     soundEnabled && soundTheme === 'zelda'
-                      ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
+                      ? getSelectionTileActiveClasses()
+                      : getSelectionTileClasses()
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -920,8 +1001,8 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
                   }}
                   className={`w-full p-4 rounded-lg border-2 transition-all ${
                     soundEnabled && soundTheme === 'free'
-                      ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
+                      ? getSelectionTileActiveClasses()
+                      : getSelectionTileClasses()
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -948,8 +1029,8 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
                   }}
                   className={`w-full p-4 rounded-lg border-2 transition-all ${
                     soundEnabled && soundTheme === 'retro'
-                      ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
+                      ? getSelectionTileActiveClasses()
+                      : getSelectionTileClasses()
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -1043,10 +1124,10 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
         };
 
         return (
-          <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+          <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
             <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
               {/* Header */}
-              <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+              <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                   <div className="flex justify-between items-center h-16">
                     <button
@@ -1262,7 +1343,8 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
               }}
               soundEnabled={soundEnabled}
               darkMode={darkMode}
-              toggleDarkMode={toggleDarkMode}
+              theme={theme}
+              cycleTheme={cycleTheme}
               isViewTransitioning={isViewTransitioning}
               exchangeRate={exchangeRate}
             />
@@ -1286,7 +1368,8 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
             onInvoiceStateChange={setShowingInvoice}
             onInvoiceChange={handleInvoiceChange}
             darkMode={darkMode}
-            toggleDarkMode={toggleDarkMode}
+            theme={theme}
+            cycleTheme={cycleTheme}
             nfcState={nfcState}
             activeBlinkAccount={{ username, type: 'public' }}
             cartCheckoutData={cartCheckoutData}

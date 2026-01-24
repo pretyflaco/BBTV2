@@ -64,13 +64,38 @@ function MyApp({ Component, pageProps }) {
     window.addEventListener('error', handleError);
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
     
-    // Initialize dark mode (default to dark)
-    const savedMode = localStorage.getItem('darkMode');
-    const isDark = savedMode === null ? true : savedMode === 'true';
-    if (isDark) {
-      document.documentElement.classList.add('dark');
+    // Initialize theme (supports dark, blink-classic-dark, light, blink-classic-light)
+    // Migrate from old 'darkMode' boolean to new 'theme' string
+    const legacyDarkMode = localStorage.getItem('darkMode');
+    let savedTheme = localStorage.getItem('theme');
+    
+    // Migrate old 'blink-classic' to 'blink-classic-dark'
+    if (savedTheme === 'blink-classic') {
+      savedTheme = 'blink-classic-dark';
+      localStorage.setItem('theme', savedTheme);
+    }
+    
+    const validThemes = ['dark', 'blink-classic-dark', 'light', 'blink-classic-light'];
+    let theme;
+    if (savedTheme && validThemes.includes(savedTheme)) {
+      theme = savedTheme;
+    } else if (legacyDarkMode !== null) {
+      // Migrate from legacy darkMode
+      theme = legacyDarkMode === 'true' ? 'dark' : 'light';
+      localStorage.setItem('theme', theme);
+      localStorage.removeItem('darkMode');
     } else {
-      document.documentElement.classList.remove('dark');
+      // Default to dark mode
+      theme = 'dark';
+      localStorage.setItem('theme', theme);
+    }
+    
+    // Apply theme class
+    document.documentElement.classList.remove('dark', 'light', 'blink-classic', 'blink-classic-dark', 'blink-classic-light');
+    document.documentElement.classList.add(theme);
+    // Add 'dark' class for Tailwind dark mode on dark themes
+    if (theme === 'dark' || theme === 'blink-classic-dark') {
+      document.documentElement.classList.add('dark');
     }
     
     // Register service worker for PWA functionality (DISABLED IN DEVELOPMENT)

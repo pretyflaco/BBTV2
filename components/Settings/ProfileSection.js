@@ -3,11 +3,11 @@
  */
 
 import { useCombinedAuth } from '../../lib/hooks/useCombinedAuth';
-import { useDarkMode } from '../../lib/hooks/useDarkMode';
+import { useTheme } from '../../lib/hooks/useTheme';
 
 export default function ProfileSection() {
   const { user, authMode } = useCombinedAuth();
-  const { darkMode } = useDarkMode();
+  const { darkMode } = useTheme();
 
   return (
     <div className="space-y-4">

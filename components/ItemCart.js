@@ -11,7 +11,8 @@ const ItemCart = forwardRef(({
   onCheckout,
   soundEnabled,
   darkMode,
-  toggleDarkMode,
+  theme,
+  cycleTheme,
   isViewTransitioning = false,
   exchangeRate = null,
   onActivate // Called when view becomes active

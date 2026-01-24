@@ -3,12 +3,12 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useDarkMode } from '../../lib/hooks/useDarkMode';
+import { useTheme } from '../../lib/hooks/useTheme';
 import { useCombinedAuth } from '../../lib/hooks/useCombinedAuth';
 import NWCSetup from '../wallet/NWCSetup';
 
 export default function NWCSection() {
-  const { darkMode } = useDarkMode();
+  const { darkMode } = useTheme();
   const { 
     nwcConnections: connections, 
     activeNWC: activeConnection, 

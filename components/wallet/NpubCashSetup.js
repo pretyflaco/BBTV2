@@ -16,7 +16,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { nip19 } from 'nostr-tools';
-import { useDarkMode } from '../../lib/hooks/useDarkMode';
+import { useTheme } from '../../lib/hooks/useTheme';
 import { 
   validateNpubCashAddress, 
   probeNpubCashAddress,
@@ -24,7 +24,7 @@ import {
 } from '../../lib/lnurl';
 
 export default function NpubCashSetup({ onComplete, onCancel, userPublicKey }) {
-  const { darkMode } = useDarkMode();
+  const { darkMode } = useTheme();
   
   const [address, setAddress] = useState('');
   const [label, setLabel] = useState('');

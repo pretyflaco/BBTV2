@@ -12,6 +12,15 @@ module.exports = {
         'blink-accent': '#FFAD0D',
         'blink-dark': '#1D1D1D',
         'blink-black': '#000000',
+        // Blink Classic theme colors (from Figma)
+        // BC Dark
+        'blink-classic-border': '#393939',
+        'blink-classic-bg': '#1D1D1D',
+        'blink-classic-text': '#FFFFFF',
+        'blink-classic-amber': '#FFAD0D',
+        // BC Light
+        'blink-classic-border-light': '#E2E2E4',
+        'blink-classic-hover-light': '#F2F2F4',
       },
       animation: {
         'payment-pulse': 'payment-pulse 0.6s ease-in-out',

@@ -9,11 +9,11 @@
 
 import { useState, useEffect } from 'react';
 import { useNostrAuth } from '../../lib/hooks/useNostrAuth';
-import { useDarkMode } from '../../lib/hooks/useDarkMode';
+import { useTheme } from '../../lib/hooks/useTheme';
 import NostrAuthService from '../../lib/nostr/NostrAuthService';
 
 export default function NostrLoginForm() {
-  const { darkMode } = useDarkMode();
+  const { darkMode } = useTheme();
   const {
     loading,
     error,

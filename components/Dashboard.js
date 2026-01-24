@@ -3,7 +3,7 @@ import { useCombinedAuth } from '../lib/hooks/useCombinedAuth';
 import { useBlinkWebSocket } from '../lib/hooks/useBlinkWebSocket';
 import { useBlinkPOSWebSocket } from '../lib/hooks/useBlinkPOSWebSocket';
 import { useCurrencies } from '../lib/hooks/useCurrencies';
-import { useDarkMode } from '../lib/hooks/useDarkMode';
+import { useTheme } from '../lib/hooks/useTheme';
 import { useNFC } from './NFCPayment';
 import { isBitcoinCurrency } from '../lib/currency-utils';
 import PaymentAnimation from './PaymentAnimation';
@@ -60,7 +60,88 @@ export default function Dashboard() {
     activeNpubCashWallet, npubCashWallets, addNpubCashWallet
   } = useCombinedAuth();
   const { currencies, loading: currenciesLoading, getAllCurrencies } = useCurrencies();
-  const { darkMode, toggleDarkMode } = useDarkMode();
+  const { theme, cycleTheme, darkMode } = useTheme();
+  
+  // Helper functions for consistent theme styling across all menus/submenus
+  const isBlinkClassic = theme === 'blink-classic-dark' || theme === 'blink-classic-light';
+  const isBlinkClassicDark = theme === 'blink-classic-dark';
+  const isBlinkClassicLight = theme === 'blink-classic-light';
+  
+  // Menu tile styling (for main menu items)
+  const getMenuTileClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'bg-transparent border border-blink-classic-border hover:bg-blink-classic-bg hover:border-blink-classic-amber';
+      case 'blink-classic-light':
+        return 'bg-transparent border border-blink-classic-border-light hover:bg-blink-classic-hover-light hover:border-blink-classic-amber';
+      case 'light':
+        return 'bg-gray-50 hover:bg-gray-100';
+      case 'dark':
+      default:
+        return 'bg-gray-900 hover:bg-gray-800';
+    }
+  };
+  
+  // Submenu overlay background
+  const getSubmenuBgClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'bg-black';
+      case 'blink-classic-light':
+        return 'bg-white';
+      default:
+        return 'bg-white dark:bg-black';
+    }
+  };
+  
+  // Submenu header styling
+  const getSubmenuHeaderClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'bg-black border-b border-blink-classic-border';
+      case 'blink-classic-light':
+        return 'bg-white border-b border-blink-classic-border-light';
+      default:
+        return 'bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black';
+    }
+  };
+  
+  // Selection tile styling (for option buttons in submenus) - unselected state
+  const getSelectionTileClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'border-blink-classic-border bg-transparent hover:bg-blink-classic-bg hover:border-blink-classic-amber';
+      case 'blink-classic-light':
+        return 'border-blink-classic-border-light bg-transparent hover:bg-blink-classic-hover-light hover:border-blink-classic-amber';
+      default:
+        return 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600';
+    }
+  };
+  
+  // Selection tile styling - selected/active state
+  const getSelectionTileActiveClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'border-blink-classic-amber bg-blink-classic-bg';
+      case 'blink-classic-light':
+        return 'border-blink-classic-amber bg-blink-classic-hover-light';
+      default:
+        return 'border-blink-accent bg-blink-accent/10';
+    }
+  };
+  
+  // Input field styling
+  const getInputClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'bg-transparent border-blink-classic-border text-white placeholder-gray-500 focus:border-blink-classic-amber focus:ring-blink-classic-amber';
+      case 'blink-classic-light':
+        return 'bg-transparent border-blink-classic-border-light text-black placeholder-gray-400 focus:border-blink-classic-amber focus:ring-blink-classic-amber';
+      default:
+        return 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white';
+    }
+  };
+  
   const [apiKey, setApiKey] = useState(null);
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
   const [expandedMonths, setExpandedMonths] = useState(new Set());
@@ -2851,24 +2932,26 @@ export default function Dashboard() {
 
       {/* Mobile Header - Hidden when showing invoice or voucher QR */}
       {!showingInvoice && !showingVoucherQR && (
-        <header className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-40">
+        <header className={`${theme === 'blink-classic-dark' ? 'bg-black' : 'bg-gray-50 dark:bg-blink-dark'} shadow dark:shadow-black sticky top-0 z-40`}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between py-4">
-              {/* Blink Logo - Left (tap to toggle dark mode) */}
+              {/* Blink Logo - Left (tap to cycle theme) */}
               <button 
-                onClick={toggleDarkMode}
+                onClick={cycleTheme}
                 className="flex items-center focus:outline-none"
-                aria-label="Toggle dark mode"
+                aria-label="Cycle theme"
               >
+                {/* Light logo for light themes (light header bg) */}
                 <img 
                   src="/logos/blink-icon-light.svg" 
                   alt="Blink" 
-                  className="h-12 w-12 dark:hidden"
+                  className={`h-12 w-12 ${theme === 'light' || theme === 'blink-classic-light' ? 'block' : 'hidden'}`}
                 />
+                {/* Dark logo for dark themes (dark header bg) */}
                 <img 
                   src="/logos/blink-icon-dark.svg" 
                   alt="Blink" 
-                  className="h-12 w-12 hidden dark:block"
+                  className={`h-12 w-12 ${theme === 'light' || theme === 'blink-classic-light' ? 'hidden' : 'block'}`}
                 />
               </button>
               
@@ -2988,10 +3071,10 @@ export default function Dashboard() {
 
       {/* Full Screen Menu */}
       {sideMenuOpen && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
           <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
             {/* Header */}
-            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                   <button
@@ -3020,7 +3103,7 @@ export default function Dashboard() {
                       setSideMenuOpen(false);
                     }
                   }}
-                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors ${authMode === 'nostr' ? 'cursor-pointer' : 'cursor-default'}`}
+                  className={`w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors ${authMode === 'nostr' ? 'cursor-pointer' : 'cursor-default'}`}
                 >
                   <div className="flex items-center gap-3">
                     {/* Avatar */}
@@ -3065,7 +3148,7 @@ export default function Dashboard() {
                 {/* Receive Wallet */}
                 <button
                   onClick={() => setShowAccountSettings(true)}
-                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                  className={`w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Receive Wallet</span>
@@ -3079,7 +3162,7 @@ export default function Dashboard() {
                 {/* Send Wallet - For voucher feature (requires Blink API key with WRITE scope) */}
                 <button
                   onClick={() => setShowVoucherWalletSettings(true)}
-                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                  className={`w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -3093,10 +3176,24 @@ export default function Dashboard() {
                   </div>
                 </button>
 
+                {/* Theme Selection */}
+                <button
+                  onClick={cycleTheme}
+                  className={`w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Theme</span>
+                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                      <span>{theme === 'dark' ? 'Dark' : theme === 'blink-classic-dark' ? 'BC Dark' : theme === 'light' ? 'Light' : 'BC Light'}</span>
+                      <span className="ml-1 text-xs">(tap to change)</span>
+                    </div>
+                  </div>
+                </button>
+
                 {/* Currency Selection */}
                 <button
                   onClick={() => setShowCurrencySettings(true)}
-                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                  className={`w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Display Currency</span>
@@ -3110,7 +3207,7 @@ export default function Dashboard() {
                 {/* Regional Settings (Number Format) */}
                 <button
                   onClick={() => setShowRegionalSettings(true)}
-                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                  className={`w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Regional</span>
@@ -3124,7 +3221,7 @@ export default function Dashboard() {
                 {/* Payment Splits */}
                 <button
                   onClick={() => setShowTipSettings(true)}
-                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                  className={`w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Payment Splits</span>
@@ -3138,7 +3235,7 @@ export default function Dashboard() {
                 {/* Tip Settings / Tip & Commission Settings */}
                 <button
                   onClick={() => voucherWallet ? setShowPercentSettings(true) : setShowTipProfileSettings(true)}
-                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                  className={`w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">
@@ -3154,7 +3251,7 @@ export default function Dashboard() {
                 {/* Sound Effects */}
                 <button
                   onClick={() => setShowSoundThemes(true)}
-                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                  className={`w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Sound Effects</span>
@@ -3172,7 +3269,7 @@ export default function Dashboard() {
                       setShowPaycode(true);
                       setSideMenuOpen(false);
                     }}
-                    className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                    className={`w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-900 dark:text-white">Paycodes</span>
@@ -3193,7 +3290,7 @@ export default function Dashboard() {
                       setShowBatchPayments(true);
                       setSideMenuOpen(false);
                     }}
-                    className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                    className={`w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-900 dark:text-white">Batch Payments</span>
@@ -3213,7 +3310,7 @@ export default function Dashboard() {
                     setShowNetworkOverlay(true);
                     setSideMenuOpen(false);
                   }}
-                  className={`w-full rounded-lg p-4 ${darkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}
+                  className={`w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Circular Economy Network</span>
@@ -3261,10 +3358,10 @@ export default function Dashboard() {
 
       {/* Key Management Overlay */}
       {showKeyManagement && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
           <div className="min-h-screen">
             {/* Header */}
-            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-md mx-auto px-4 py-4">
                 <div className="flex items-center justify-between">
                   <button
@@ -3292,10 +3389,10 @@ export default function Dashboard() {
       {/* Batch Payments Overlay (uses Voucher wallet API key with WRITE permission) */}
       {/* Batch Payments Overlay */}
       {showBatchPayments && voucherWallet?.apiKey && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
           <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
             {/* Header */}
-            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                   <button
@@ -3334,10 +3431,10 @@ export default function Dashboard() {
 
       {/* Circular Economy Network Overlay */}
       {showNetworkOverlay && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-hidden">
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-hidden`}>
           <div className="h-full flex flex-col" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
             {/* Header */}
-            <div className="flex-shrink-0 bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black">
+            <div className={`flex-shrink-0 ${getSubmenuHeaderClasses()}`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                   <button
@@ -3363,7 +3460,8 @@ export default function Dashboard() {
                 publicKey={publicKey}
                 nostrProfile={nostrProfile}
                 darkMode={darkMode}
-                toggleDarkMode={toggleDarkMode}
+                theme={theme}
+                cycleTheme={cycleTheme}
                 hideHeader={true}
                 onInternalTransition={() => {
                   setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);
@@ -3451,10 +3549,10 @@ export default function Dashboard() {
         };
 
         return (
-          <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+          <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
             <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
               {/* Header */}
-              <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+              <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                   <div className="flex justify-between items-center h-16">
                     <button
@@ -3607,10 +3705,10 @@ export default function Dashboard() {
 
       {/* Themes Overlay */}
       {showSoundThemes && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
           <div className="min-h-screen">
             {/* Header */}
-            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                   <button
@@ -3639,8 +3737,8 @@ export default function Dashboard() {
                   }}
                   className={`w-full p-4 rounded-lg border-2 transition-all ${
                     !soundEnabled
-                      ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
+                      ? getSelectionTileActiveClasses()
+                      : getSelectionTileClasses()
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -3667,8 +3765,8 @@ export default function Dashboard() {
                   }}
                   className={`w-full p-4 rounded-lg border-2 transition-all ${
                     soundEnabled && soundTheme === 'success'
-                      ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
+                      ? getSelectionTileActiveClasses()
+                      : getSelectionTileClasses()
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -3695,8 +3793,8 @@ export default function Dashboard() {
                   }}
                   className={`w-full p-4 rounded-lg border-2 transition-all ${
                     soundEnabled && soundTheme === 'zelda'
-                      ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
+                      ? getSelectionTileActiveClasses()
+                      : getSelectionTileClasses()
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -3723,8 +3821,8 @@ export default function Dashboard() {
                   }}
                   className={`w-full p-4 rounded-lg border-2 transition-all ${
                     soundEnabled && soundTheme === 'free'
-                      ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
+                      ? getSelectionTileActiveClasses()
+                      : getSelectionTileClasses()
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -3751,8 +3849,8 @@ export default function Dashboard() {
                   }}
                   className={`w-full p-4 rounded-lg border-2 transition-all ${
                     soundEnabled && soundTheme === 'retro'
-                      ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
+                      ? getSelectionTileActiveClasses()
+                      : getSelectionTileClasses()
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -3777,10 +3875,10 @@ export default function Dashboard() {
 
       {/* % Settings Submenu Overlay (Tip % and Commission % when voucher wallet connected) */}
       {showPercentSettings && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
           <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
             {/* Header */}
-            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                   <button
@@ -3807,7 +3905,7 @@ export default function Dashboard() {
                     setShowPercentSettings(false);
                     setShowTipProfileSettings(true);
                   }}
-                  className={`w-full p-4 rounded-lg border-2 transition-all border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600`}
+                  className={`w-full p-4 rounded-lg border-2 transition-all ${getSelectionTileClasses()}`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-left">
@@ -3831,7 +3929,7 @@ export default function Dashboard() {
                     setShowPercentSettings(false);
                     setShowCommissionSettings(true);
                   }}
-                  className={`w-full p-4 rounded-lg border-2 transition-all border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600`}
+                  className={`w-full p-4 rounded-lg border-2 transition-all ${getSelectionTileClasses()}`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-left">
@@ -3856,10 +3954,10 @@ export default function Dashboard() {
 
       {/* Commission % Settings Overlay */}
       {showCommissionSettings && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
           <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
             {/* Header */}
-            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                   <button
@@ -3890,8 +3988,8 @@ export default function Dashboard() {
                 {/* Enable/Disable Commission */}
                 <div className={`p-4 rounded-lg border-2 transition-all ${
                   commissionEnabled
-                    ? 'border-purple-600 dark:border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                    : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark'
+                    ? (isBlinkClassic ? 'border-blink-classic-amber bg-blink-classic-bg' : 'border-purple-600 dark:border-purple-500 bg-purple-50 dark:bg-purple-900/20')
+                    : getSelectionTileClasses()
                 }`}>
                   <div className="flex items-center justify-between mb-4">
                     <div>
@@ -3967,10 +4065,10 @@ export default function Dashboard() {
 
       {/* Tip Profile Settings Overlay */}
       {showTipProfileSettings && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
           <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
             {/* Header */}
-            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                   <button
@@ -4005,8 +4103,8 @@ export default function Dashboard() {
                 <div
                   className={`w-full p-4 rounded-lg border-2 transition-all ${
                     !activeTipProfile
-                      ? 'border-blink-accent bg-blink-accent/10'
-                      : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark'
+                      ? getSelectionTileActiveClasses()
+                      : getSelectionTileClasses()
                   }`}
                 >
                   <button
@@ -4084,8 +4182,8 @@ export default function Dashboard() {
                     }}
                     className={`w-full p-4 rounded-lg border-2 transition-all ${
                       activeTipProfile?.id === profile.id
-                        ? 'border-blink-accent bg-blink-accent/10'
-                        : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
+                        ? getSelectionTileActiveClasses()
+                        : getSelectionTileClasses()
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -4111,10 +4209,10 @@ export default function Dashboard() {
 
       {/* Split Settings Overlay */}
       {showTipSettings && !showCreateSplitProfile && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
           <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
             {/* Header */}
-            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                   <button
@@ -4163,8 +4261,8 @@ export default function Dashboard() {
                   }}
                   className={`w-full p-4 rounded-lg border-2 transition-all ${
                     !activeSplitProfile
-                      ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600'
+                      ? getSelectionTileActiveClasses()
+                      : getSelectionTileClasses()
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -4200,8 +4298,8 @@ export default function Dashboard() {
                     key={profile.id}
                     className={`w-full p-4 rounded-lg border-2 transition-all ${
                       activeSplitProfile?.id === profile.id
-                        ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                        : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark'
+                        ? getSelectionTileActiveClasses()
+                        : getSelectionTileClasses()
                     }`}
                   >
                     <button
@@ -4305,10 +4403,10 @@ export default function Dashboard() {
 
       {/* Create/Edit Split Profile Overlay */}
       {showCreateSplitProfile && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
           <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
             {/* Header */}
-            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                   <button
@@ -4620,10 +4718,10 @@ export default function Dashboard() {
 
       {/* Currency Settings Overlay */}
       {showCurrencySettings && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
           <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
             {/* Header */}
-            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                   <button
@@ -4683,10 +4781,10 @@ export default function Dashboard() {
 
       {/* Regional Settings Overlay */}
       {showRegionalSettings && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
           <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
             {/* Header */}
-            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                   <button
@@ -4834,10 +4932,10 @@ export default function Dashboard() {
 
       {/* Wallets Overlay */}
       {showAccountSettings && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
           <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
             {/* Header */}
-            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                   <button
@@ -5908,10 +6006,10 @@ export default function Dashboard() {
 
       {/* Voucher Wallet Overlay */}
       {showVoucherWalletSettings && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
           <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
             {/* Header */}
-            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                   <button
@@ -6288,10 +6386,10 @@ export default function Dashboard() {
 
       {/* Export Options Overlay */}
       {showExportOptions && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
           <div className="min-h-screen">
             {/* Header */}
-            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                   <button
@@ -6435,10 +6533,10 @@ export default function Dashboard() {
 
       {/* Date Range Selector Modal */}
       {showDateRangeSelector && (
-        <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-y-auto">
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
           <div className="min-h-screen">
             {/* Header */}
-            <div className="bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black sticky top-0 z-10">
+            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                   <button
@@ -6754,7 +6852,8 @@ export default function Dashboard() {
               }}
               soundEnabled={soundEnabled}
               darkMode={darkMode}
-              toggleDarkMode={toggleDarkMode}
+              theme={theme}
+              cycleTheme={cycleTheme}
               isViewTransitioning={isViewTransitioning}
               exchangeRate={exchangeRate}
             />
@@ -6790,7 +6889,8 @@ export default function Dashboard() {
               blinkposSetExpectedPaymentHash(invoiceData?.paymentHash || null);
             }}
             darkMode={darkMode}
-            toggleDarkMode={toggleDarkMode}
+            theme={theme}
+            cycleTheme={cycleTheme}
             nfcState={nfcState}
             activeNWC={activeNWC}
             nwcClientReady={nwcClientReady}
@@ -6820,7 +6920,8 @@ export default function Dashboard() {
               bitcoinFormat={bitcoinFormat}
               currencies={currencies}
               darkMode={darkMode}
-              toggleDarkMode={toggleDarkMode}
+              theme={theme}
+              cycleTheme={cycleTheme}
               soundEnabled={soundEnabled}
               commissionEnabled={commissionEnabled}
               commissionPresets={commissionPresets}
@@ -6842,7 +6943,8 @@ export default function Dashboard() {
             bitcoinFormat={bitcoinFormat}
             currencies={currencies}
             darkMode={darkMode}
-            toggleDarkMode={toggleDarkMode}
+            theme={theme}
+            cycleTheme={cycleTheme}
             soundEnabled={soundEnabled}
             onVoucherStateChange={setShowingVoucherQR}
             commissionEnabled={commissionEnabled}
@@ -6862,7 +6964,8 @@ export default function Dashboard() {
               displayCurrency={displayCurrency}
               currencies={currencies}
               darkMode={darkMode}
-              toggleDarkMode={toggleDarkMode}
+              theme={theme}
+              cycleTheme={cycleTheme}
               soundEnabled={soundEnabled}
               onInternalTransition={() => {
                 // Rotate spinner color and show brief transition

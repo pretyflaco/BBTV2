@@ -8,7 +8,7 @@
  */
 
 import { useState } from 'react';
-import { useDarkMode } from '../../lib/hooks/useDarkMode';
+import { useTheme } from '../../lib/hooks/useTheme';
 import { useCombinedAuth } from '../../lib/hooks/useCombinedAuth';
 import NWCSetup from './NWCSetup';
 import BlinkLnAddressSetup from './BlinkLnAddressSetup';
@@ -16,7 +16,7 @@ import NpubCashSetup from './NpubCashSetup';
 import BlinkAccountSetup from '../auth/BlinkAccountSetup';
 
 export default function WalletSetup({ onComplete, onSkip }) {
-  const { darkMode } = useDarkMode();
+  const { darkMode } = useTheme();
   const { addNWCConnection: addConnection, addBlinkLnAddressWallet, addNpubCashWallet, publicKey } = useCombinedAuth();
   
   const [walletType, setWalletType] = useState(null); // null | 'blink-ln-address' | 'blink-api-key' | 'nwc' | 'npub-cash'

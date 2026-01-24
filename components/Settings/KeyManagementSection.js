@@ -8,7 +8,7 @@
  */
 
 import { useState } from 'react';
-import { useDarkMode } from '../../lib/hooks/useDarkMode';
+import { useTheme } from '../../lib/hooks/useTheme';
 import { useNostrAuth } from '../../lib/hooks/useNostrAuth';
 import NostrAuthService from '../../lib/nostr/NostrAuthService';
 import CryptoUtils from '../../lib/storage/CryptoUtils';
@@ -85,7 +85,7 @@ function hexToBytes(hex) {
 }
 
 export default function KeyManagementSection() {
-  const { darkMode } = useDarkMode();
+  const { darkMode } = useTheme();
   const { publicKey, method, signOut } = useNostrAuth();
   
   const [showExportModal, setShowExportModal] = useState(false);

@@ -9,7 +9,8 @@ const VoucherManager = forwardRef(({
   displayCurrency, 
   currencies, 
   darkMode, 
-  toggleDarkMode, 
+  theme,
+  cycleTheme, 
   soundEnabled,
   onInternalTransition
 }, ref) => {

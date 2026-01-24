@@ -6,11 +6,11 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { useDarkMode } from '../../lib/hooks/useDarkMode';
+import { useTheme } from '../../lib/hooks/useTheme';
 import NWCClient from '../../lib/nwc/NWCClient';
 
 export default function NWCSetup({ onComplete, onCancel }) {
-  const { darkMode } = useDarkMode();
+  const { darkMode } = useTheme();
   
   const [connectionString, setConnectionString] = useState('');
   const [label, setLabel] = useState('');

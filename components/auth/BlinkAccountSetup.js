@@ -9,13 +9,13 @@ import { useState } from 'react';
 import { useProfile } from '../../lib/hooks/useProfile';
 import { useNostrAuth } from '../../lib/hooks/useNostrAuth';
 import { useCombinedAuth } from '../../lib/hooks/useCombinedAuth';
-import { useDarkMode } from '../../lib/hooks/useDarkMode';
+import { useTheme } from '../../lib/hooks/useTheme';
 
 export default function BlinkAccountSetup({ onComplete, onSkip }) {
   const { addBlinkAccount, loading, refreshProfile } = useProfile();
   const { refreshProfile: refreshAuthProfile, hasServerSession } = useNostrAuth();
   const { storeBlinkAccountOnServer } = useCombinedAuth();
-  const { darkMode } = useDarkMode();
+  const { darkMode } = useTheme();
   
   const [apiKey, setApiKey] = useState('');
   const [label, setLabel] = useState('My Blink Account');

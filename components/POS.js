@@ -3,8 +3,10 @@ import QRCode from 'react-qr-code';
 import { formatDisplayAmount as formatCurrency, getCurrencyById, isBitcoinCurrency, parseAmountParts } from '../lib/currency-utils';
 import { formatNumber } from '../lib/number-format';
 import { useNFC } from './NFCPayment';
+import Numpad from './Numpad';
+import { THEMES } from '../lib/hooks/useTheme';
 
-const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation, isPublicPOS = false, publicUsername = null }, ref) => {
+const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, theme = THEMES.DARK, cycleTheme, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation, isPublicPOS = false, publicUsername = null }, ref) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -1092,24 +1094,24 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
     return (
       <div className="h-full flex flex-col bg-white dark:bg-black overflow-hidden" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
         {/* Header - Match main header structure exactly */}
-        <div className="bg-white dark:bg-blink-dark border-b border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-black flex-shrink-0">
+        <div className={`${theme === THEMES.BLINK_CLASSIC_DARK ? 'bg-black border-blink-classic-border' : 'bg-white dark:bg-blink-dark border-gray-200 dark:border-gray-700'} border-b shadow-sm dark:shadow-black flex-shrink-0`}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between py-4">
-              {/* Blink Logo - Left (tap to toggle dark mode) */}
+              {/* Blink Logo - Left (tap to cycle theme) */}
               <button 
-                onClick={toggleDarkMode}
+                onClick={cycleTheme}
                 className="flex items-center focus:outline-none"
-                aria-label="Toggle dark mode"
+                aria-label="Cycle theme"
               >
                 <img 
                   src="/logos/blink-icon-light.svg" 
                   alt="Blink" 
-                  className="h-12 w-12 dark:hidden"
+                  className={`h-12 w-12 ${darkMode ? 'hidden' : 'block'}`}
                 />
                 <img 
                   src="/logos/blink-icon-dark.svg" 
                   alt="Blink" 
-                  className="h-12 w-12 hidden dark:block"
+                  className={`h-12 w-12 ${darkMode ? 'block' : 'hidden'}`}
                 />
               </button>
               
@@ -1290,125 +1292,20 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
       <div className="flex-1 px-4 pb-4 relative">
         {/* Spacer to align numpad with item list (below Search/Add Item row level) */}
         <div className="h-16 mb-2"></div>
-        <div className="grid grid-cols-4 gap-3 max-w-sm md:max-w-md mx-auto" data-1p-ignore data-lpignore="true">
-          {/* Row 1: 7, 8, 9, + */}
-          <button
-            onClick={() => handleDigitPress('7')}
-            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
-            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-          >
-            7
-          </button>
-          <button
-            onClick={() => handleDigitPress('8')}
-            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
-            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-          >
-            8
-          </button>
-          <button
-            onClick={() => handleDigitPress('9')}
-            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
-            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-          >
-            9
-          </button>
-          <button
-            onClick={handlePlusPress}
-            disabled={!amount || parseFloat(amount) <= 0}
-            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center"
-            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-          >
-            +
-          </button>
-
-          {/* Row 2: 4, 5, 6, OK (starts) */}
-          <button
-            onClick={() => handleDigitPress('4')}
-            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
-            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-          >
-            4
-          </button>
-          <button
-            onClick={() => handleDigitPress('5')}
-            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
-            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-          >
-            5
-          </button>
-          <button
-            onClick={() => handleDigitPress('6')}
-            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
-            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-          >
-            6
-          </button>
-          <button
-            onClick={() => createInvoice()}
-            disabled={!hasValidAmount() || loading || (!(isPublicPOS && publicUsername) && !selectedWallet && !activeNWC && !hasBlinkLnAddressWallet && !hasNpubCashWallet) || (!isBitcoinCurrency(displayCurrency) && !exchangeRate) || loadingRate}
-            className={`h-[136px] md:h-[172px] ${!hasValidAmount() || loading ? 'bg-gray-200 dark:bg-blink-dark border-2 border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500' : 'bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'} disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-lg text-lg md:text-xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center row-span-2`}
-            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-          >
-            {loading ? 'Creating...' : 'OK'}
-          </button>
-
-          {/* Row 3: 1, 2, 3, OK (continues) */}
-          <button
-            onClick={() => handleDigitPress('1')}
-            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
-            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-          >
-            1
-          </button>
-          <button
-            onClick={() => handleDigitPress('2')}
-            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
-            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-          >
-            2
-          </button>
-          <button
-            onClick={() => handleDigitPress('3')}
-            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
-            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-          >
-            3
-          </button>
-
-          {/* Row 4: C, 0, ., ⌫ */}
-          <button
-            onClick={handleClear}
-            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-lg md:text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
-            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-          >
-            C
-          </button>
-          <button
-            onClick={() => handleDigitPress('0')}
-            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
-            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-          >
-            0
-          </button>
-          <button
-            onClick={() => handleDigitPress('.')}
-            disabled={isBitcoinCurrency(displayCurrency) || (getCurrentCurrency()?.fractionDigits === 0)}
-            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
-            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-          >
-            .
-          </button>
-          <button
-            onClick={handleBackspace}
-            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 rounded-lg text-lg md:text-xl font-normal leading-none tracking-normal transition-colors flex items-center justify-center shadow-md"
-            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-          >
-            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
-            </svg>
-          </button>
-      </div>
+        <Numpad
+          theme={theme}
+          onDigitPress={handleDigitPress}
+          onClear={handleClear}
+          onBackspace={handleBackspace}
+          onPlusPress={handlePlusPress}
+          onOkPress={() => createInvoice()}
+          okDisabled={!hasValidAmount() || loading || (!(isPublicPOS && publicUsername) && !selectedWallet && !activeNWC && !hasBlinkLnAddressWallet && !hasNpubCashWallet) || (!isBitcoinCurrency(displayCurrency) && !exchangeRate) || loadingRate}
+          okLabel={loading ? 'Creating...' : 'OK'}
+          decimalDisabled={isBitcoinCurrency(displayCurrency) || (getCurrentCurrency()?.fractionDigits === 0)}
+          plusDisabled={!amount || parseFloat(amount) <= 0}
+          accentColor="blue"
+          showPlus={true}
+        />
 
       {/* Tip Selection Overlay (over numpad) */}
         {showTipDialog && !showCustomTipInput && (() => {

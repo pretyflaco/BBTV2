@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { useCombinedAuth } from '../../lib/hooks/useCombinedAuth';
-import { useDarkMode } from '../../lib/hooks/useDarkMode';
+import { useTheme } from '../../lib/hooks/useTheme';
 import { isNpubCashAddress, probeNpubCashAddress } from '../../lib/lnurl';
 
 export default function BlinkAccountsSection() {
@@ -22,7 +22,7 @@ export default function BlinkAccountsSection() {
     npubCashWallets
   } = useCombinedAuth();
   
-  const { darkMode } = useDarkMode();
+  const { darkMode } = useTheme();
   const [showAddForm, setShowAddForm] = useState(false);
   const [addMethod, setAddMethod] = useState(null); // 'api-key' | 'ln-address' | 'npub-cash'
   const [apiKey, setApiKey] = useState('');

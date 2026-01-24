@@ -4,13 +4,13 @@
 
 import { useState, useEffect } from 'react';
 import { useCombinedAuth } from '../../lib/hooks/useCombinedAuth';
-import { useDarkMode } from '../../lib/hooks/useDarkMode';
+import { useTheme } from '../../lib/hooks/useTheme';
 
 const PRESET_PERCENTAGES = [5, 10, 15, 20, 25];
 
 export default function TippingSection() {
   const { tippingSettings, updateTippingSettings } = useCombinedAuth();
-  const { darkMode } = useDarkMode();
+  const { darkMode } = useTheme();
   
   const [enabled, setEnabled] = useState(tippingSettings?.enabled ?? true);
   const [customPercentages, setCustomPercentages] = useState(

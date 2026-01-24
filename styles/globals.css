@@ -49,6 +49,86 @@ html.dark body {
   background-color: #000000;
 }
 
+/* Light mode background */
+html.light {
+  background-color: #ffffff;
+  color: #1f2937;
+}
+
+html.light body {
+  background-color: #ffffff;
+}
+
+/* Blink Classic theme - Based on Figma design guidelines */
+html.blink-classic {
+  background-color: #000000;
+  color: #FFFFFF;
+  --blink-classic-bg: #000000;
+  --blink-classic-surface: #1D1D1D;
+  --blink-classic-border: #393939;
+  --blink-classic-text: #FFFFFF;
+  --blink-classic-accent: #FFAD0D;
+  --blink-classic-accent-hover: #FFB82E;
+}
+
+html.blink-classic body {
+  background-color: #000000;
+}
+
+/* Blink Classic specific component styles */
+html.blink-classic .blink-classic-card {
+  background-color: var(--blink-classic-surface);
+  border: 1px solid var(--blink-classic-border);
+  border-radius: 12px;
+}
+
+html.blink-classic .blink-classic-button {
+  background-color: transparent;
+  border: 1px solid var(--blink-classic-border);
+  border-radius: 12px;
+  color: var(--blink-classic-text);
+  font-family: 'Source Sans Pro', sans-serif;
+  font-weight: 700;
+}
+
+html.blink-classic .blink-classic-button:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: var(--blink-classic-accent);
+}
+
+html.blink-classic .blink-classic-button-accent {
+  color: var(--blink-classic-accent);
+}
+
+html.blink-classic .blink-classic-button-ok {
+  background-color: var(--blink-classic-surface);
+  border: 1px solid var(--blink-classic-border);
+}
+
+html.blink-classic .blink-classic-button-ok:hover:not(:disabled) {
+  background-color: #2a2a2a;
+  border-color: var(--blink-classic-accent);
+}
+
+/* Blink Classic header styles */
+html.blink-classic .blink-classic-header {
+  background-color: var(--blink-classic-bg);
+  border-bottom: 1px solid var(--blink-classic-border);
+}
+
+/* Blink Classic input styles */
+html.blink-classic .blink-classic-input {
+  background-color: var(--blink-classic-surface);
+  border: 1px solid var(--blink-classic-border);
+  color: var(--blink-classic-text);
+  border-radius: 12px;
+}
+
+html.blink-classic .blink-classic-input:focus {
+  border-color: var(--blink-classic-accent);
+  outline: none;
+}
+
 /* Ensure no elements exceed viewport width */
 .container, .max-w-7xl {
   max-width: 100vw;

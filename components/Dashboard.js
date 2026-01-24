@@ -4471,7 +4471,7 @@ export default function Dashboard() {
                     >
                       <div className="flex items-center justify-between">
                         <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                          {currency.flag ? `${currency.flag} ` : ''}{currency.id} - {currency.name}
+                          {currency.flag ? `${currency.flag} ` : ''}{currency.displayId || currency.id} - {currency.name}
                         </span>
                         {displayCurrency === currency.id && (
                           <svg className="w-5 h-5 text-blink-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">

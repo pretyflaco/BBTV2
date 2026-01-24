@@ -47,17 +47,19 @@ const ItemCart = forwardRef(({
   const [exitedToGlobalNav, setExitedToGlobalNav] = useState(false); // Track if user exited to global nav
 
   // Helper function to get dynamic font size based on amount length
+  // Returns mobile size + desktop size (20% larger on desktop via md: breakpoint)
   const getDynamicFontSize = (displayText) => {
     const numericOnly = String(displayText).replace(/[^0-9.]/g, '');
     const length = numericOnly.length;
     
-    if (length <= 6) return 'text-6xl';
-    if (length <= 9) return 'text-5xl';
-    if (length <= 11) return 'text-4xl';
-    if (length <= 13) return 'text-3xl';
-    if (length <= 15) return 'text-2xl';
-    if (length <= 16) return 'text-xl';
-    return 'text-lg';
+    // Desktop sizes are ~20% larger (one step up in Tailwind scale)
+    if (length <= 6) return 'text-6xl md:text-7xl';
+    if (length <= 9) return 'text-5xl md:text-6xl';
+    if (length <= 11) return 'text-4xl md:text-5xl';
+    if (length <= 13) return 'text-3xl md:text-4xl';
+    if (length <= 15) return 'text-2xl md:text-3xl';
+    if (length <= 16) return 'text-xl md:text-2xl';
+    return 'text-lg md:text-xl';
   };
 
   // Play keystroke sound
@@ -685,7 +687,7 @@ const ItemCart = forwardRef(({
                     setNewItemName('');
                     setNewItemPrice('');
                   }}
-                  className="h-14 bg-white dark:bg-black border-2 border-gray-500 hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 rounded-lg text-lg font-normal transition-colors shadow-md"
+                  className="h-14 md:h-16 bg-white dark:bg-black border-2 border-gray-500 hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md"
                 >
                   Cancel
                 </button>
@@ -693,7 +695,7 @@ const ItemCart = forwardRef(({
                   ref={addItemButtonRef}
                   onClick={handleAddItem}
                   disabled={addingItem || !newItemName.trim() || !newItemPrice}
-                  className="h-14 bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 disabled:border-gray-400 disabled:text-gray-400 disabled:cursor-not-allowed rounded-lg text-lg font-normal transition-colors shadow-md"
+                  className="h-14 md:h-16 bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 disabled:border-gray-400 disabled:text-gray-400 disabled:cursor-not-allowed rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md"
                 >
                   {addingItem ? 'Adding...' : 'Add'}
                 </button>
@@ -736,13 +738,13 @@ const ItemCart = forwardRef(({
               <div className="grid grid-cols-2 gap-3 pt-4">
                 <button
                   onClick={() => setEditingItem(null)}
-                  className="h-14 bg-white dark:bg-black border-2 border-gray-500 hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 rounded-lg text-lg font-normal transition-colors shadow-md"
+                  className="h-14 md:h-16 bg-white dark:bg-black border-2 border-gray-500 hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleUpdateItem}
-                  className="h-14 bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 rounded-lg text-lg font-normal transition-colors shadow-md"
+                  className="h-14 md:h-16 bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md"
                 >
                   Save
                 </button>
@@ -760,13 +762,13 @@ const ItemCart = forwardRef(({
             <div className="grid grid-cols-2 gap-3 pt-4">
               <button
                 onClick={() => setConfirmDelete(null)}
-                className="h-14 bg-white dark:bg-black border-2 border-gray-500 hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 rounded-lg text-lg font-normal transition-colors shadow-md"
+                className="h-14 md:h-16 bg-white dark:bg-black border-2 border-gray-500 hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleDeleteItem(confirmDelete.id)}
-                className="h-14 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 rounded-lg text-lg font-normal transition-colors shadow-md"
+                className="h-14 md:h-16 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md"
               >
                 Delete
               </button>
@@ -779,7 +781,7 @@ const ItemCart = forwardRef(({
             <div className="flex-shrink-0 max-w-md mx-auto w-full mb-2">
               {isSearching ? (
                 /* Expanded Search Input */
-                <div className="w-full h-16 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 rounded-lg flex items-center shadow-md">
+                <div className="w-full h-14 md:h-16 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 rounded-lg flex items-center shadow-md">
                   <div className="flex items-center justify-center w-14 text-orange-500 dark:text-orange-400">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -822,7 +824,7 @@ const ItemCart = forwardRef(({
                   {/* Search Button */}
                   <button
                     onClick={handleSearchClick}
-                    className={`w-full h-16 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal transition-colors shadow-md flex items-center justify-center gap-2 ${
+                    className={`w-full h-14 md:h-16 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md flex items-center justify-center gap-2 ${
                       keyboardNavIndex === 0
                         ? 'border-orange-400 ring-2 ring-orange-400 bg-orange-50 dark:bg-orange-900 text-orange-700 dark:text-orange-300'
                         : 'border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300'
@@ -837,7 +839,7 @@ const ItemCart = forwardRef(({
                   {/* Add Item Button */}
                   <button
                     onClick={() => setShowAddForm(true)}
-                    className={`w-full h-16 bg-white dark:bg-black border-2 border-dashed rounded-lg text-lg font-normal transition-colors shadow-md flex items-center justify-center gap-2 ${
+                    className={`w-full h-14 md:h-16 bg-white dark:bg-black border-2 border-dashed rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md flex items-center justify-center gap-2 ${
                       keyboardNavIndex === 1
                         ? 'border-orange-400 ring-2 ring-orange-400 bg-orange-50 dark:bg-orange-900 text-orange-700 dark:text-orange-300'
                         : 'border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300'
@@ -866,7 +868,7 @@ const ItemCart = forwardRef(({
                       ref={el => itemRefs.current[itemIndex] = el}
                     >
                       <div
-                        className={`w-full h-16 bg-white dark:bg-black border-2 rounded-lg transition-colors shadow-md flex items-center ${
+                        className={`w-full h-14 md:h-16 bg-white dark:bg-black border-2 rounded-lg transition-colors shadow-md flex items-center ${
                           isKeyboardSelected
                             ? 'border-blue-400 ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-900'
                             : quantity > 0
@@ -970,7 +972,7 @@ const ItemCart = forwardRef(({
                 <button
                   onClick={handleClear}
                   disabled={selectedItems.length === 0}
-                  className={`w-full h-16 bg-white dark:bg-black border-2 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md ${
+                  className={`w-full h-14 md:h-16 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal leading-none tracking-normal transition-colors shadow-md ${
                     keyboardNavIndex === clearIndex
                       ? 'border-red-400 ring-2 ring-red-400 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-300'
                       : selectedItems.length === 0
@@ -986,7 +988,7 @@ const ItemCart = forwardRef(({
                 <button
                   onClick={handleCheckout}
                   disabled={total <= 0}
-                  className={`w-full h-16 border-2 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center ${
+                  className={`w-full h-14 md:h-16 border-2 rounded-lg text-lg md:text-xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center ${
                     keyboardNavIndex === okIndex
                       ? 'bg-green-50 dark:bg-green-900 border-green-400 ring-2 ring-green-400 text-green-700 dark:text-green-300'
                       : total <= 0 

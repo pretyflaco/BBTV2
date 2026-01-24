@@ -535,7 +535,7 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
                     >
                       <div className="flex items-center justify-between">
                         <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                          {currency.flag ? `${currency.flag} ` : ''}{currency.id} - {currency.name}
+                          {currency.flag ? `${currency.flag} ` : ''}{currency.displayId || currency.id} - {currency.name}
                         </span>
                         {displayCurrency === currency.id && (
                           <svg className="w-5 h-5 text-blink-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -950,17 +950,15 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {/* Owner Display - Shows Blink username with blue dot */}
+        {/* Spacer - Fixed height to prevent numpad jumping when switching views */}
         {!showingInvoice && (
-          <div className="flex flex-col gap-1 mb-2 bg-white dark:bg-black">
+          <div className="h-16 mb-2 flex flex-col justify-center bg-white dark:bg-black">
             <div className="flex items-center gap-2">
               <img src="/bluedot.svg" alt="Owner" className="w-2 h-2" />
               <span className="font-semibold text-blue-600 dark:text-blue-400" style={{fontSize: '11.2px'}}>
                 {username}
               </span>
             </div>
-            {/* Empty row for consistent spacing */}
-            <div className="flex items-center gap-2 min-h-[18px]"></div>
           </div>
         )}
 

@@ -1,7 +1,7 @@
 import BlinkAPI from '../../../lib/blink-api';
 import { getInvoiceFromLightningAddress, isNpubCashAddress } from '../../../lib/lnurl';
 const { getHybridStore } = require('../../../lib/storage/hybrid-store');
-const { formatCurrencyServer } = require('../../../lib/currency-formatter-server');
+const { formatCurrencyServer, isBitcoinCurrency } = require('../../../lib/currency-formatter-server');
 
 /**
  * API endpoint for NWC tip-aware forwarding
@@ -133,7 +133,7 @@ export default async function handler(req, res) {
       const tipAmountDisplay = tipData.tipAmountDisplay || tipAmountNum;
       
       let tipAmountText;
-      if (displayCurrency === 'BTC') {
+      if (isBitcoinCurrency(displayCurrency)) {
         tipAmountText = `${tipAmountNum} sat`;
       } else {
         const formattedAmount = formatCurrencyServer(tipAmountDisplay, displayCurrency);
@@ -273,7 +273,7 @@ export default async function handler(req, res) {
           // Generate tip memo
           const splitInfo = isMultiple ? ` (${i + 1}/${tipRecipients.length})` : '';
           let tipMemo;
-          if (displayCurrency === 'BTC') {
+          if (isBitcoinCurrency(displayCurrency)) {
             tipMemo = `BlinkPOS Tip${splitInfo}: ${recipientTipAmount} sats`;
           } else {
             const formattedAmount = formatCurrencyServer(recipientDisplayAmount, displayCurrency);

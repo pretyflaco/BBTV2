@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import QRCode from 'react-qr-code';
 import { bech32 } from 'bech32';
-import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
+import { formatDisplayAmount as formatCurrency, getCurrencyById, isBitcoinCurrency } from '../lib/currency-utils';
 import ExpirySelector, { DEFAULT_EXPIRY, getExpiryOption } from './ExpirySelector';
 
 // Grid configuration options
@@ -52,7 +52,7 @@ const MultiVoucher = forwardRef(({
 
   // Fetch exchange rate when currency changes
   useEffect(() => {
-    if (displayCurrency !== 'BTC') {
+    if (!isBitcoinCurrency(displayCurrency)) {
       fetchExchangeRate();
     } else {
       setExchangeRate({ satPriceInCurrency: 1, currency: 'BTC' });
@@ -80,7 +80,7 @@ const MultiVoucher = forwardRef(({
   }, [showCommissionDialog]);
 
   const fetchExchangeRate = async () => {
-    if (displayCurrency === 'BTC') return;
+    if (isBitcoinCurrency(displayCurrency)) return;
     
     setLoadingRate(true);
     try {
@@ -131,17 +131,19 @@ const MultiVoucher = forwardRef(({
   };
 
   // Helper function to get dynamic font size (same as Single Voucher)
+  // Returns mobile size + desktop size (20% larger on desktop via md: breakpoint)
   const getDynamicFontSize = (displayText) => {
     const numericOnly = String(displayText).replace(/[^0-9.]/g, '');
     const length = numericOnly.length;
     
-    if (length <= 6) return 'text-6xl';
-    if (length <= 9) return 'text-5xl';
-    if (length <= 11) return 'text-4xl';
-    if (length <= 13) return 'text-3xl';
-    if (length <= 15) return 'text-2xl';
-    if (length <= 16) return 'text-xl';
-    return 'text-lg';
+    // Desktop sizes are ~20% larger (one step up in Tailwind scale)
+    if (length <= 6) return 'text-6xl md:text-7xl';
+    if (length <= 9) return 'text-5xl md:text-6xl';
+    if (length <= 11) return 'text-4xl md:text-5xl';
+    if (length <= 13) return 'text-3xl md:text-4xl';
+    if (length <= 15) return 'text-2xl md:text-3xl';
+    if (length <= 16) return 'text-xl md:text-2xl';
+    return 'text-lg md:text-xl';
   };
 
   // Calculate commission amount
@@ -174,7 +176,7 @@ const MultiVoucher = forwardRef(({
       const newAmount = amount + digit;
       const numericValue = parseFloat(newAmount.replace(/[^0-9.]/g, ''));
       
-      if (displayCurrency === 'BTC' && numericValue > MAX_SATS) {
+      if (isBitcoinCurrency(displayCurrency) && numericValue > MAX_SATS) {
         return;
       }
       
@@ -185,7 +187,7 @@ const MultiVoucher = forwardRef(({
     }
     
     if (amount === '' && digit === '0') {
-      if (displayCurrency === 'BTC') {
+      if (isBitcoinCurrency(displayCurrency)) {
         setAmount('0');
       } else {
         setAmount('0.');
@@ -195,7 +197,7 @@ const MultiVoucher = forwardRef(({
     
     if (amount === '' && digit === '.') {
       const currency = getCurrentCurrency();
-      if (displayCurrency === 'BTC' || currency?.fractionDigits === 0) {
+      if (isBitcoinCurrency(displayCurrency) || currency?.fractionDigits === 0) {
         return;
       } else {
         setAmount('0.');
@@ -209,7 +211,7 @@ const MultiVoucher = forwardRef(({
       return;
     } else if (digit === '.') {
       const currency = getCurrentCurrency();
-      if (displayCurrency === 'BTC' || currency?.fractionDigits === 0) {
+      if (isBitcoinCurrency(displayCurrency) || currency?.fractionDigits === 0) {
         return;
       }
       setAmount(amount + digit);
@@ -259,7 +261,7 @@ const MultiVoucher = forwardRef(({
       return false;
     }
 
-    if (displayCurrency === 'BTC') {
+    if (isBitcoinCurrency(displayCurrency)) {
       return numValue >= 1;
     }
 
@@ -343,7 +345,7 @@ const MultiVoucher = forwardRef(({
       const netAmount = numericAmount - commissionAmount;
       
       let amountInSats;
-      if (displayCurrency === 'BTC') {
+      if (isBitcoinCurrency(displayCurrency)) {
         amountInSats = Math.round(netAmount);
       } else {
         if (!exchangeRate || !exchangeRate.satPriceInCurrency) {
@@ -512,7 +514,7 @@ const MultiVoucher = forwardRef(({
           const qrDataUrl = qrElement ? await getQrDataUrl(qrElement) : null;
           
           let fiatAmount = null;
-          if (voucher.displayCurrency && voucher.displayCurrency !== 'BTC') {
+          if (voucher.displayCurrency && !isBitcoinCurrency(voucher.displayCurrency)) {
             fiatAmount = formatDisplayAmount(voucher.displayAmount, voucher.displayCurrency);
           }
           
@@ -593,7 +595,7 @@ const MultiVoucher = forwardRef(({
           const qrDataUrl = qrElement ? await getQrDataUrl(qrElement) : null;
           
           let fiatAmount = null;
-          if (voucher.displayCurrency && voucher.displayCurrency !== 'BTC') {
+          if (voucher.displayCurrency && !isBitcoinCurrency(voucher.displayCurrency)) {
             fiatAmount = formatDisplayAmount(voucher.displayAmount, voucher.displayCurrency);
           }
           
@@ -731,7 +733,7 @@ const MultiVoucher = forwardRef(({
           }`} style={{fontFamily: "'Source Sans Pro', sans-serif", wordBreak: 'keep-all', overflowWrap: 'normal'}}>
             <div className="max-w-full">
               {amount === '0' || amount === '0.' 
-                ? (displayCurrency === 'BTC' || getCurrentCurrency()?.fractionDigits === 0 
+                ? (isBitcoinCurrency(displayCurrency) || getCurrentCurrency()?.fractionDigits === 0 
                     ? '0' 
                     : getCurrentCurrency()?.symbol + '0.')
                 : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency))
@@ -754,13 +756,13 @@ const MultiVoucher = forwardRef(({
       {/* Numpad */}
       <div className="flex-1 px-4 pb-4 relative">
         <div className="h-16 mb-2"></div>
-        <div className="grid grid-cols-4 gap-3 max-w-sm mx-auto">
+        <div className="grid grid-cols-4 gap-3 max-w-sm md:max-w-md mx-auto">
           {/* Row 1: 1, 2, 3 */}
           {['1', '2', '3'].map(digit => (
             <button
               key={digit}
               onClick={() => handleDigitPress(digit)}
-              className="h-16 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 rounded-lg text-xl font-normal transition-colors shadow-md"
+              className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 rounded-lg text-xl md:text-2xl font-normal transition-colors shadow-md"
             >
               {digit}
             </button>
@@ -772,7 +774,7 @@ const MultiVoucher = forwardRef(({
             <button
               key={digit}
               onClick={() => handleDigitPress(digit)}
-              className="h-16 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 rounded-lg text-xl font-normal transition-colors shadow-md"
+              className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 rounded-lg text-xl md:text-2xl font-normal transition-colors shadow-md"
             >
               {digit}
             </button>
@@ -780,7 +782,7 @@ const MultiVoucher = forwardRef(({
           <button
             onClick={handleOkPress}
             disabled={!isValidAmount()}
-            className={`h-[136px] ${!isValidAmount() ? 'bg-gray-200 dark:bg-blink-dark border-2 border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500' : 'bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400'} rounded-lg text-lg font-normal transition-colors shadow-md flex items-center justify-center row-span-2`}
+            className={`h-[136px] md:h-[172px] ${!isValidAmount() ? 'bg-gray-200 dark:bg-blink-dark border-2 border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500' : 'bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400'} rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md flex items-center justify-center row-span-2`}
           >
             OK
           </button>
@@ -790,7 +792,7 @@ const MultiVoucher = forwardRef(({
             <button
               key={digit}
               onClick={() => handleDigitPress(digit)}
-              className="h-16 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 rounded-lg text-xl font-normal transition-colors shadow-md"
+              className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 rounded-lg text-xl md:text-2xl font-normal transition-colors shadow-md"
             >
               {digit}
             </button>
@@ -799,28 +801,28 @@ const MultiVoucher = forwardRef(({
           {/* Row 4: C, 0, ., Backspace */}
           <button
             onClick={handleClear}
-            className="h-16 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 rounded-lg text-lg font-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md"
           >
             C
           </button>
           <button
             onClick={() => handleDigitPress('0')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 rounded-lg text-xl font-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 rounded-lg text-xl md:text-2xl font-normal transition-colors shadow-md"
           >
             0
           </button>
           <button
             onClick={() => handleDigitPress('.')}
-            disabled={displayCurrency === 'BTC' || getCurrentCurrency()?.fractionDigits === 0}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 rounded-lg text-xl font-normal transition-colors shadow-md"
+            disabled={isBitcoinCurrency(displayCurrency) || getCurrentCurrency()?.fractionDigits === 0}
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-600 dark:border-purple-500 hover:border-purple-700 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-lg text-xl md:text-2xl font-normal transition-colors shadow-md"
           >
             .
           </button>
           <button
             onClick={handleBackspace}
-            className="h-16 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 rounded-lg text-lg font-normal transition-colors flex items-center justify-center shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 rounded-lg text-lg md:text-xl font-normal transition-colors flex items-center justify-center shadow-md"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
             </svg>
           </button>
@@ -834,21 +836,21 @@ const MultiVoucher = forwardRef(({
           
           return (
             <div className="absolute inset-0 bg-white dark:bg-black z-30 pt-24">
-              <div className="grid grid-cols-4 gap-3 max-w-sm mx-auto">
-                <h3 className="col-span-4 text-xl font-bold mb-2 text-center text-gray-800 dark:text-white">Commission Options</h3>
+              <div className="grid grid-cols-4 gap-3 max-w-sm md:max-w-md mx-auto">
+                <h3 className="col-span-4 text-xl md:text-2xl font-bold mb-2 text-center text-gray-800 dark:text-white">Commission Options</h3>
                 
                 {commissionPresets.map((percent, index) => (
                   <button
                     key={percent}
                     onClick={() => setPendingCommissionSelection(percent)}
-                    className={`col-span-2 h-16 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal transition-colors shadow-md ${
+                    className={`col-span-2 h-16 md:h-20 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md ${
                       commissionOptionIndex === index 
                         ? 'border-purple-400 ring-2 ring-purple-400 bg-purple-50 dark:bg-purple-900 text-purple-700 dark:text-purple-300' 
                         : 'border-purple-500 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400'
                     }`}
                   >
                     {percent}%
-                    <div className="text-sm">
+                    <div className="text-sm md:text-base">
                       -{formatDisplayAmount(calculateCommissionAmount(parseFloat(amount) || 0, percent), displayCurrency)}
                     </div>
                   </button>
@@ -861,7 +863,7 @@ const MultiVoucher = forwardRef(({
                     if (onInternalTransition) onInternalTransition();
                     setShowCommissionDialog(false);
                   }}
-                  className={`col-span-2 h-16 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal transition-colors shadow-md ${
+                  className={`col-span-2 h-16 md:h-20 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md ${
                     commissionOptionIndex === cancelIndex 
                       ? 'border-red-400 ring-2 ring-red-400 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-300' 
                       : 'border-red-500 hover:border-red-600 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400'
@@ -871,7 +873,7 @@ const MultiVoucher = forwardRef(({
                 </button>
                 <button
                   onClick={() => setPendingCommissionSelection(0)}
-                  className={`col-span-2 h-16 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal transition-colors shadow-md ${
+                  className={`col-span-2 h-16 md:h-20 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md ${
                     commissionOptionIndex === noCommissionIndex 
                       ? 'border-yellow-400 ring-2 ring-yellow-400 bg-yellow-50 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300' 
                       : 'border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400'

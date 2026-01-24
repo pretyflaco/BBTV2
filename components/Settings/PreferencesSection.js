@@ -46,16 +46,18 @@ export default function PreferencesSection() {
     }
   };
 
-  const popularCurrencies = ['USD', 'EUR', 'GBP', 'BTC', 'SAT'];
+  const popularCurrencies = ['USD', 'EUR', 'GBP', 'BTC', 'BTC-BIP177'];
   const allCurrencies = currencies ? getAllCurrencies() : [];
   
   const sortedCurrencies = allCurrencies.sort((a, b) => {
-    const aPopular = popularCurrencies.indexOf(a.code);
-    const bPopular = popularCurrencies.indexOf(b.code);
+    const aCode = a.id || a.code;
+    const bCode = b.id || b.code;
+    const aPopular = popularCurrencies.indexOf(aCode);
+    const bPopular = popularCurrencies.indexOf(bCode);
     if (aPopular !== -1 && bPopular !== -1) return aPopular - bPopular;
     if (aPopular !== -1) return -1;
     if (bPopular !== -1) return 1;
-    return a.code.localeCompare(b.code);
+    return aCode.localeCompare(bCode);
   });
 
   // Toggle switch component matching Dashboard style
@@ -105,11 +107,15 @@ export default function PreferencesSection() {
           } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
         >
           {sortedCurrencies.length > 0 ? (
-            sortedCurrencies.map((currency) => (
-              <option key={currency.code} value={currency.code}>
-                {currency.code} - {currency.name || currency.code}
-              </option>
-            ))
+            sortedCurrencies.map((currency) => {
+              const code = currency.id || currency.code;
+              const displayCode = currency.displayId || code;
+              return (
+                <option key={code} value={code}>
+                  {displayCode} - {currency.name || code}
+                </option>
+              );
+            })
           ) : (
             <>
               <option value="USD">USD - US Dollar</option>

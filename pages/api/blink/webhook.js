@@ -27,7 +27,7 @@ import { getInvoiceFromLightningAddress } from '../../../lib/lnurl';
 import NWCClient from '../../../lib/nwc/NWCClient';
 const AuthManager = require('../../../lib/auth');
 const { getHybridStore } = require('../../../lib/storage/hybrid-store');
-const { formatCurrencyServer } = require('../../../lib/currency-formatter-server');
+const { formatCurrencyServer, isBitcoinCurrency } = require('../../../lib/currency-formatter-server');
 
 /**
  * Generate enhanced memo with tip split information
@@ -38,7 +38,7 @@ function generateEnhancedMemo(memo, baseAmount, tipAmount, tipRecipients, displa
   
   if (memo && tipAmount > 0 && tipRecipients.length > 0) {
     let tipAmountText;
-    if (displayCurrency === 'BTC') {
+    if (isBitcoinCurrency(displayCurrency)) {
       tipAmountText = `${tipAmount} sat`;
     } else {
       const formattedAmount = formatCurrencyServer(tipAmountDisplay || tipAmount, displayCurrency);
@@ -639,7 +639,7 @@ async function sendTips(blinkposAPI, blinkposBtcWalletId, tipAmount, tipRecipien
 
     const splitInfo = isMultiple ? ` (${i + 1}/${tipRecipients.length})` : '';
     let tipMemo;
-    if (displayCurrency === 'BTC') {
+    if (isBitcoinCurrency(displayCurrency)) {
       tipMemo = `BlinkPOS Tip${splitInfo}: ${recipientTipAmount} sats`;
     } else {
       const formattedAmount = formatCurrencyServer(recipientDisplayAmount, displayCurrency);

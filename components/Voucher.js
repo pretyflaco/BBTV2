@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import QRCode from 'react-qr-code';
 import { bech32 } from 'bech32';
-import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
+import { formatDisplayAmount as formatCurrency, getCurrencyById, isBitcoinCurrency } from '../lib/currency-utils';
 import { DEFAULT_EXPIRY } from './ExpirySelector';
 import { useThermalPrint } from '../lib/escpos/hooks/useThermalPrint';
 
@@ -168,17 +168,19 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
   };
 
   // Helper function to get dynamic font size based on amount length
+  // Returns mobile size + desktop size (20% larger on desktop via md: breakpoint)
   const getDynamicFontSize = (displayText) => {
     const numericOnly = String(displayText).replace(/[^0-9.]/g, '');
     const length = numericOnly.length;
     
-    if (length <= 6) return 'text-6xl';
-    if (length <= 9) return 'text-5xl';
-    if (length <= 11) return 'text-4xl';
-    if (length <= 13) return 'text-3xl';
-    if (length <= 15) return 'text-2xl';
-    if (length <= 16) return 'text-xl';
-    return 'text-lg';
+    // Desktop sizes are ~20% larger (one step up in Tailwind scale)
+    if (length <= 6) return 'text-6xl md:text-7xl';
+    if (length <= 9) return 'text-5xl md:text-6xl';
+    if (length <= 11) return 'text-4xl md:text-5xl';
+    if (length <= 13) return 'text-3xl md:text-4xl';
+    if (length <= 15) return 'text-2xl md:text-3xl';
+    if (length <= 16) return 'text-xl md:text-2xl';
+    return 'text-lg md:text-xl';
   };
 
   // Format display amount
@@ -193,7 +195,7 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
 
   // Fetch exchange rate when currency changes
   useEffect(() => {
-    if (displayCurrency !== 'BTC') {
+    if (!isBitcoinCurrency(displayCurrency)) {
       fetchExchangeRate();
     } else {
       setExchangeRate({ satPriceInCurrency: 1, currency: 'BTC' });
@@ -201,7 +203,7 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
   }, [displayCurrency]);
 
   const fetchExchangeRate = async () => {
-    if (displayCurrency === 'BTC') return;
+    if (isBitcoinCurrency(displayCurrency)) return;
     
     setLoadingRate(true);
     try {
@@ -270,8 +272,8 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
       const newAmount = amount + digit;
       const numericValue = parseFloat(newAmount.replace(/[^0-9.]/g, ''));
       
-      // For BTC currency, validate against max sats
-      if (displayCurrency === 'BTC' && numericValue > MAX_SATS) {
+      // For BTC currency (sats), validate against max sats
+      if (isBitcoinCurrency(displayCurrency) && numericValue > MAX_SATS) {
         return;
       }
       
@@ -284,7 +286,7 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
     
     // Special handling for '0' as first digit
     if (amount === '' && digit === '0') {
-      if (displayCurrency === 'BTC') {
+      if (isBitcoinCurrency(displayCurrency)) {
         setAmount('0');
       } else {
         setAmount('0.');
@@ -295,7 +297,7 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
     // Special handling for '.' as first digit
     if (amount === '' && digit === '.') {
       const currency = getCurrentCurrency();
-      if (displayCurrency === 'BTC' || currency?.fractionDigits === 0) {
+      if (isBitcoinCurrency(displayCurrency) || currency?.fractionDigits === 0) {
         return;
       } else {
         setAmount('0.');
@@ -311,7 +313,7 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
     } else if (digit === '.') {
       // Don't allow decimal points for zero-decimal currencies
       const currency = getCurrentCurrency();
-      if (displayCurrency === 'BTC' || currency?.fractionDigits === 0) {
+      if (isBitcoinCurrency(displayCurrency) || currency?.fractionDigits === 0) {
         return;
       }
       setAmount(amount + digit);
@@ -370,8 +372,8 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
       return false;
     }
 
-    // For BTC, minimum 1 sat
-    if (displayCurrency === 'BTC') {
+    // For BTC (sats), minimum 1 sat
+    if (isBitcoinCurrency(displayCurrency)) {
       return numValue >= 1;
     }
 
@@ -566,7 +568,7 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
       
       // Convert to sats if needed (use netAmount after commission deduction)
       let amountInSats;
-      if (displayCurrency === 'BTC') {
+      if (isBitcoinCurrency(displayCurrency)) {
         amountInSats = Math.round(netAmount);
       } else {
         if (!exchangeRate || !exchangeRate.satPriceInCurrency) {
@@ -783,9 +785,9 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
       
       console.log('📷 QR captured, logo:', logoDataUrl ? 'yes' : 'no');
       
-      // Build fiat amount string
+      // Build fiat amount string (show for fiat currencies, not for BTC/BTC-BIP177)
       let fiatAmount = null;
-      if (voucher.displayCurrency && voucher.displayCurrency !== 'BTC') {
+      if (voucher.displayCurrency && !isBitcoinCurrency(voucher.displayCurrency)) {
         fiatAmount = formatDisplayAmount(voucher.displayAmount, voucher.displayCurrency);
       }
       
@@ -903,9 +905,9 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
   const printVoucherLegacy = () => {
     if (!voucher) return;
     
-    // Build the display amounts
+    // Build the display amounts (show for fiat currencies, not for BTC/BTC-BIP177)
     let voucherPrice = '';
-    if (voucher.displayCurrency && voucher.displayCurrency !== 'BTC') {
+    if (voucher.displayCurrency && !isBitcoinCurrency(voucher.displayCurrency)) {
       voucherPrice = formatDisplayAmount(voucher.displayAmount, voucher.displayCurrency);
     }
     
@@ -943,9 +945,9 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
     setError('');
     
     try {
-      // Build the display amounts
+      // Build the display amounts (show for fiat currencies, not for BTC/BTC-BIP177)
       let voucherPrice = '';
-      if (voucher.displayCurrency && voucher.displayCurrency !== 'BTC') {
+      if (voucher.displayCurrency && !isBitcoinCurrency(voucher.displayCurrency)) {
         voucherPrice = formatDisplayAmount(voucher.displayAmount, voucher.displayCurrency);
       }
       
@@ -1096,13 +1098,13 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
           <div className="text-center text-white">
             <h2 className="text-3xl font-bold mb-2">Voucher Redeemed!</h2>
             <div className="text-2xl font-semibold mb-1">
-              {voucher.displayCurrency && voucher.displayCurrency !== 'BTC' ? (
+              {voucher.displayCurrency && !isBitcoinCurrency(voucher.displayCurrency) ? (
                 <div>
                   <div>{formatDisplayAmount(voucher.displayAmount, voucher.displayCurrency)}</div>
                   <div className="text-lg opacity-80 mt-1">({voucher.amount} sats)</div>
                 </div>
               ) : (
-                <div>{voucher.amount} sats</div>
+                <div>{formatDisplayAmount(voucher.amount, voucher.displayCurrency || 'BTC')}</div>
               )}
             </div>
             <p className="text-lg opacity-80 mt-4">Successfully sent to wallet</p>
@@ -1175,13 +1177,13 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
             <div className="px-4 pt-4 pb-2 flex-shrink-0">
               <div className="text-center">
                 <div className="text-6xl font-semibold text-purple-600 dark:text-purple-400 mb-1 leading-none tracking-normal">
-                  {voucher.displayCurrency && voucher.displayCurrency !== 'BTC' ? (
+                  {voucher.displayCurrency && !isBitcoinCurrency(voucher.displayCurrency) ? (
                     <div>
                       <div>{formatDisplayAmount(voucher.displayAmount, voucher.displayCurrency)}</div>
                       <div className="text-lg text-gray-600 dark:text-gray-400 mt-1">({voucher.amount} sats)</div>
                     </div>
                   ) : (
-                    <div>{voucher.amount} sats</div>
+                    <div>{formatDisplayAmount(voucher.amount, voucher.displayCurrency || 'BTC')}</div>
                   )}
                 </div>
               </div>
@@ -1471,7 +1473,7 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
             }`} style={{fontFamily: "'Source Sans Pro', sans-serif", wordBreak: 'keep-all', overflowWrap: 'normal'}}>
               <div className="max-w-full">
                 {amount === '0' || amount === '0.' 
-                  ? (displayCurrency === 'BTC' || getCurrencyById(displayCurrency, currencies)?.fractionDigits === 0 
+                  ? (isBitcoinCurrency(displayCurrency) || getCurrencyById(displayCurrency, currencies)?.fractionDigits === 0 
                       ? '0' 
                       : getCurrencyById(displayCurrency, currencies)?.symbol + '0.')
                   : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency))
@@ -1496,25 +1498,25 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
       <div className="flex-1 px-4 pb-4 relative">
         {/* Spacer for consistent layout */}
         <div className="h-16 mb-2"></div>
-        <div className="grid grid-cols-4 gap-3 max-w-sm mx-auto" data-1p-ignore data-lpignore="true">
-          {/* Row 1: 1, 2, 3, (empty) */}
+        <div className="grid grid-cols-4 gap-3 max-w-sm md:max-w-md mx-auto" data-1p-ignore data-lpignore="true">
+          {/* Row 1: 1, 2, 3 */}
           <button
             onClick={() => handleDigitPress('1')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             1
           </button>
           <button
             onClick={() => handleDigitPress('2')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             2
           </button>
           <button
             onClick={() => handleDigitPress('3')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             3
@@ -1524,21 +1526,21 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
           {/* Row 2: 4, 5, 6, OK (starts) */}
           <button
             onClick={() => handleDigitPress('4')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             4
           </button>
           <button
             onClick={() => handleDigitPress('5')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             5
           </button>
           <button
             onClick={() => handleDigitPress('6')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             6
@@ -1546,136 +1548,136 @@ const Voucher = forwardRef(({ voucherWallet, displayCurrency, currencies, darkMo
           <button
             onClick={createVoucher}
             disabled={!isValidAmount() || loading}
-            className={`h-[136px] ${!isValidAmount() || loading ? 'bg-gray-200 dark:bg-blink-dark border-2 border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500' : 'bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'} disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-lg text-lg font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center row-span-2`}
+            className={`h-[136px] md:h-[172px] ${!isValidAmount() || loading ? 'bg-gray-200 dark:bg-blink-dark border-2 border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500' : 'bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'} disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-lg text-lg md:text-xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center row-span-2`}
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             OK
           </button>
 
-          {/* Row 3: 7, 8, 9, OK (continues) */}
+          {/* Row 3: 7, 8, 9 */}
           <button
             onClick={() => handleDigitPress('7')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             7
           </button>
           <button
             onClick={() => handleDigitPress('8')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             8
           </button>
           <button
             onClick={() => handleDigitPress('9')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             9
           </button>
 
-          {/* Row 4: C, 0, ., ⌫ */}
+          {/* Row 4: C, 0, ., Backspace */}
           <button
             onClick={handleClear}
-            className="h-16 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-lg font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-lg md:text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             C
           </button>
           <button
             onClick={() => handleDigitPress('0')}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             0
           </button>
           <button
             onClick={() => handleDigitPress('.')}
-            disabled={displayCurrency === 'BTC' || (getCurrentCurrency()?.fractionDigits === 0)}
-            className="h-16 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            disabled={isBitcoinCurrency(displayCurrency) || getCurrencyById(displayCurrency, currencies)?.fractionDigits === 0}
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-purple-400 dark:border-purple-400 hover:border-purple-500 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             .
           </button>
           <button
             onClick={handleBackspace}
-            className="h-16 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 rounded-lg text-lg font-normal leading-none tracking-normal transition-colors flex items-center justify-center shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 rounded-lg text-lg md:text-xl font-normal leading-none tracking-normal transition-colors flex items-center justify-center shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
             </svg>
           </button>
         </div>
-
-        {/* Commission Selection Overlay (over numpad) */}
-        {showCommissionDialog && (() => {
-          const totalOptions = commissionPresets.length + 2;
-          const cancelIndex = totalOptions - 2;
-          const noCommissionIndex = totalOptions - 1;
-          
-          return (
-          <div className="absolute inset-0 bg-white dark:bg-black z-30 pt-24">
-            <div className="grid grid-cols-4 gap-3 max-w-sm mx-auto" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-              <h3 className="col-span-4 text-xl font-bold mb-2 text-center text-gray-800 dark:text-white">Commission Options</h3>
-              
-              {/* Commission preset buttons in grid - render all presets */}
-              {commissionPresets.map((percent, index) => (
-                <button
-                  key={percent}
-                  onClick={() => {
-                    setPendingCommissionSelection(percent);
-                  }}
-                  className={`col-span-2 h-16 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal transition-colors shadow-md ${
-                    commissionOptionIndex === index 
-                      ? 'border-purple-400 ring-2 ring-purple-400 bg-purple-50 dark:bg-purple-900 text-purple-700 dark:text-purple-300' 
-                      : 'border-purple-500 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300'
-                  }`}
-                >
-                  {percent}%
-                  <div className="text-sm">
-                    -{formatDisplayAmount(calculateCommissionAmount(parseFloat(amount) || 0, percent), displayCurrency)}
-                  </div>
-                </button>
-              ))}
-              
-              {/* Empty placeholder after odd number of presets to complete the row */}
-              {commissionPresets.length % 2 === 1 && (
-                <div className="col-span-2"></div>
-              )}
-              
-              {/* Cancel and No Commission buttons - always on the same row */}
-              <button
-                onClick={() => {
-                  if (onInternalTransition) onInternalTransition();
-                  setShowCommissionDialog(false);
-                }}
-                className={`col-span-2 h-16 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal transition-colors shadow-md ${
-                  commissionOptionIndex === cancelIndex 
-                    ? 'border-red-400 ring-2 ring-red-400 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-300' 
-                    : 'border-red-500 hover:border-red-600 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300'
-                }`}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setPendingCommissionSelection(0);
-                }}
-                className={`col-span-2 h-16 bg-white dark:bg-black border-2 rounded-lg text-lg font-normal transition-colors shadow-md ${
-                  commissionOptionIndex === noCommissionIndex 
-                    ? 'border-yellow-400 ring-2 ring-yellow-400 bg-yellow-50 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300' 
-                    : 'border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300'
-                }`}
-              >
-                No Commission
-              </button>
-            </div>
-          </div>
-          );
-        })()}
       </div>
+
+      {/* Commission Selection Overlay (over numpad) */}
+      {showCommissionDialog && (() => {
+        const totalOptions = commissionPresets.length + 2;
+        const cancelIndex = totalOptions - 2;
+        const noCommissionIndex = totalOptions - 1;
+        
+        return (
+        <div className="absolute inset-0 bg-white dark:bg-black z-30 pt-24">
+          <div className="grid grid-cols-4 gap-3 max-w-sm md:max-w-md mx-auto" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+            <h3 className="col-span-4 text-xl md:text-2xl font-bold mb-2 text-center text-gray-800 dark:text-white">Commission Options</h3>
+            
+            {/* Commission preset buttons in grid - render all presets */}
+            {commissionPresets.map((percent, index) => (
+              <button
+                key={percent}
+                onClick={() => {
+                  setPendingCommissionSelection(percent);
+                }}
+                className={`col-span-2 h-16 md:h-20 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md ${
+                  commissionOptionIndex === index 
+                    ? 'border-purple-400 ring-2 ring-purple-400 bg-purple-50 dark:bg-purple-900 text-purple-700 dark:text-purple-300' 
+                    : 'border-purple-500 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300'
+                }`}
+              >
+                {percent}%
+                <div className="text-sm md:text-base">
+                  -{formatDisplayAmount(calculateCommissionAmount(parseFloat(amount) || 0, percent), displayCurrency)}
+                </div>
+              </button>
+            ))}
+            
+            {/* Empty placeholder after odd number of presets to complete the row */}
+            {commissionPresets.length % 2 === 1 && (
+              <div className="col-span-2"></div>
+            )}
+            
+            {/* Cancel and No Commission buttons - always on the same row */}
+            <button
+              onClick={() => {
+                if (onInternalTransition) onInternalTransition();
+                setShowCommissionDialog(false);
+              }}
+              className={`col-span-2 h-16 md:h-20 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md ${
+                commissionOptionIndex === cancelIndex 
+                  ? 'border-red-400 ring-2 ring-red-400 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-300' 
+                  : 'border-red-500 hover:border-red-600 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300'
+              }`}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                setPendingCommissionSelection(0);
+              }}
+              className={`col-span-2 h-16 md:h-20 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md ${
+                commissionOptionIndex === noCommissionIndex 
+                  ? 'border-yellow-400 ring-2 ring-yellow-400 bg-yellow-50 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300' 
+                  : 'border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300'
+              }`}
+            >
+              No Commission
+            </button>
+          </div>
+        </div>
+        );
+      })()}
     </div>
   );
 });

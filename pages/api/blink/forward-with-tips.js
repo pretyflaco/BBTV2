@@ -1,7 +1,7 @@
 import BlinkAPI from '../../../lib/blink-api';
 import { getInvoiceFromLightningAddress, isNpubCashAddress } from '../../../lib/lnurl';
 const { getHybridStore } = require('../../../lib/storage/hybrid-store');
-const { formatCurrencyServer } = require('../../../lib/currency-formatter-server');
+const { formatCurrencyServer, isBitcoinCurrency } = require('../../../lib/currency-formatter-server');
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -141,7 +141,7 @@ export default async function handler(req, res) {
       const tipAmountDisplay = tipData.tipAmountDisplay || tipData.tipAmount;
       
       let tipAmountText;
-      if (displayCurrency === 'BTC') {
+      if (isBitcoinCurrency(displayCurrency)) {
         tipAmountText = `${tipData.tipAmount} sat`;
       } else {
         // Format the amount with dynamic currency formatting
@@ -244,7 +244,7 @@ export default async function handler(req, res) {
         // Generate tip memo based on display currency and amounts
         const generateTipMemo = (tipAmountInDisplayCurrency, tipAmountSats, displayCurrency, isMultiple, recipientIndex, totalRecipients) => {
           const splitInfo = isMultiple ? ` (${recipientIndex + 1}/${totalRecipients})` : '';
-          if (displayCurrency === 'BTC') {
+          if (isBitcoinCurrency(displayCurrency)) {
             return `BlinkPOS Tip${splitInfo}: ${tipAmountSats} sats`;
           } else {
             const formattedAmount = formatCurrencyServer(tipAmountInDisplayCurrency, displayCurrency);

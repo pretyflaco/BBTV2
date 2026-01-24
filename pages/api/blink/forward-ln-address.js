@@ -11,7 +11,7 @@
 import BlinkAPI from '../../../lib/blink-api';
 import { getInvoiceFromLightningAddress } from '../../../lib/lnurl';
 const { getHybridStore } = require('../../../lib/storage/hybrid-store');
-const { formatCurrencyServer } = require('../../../lib/currency-formatter-server');
+const { formatCurrencyServer, isBitcoinCurrency } = require('../../../lib/currency-formatter-server');
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -137,7 +137,7 @@ export default async function handler(req, res) {
     if (storedMemo && tipAmount > 0 && tipRecipients.length > 0) {
       // Generate enhanced memo with tip info
       let tipAmountText;
-      if (displayCurrency === 'BTC') {
+      if (isBitcoinCurrency(displayCurrency)) {
         tipAmountText = `${tipAmount} sat`;
       } else {
         const formattedTipAmount = formatCurrencyServer(tipAmountDisplay || tipAmount, displayCurrency);
@@ -345,7 +345,7 @@ export default async function handler(req, res) {
 
         const splitInfo = isMultiple ? ` (${i + 1}/${tipRecipients.length})` : '';
         let tipMemo;
-        if (displayCurrency === 'BTC') {
+        if (isBitcoinCurrency(displayCurrency)) {
           tipMemo = `BlinkPOS Tip${splitInfo}: ${recipientTipAmount} sats`;
         } else {
           const formattedAmount = formatCurrencyServer(recipientDisplayAmount, displayCurrency);

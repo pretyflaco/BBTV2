@@ -1,6 +1,6 @@
 import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import QRCode from 'react-qr-code';
-import { formatDisplayAmount as formatCurrency, getCurrencyById } from '../lib/currency-utils';
+import { formatDisplayAmount as formatCurrency, getCurrencyById, isBitcoinCurrency } from '../lib/currency-utils';
 import { useNFC } from './NFCPayment';
 
 const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, toggleDarkMode, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation, isPublicPOS = false, publicUsername = null }, ref) => {
@@ -27,19 +27,21 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
   const [cartMemo, setCartMemo] = useState('');
 
   // Helper function to get dynamic font size based on amount length
+  // Returns mobile size + desktop size (20% larger on desktop via md: breakpoint)
   const getDynamicFontSize = (displayText) => {
     // Extract only numeric characters (remove currency symbols, spaces, "sats", commas, etc.)
     const numericOnly = String(displayText).replace(/[^0-9.]/g, '');
     const length = numericOnly.length;
     
     // More aggressive scaling to prevent word breaks on mobile
-    if (length <= 6) return 'text-6xl';      // Standard size (up to 6 digits) - 999,999
-    if (length <= 9) return 'text-5xl';      // (7-9 digits) - millions
-    if (length <= 11) return 'text-4xl';     // (10-11 digits) - billions
-    if (length <= 13) return 'text-3xl';     // (12-13 digits) - trillions
-    if (length <= 15) return 'text-2xl';     // (14-15 digits) - quadrillions
-    if (length <= 16) return 'text-xl';      // (16 digits) - max bitcoin supply
-    return 'text-lg';                         // Minimum size (17+ digits - shouldn't happen)
+    // Desktop sizes are ~20% larger (one step up in Tailwind scale)
+    if (length <= 6) return 'text-6xl md:text-7xl';      // Standard size (up to 6 digits) - 999,999
+    if (length <= 9) return 'text-5xl md:text-6xl';      // (7-9 digits) - millions
+    if (length <= 11) return 'text-4xl md:text-5xl';     // (10-11 digits) - billions
+    if (length <= 13) return 'text-3xl md:text-4xl';     // (12-13 digits) - trillions
+    if (length <= 15) return 'text-2xl md:text-3xl';     // (14-15 digits) - quadrillions
+    if (length <= 16) return 'text-xl md:text-2xl';      // (16 digits) - max bitcoin supply
+    return 'text-lg md:text-xl';                         // Minimum size (17+ digits - shouldn't happen)
   };
 
   // Handle tip selection and create invoice after state update
@@ -100,9 +102,9 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
   // For NWC-only or LN Address users (no apiKey), use BlinkPOS credentials via useBlinkpos flag
   // For public POS mode, also use BlinkPOS credentials
   useEffect(() => {
-    if (displayCurrency !== 'BTC' && (apiKey || activeNWC || hasBlinkLnAddressWallet || hasNpubCashWallet || isPublicPOS)) {
+    if (!isBitcoinCurrency(displayCurrency) && (apiKey || activeNWC || hasBlinkLnAddressWallet || hasNpubCashWallet || isPublicPOS)) {
       fetchExchangeRate();
-    } else if (displayCurrency === 'BTC') {
+    } else if (isBitcoinCurrency(displayCurrency)) {
       setExchangeRate({ satPriceInCurrency: 1, currency: 'BTC' });
     }
   }, [displayCurrency, apiKey, activeNWC, hasBlinkLnAddressWallet, hasNpubCashWallet, isPublicPOS]);
@@ -333,7 +335,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
   }, [showTipDialog, showCustomTipInput]);
 
   const fetchExchangeRate = async () => {
-    if (displayCurrency === 'BTC') return;
+    if (isBitcoinCurrency(displayCurrency)) return;
     
     setLoadingRate(true);
     try {
@@ -390,8 +392,8 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
       return false;
     }
 
-    // For BTC, check minimum 1 sat
-    if (displayCurrency === 'BTC') {
+    // For BTC (sats), check minimum 1 sat
+    if (isBitcoinCurrency(displayCurrency)) {
       return numValue >= 1;
     }
 
@@ -507,8 +509,8 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
       const newAmount = amount + digit;
       const numericValue = parseFloat(newAmount.replace(/[^0-9.]/g, ''));
       
-      // For BTC currency, the amount is in sats already
-      if (displayCurrency === 'BTC' && numericValue > MAX_SATS) {
+      // For BTC currency (sats), the amount is in sats already
+      if (isBitcoinCurrency(displayCurrency) && numericValue > MAX_SATS) {
         return; // Don't allow exceeding max bitcoin supply
       }
       
@@ -522,7 +524,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
     
     // Special handling for '0' as first digit: treat as "0." for fiat currencies
     if (amount === '' && digit === '0') {
-      if (displayCurrency === 'BTC') {
+      if (isBitcoinCurrency(displayCurrency)) {
         setAmount('0');
       } else {
         setAmount('0.');
@@ -534,7 +536,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
     if (amount === '' && digit === '.') {
       // Don't allow decimal points for zero-decimal currencies (BTC, JPY, XOF, etc.)
       const currency = getCurrentCurrency();
-      if (displayCurrency === 'BTC' || currency?.fractionDigits === 0) {
+      if (isBitcoinCurrency(displayCurrency) || currency?.fractionDigits === 0) {
         return;
       } else {
         setAmount('0.');
@@ -550,7 +552,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
     } else if (digit === '.') {
       // Don't allow decimal points for zero-decimal currencies (BTC, JPY, XOF, HUF, etc.)
       const currency = getCurrentCurrency();
-      if (displayCurrency === 'BTC' || currency?.fractionDigits === 0) {
+      if (isBitcoinCurrency(displayCurrency) || currency?.fractionDigits === 0) {
         return;
       }
       setAmount(amount + digit);
@@ -767,7 +769,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
       let finalTotalInSats = totalWithTip;
       let memo = '';
       
-      if (displayCurrency !== 'BTC') {
+      if (!isBitcoinCurrency(displayCurrency)) {
         // Check if we have exchange rates
         if (!exchangeRate) {
           setError(`Exchange rate not available for ${displayCurrency}. Please try again.`);
@@ -880,7 +882,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
         // Calculate base and tip amounts in sats
         // CRITICAL: Calculate tip as (total - base) to avoid rounding errors
         // When base and tip are rounded independently, their sum may differ from total
-        const baseInSats = convertToSatoshis(finalTotal, displayCurrency !== 'BTC' ? displayCurrency : 'BTC');
+        const baseInSats = convertToSatoshis(finalTotal, !isBitcoinCurrency(displayCurrency) ? displayCurrency : 'BTC');
         // Tip is the difference between total invoice and base (ensures base + tip = total)
         const tipInSats = effectiveTipPercent > 0 ? Math.max(0, finalTotalInSats - baseInSats) : 0;
         
@@ -1016,7 +1018,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                     {amount && <span className="text-4xl text-gray-600 dark:text-gray-400"> + {amount}</span>}
                   </div>
                 ) : (
-                  (amount === '0' || amount === '0.') ? (displayCurrency === 'BTC' || getCurrencyById(displayCurrency, currencies)?.fractionDigits === 0 ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency))
+                  (amount === '0' || amount === '0.') ? (isBitcoinCurrency(displayCurrency) || getCurrencyById(displayCurrency, currencies)?.fractionDigits === 0 ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency))
                 )}
               </div>
               {selectedTipPercent > 0 && (
@@ -1111,13 +1113,13 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
           <div className="px-4 pt-4 pb-2">
             <div className="text-center">
               <div className="text-6xl font-semibold text-gray-800 dark:text-gray-100 mb-1 leading-none tracking-normal">
-                {invoice.displayCurrency !== 'BTC' ? (
+                {!isBitcoinCurrency(invoice.displayCurrency) ? (
                   <div>
                     <div>{formatDisplayAmount(invoice.displayAmount, invoice.displayCurrency)}</div>
                     <div className="text-lg text-gray-600 dark:text-gray-400 mt-1">({invoice.satAmount} sats)</div>
                   </div>
                 ) : (
-                  formatDisplayAmount(invoice.satAmount || invoice.displayAmount, 'BTC')
+                  formatDisplayAmount(invoice.satAmount || invoice.displayAmount, invoice.displayCurrency)
                 )}
               </div>
             </div>
@@ -1188,7 +1190,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                 ? getDynamicFontSize(formatDisplayAmount(total + (parseFloat(amount) || 0), displayCurrency))
                 : total > 0 
                   ? getDynamicFontSize(formatDisplayAmount(total, displayCurrency) + (amount ? ' + ' + amount : ''))
-                  : getDynamicFontSize((amount === '0' || amount === '0.') ? (displayCurrency === 'BTC' || getCurrencyById(displayCurrency, currencies)?.fractionDigits === 0 ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency)))
+                  : getDynamicFontSize((amount === '0' || amount === '0.') ? (isBitcoinCurrency(displayCurrency) || getCurrencyById(displayCurrency, currencies)?.fractionDigits === 0 ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency)))
             }`} style={{fontFamily: "'Source Sans Pro', sans-serif", wordBreak: 'keep-all', overflowWrap: 'normal'}}>
               {showTipDialog ? (
                 // When tip dialog is showing, show the combined total in white/black (not orange)
@@ -1200,24 +1202,24 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                   <span className="text-blink-accent">{formatDisplayAmount(total, displayCurrency)}</span>
                   {amount && (
                     <span className={`text-gray-600 dark:text-gray-400 ${
-                      // Secondary amount is 2 sizes smaller than main amount
-                      getDynamicFontSize(amount) === 'text-6xl' ? 'text-4xl' :
-                      getDynamicFontSize(amount) === 'text-5xl' ? 'text-3xl' :
-                      getDynamicFontSize(amount) === 'text-4xl' ? 'text-2xl' :
-                      getDynamicFontSize(amount) === 'text-3xl' ? 'text-xl' :
-                      getDynamicFontSize(amount) === 'text-2xl' ? 'text-lg' :
-                      'text-base'
+                      // Secondary amount is 2 sizes smaller than main amount (with desktop scaling)
+                      getDynamicFontSize(amount).includes('text-6xl') ? 'text-4xl md:text-5xl' :
+                      getDynamicFontSize(amount).includes('text-5xl') ? 'text-3xl md:text-4xl' :
+                      getDynamicFontSize(amount).includes('text-4xl') ? 'text-2xl md:text-3xl' :
+                      getDynamicFontSize(amount).includes('text-3xl') ? 'text-xl md:text-2xl' :
+                      getDynamicFontSize(amount).includes('text-2xl') ? 'text-lg md:text-xl' :
+                      'text-base md:text-lg'
                     }`}> + {amount}</span>
                   )}
                 </div>
               ) : (
                 <div className="max-w-full">
-                  {(amount === '0' || amount === '0.') ? (displayCurrency === 'BTC' || getCurrencyById(displayCurrency, currencies)?.fractionDigits === 0 ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency))}
+                  {(amount === '0' || amount === '0.') ? (isBitcoinCurrency(displayCurrency) || getCurrencyById(displayCurrency, currencies)?.fractionDigits === 0 ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency))}
                 </div>
               )}
             </div>
             {selectedTipPercent > 0 && (
-              <div className={`text-green-600 dark:text-green-400 font-semibold max-w-full overflow-hidden px-2 ${getDynamicFontSize(formatDisplayAmount(getTipAmount(), displayCurrency)) === 'text-6xl' ? 'text-2xl' : getDynamicFontSize(formatDisplayAmount(getTipAmount(), displayCurrency)) === 'text-5xl' ? 'text-xl' : 'text-lg'}`}>
+              <div className={`text-green-600 dark:text-green-400 font-semibold max-w-full overflow-hidden px-2 ${getDynamicFontSize(formatDisplayAmount(getTipAmount(), displayCurrency)).includes('text-6xl') ? 'text-2xl md:text-3xl' : getDynamicFontSize(formatDisplayAmount(getTipAmount(), displayCurrency)).includes('text-5xl') ? 'text-xl md:text-2xl' : 'text-lg md:text-xl'}`}>
                 + {selectedTipPercent}% tip ({formatDisplayAmount(getTipAmount(), displayCurrency)})
                 <div className={`text-green-700 dark:text-green-400 mt-1 max-w-full ${getDynamicFontSize(formatDisplayAmount(getTotalWithTip(), displayCurrency))}`} style={{wordBreak: 'keep-all', overflowWrap: 'normal'}}>
                   Total: {formatDisplayAmount(getTotalWithTip(), displayCurrency)}
@@ -1248,29 +1250,29 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
 
       </div>
 
-      {/* Redesigned Numpad - Scaled up for better visibility */}
+      {/* Redesigned Numpad - Scaled up for better visibility on desktop, original on mobile */}
       <div className="flex-1 px-4 pb-4 relative">
         {/* Spacer to align numpad with item list (below Search/Add Item row level) */}
-        <div className="h-12 mb-2"></div>
-        <div className="grid grid-cols-4 gap-3 max-w-md mx-auto" data-1p-ignore data-lpignore="true">
+        <div className="h-16 mb-2"></div>
+        <div className="grid grid-cols-4 gap-3 max-w-sm md:max-w-md mx-auto" data-1p-ignore data-lpignore="true">
           {/* Row 1: 1, 2, 3, + */}
           <button
             onClick={() => handleDigitPress('1')}
-            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             1
           </button>
           <button
             onClick={() => handleDigitPress('2')}
-            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             2
           </button>
           <button
             onClick={() => handleDigitPress('3')}
-            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             3
@@ -1278,7 +1280,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
           <button
             onClick={handlePlusPress}
             disabled={!amount || parseFloat(amount) <= 0}
-            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             +
@@ -1287,29 +1289,29 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
           {/* Row 2: 4, 5, 6, OK (starts) */}
           <button
             onClick={() => handleDigitPress('4')}
-            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             4
           </button>
           <button
             onClick={() => handleDigitPress('5')}
-            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             5
           </button>
           <button
             onClick={() => handleDigitPress('6')}
-            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             6
           </button>
           <button
             onClick={() => createInvoice()}
-            disabled={!hasValidAmount() || loading || (!(isPublicPOS && publicUsername) && !selectedWallet && !activeNWC && !hasBlinkLnAddressWallet && !hasNpubCashWallet) || (displayCurrency !== 'BTC' && !exchangeRate) || loadingRate}
-            className={`h-[172px] ${!hasValidAmount() || loading ? 'bg-gray-200 dark:bg-blink-dark border-2 border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500' : 'bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'} disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center row-span-2`}
+            disabled={!hasValidAmount() || loading || (!(isPublicPOS && publicUsername) && !selectedWallet && !activeNWC && !hasBlinkLnAddressWallet && !hasNpubCashWallet) || (!isBitcoinCurrency(displayCurrency) && !exchangeRate) || loadingRate}
+            className={`h-[136px] md:h-[172px] ${!hasValidAmount() || loading ? 'bg-gray-200 dark:bg-blink-dark border-2 border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500' : 'bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'} disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-lg text-lg md:text-xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center row-span-2`}
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             {loading ? 'Creating...' : 'OK'}
@@ -1318,21 +1320,21 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
           {/* Row 3: 7, 8, 9, OK (continues) */}
           <button
             onClick={() => handleDigitPress('7')}
-            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             7
           </button>
           <button
             onClick={() => handleDigitPress('8')}
-            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             8
           </button>
           <button
             onClick={() => handleDigitPress('9')}
-            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             9
@@ -1341,32 +1343,32 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
           {/* Row 4: C, 0, ., ⌫ */}
           <button
             onClick={handleClear}
-            className="h-20 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-lg md:text-xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             C
           </button>
           <button
             onClick={() => handleDigitPress('0')}
-            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             0
           </button>
           <button
             onClick={() => handleDigitPress('.')}
-            disabled={displayCurrency === 'BTC' || (getCurrentCurrency()?.fractionDigits === 0)}
-            className="h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
+            disabled={isBitcoinCurrency(displayCurrency) || (getCurrentCurrency()?.fractionDigits === 0)}
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg text-xl md:text-2xl font-normal leading-none tracking-normal transition-colors shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
             .
           </button>
           <button
             onClick={handleBackspace}
-            className="h-20 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 rounded-lg text-xl font-normal leading-none tracking-normal transition-colors flex items-center justify-center shadow-md"
+            className="h-16 md:h-20 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 rounded-lg text-lg md:text-xl font-normal leading-none tracking-normal transition-colors flex items-center justify-center shadow-md"
             style={{fontFamily: "'Source Sans Pro', sans-serif"}}
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
             </svg>
           </button>
@@ -1383,7 +1385,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
           
           return (
           <div className="absolute inset-0 bg-white dark:bg-black z-30 pt-24">
-            <div className="grid grid-cols-4 gap-3 max-w-md mx-auto" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+            <div className="grid grid-cols-4 gap-3 max-w-sm md:max-w-md mx-auto" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
               <h3 className="col-span-4 text-xl font-bold mb-2 text-center text-gray-800 dark:text-white">Tip Options</h3>
               
               {/* Tip preset buttons in grid */}
@@ -1393,14 +1395,14 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                   onClick={() => {
                     setPendingTipSelection(percent);
                   }}
-                  className={`col-span-2 h-20 bg-white dark:bg-black border-2 rounded-lg text-xl font-normal transition-colors shadow-md ${
+                  className={`col-span-2 h-16 md:h-20 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md ${
                     tipOptionIndex === idx 
                       ? 'border-green-400 ring-2 ring-green-400 bg-green-50 dark:bg-green-900 text-green-700 dark:text-green-300' 
                       : 'border-green-500 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'
                   }`}
                 >
                   {percent}%
-                  <div className="text-base">
+                  <div className="text-sm md:text-base">
                     +{formatDisplayAmount(calculateTipAmount(total + (parseFloat(amount) || 0), percent), displayCurrency)}
                   </div>
                 </button>
@@ -1413,10 +1415,10 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                     setShowCustomTipInput(true);
                     setCustomTipValue('');
                 }}
-                className={`col-span-2 h-20 bg-white dark:bg-black border-2 rounded-lg text-xl font-normal transition-colors shadow-md ${
+                className={`col-span-2 h-16 md:h-20 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md ${
                   tipOptionIndex === customIndex 
                     ? 'border-blue-400 ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300' 
-                    : 'border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300'
+                    : 'border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-green-700 dark:hover:text-blue-300'
                 }`}
               >
                   Custom
@@ -1429,7 +1431,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                   if (onInternalTransition) onInternalTransition();
                   setShowTipDialog(false);
                 }}
-                className={`col-span-2 h-20 bg-white dark:bg-black border-2 rounded-lg text-xl font-normal transition-colors shadow-md ${
+                className={`col-span-2 h-16 md:h-20 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md ${
                   tipOptionIndex === cancelIndex 
                     ? 'border-red-400 ring-2 ring-red-400 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-300' 
                     : 'border-red-500 hover:border-red-600 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300'
@@ -1441,10 +1443,10 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                 onClick={() => {
                   setPendingTipSelection(0);
                 }}
-                className={`col-span-2 h-20 bg-white dark:bg-black border-2 rounded-lg text-xl font-normal transition-colors shadow-md ${
+                className={`col-span-2 h-16 md:h-20 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md ${
                   tipOptionIndex === noTipIndex 
                     ? 'border-yellow-400 ring-2 ring-yellow-400 bg-yellow-50 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300' 
-                    : 'border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300'
+                    : 'border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-red-700 dark:hover:text-yellow-300'
                 }`}
               >
                 No Tip
@@ -1458,7 +1460,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
         {showTipDialog && showCustomTipInput && (
           <div className="absolute inset-0 bg-white dark:bg-black flex items-center justify-center z-30">
             <div className="max-w-md w-full px-4" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-              <h3 className="text-2xl font-bold mb-4 text-center text-gray-800 dark:text-white">Custom Tip</h3>
+              <h3 className="text-xl md:text-2xl font-bold mb-4 text-center text-gray-800 dark:text-white">Custom Tip</h3>
               <div className="mb-6">
                 <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2 text-center">
                   Enter Tip Percentage
@@ -1471,7 +1473,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                   min="0"
                   max="100"
                   step="0.5"
-                  className="w-full px-4 py-4 text-center text-3xl border-2 border-blue-600 dark:border-blue-500 rounded-lg bg-white dark:bg-blink-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600"
+                  className="w-full px-4 py-3 md:py-4 text-center text-3xl border-2 border-blue-600 dark:border-blue-500 rounded-lg bg-white dark:bg-blink-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600"
                   autoFocus
                 />
                 {customTipValue && parseFloat(customTipValue) > 0 && (
@@ -1486,7 +1488,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                     setShowCustomTipInput(false);
                     setCustomTipValue('');
                   }}
-                  className="h-20 bg-white dark:bg-black border-2 border-gray-500 hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 rounded-lg text-xl font-normal transition-colors shadow-md"
+                  className="h-16 md:h-20 bg-white dark:bg-black border-2 border-gray-500 hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md"
                 >
                   Back
                 </button>
@@ -1500,14 +1502,14 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, currencies, wallets, on
                     }
                   }}
                   disabled={!customTipValue || parseFloat(customTipValue) < 0 || parseFloat(customTipValue) > 100}
-                  className="h-20 bg-white dark:bg-black border-2 border-green-500 hover:border-green-600 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 disabled:border-gray-400 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-black rounded-lg text-xl font-normal transition-colors shadow-md"
+                  className="h-16 md:h-20 bg-white dark:bg-black border-2 border-green-500 hover:border-green-600 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 disabled:border-gray-400 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-black rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md"
                 >
                   Apply
-              </button>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       </div>
 

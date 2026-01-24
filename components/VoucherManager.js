@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from 'react';
-import { formatDisplayAmount as formatCurrency } from '../lib/currency-utils';
+import { formatDisplayAmount as formatCurrency, isBitcoinCurrency } from '../lib/currency-utils';
 import { ExpiryBadge, formatExpiryDate } from './ExpirySelector';
 import QRCode from 'react-qr-code';
 import { bech32 } from 'bech32';
@@ -213,7 +213,7 @@ const VoucherManager = forwardRef(({
       
       // Build fiat amount string
       let fiatAmount = null;
-      if (voucher.displayCurrency && voucher.displayCurrency !== 'BTC') {
+      if (voucher.displayCurrency && !isBitcoinCurrency(voucher.displayCurrency)) {
         fiatAmount = formatCurrency(voucher.displayAmount, voucher.displayCurrency, currencies);
       }
       

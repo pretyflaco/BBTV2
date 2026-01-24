@@ -1147,7 +1147,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
                 {!isBitcoinCurrency(invoice.displayCurrency) ? (
                   <div>
                     <div>{formatDisplayAmount(invoice.displayAmount, invoice.displayCurrency)}</div>
-                    <div className="text-lg text-gray-600 dark:text-gray-400 mt-1">({invoice.satAmount} sats)</div>
+                    <div className="text-lg text-gray-600 dark:text-gray-400 mt-1">({formatNumber(invoice.satAmount, numberFormat, 0)} sats)</div>
                   </div>
                 ) : (
                   formatDisplayAmount(invoice.satAmount || invoice.displayAmount, invoice.displayCurrency)

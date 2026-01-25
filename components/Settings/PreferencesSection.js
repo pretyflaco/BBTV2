@@ -46,7 +46,7 @@ export default function PreferencesSection() {
     }
   };
 
-  const popularCurrencies = ['USD', 'EUR', 'GBP', 'BTC', 'BTC-BIP177'];
+  const popularCurrencies = ['USD', 'EUR', 'GBP', 'BTC'];
   const allCurrencies = currencies ? getAllCurrencies() : [];
   
   const sortedCurrencies = allCurrencies.sort((a, b) => {

@@ -39,6 +39,9 @@ export default async function handler(req, res) {
     const store = await getHybridStore();
     const paymentData = await store.getTipData(paymentHash);
 
+    const status = paymentData?.status || (paymentData ? 'pending' : 'not_found');
+    console.log(`📊 [Payment Status] ${paymentHash.substring(0, 16)}... => ${status}`);
+
     if (!paymentData) {
       return res.status(200).json({
         status: 'not_found',

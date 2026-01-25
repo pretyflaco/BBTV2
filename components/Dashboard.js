@@ -814,6 +814,10 @@ export default function Dashboard() {
   // To enable: pass apiKey and user?.username instead of null
   const { connected, lastPayment, showAnimation, hideAnimation, triggerPaymentAnimation, manualReconnect, reconnectAttempts } = useBlinkWebSocket(null, null);
   
+  // Track current invoice for NFC payments and payment hash for polling
+  // Stores { paymentRequest, paymentHash, satoshis, memo } object
+  const [currentInvoice, setCurrentInvoice] = useState(null);
+
   // Payment status polling for webhook-only payment detection (SECURITY FIX)
   // Replaced client-side WebSocket with server-side webhook + client polling
   // This prevents exposing the BlinkPOS API key to the client
@@ -901,10 +905,6 @@ export default function Dashboard() {
       }
     };
   }, [currentInvoice?.paymentHash]);
-
-  // Track current invoice for NFC payments and payment hash for WebSocket filtering
-  // Now stores { paymentRequest, paymentHash } object
-  const [currentInvoice, setCurrentInvoice] = useState(null);
   
   // Setup NFC for Boltcard payments
   const nfcState = useNFC({

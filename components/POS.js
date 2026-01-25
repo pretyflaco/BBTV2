@@ -6,7 +6,7 @@ import { useNFC } from './NFCPayment';
 import Numpad from './Numpad';
 import { THEMES } from '../lib/hooks/useTheme';
 
-const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, blinkposConnected, blinkposConnect, blinkposDisconnect, blinkposReconnect, blinkposReconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, theme = THEMES.DARK, cycleTheme, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation, isPublicPOS = false, publicUsername = null }, ref) => {
+const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, theme = THEMES.DARK, cycleTheme, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation, isPublicPOS = false, publicUsername = null }, ref) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -632,11 +632,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
     setShowTipDialog(false);
     setPendingTipSelection(null);
     
-    // Disconnect WebSocket when clearing invoice (user cancelled/abandoned)
-    if (blinkposConnected && blinkposDisconnect) {
-      console.log('💤 Disconnecting BlinkPOS WebSocket (invoice cleared)');
-      blinkposDisconnect();
-    }
+    // Note: Payment detection is handled via webhook + polling in Dashboard
   };
 
   const handlePlusPress = () => {
@@ -766,7 +762,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
       // Continue to invoice creation (no wallet required on our side)
     } else {
       // AUTHENTICATED MODE: Invoices are created via Blink's blinkpos account
-      // Payments are forwarded to either:
+      // Payments are forwarded via webhook to either:
       // - User's Blink wallet via API key (if they have one), OR
       // - User's Blink wallet via Lightning Address (if they have one), OR
       // - User's NWC wallet (if active)
@@ -778,15 +774,8 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
         return;
       }
 
-      // Connect BlinkPOS WebSocket if not already connected (lazy-loading)
-      if (!blinkposConnected && blinkposConnect) {
-        console.log('🔗 Connecting BlinkPOS WebSocket before invoice creation...');
-        blinkposConnect();
-        
-        // Give it a moment to connect before proceeding
-        // Note: The invoice will be created even if connection is still in progress
-        // The WebSocket will pick up the payment when it connects
-      }
+      // Payment detection is now handled via webhook + polling in Dashboard
+      // No client-side WebSocket connection needed (security fix)
     }
 
     setLoading(true);

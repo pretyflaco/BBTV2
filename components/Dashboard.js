@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useCombinedAuth } from '../lib/hooks/useCombinedAuth';
 import { useBlinkWebSocket } from '../lib/hooks/useBlinkWebSocket';
-import { useBlinkPOSWebSocket } from '../lib/hooks/useBlinkPOSWebSocket';
 import { useCurrencies } from '../lib/hooks/useCurrencies';
 import { useTheme } from '../lib/hooks/useTheme';
 import { useNFC } from './NFCPayment';
@@ -815,65 +814,93 @@ export default function Dashboard() {
   // To enable: pass apiKey and user?.username instead of null
   const { connected, lastPayment, showAnimation, hideAnimation, triggerPaymentAnimation, manualReconnect, reconnectAttempts } = useBlinkWebSocket(null, null);
   
-  // Setup BlinkPOS WebSocket for real-time payment detection and forwarding
-  // LAZY-LOADED: Connection only established when POS invoice is created
-  const userBtcWallet = wallets.find(w => w.walletCurrency === 'BTC');
-  const { 
-    connected: blinkposConnected, 
-    connect: blinkposConnect, 
-    disconnect: blinkposDisconnect,
-    manualReconnect: blinkposReconnect, 
-    reconnectAttempts: blinkposReconnectAttempts,
-    setExpectedPaymentHash: blinkposSetExpectedPaymentHash
-  } = useBlinkPOSWebSocket(
-    apiKey, 
-    userBtcWallet?.id, 
-    (forwardedPayment) => {
-      console.log('🎉 Payment forwarded from BlinkPOS to user account:', forwardedPayment);
+  // Payment status polling for webhook-only payment detection (SECURITY FIX)
+  // Replaced client-side WebSocket with server-side webhook + client polling
+  // This prevents exposing the BlinkPOS API key to the client
+  const pollingIntervalRef = useRef(null);
+  const pollingStartTimeRef = useRef(null);
+  const POLLING_INTERVAL_MS = 1000; // Poll every 1 second
+  const POLLING_TIMEOUT_MS = 15 * 60 * 1000; // Stop polling after 15 minutes
+  
+  // Poll for payment status when we have a pending invoice
+  useEffect(() => {
+    // Clear any existing polling
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    
+    // Start polling if we have a payment hash to watch
+    if (currentInvoice?.paymentHash) {
+      console.log('🔄 Starting payment status polling for:', currentInvoice.paymentHash.substring(0, 16) + '...');
+      pollingStartTimeRef.current = Date.now();
       
-      // Trigger payment animation immediately when payment is forwarded
-      triggerPaymentAnimation({
-        amount: forwardedPayment.amount,
-        currency: forwardedPayment.currency || 'BTC',
-        memo: forwardedPayment.memo || `BlinkPOS: ${forwardedPayment.amount} sats`,
-        isForwarded: true,
-        isNwc: forwardedPayment.isNwc
-      });
+      const pollPaymentStatus = async () => {
+        // Check if we've exceeded the timeout
+        if (Date.now() - pollingStartTimeRef.current > POLLING_TIMEOUT_MS) {
+          console.log('⏱️ Payment polling timeout reached (15 min) - stopping');
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          return;
+        }
+        
+        try {
+          const response = await fetch(`/api/payment-status/${currentInvoice.paymentHash}`);
+          const data = await response.json();
+          
+          if (data.status === 'completed') {
+            console.log('✅ Payment completed detected via polling!');
+            
+            // Stop polling
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+              pollingIntervalRef.current = null;
+            }
+            
+            // Trigger payment animation
+            triggerPaymentAnimation({
+              amount: currentInvoice.satoshis || currentInvoice.amount,
+              currency: 'BTC',
+              memo: currentInvoice.memo || `Payment received`,
+              isForwarded: true
+            });
+            
+            // Clear POS invoice
+            if (posPaymentReceivedRef.current) {
+              posPaymentReceivedRef.current();
+            }
+            
+            // Refresh transaction data
+            fetchData();
+          } else if (data.status === 'expired') {
+            console.log('⏰ Payment expired');
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+              pollingIntervalRef.current = null;
+            }
+          }
+          // For 'pending', 'processing', 'not_found' - keep polling
+        } catch (error) {
+          console.error('Payment status poll error:', error);
+          // Continue polling despite errors
+        }
+      };
       
-      // Note: Sound is played by PaymentAnimation component, not here
-      
-      // Clear POS invoice
-      if (posPaymentReceivedRef.current) {
-        posPaymentReceivedRef.current();
+      // Poll immediately, then on interval
+      pollPaymentStatus();
+      pollingIntervalRef.current = setInterval(pollPaymentStatus, POLLING_INTERVAL_MS);
+    }
+    
+    // Cleanup on unmount or when invoice changes
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
       }
-      
-      // Disconnect WebSocket after payment received
-      console.log('💤 Disconnecting BlinkPOS WebSocket after payment received');
-      blinkposDisconnect();
-      
-      // Refresh data to show the forwarded payment
-      fetchData();
-    },
-    // NWC options for forwarding to NWC wallets
-    {
-      isActive: !!activeNWC && nwcClientReady,
-      makeInvoice: nwcMakeInvoice
-    },
-    // Blink Lightning Address options for forwarding without API key
-    {
-      isActive: activeBlinkAccount?.type === 'ln-address',
-      walletId: activeBlinkAccount?.walletId,
-      username: activeBlinkAccount?.username
-    },
-    // npub.cash options for forwarding to Cashu ecash (intraledger via Blink)
-    {
-      isActive: activeNpubCashWallet?.type === 'npub-cash' && !activeNWC,
-      address: activeNpubCashWallet?.lightningAddress
-    },
-    // CRITICAL: Expected payment hash to prevent cross-device animation triggering
-    // Only trigger callback if payment matches this client's pending invoice
-    currentInvoice?.paymentHash
-  );
+    };
+  }, [currentInvoice?.paymentHash]);
 
   // Track current invoice for NFC payments and payment hash for WebSocket filtering
   // Now stores { paymentRequest, paymentHash } object
@@ -884,7 +911,7 @@ export default function Dashboard() {
     paymentRequest: currentInvoice?.paymentRequest,
     onPaymentSuccess: () => {
       console.log('🎉 NFC Boltcard payment successful');
-      // Payment will be picked up by BlinkPOS WebSocket
+      // Payment will be detected via webhook + polling
     },
     onPaymentError: (error) => {
       console.error('NFC payment error:', error);
@@ -6872,21 +6899,14 @@ export default function Dashboard() {
             connected={connected}
             manualReconnect={manualReconnect}
             reconnectAttempts={reconnectAttempts}
-            blinkposConnected={blinkposConnected}
-            blinkposConnect={blinkposConnect}
-            blinkposDisconnect={blinkposDisconnect}
-            blinkposReconnect={blinkposReconnect}
-            blinkposReconnectAttempts={blinkposReconnectAttempts}
             tipsEnabled={tipsEnabled}
             tipPresets={tipPresets}
             tipRecipients={activeSplitProfile?.recipients || []}
             soundEnabled={soundEnabled}
             onInvoiceStateChange={setShowingInvoice}
             onInvoiceChange={(invoiceData) => {
+              // Set current invoice to trigger polling in Dashboard
               setCurrentInvoice(invoiceData);
-              // CRITICAL: Immediately set expected payment hash to bypass React render cycle
-              // This ensures the WebSocket knows which payment to accept BEFORE React re-renders
-              blinkposSetExpectedPaymentHash(invoiceData?.paymentHash || null);
             }}
             darkMode={darkMode}
             theme={theme}

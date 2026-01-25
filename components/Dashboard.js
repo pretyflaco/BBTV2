@@ -828,11 +828,6 @@ export default function Dashboard() {
   
   // Poll for payment status when we have a pending invoice
   useEffect(() => {
-    console.log('🔍 [Dashboard] Polling useEffect triggered, currentInvoice:', {
-      hasInvoice: !!currentInvoice,
-      paymentHash: currentInvoice?.paymentHash?.substring(0, 16)
-    });
-    
     // Clear any existing polling
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
@@ -842,7 +837,6 @@ export default function Dashboard() {
     // Start polling if we have a payment hash to watch
     if (currentInvoice?.paymentHash) {
       console.log('🔄 Starting payment status polling for:', currentInvoice.paymentHash.substring(0, 16) + '...');
-      console.log('🔄 Full payment hash for debugging:', currentInvoice.paymentHash);
       pollingStartTimeRef.current = Date.now();
       
       const pollPaymentStatus = async () => {
@@ -6912,11 +6906,6 @@ export default function Dashboard() {
             onInvoiceStateChange={setShowingInvoice}
             onInvoiceChange={(invoiceData) => {
               // Set current invoice to trigger polling in Dashboard
-              console.log('📋 [Dashboard] onInvoiceChange called:', {
-                hasData: !!invoiceData,
-                paymentHash: invoiceData?.paymentHash?.substring(0, 16) + '...',
-                satoshis: invoiceData?.satoshis
-              });
               setCurrentInvoice(invoiceData);
             }}
             darkMode={darkMode}

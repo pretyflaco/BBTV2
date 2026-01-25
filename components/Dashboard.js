@@ -217,6 +217,89 @@ export default function Dashboard() {
     }
   };
   
+  // Submenu option item styling - unselected state (for currency/regional options)
+  const getSubmenuOptionClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'bg-transparent border border-blink-classic-border rounded-xl hover:bg-blink-classic-bg hover:border-blink-classic-amber';
+      case 'blink-classic-light':
+        return 'bg-transparent border border-blink-classic-border-light rounded-xl hover:bg-blink-classic-hover-light hover:border-blink-classic-amber';
+      default:
+        return darkMode ? 'bg-gray-900 hover:bg-gray-800 border-2 border-transparent' : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent';
+    }
+  };
+  
+  // Submenu option item styling - selected/active state
+  const getSubmenuOptionActiveClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'bg-blink-classic-bg border border-blink-classic-amber rounded-xl';
+      case 'blink-classic-light':
+        return 'bg-blink-classic-hover-light border border-blink-classic-amber rounded-xl';
+      default:
+        return 'bg-blink-accent/20 border-2 border-blink-accent';
+    }
+  };
+  
+  // Preview/info box styling
+  const getPreviewBoxClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'bg-blink-classic-bg border border-blink-classic-border rounded-xl';
+      case 'blink-classic-light':
+        return 'bg-blink-classic-hover-light border border-blink-classic-border-light rounded-xl';
+      default:
+        return darkMode ? 'bg-gray-900' : 'bg-gray-50';
+    }
+  };
+  
+  // Section label text styling
+  const getSectionLabelClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'text-gray-400';
+      case 'blink-classic-light':
+        return 'text-gray-600';
+      default:
+        return darkMode ? 'text-gray-400' : 'text-gray-600';
+    }
+  };
+  
+  // Primary text styling (titles, main text)
+  const getPrimaryTextClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'text-white';
+      case 'blink-classic-light':
+        return 'text-black';
+      default:
+        return darkMode ? 'text-white' : 'text-gray-900';
+    }
+  };
+  
+  // Secondary text styling (descriptions, captions)
+  const getSecondaryTextClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'text-gray-400';
+      case 'blink-classic-light':
+        return 'text-gray-500';
+      default:
+        return darkMode ? 'text-gray-400' : 'text-gray-500';
+    }
+  };
+  
+  // Checkmark styling for selected items
+  const getCheckmarkClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+      case 'blink-classic-light':
+        return 'text-blink-classic-amber';
+      default:
+        return 'text-blink-accent';
+    }
+  };
+  
   const [apiKey, setApiKey] = useState(null);
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
   const [expandedMonths, setExpandedMonths] = useState(new Set());
@@ -4320,12 +4403,12 @@ export default function Dashboard() {
                 <div className="flex justify-between items-center h-16">
                   <button
                     onClick={() => setShowTipSettings(false)}
-                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
+                    className={`flex items-center ${getPrimaryTextClasses()} hover:text-blink-classic-amber`}
                   >
                     <span className="text-2xl mr-2">‹</span>
                     <span className="text-lg">Back</span>
                   </button>
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                  <h1 className={`text-xl font-bold ${getPrimaryTextClasses()}`}>
                     Payment Splits
                   </h1>
                   <div className="w-16"></div>
@@ -4349,7 +4432,11 @@ export default function Dashboard() {
                       setUseCustomWeights(false);
                       setShowCreateSplitProfile(true);
                     }}
-                    className="w-full py-3 text-sm font-medium bg-blink-accent text-black rounded-lg hover:bg-blink-accent/90 transition-colors flex items-center justify-center gap-2"
+                    className={`w-full py-3 text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 ${
+                      isBlinkClassic 
+                        ? 'bg-blink-classic-amber text-black hover:bg-blink-classic-amber/90' 
+                        : 'bg-blink-accent text-black hover:bg-blink-accent/90'
+                    }`}
                   >
                     <span className="text-lg">+</span>
                     <span>New Split Profile</span>
@@ -4362,23 +4449,23 @@ export default function Dashboard() {
                     setActiveSplitProfileById(null);
                     setShowTipSettings(false);
                   }}
-                  className={`w-full p-4 rounded-lg border-2 transition-all ${
+                  className={`w-full p-4 transition-all ${
                     !activeSplitProfile
-                      ? getSelectionTileActiveClasses()
-                      : getSelectionTileClasses()
+                      ? getSubmenuOptionActiveClasses()
+                      : getSubmenuOptionClasses()
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-left">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+                      <h3 className={`text-lg font-semibold mb-1 ${getPrimaryTextClasses()}`}>
                         None
                       </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                      <p className={`text-sm ${getSecondaryTextClasses()}`}>
                         Payment splits disabled
                       </p>
                     </div>
                     {!activeSplitProfile && (
-                      <div className="text-blue-600 dark:text-blue-400 text-2xl">✓</div>
+                      <div className={`text-2xl ${getCheckmarkClasses()}`}>✓</div>
                     )}
                   </div>
                 </button>
@@ -4386,7 +4473,7 @@ export default function Dashboard() {
                 {/* Loading State */}
                 {splitProfilesLoading && (
                   <div className="flex justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-blink-accent border-t-transparent"></div>
+                    <div className={`animate-spin rounded-full h-8 w-8 border-2 border-t-transparent ${isBlinkClassic ? 'border-blink-classic-amber' : 'border-blink-accent'}`}></div>
                   </div>
                 )}
 
@@ -4399,10 +4486,10 @@ export default function Dashboard() {
                   return (
                   <div
                     key={profile.id}
-                    className={`w-full p-4 rounded-lg border-2 transition-all ${
+                    className={`w-full p-4 transition-all ${
                       activeSplitProfile?.id === profile.id
-                        ? getSelectionTileActiveClasses()
-                        : getSelectionTileClasses()
+                        ? getSubmenuOptionActiveClasses()
+                        : getSubmenuOptionClasses()
                     }`}
                   >
                     <button
@@ -4414,10 +4501,10 @@ export default function Dashboard() {
                     >
                       <div className="flex items-center justify-between">
                         <div className="text-left">
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+                          <h3 className={`text-lg font-semibold mb-1 ${getPrimaryTextClasses()}`}>
                             {profile.label}
                           </h3>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                          <p className={`text-sm ${getSecondaryTextClasses()}`}>
                             {hasCustomWeights 
                               ? profile.recipients.map(r => {
                                   const name = r.type === 'npub_cash' ? r.username : `${r.username}@blink.sv`;
@@ -4428,12 +4515,12 @@ export default function Dashboard() {
                           </p>
                         </div>
                         {activeSplitProfile?.id === profile.id && (
-                          <div className="text-blue-600 dark:text-blue-400 text-2xl">✓</div>
+                          <div className={`text-2xl ${getCheckmarkClasses()}`}>✓</div>
                         )}
                       </div>
                     </button>
                     {/* Edit/Delete Actions */}
-                    <div className="flex gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                    <div className={`flex gap-2 mt-3 pt-3 border-t ${isBlinkClassic ? (isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light') : 'border-gray-200 dark:border-gray-700'}`}>
                       <button
                         onClick={() => {
                           setEditingSplitProfile(profile);
@@ -4455,7 +4542,11 @@ export default function Dashboard() {
                           setSplitProfileError(null);
                           setShowCreateSplitProfile(true);
                         }}
-                        className="flex-1 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-blink-accent border border-gray-300 dark:border-gray-600 rounded"
+                        className={`flex-1 py-2 text-sm rounded-lg transition-colors ${
+                          isBlinkClassic 
+                            ? `${getSecondaryTextClasses()} hover:text-blink-classic-amber border ${isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light'}` 
+                            : 'text-gray-600 dark:text-gray-400 hover:text-blink-accent border border-gray-300 dark:border-gray-600'
+                        }`}
                       >
                         Edit
                       </button>
@@ -4465,7 +4556,11 @@ export default function Dashboard() {
                             await deleteSplitProfile(profile.id);
                           }
                         }}
-                        className="flex-1 py-2 text-sm text-red-500 hover:text-red-700 border border-gray-300 dark:border-gray-600 rounded"
+                        className={`flex-1 py-2 text-sm rounded-lg text-red-500 hover:text-red-700 border transition-colors ${
+                          isBlinkClassic 
+                            ? (isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light')
+                            : 'border-gray-300 dark:border-gray-600'
+                        }`}
                       >
                         Delete
                       </button>
@@ -4476,11 +4571,11 @@ export default function Dashboard() {
 
                 {/* No Profiles Yet Message */}
                 {!splitProfilesLoading && splitProfiles.length === 0 && authMode === 'nostr' && (
-                  <div className={`rounded-lg p-6 text-center ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-                    <p className="text-gray-600 dark:text-gray-400 mb-2">
+                  <div className={`p-6 text-center ${getPreviewBoxClasses()}`}>
+                    <p className={`mb-2 ${getSecondaryTextClasses()}`}>
                       No split profiles yet
                     </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-500">
+                    <p className={`text-sm ${getSecondaryTextClasses()}`}>
                       Create a split profile to automatically share a portion of payments with another Blink user.
                     </p>
                   </div>
@@ -4488,11 +4583,11 @@ export default function Dashboard() {
 
                 {/* Not Signed In Message */}
                 {authMode !== 'nostr' && (
-                  <div className={`rounded-lg p-6 text-center ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-                    <p className="text-gray-600 dark:text-gray-400 mb-2">
+                  <div className={`p-6 text-center ${getPreviewBoxClasses()}`}>
+                    <p className={`mb-2 ${getSecondaryTextClasses()}`}>
                       Sign in with Nostr to use split profiles
                     </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-500">
+                    <p className={`text-sm ${getSecondaryTextClasses()}`}>
                       Split profiles are synced across devices and require Nostr authentication.
                     </p>
                   </div>
@@ -4829,12 +4924,12 @@ export default function Dashboard() {
                 <div className="flex justify-between items-center h-16">
                   <button
                     onClick={() => setShowCurrencySettings(false)}
-                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
+                    className={`flex items-center ${getPrimaryTextClasses()} hover:text-blink-classic-amber`}
                   >
                     <span className="text-2xl mr-2">‹</span>
                     <span className="text-lg">Back</span>
                   </button>
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                  <h1 className={`text-xl font-bold ${getPrimaryTextClasses()}`}>
                     Currency
                   </h1>
                   <div className="w-16"></div>
@@ -4846,7 +4941,7 @@ export default function Dashboard() {
             <div className="max-w-md mx-auto px-4 py-6">
               <div className="space-y-2">
                 {currenciesLoading ? (
-                  <div className="text-center py-4 text-gray-500">Loading...</div>
+                  <div className={`text-center py-4 ${getSecondaryTextClasses()}`}>Loading...</div>
                 ) : (
                   getAllCurrencies().map((currency) => (
                     <button
@@ -4855,20 +4950,18 @@ export default function Dashboard() {
                         setDisplayCurrency(currency.id);
                         setShowCurrencySettings(false);
                       }}
-                      className={`w-full p-3 rounded-lg text-left transition-all ${
+                      className={`w-full p-3 text-left transition-all ${
                         displayCurrency === currency.id
-                          ? 'bg-blink-accent/20 border-2 border-blink-accent'
-                          : darkMode
-                            ? 'bg-gray-900 hover:bg-gray-800 border-2 border-transparent'
-                            : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
+                          ? getSubmenuOptionActiveClasses()
+                          : getSubmenuOptionClasses()
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        <span className={`text-sm font-medium ${getPrimaryTextClasses()}`}>
                           {currency.flag ? `${currency.flag} ` : ''}{currency.displayId || currency.id} - {currency.name}
                         </span>
                         {displayCurrency === currency.id && (
-                          <svg className="w-5 h-5 text-blink-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className={`w-5 h-5 ${getCheckmarkClasses()}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                           </svg>
                         )}
@@ -4892,12 +4985,12 @@ export default function Dashboard() {
                 <div className="flex justify-between items-center h-16">
                   <button
                     onClick={() => setShowRegionalSettings(false)}
-                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
+                    className={`flex items-center ${getPrimaryTextClasses()} hover:text-blink-classic-amber`}
                   >
                     <span className="text-2xl mr-2">‹</span>
                     <span className="text-lg">Back</span>
                   </button>
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                  <h1 className={`text-xl font-bold ${getPrimaryTextClasses()}`}>
                     Regional
                   </h1>
                   <div className="w-16"></div>
@@ -4909,7 +5002,7 @@ export default function Dashboard() {
             <div className="max-w-md mx-auto px-4 py-6 space-y-6">
               {/* Number Format Section */}
               <div>
-                <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                <h3 className={`text-sm font-medium mb-3 ${getSectionLabelClasses()}`}>
                   Number Format
                 </h3>
                 <div className="space-y-2">
@@ -4917,25 +5010,23 @@ export default function Dashboard() {
                     <button
                       key={format}
                       onClick={() => setNumberFormat(format)}
-                      className={`w-full p-3 rounded-lg text-left transition-all ${
+                      className={`w-full p-3 text-left transition-all ${
                         numberFormat === format
-                          ? 'bg-blink-accent/20 border-2 border-blink-accent'
-                          : darkMode
-                            ? 'bg-gray-900 hover:bg-gray-800 border-2 border-transparent'
-                            : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
+                          ? getSubmenuOptionActiveClasses()
+                          : getSubmenuOptionClasses()
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                          <span className={`text-sm font-medium ${getPrimaryTextClasses()}`}>
                             {FORMAT_LABELS[format]}
                           </span>
-                          <p className={`text-xs mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          <p className={`text-xs mt-0.5 ${getSecondaryTextClasses()}`}>
                             {FORMAT_DESCRIPTIONS[format]}
                           </p>
                         </div>
                         {numberFormat === format && (
-                          <svg className="w-5 h-5 text-blink-accent flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className={`w-5 h-5 ${getCheckmarkClasses()} flex-shrink-0 ml-2`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                           </svg>
                         )}
@@ -4945,11 +5036,11 @@ export default function Dashboard() {
                 </div>
 
                 {/* Live Preview */}
-                <div className={`mt-4 p-4 rounded-lg ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-                  <h4 className={`text-xs font-medium mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                <div className={`mt-4 p-4 ${getPreviewBoxClasses()}`}>
+                  <h4 className={`text-xs font-medium mb-2 ${getSectionLabelClasses()}`}>
                     Preview
                   </h4>
-                  <div className={`space-y-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  <div className={`space-y-1 ${getPrimaryTextClasses()}`}>
                     <div className="flex justify-between text-sm">
                       <span>Bitcoin:</span>
                       <span className="font-mono">{getBitcoinFormatPreview(bitcoinFormat, numberFormat)}</span>
@@ -4964,7 +5055,7 @@ export default function Dashboard() {
 
               {/* Bitcoin Format Section */}
               <div>
-                <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                <h3 className={`text-sm font-medium mb-3 ${getSectionLabelClasses()}`}>
                   Bitcoin Format
                 </h3>
                 <div className="space-y-2">
@@ -4972,30 +5063,28 @@ export default function Dashboard() {
                     <button
                       key={format}
                       onClick={() => setBitcoinFormat(format)}
-                      className={`w-full p-3 rounded-lg text-left transition-all ${
+                      className={`w-full p-3 text-left transition-all ${
                         bitcoinFormat === format
-                          ? 'bg-blink-accent/20 border-2 border-blink-accent'
-                          : darkMode
-                            ? 'bg-gray-900 hover:bg-gray-800 border-2 border-transparent'
-                            : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
+                          ? getSubmenuOptionActiveClasses()
+                          : getSubmenuOptionClasses()
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="flex items-center gap-3">
-                            <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                            <span className={`text-sm font-medium ${getPrimaryTextClasses()}`}>
                               {BITCOIN_FORMAT_LABELS[format]}
                             </span>
-                            <span className={`text-sm font-mono ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            <span className={`text-sm font-mono ${getSecondaryTextClasses()}`}>
                               {getBitcoinFormatPreview(format, numberFormat)}
                             </span>
                           </div>
-                          <p className={`text-xs mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          <p className={`text-xs mt-0.5 ${getSecondaryTextClasses()}`}>
                             {BITCOIN_FORMAT_DESCRIPTIONS[format]}
                           </p>
                         </div>
                         {bitcoinFormat === format && (
-                          <svg className="w-5 h-5 text-blink-accent flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className={`w-5 h-5 ${getCheckmarkClasses()} flex-shrink-0 ml-2`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                           </svg>
                         )}
@@ -5007,22 +5096,22 @@ export default function Dashboard() {
 
               {/* Language Section (Placeholder) */}
               <div>
-                <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                <h3 className={`text-sm font-medium mb-3 ${getSectionLabelClasses()}`}>
                   Language
                 </h3>
                 <div 
-                  className={`p-3 rounded-lg ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} opacity-60 cursor-not-allowed`}
+                  className={`p-3 ${getSubmenuOptionActiveClasses()} opacity-60 cursor-not-allowed`}
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      <span className={`text-sm font-medium ${getPrimaryTextClasses()}`}>
                         English
                       </span>
-                      <p className={`text-xs mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      <p className={`text-xs mt-0.5 ${getSecondaryTextClasses()}`}>
                         More languages coming soon
                       </p>
                     </div>
-                    <svg className="w-5 h-5 text-blink-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className={`w-5 h-5 ${getCheckmarkClasses()}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </svg>
                   </div>

@@ -48,6 +48,79 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
     isMobile: checkIsMobile,
   } = useThermalPrint({ paperWidth: printFormat === 'thermal-58' ? 58 : 80 });
 
+  // BC Theme helpers
+  const isBlinkClassic = theme === 'blink-classic-dark' || theme === 'blink-classic-light';
+  const isBlinkClassicDark = theme === 'blink-classic-dark';
+  const isBlinkClassicLight = theme === 'blink-classic-light';
+  
+  // Get commission option button classes based on theme
+  const getCommissionButtonClasses = (isSelected) => {
+    if (isBlinkClassicDark) {
+      return isSelected
+        ? 'bg-blink-classic-bg border border-blink-classic-amber text-white ring-2 ring-blink-classic-amber'
+        : 'bg-transparent border border-blink-classic-border text-white hover:bg-blink-classic-bg hover:border-blink-classic-amber';
+    }
+    if (isBlinkClassicLight) {
+      return isSelected
+        ? 'bg-blink-classic-hover-light border border-blink-classic-amber text-black ring-2 ring-blink-classic-amber'
+        : 'bg-transparent border border-blink-classic-border-light text-black hover:bg-blink-classic-hover-light hover:border-blink-classic-amber';
+    }
+    // Standard themes - use original purple styling
+    return isSelected
+      ? 'border-purple-400 ring-2 ring-purple-400 bg-purple-50 dark:bg-purple-900 text-purple-700 dark:text-purple-300'
+      : 'border-purple-500 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300';
+  };
+  
+  // Get cancel button classes (red in standard, themed in BC)
+  const getCancelButtonClasses = (isSelected) => {
+    if (isBlinkClassicDark) {
+      return isSelected
+        ? 'bg-blink-classic-bg border border-red-500 text-red-400 ring-2 ring-red-500'
+        : 'bg-transparent border border-blink-classic-border text-gray-400 hover:bg-blink-classic-bg hover:border-red-500 hover:text-red-400';
+    }
+    if (isBlinkClassicLight) {
+      return isSelected
+        ? 'bg-red-50 border border-red-500 text-red-600 ring-2 ring-red-500'
+        : 'bg-transparent border border-blink-classic-border-light text-gray-600 hover:bg-red-50 hover:border-red-500 hover:text-red-600';
+    }
+    // Standard themes
+    return isSelected
+      ? 'border-red-400 ring-2 ring-red-400 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-300'
+      : 'border-red-500 hover:border-red-600 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300';
+  };
+  
+  // Get no commission/skip button classes (yellow in standard, themed in BC)
+  const getNoCommissionButtonClasses = (isSelected) => {
+    if (isBlinkClassicDark) {
+      return isSelected
+        ? 'bg-blink-classic-bg border border-blink-classic-amber text-blink-classic-amber ring-2 ring-blink-classic-amber'
+        : 'bg-transparent border border-blink-classic-border text-gray-400 hover:bg-blink-classic-bg hover:border-blink-classic-amber hover:text-blink-classic-amber';
+    }
+    if (isBlinkClassicLight) {
+      return isSelected
+        ? 'bg-blink-classic-hover-light border border-blink-classic-amber text-amber-600 ring-2 ring-blink-classic-amber'
+        : 'bg-transparent border border-blink-classic-border-light text-gray-600 hover:bg-blink-classic-hover-light hover:border-blink-classic-amber hover:text-amber-600';
+    }
+    // Standard themes
+    return isSelected
+      ? 'border-yellow-400 ring-2 ring-yellow-400 bg-yellow-50 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300'
+      : 'border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300';
+  };
+  
+  // Get background for commission dialog overlay
+  const getCommissionDialogBgClasses = () => {
+    if (isBlinkClassicDark) return 'bg-black';
+    if (isBlinkClassicLight) return 'bg-white';
+    return 'bg-white dark:bg-black';
+  };
+  
+  // Get text color classes
+  const getCommissionDialogTextClasses = () => {
+    if (isBlinkClassicDark) return 'text-white';
+    if (isBlinkClassicLight) return 'text-black';
+    return 'text-gray-800 dark:text-white';
+  };
+
   // Notify parent when voucher QR or commission dialog is showing (to hide header elements)
   useEffect(() => {
     if (onVoucherStateChange) {
@@ -1605,9 +1678,9 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
         const noCommissionIndex = totalOptions - 1;
         
         return (
-        <div className="absolute inset-0 bg-white dark:bg-black z-30 pt-24">
+        <div className={`absolute inset-0 ${getCommissionDialogBgClasses()} z-30 pt-24`}>
           <div className="grid grid-cols-4 gap-3 max-w-sm md:max-w-md mx-auto" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-            <h3 className="col-span-4 text-xl md:text-2xl font-bold mb-2 text-center text-gray-800 dark:text-white">Commission Options</h3>
+            <h3 className={`col-span-4 text-xl md:text-2xl font-bold mb-2 text-center ${getCommissionDialogTextClasses()}`}>Commission Options</h3>
             
             {/* Commission preset buttons in grid - render all presets */}
             {commissionPresets.map((percent, index) => (
@@ -1616,14 +1689,10 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
                 onClick={() => {
                   setPendingCommissionSelection(percent);
                 }}
-                className={`col-span-2 h-16 md:h-20 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md ${
-                  commissionOptionIndex === index 
-                    ? 'border-purple-400 ring-2 ring-purple-400 bg-purple-50 dark:bg-purple-900 text-purple-700 dark:text-purple-300' 
-                    : 'border-purple-500 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300'
-                }`}
+                className={`col-span-2 h-16 md:h-20 ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} text-lg md:text-xl font-normal transition-colors ${isBlinkClassic ? '' : 'shadow-md'} ${getCommissionButtonClasses(commissionOptionIndex === index)}`}
               >
                 {percent}%
-                <div className="text-sm md:text-base">
+                <div className={`text-sm md:text-base ${isBlinkClassic ? 'opacity-70' : ''}`}>
                   -{formatDisplayAmount(calculateCommissionAmount(parseFloat(amount) || 0, percent), displayCurrency)}
                 </div>
               </button>
@@ -1640,11 +1709,7 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
                 if (onInternalTransition) onInternalTransition();
                 setShowCommissionDialog(false);
               }}
-              className={`col-span-2 h-16 md:h-20 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md ${
-                commissionOptionIndex === cancelIndex 
-                  ? 'border-red-400 ring-2 ring-red-400 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-300' 
-                  : 'border-red-500 hover:border-red-600 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300'
-              }`}
+              className={`col-span-2 h-16 md:h-20 ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} text-lg md:text-xl font-normal transition-colors ${isBlinkClassic ? '' : 'shadow-md'} ${getCancelButtonClasses(commissionOptionIndex === cancelIndex)}`}
             >
               Cancel
             </button>
@@ -1652,11 +1717,7 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
               onClick={() => {
                 setPendingCommissionSelection(0);
               }}
-              className={`col-span-2 h-16 md:h-20 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md ${
-                commissionOptionIndex === noCommissionIndex 
-                  ? 'border-yellow-400 ring-2 ring-yellow-400 bg-yellow-50 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300' 
-                  : 'border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300'
-              }`}
+              className={`col-span-2 h-16 md:h-20 ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} text-lg md:text-xl font-normal transition-colors ${isBlinkClassic ? '' : 'shadow-md'} ${getNoCommissionButtonClasses(commissionOptionIndex === noCommissionIndex)}`}
             >
               No Commission
             </button>

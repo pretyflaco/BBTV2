@@ -29,6 +29,104 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
   // Cart memo (when coming from item cart)
   const [cartMemo, setCartMemo] = useState('');
 
+  // BC Theme helpers
+  const isBlinkClassic = theme === 'blink-classic-dark' || theme === 'blink-classic-light';
+  const isBlinkClassicDark = theme === 'blink-classic-dark';
+  const isBlinkClassicLight = theme === 'blink-classic-light';
+  
+  // Get tip option button classes based on theme
+  const getTipButtonClasses = (isSelected) => {
+    if (isBlinkClassicDark) {
+      return isSelected
+        ? 'bg-blink-classic-bg border border-blink-classic-amber text-white ring-2 ring-blink-classic-amber'
+        : 'bg-transparent border border-blink-classic-border text-white hover:bg-blink-classic-bg hover:border-blink-classic-amber';
+    }
+    if (isBlinkClassicLight) {
+      return isSelected
+        ? 'bg-blink-classic-hover-light border border-blink-classic-amber text-black ring-2 ring-blink-classic-amber'
+        : 'bg-transparent border border-blink-classic-border-light text-black hover:bg-blink-classic-hover-light hover:border-blink-classic-amber';
+    }
+    // Standard themes - use original green styling
+    return isSelected
+      ? 'border-green-400 ring-2 ring-green-400 bg-green-50 dark:bg-green-900 text-green-700 dark:text-green-300'
+      : 'border-green-500 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300';
+  };
+  
+  // Get custom button classes (blue in standard, amber in BC)
+  const getCustomButtonClasses = (isSelected) => {
+    if (isBlinkClassicDark) {
+      return isSelected
+        ? 'bg-blink-classic-bg border border-blink-classic-amber text-white ring-2 ring-blink-classic-amber'
+        : 'bg-transparent border border-blink-classic-border text-white hover:bg-blink-classic-bg hover:border-blink-classic-amber';
+    }
+    if (isBlinkClassicLight) {
+      return isSelected
+        ? 'bg-blink-classic-hover-light border border-blink-classic-amber text-black ring-2 ring-blink-classic-amber'
+        : 'bg-transparent border border-blink-classic-border-light text-black hover:bg-blink-classic-hover-light hover:border-blink-classic-amber';
+    }
+    // Standard themes - use original blue styling
+    return isSelected
+      ? 'border-blue-400 ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+      : 'border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300';
+  };
+  
+  // Get cancel button classes (red in standard, themed in BC)
+  const getCancelButtonClasses = (isSelected) => {
+    if (isBlinkClassicDark) {
+      return isSelected
+        ? 'bg-blink-classic-bg border border-red-500 text-red-400 ring-2 ring-red-500'
+        : 'bg-transparent border border-blink-classic-border text-gray-400 hover:bg-blink-classic-bg hover:border-red-500 hover:text-red-400';
+    }
+    if (isBlinkClassicLight) {
+      return isSelected
+        ? 'bg-red-50 border border-red-500 text-red-600 ring-2 ring-red-500'
+        : 'bg-transparent border border-blink-classic-border-light text-gray-600 hover:bg-red-50 hover:border-red-500 hover:text-red-600';
+    }
+    // Standard themes
+    return isSelected
+      ? 'border-red-400 ring-2 ring-red-400 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-300'
+      : 'border-red-500 hover:border-red-600 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300';
+  };
+  
+  // Get no tip/skip button classes (yellow in standard, themed in BC)
+  const getNoTipButtonClasses = (isSelected) => {
+    if (isBlinkClassicDark) {
+      return isSelected
+        ? 'bg-blink-classic-bg border border-blink-classic-amber text-blink-classic-amber ring-2 ring-blink-classic-amber'
+        : 'bg-transparent border border-blink-classic-border text-gray-400 hover:bg-blink-classic-bg hover:border-blink-classic-amber hover:text-blink-classic-amber';
+    }
+    if (isBlinkClassicLight) {
+      return isSelected
+        ? 'bg-blink-classic-hover-light border border-blink-classic-amber text-amber-600 ring-2 ring-blink-classic-amber'
+        : 'bg-transparent border border-blink-classic-border-light text-gray-600 hover:bg-blink-classic-hover-light hover:border-blink-classic-amber hover:text-amber-600';
+    }
+    // Standard themes
+    return isSelected
+      ? 'border-yellow-400 ring-2 ring-yellow-400 bg-yellow-50 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300'
+      : 'border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300';
+  };
+  
+  // Get background for tip dialog overlay
+  const getTipDialogBgClasses = () => {
+    if (isBlinkClassicDark) return 'bg-black';
+    if (isBlinkClassicLight) return 'bg-white';
+    return 'bg-white dark:bg-black';
+  };
+  
+  // Get text color classes
+  const getTipDialogTextClasses = () => {
+    if (isBlinkClassicDark) return 'text-white';
+    if (isBlinkClassicLight) return 'text-black';
+    return 'text-gray-800 dark:text-white';
+  };
+  
+  // Get secondary text color classes
+  const getTipDialogSecondaryTextClasses = () => {
+    if (isBlinkClassicDark) return 'text-gray-400';
+    if (isBlinkClassicLight) return 'text-gray-600';
+    return 'text-gray-600 dark:text-gray-400';
+  };
+
   // Helper function to get dynamic font size based on amount length
   // Returns mobile size + desktop size (20% larger on desktop via md: breakpoint)
   const getDynamicFontSize = (displayText) => {
@@ -1306,9 +1404,9 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
           const customIndex = hasCustomButton ? presets.length : -1;
           
           return (
-          <div className="absolute inset-0 bg-white dark:bg-black z-30 pt-24">
+          <div className={`absolute inset-0 ${getTipDialogBgClasses()} z-30 pt-24`}>
             <div className="grid grid-cols-4 gap-3 max-w-sm md:max-w-md mx-auto" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-              <h3 className="col-span-4 text-xl font-bold mb-2 text-center text-gray-800 dark:text-white">Tip Options</h3>
+              <h3 className={`col-span-4 text-xl font-bold mb-2 text-center ${getTipDialogTextClasses()}`}>Tip Options</h3>
               
               {/* Tip preset buttons in grid */}
               {presets.map((percent, idx) => (
@@ -1317,14 +1415,10 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
                   onClick={() => {
                     setPendingTipSelection(percent);
                   }}
-                  className={`col-span-2 h-16 md:h-20 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md ${
-                    tipOptionIndex === idx 
-                      ? 'border-green-400 ring-2 ring-green-400 bg-green-50 dark:bg-green-900 text-green-700 dark:text-green-300' 
-                      : 'border-green-500 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'
-                  }`}
+                  className={`col-span-2 h-16 md:h-20 ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} text-lg md:text-xl font-normal transition-colors ${isBlinkClassic ? '' : 'shadow-md'} ${getTipButtonClasses(tipOptionIndex === idx)}`}
                 >
                   {percent}%
-                  <div className="text-sm md:text-base">
+                  <div className={`text-sm md:text-base ${isBlinkClassic ? 'opacity-70' : ''}`}>
                     +{formatDisplayAmount(calculateTipAmount(total + (parseFloat(amount) || 0), percent), displayCurrency)}
                   </div>
                 </button>
@@ -1337,11 +1431,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
                     setShowCustomTipInput(true);
                     setCustomTipValue('');
                 }}
-                className={`col-span-2 h-16 md:h-20 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md ${
-                  tipOptionIndex === customIndex 
-                    ? 'border-blue-400 ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300' 
-                    : 'border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-green-700 dark:hover:text-blue-300'
-                }`}
+                className={`col-span-2 h-16 md:h-20 ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} text-lg md:text-xl font-normal transition-colors ${isBlinkClassic ? '' : 'shadow-md'} ${getCustomButtonClasses(tipOptionIndex === customIndex)}`}
               >
                   Custom
               </button>
@@ -1353,11 +1443,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
                   if (onInternalTransition) onInternalTransition();
                   setShowTipDialog(false);
                 }}
-                className={`col-span-2 h-16 md:h-20 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md ${
-                  tipOptionIndex === cancelIndex 
-                    ? 'border-red-400 ring-2 ring-red-400 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-300' 
-                    : 'border-red-500 hover:border-red-600 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300'
-                }`}
+                className={`col-span-2 h-16 md:h-20 ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} text-lg md:text-xl font-normal transition-colors ${isBlinkClassic ? '' : 'shadow-md'} ${getCancelButtonClasses(tipOptionIndex === cancelIndex)}`}
               >
                 Cancel
               </button>
@@ -1365,11 +1451,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
                 onClick={() => {
                   setPendingTipSelection(0);
                 }}
-                className={`col-span-2 h-16 md:h-20 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md ${
-                  tipOptionIndex === noTipIndex 
-                    ? 'border-yellow-400 ring-2 ring-yellow-400 bg-yellow-50 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300' 
-                    : 'border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-red-700 dark:hover:text-yellow-300'
-                }`}
+                className={`col-span-2 h-16 md:h-20 ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} text-lg md:text-xl font-normal transition-colors ${isBlinkClassic ? '' : 'shadow-md'} ${getNoTipButtonClasses(tipOptionIndex === noTipIndex)}`}
               >
                 No Tip
               </button>
@@ -1380,11 +1462,11 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
 
         {/* Custom Tip Input Overlay */}
         {showTipDialog && showCustomTipInput && (
-          <div className="absolute inset-0 bg-white dark:bg-black flex items-center justify-center z-30">
+          <div className={`absolute inset-0 ${getTipDialogBgClasses()} flex items-center justify-center z-30`}>
             <div className="max-w-md w-full px-4" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-              <h3 className="text-xl md:text-2xl font-bold mb-4 text-center text-gray-800 dark:text-white">Custom Tip</h3>
+              <h3 className={`text-xl md:text-2xl font-bold mb-4 text-center ${getTipDialogTextClasses()}`}>Custom Tip</h3>
               <div className="mb-6">
-                <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2 text-center">
+                <label className={`block text-base font-medium mb-2 text-center ${getTipDialogSecondaryTextClasses()}`}>
                   Enter Tip Percentage
                 </label>
                 <input
@@ -1395,11 +1477,17 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
                   min="0"
                   max="100"
                   step="0.5"
-                  className="w-full px-4 py-3 md:py-4 text-center text-3xl border-2 border-blue-600 dark:border-blue-500 rounded-lg bg-white dark:bg-blink-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600"
+                  className={`w-full px-4 py-3 md:py-4 text-center text-3xl border ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} focus:outline-none focus:ring-2 ${
+                    isBlinkClassicDark 
+                      ? 'bg-transparent border-blink-classic-border text-white focus:border-blink-classic-amber focus:ring-blink-classic-amber' 
+                      : isBlinkClassicLight
+                        ? 'bg-transparent border-blink-classic-border-light text-black focus:border-blink-classic-amber focus:ring-blink-classic-amber'
+                        : 'border-blue-600 dark:border-blue-500 bg-white dark:bg-blink-dark text-gray-900 dark:text-white focus:ring-blue-500 dark:focus:ring-blue-600'
+                  }`}
                   autoFocus
                 />
                 {customTipValue && parseFloat(customTipValue) > 0 && (
-                  <div className="mt-2 text-center text-lg text-gray-600 dark:text-gray-400">
+                  <div className={`mt-2 text-center text-lg ${getTipDialogSecondaryTextClasses()}`}>
                     +{formatDisplayAmount(calculateTipAmount(total + (parseFloat(amount) || 0), parseFloat(customTipValue)), displayCurrency)}
                   </div>
                 )}
@@ -1410,7 +1498,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
                     setShowCustomTipInput(false);
                     setCustomTipValue('');
                   }}
-                  className="h-16 md:h-20 bg-white dark:bg-black border-2 border-gray-500 hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md"
+                  className={`h-16 md:h-20 ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} text-lg md:text-xl font-normal transition-colors ${isBlinkClassic ? '' : 'shadow-md'} ${getCancelButtonClasses(false)}`}
                 >
                   Back
                 </button>
@@ -1424,7 +1512,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
                     }
                   }}
                   disabled={!customTipValue || parseFloat(customTipValue) < 0 || parseFloat(customTipValue) > 100}
-                  className="h-16 md:h-20 bg-white dark:bg-black border-2 border-green-500 hover:border-green-600 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 disabled:border-gray-400 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-black rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md"
+                  className={`h-16 md:h-20 ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} text-lg md:text-xl font-normal transition-colors ${isBlinkClassic ? '' : 'shadow-md'} disabled:opacity-50 disabled:cursor-not-allowed ${getTipButtonClasses(false)}`}
                 >
                   Apply
                 </button>

@@ -122,13 +122,13 @@ export default function Numpad({
   };
 
   // Container background based on theme
-  // Note: BC themes use px-4 pb-4 (no top padding) to maintain consistent numpad vertical positioning across all themes
+  // Note: BC themes use pb-4 only (no top/horizontal padding) to maintain consistent numpad positioning and key widths across all themes
   const getContainerClasses = () => {
     if (isBlinkClassicDark) {
-      return 'bg-black px-4 pb-4 rounded-xl';
+      return 'bg-black pb-4 rounded-xl';
     }
     if (isBlinkClassicLight) {
-      return 'bg-white px-4 pb-4 rounded-xl';
+      return 'bg-white pb-4 rounded-xl';
     }
     return ''; // Standard themes don't need container bg
   };

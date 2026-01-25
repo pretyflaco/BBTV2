@@ -141,6 +141,82 @@ export default function Dashboard() {
     }
   };
   
+  // Wallet card styling - inactive state
+  const getWalletCardClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'bg-transparent border border-blink-classic-border rounded-xl hover:bg-blink-classic-bg hover:border-blink-classic-amber';
+      case 'blink-classic-light':
+        return 'bg-transparent border border-blink-classic-border-light rounded-xl hover:bg-blink-classic-hover-light hover:border-blink-classic-amber';
+      default:
+        return 'bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg';
+    }
+  };
+  
+  // Wallet card styling - active state (with accent color support)
+  const getWalletCardActiveClasses = (accentColor = 'amber') => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'bg-blink-classic-bg border border-blink-classic-amber rounded-xl';
+      case 'blink-classic-light':
+        return 'bg-blink-classic-hover-light border border-blink-classic-amber rounded-xl';
+      default:
+        // Standard themes use different accent colors based on wallet type
+        if (accentColor === 'purple') return 'bg-purple-50 dark:bg-purple-900/20 border border-purple-400 dark:border-purple-500 rounded-lg';
+        if (accentColor === 'teal') return 'bg-teal-50 dark:bg-teal-900/20 border border-teal-400 dark:border-teal-500 rounded-lg';
+        return 'bg-blink-accent/5 dark:bg-blink-accent/10 border border-blink-accent rounded-lg';
+    }
+  };
+  
+  // Wallet icon container styling
+  const getWalletIconClasses = (isActive) => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return isActive ? 'bg-blink-classic-bg border border-blink-classic-amber' : 'bg-transparent border border-blink-classic-border';
+      case 'blink-classic-light':
+        return isActive ? 'bg-blink-classic-hover-light border border-blink-classic-amber' : 'bg-transparent border border-blink-classic-border-light';
+      default:
+        return isActive ? 'bg-blink-accent/20' : (darkMode ? 'bg-gray-800' : 'bg-gray-200');
+    }
+  };
+  
+  // Wallet "Use" button styling
+  const getWalletUseButtonClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'bg-transparent border border-blink-classic-border text-white hover:bg-blink-classic-bg hover:border-blink-classic-amber';
+      case 'blink-classic-light':
+        return 'bg-transparent border border-blink-classic-border-light text-black hover:bg-blink-classic-hover-light hover:border-blink-classic-amber';
+      default:
+        return darkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-200 text-gray-700 hover:bg-gray-300';
+    }
+  };
+  
+  // Wallet "Active" badge styling
+  const getWalletActiveBadgeClasses = (accentColor = 'amber') => {
+    switch (theme) {
+      case 'blink-classic-dark':
+      case 'blink-classic-light':
+        return 'bg-blink-classic-amber/20 text-blink-classic-amber';
+      default:
+        if (accentColor === 'purple') return 'bg-purple-500/20 text-purple-400';
+        if (accentColor === 'teal') return 'bg-teal-500/20 text-teal-400';
+        return 'bg-blink-accent/20 text-blink-accent';
+    }
+  };
+  
+  // Wallet delete button styling
+  const getWalletDeleteButtonClasses = () => {
+    switch (theme) {
+      case 'blink-classic-dark':
+        return 'text-gray-500 hover:text-red-400 hover:bg-blink-classic-bg';
+      case 'blink-classic-light':
+        return 'text-gray-400 hover:text-red-500 hover:bg-blink-classic-hover-light';
+      default:
+        return darkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100';
+    }
+  };
+  
   const [apiKey, setApiKey] = useState(null);
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
   const [expandedMonths, setExpandedMonths] = useState(new Set());
@@ -4984,7 +5060,7 @@ export default function Dashboard() {
                     <span className="text-2xl mr-2">‹</span>
                     <span className="text-lg">Back</span>
                   </button>
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                  <h1 className={`text-xl font-bold ${isBlinkClassicDark ? 'text-white' : isBlinkClassicLight ? 'text-black' : 'text-gray-900 dark:text-white'}`}>
                     Wallets
                   </h1>
                   <div className="w-16"></div>
@@ -4999,7 +5075,11 @@ export default function Dashboard() {
                 {authMode === 'nostr' && !showAddAccountForm && (
                   <button
                     onClick={() => setShowAddAccountForm(true)}
-                    className="w-full py-3 text-sm font-medium bg-blink-accent text-black rounded-lg hover:bg-blink-accent/90 transition-colors flex items-center justify-center gap-2"
+                    className={`w-full py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                      isBlinkClassic 
+                        ? 'bg-transparent border border-blink-classic-amber text-blink-classic-amber hover:bg-blink-classic-amber hover:text-black rounded-xl' 
+                        : 'bg-blink-accent text-black rounded-lg hover:bg-blink-accent/90'
+                    }`}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -5722,42 +5802,36 @@ export default function Dashboard() {
                   {blinkAccounts && blinkAccounts.filter(a => a.type !== 'npub-cash').map((account) => (
                     <div
                       key={`blink-${account.id}`}
-                      className={`rounded-lg p-4 border transition-colors ${
+                      className={`p-4 transition-colors ${
                         account.isActive && !activeNWC
-                          ? darkMode
-                            ? 'bg-blink-accent/10 border-blink-accent'
-                            : 'bg-blink-accent/5 border-blink-accent'
-                          : darkMode
-                            ? 'bg-gray-900 border-gray-700'
-                            : 'bg-gray-50 border-gray-200'
+                          ? getWalletCardActiveClasses('amber')
+                          : getWalletCardClasses()
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${
-                            account.isActive && !activeNWC
-                              ? 'bg-blink-accent/20' 
-                              : darkMode ? 'bg-gray-800' : 'bg-gray-200'
+                            getWalletIconClasses(account.isActive && !activeNWC)
                           }`}>
                             <span className="text-lg">⚡</span>
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <h5 className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                              <h5 className={`font-medium truncate ${isBlinkClassicDark ? 'text-white' : isBlinkClassicLight ? 'text-black' : (darkMode ? 'text-white' : 'text-gray-900')}`}>
                                 {account.label || 'Blink Wallet'}
                               </h5>
-                              <span className={`px-1.5 py-0.5 text-xs rounded ${darkMode ? 'bg-amber-900/30 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>
+                              <span className={`px-1.5 py-0.5 text-xs rounded ${isBlinkClassic ? 'bg-blink-classic-amber/20 text-blink-classic-amber' : (darkMode ? 'bg-amber-900/30 text-amber-400' : 'bg-amber-100 text-amber-700')}`}>
                                 {account.type === 'ln-address' ? 'Blink Lightning Address' : 'Blink API Key'}
                               </span>
                             </div>
-                            <p className={`text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            <p className={`text-sm truncate ${isBlinkClassic ? 'text-gray-400' : (darkMode ? 'text-gray-400' : 'text-gray-600')}`}>
                               @{account.username || 'Unknown'}
                             </p>
                           </div>
                         </div>
                         <div className="flex-shrink-0 ml-2 flex items-center gap-2">
                           {account.isActive && !activeNWC ? (
-                            <span className="px-3 py-1 text-xs font-medium bg-blink-accent/20 text-blink-accent rounded">
+                            <span className={`px-3 py-1 text-xs font-medium rounded ${getWalletActiveBadgeClasses('amber')}`}>
                               Active
                             </span>
                           ) : (
@@ -5769,11 +5843,7 @@ export default function Dashboard() {
                                 }
                                 setActiveBlinkAccount(account.id);
                               }}
-                              className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-                                darkMode 
-                                  ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
-                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                              }`}
+                              className={`px-3 py-1 text-xs font-medium rounded transition-colors ${getWalletUseButtonClasses()}`}
                             >
                               Use
                             </button>
@@ -5789,7 +5859,7 @@ export default function Dashboard() {
                               </button>
                               <button
                                 onClick={() => setConfirmDeleteWallet(null)}
-                                className={`px-2 py-1 text-xs rounded ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                                className={`px-2 py-1 text-xs rounded ${isBlinkClassic ? 'bg-blink-classic-bg text-gray-300' : (darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700')}`}
                               >
                                 No
                               </button>
@@ -5797,7 +5867,7 @@ export default function Dashboard() {
                           ) : (
                             <button
                               onClick={() => setConfirmDeleteWallet({ type: 'blink', id: account.id })}
-                              className={`p-1.5 rounded transition-colors ${darkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'}`}
+                              className={`p-1.5 rounded transition-colors ${getWalletDeleteButtonClasses()}`}
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -5813,40 +5883,34 @@ export default function Dashboard() {
                   {npubCashWallets && npubCashWallets.map((wallet) => (
                     <div
                       key={`npubcash-${wallet.id}`}
-                      className={`rounded-lg p-4 border transition-colors ${
+                      className={`p-4 transition-colors ${
                         wallet.isActive && !activeNWC
-                          ? darkMode
-                            ? 'bg-teal-900/20 border-teal-500'
-                            : 'bg-teal-50 border-teal-400'
-                          : darkMode
-                            ? 'bg-gray-900 border-gray-700'
-                            : 'bg-gray-50 border-gray-200'
+                          ? getWalletCardActiveClasses('teal')
+                          : getWalletCardClasses()
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${
-                            wallet.isActive && !activeNWC
-                              ? 'bg-teal-500/20' 
-                              : darkMode ? 'bg-gray-800' : 'bg-gray-200'
+                            getWalletIconClasses(wallet.isActive && !activeNWC)
                           }`}>
                             <span className="text-lg">🥜</span>
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <h5 className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                              <h5 className={`font-medium truncate ${isBlinkClassicDark ? 'text-white' : isBlinkClassicLight ? 'text-black' : (darkMode ? 'text-white' : 'text-gray-900')}`}>
                                 {wallet.label || 'npub.cash Wallet'}
                               </h5>
-                              <span className={`px-1.5 py-0.5 text-xs rounded ${darkMode ? 'bg-teal-900/30 text-teal-400' : 'bg-teal-100 text-teal-700'}`}>Cashu</span>
+                              <span className={`px-1.5 py-0.5 text-xs rounded ${isBlinkClassic ? 'bg-blink-classic-amber/20 text-blink-classic-amber' : (darkMode ? 'bg-teal-900/30 text-teal-400' : 'bg-teal-100 text-teal-700')}`}>Cashu</span>
                             </div>
-                            <p className={`text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            <p className={`text-sm truncate ${isBlinkClassic ? 'text-gray-400' : (darkMode ? 'text-gray-400' : 'text-gray-600')}`}>
                               {wallet.lightningAddress}
                             </p>
                           </div>
                         </div>
                         <div className="flex-shrink-0 ml-2 flex items-center gap-2">
                           {wallet.isActive && !activeNWC ? (
-                            <span className="px-3 py-1 text-xs font-medium bg-teal-500/20 text-teal-400 rounded">
+                            <span className={`px-3 py-1 text-xs font-medium rounded ${getWalletActiveBadgeClasses('teal')}`}>
                               Active
                             </span>
                           ) : (
@@ -5863,11 +5927,7 @@ export default function Dashboard() {
                                 // Activate this npub.cash wallet
                                 await setActiveBlinkAccount(wallet.id);
                               }}
-                              className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-                                darkMode 
-                                  ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
-                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                              }`}
+                              className={`px-3 py-1 text-xs font-medium rounded transition-colors ${getWalletUseButtonClasses()}`}
                             >
                               Use
                             </button>
@@ -5883,7 +5943,7 @@ export default function Dashboard() {
                               </button>
                               <button
                                 onClick={() => setConfirmDeleteWallet(null)}
-                                className={`px-2 py-1 text-xs rounded ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                                className={`px-2 py-1 text-xs rounded ${isBlinkClassic ? 'bg-blink-classic-bg text-gray-300' : (darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700')}`}
                               >
                                 No
                               </button>
@@ -5891,7 +5951,7 @@ export default function Dashboard() {
                           ) : (
                             <button
                               onClick={() => setConfirmDeleteWallet({ type: 'npub-cash', id: wallet.id })}
-                              className={`p-1.5 rounded transition-colors ${darkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'}`}
+                              className={`p-1.5 rounded transition-colors ${getWalletDeleteButtonClasses()}`}
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -5907,42 +5967,36 @@ export default function Dashboard() {
                   {nwcConnections && nwcConnections.map((conn) => (
                     <div
                       key={`nwc-${conn.id}`}
-                      className={`rounded-lg p-4 border transition-colors ${
+                      className={`p-4 transition-colors ${
                         activeNWC?.id === conn.id
-                          ? darkMode
-                            ? 'bg-purple-900/20 border-purple-500'
-                            : 'bg-purple-50 border-purple-400'
-                          : darkMode
-                            ? 'bg-gray-900 border-gray-700'
-                            : 'bg-gray-50 border-gray-200'
+                          ? getWalletCardActiveClasses('purple')
+                          : getWalletCardClasses()
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${
-                            activeNWC?.id === conn.id
-                              ? 'bg-purple-500/20' 
-                              : darkMode ? 'bg-gray-800' : 'bg-gray-200'
+                            getWalletIconClasses(activeNWC?.id === conn.id)
                           }`}>
-                            <svg className={`w-5 h-5 ${activeNWC?.id === conn.id ? 'text-purple-400' : darkMode ? 'text-gray-400' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className={`w-5 h-5 ${activeNWC?.id === conn.id ? (isBlinkClassic ? 'text-blink-classic-amber' : 'text-purple-400') : (isBlinkClassic ? 'text-gray-400' : (darkMode ? 'text-gray-400' : 'text-gray-600'))}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                             </svg>
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <h5 className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                              <h5 className={`font-medium truncate ${isBlinkClassicDark ? 'text-white' : isBlinkClassicLight ? 'text-black' : (darkMode ? 'text-white' : 'text-gray-900')}`}>
                                 {conn.label || 'NWC Wallet'}
                               </h5>
-                              <span className={`px-1.5 py-0.5 text-xs rounded ${darkMode ? 'bg-purple-900/30 text-purple-400' : 'bg-purple-100 text-purple-700'}`}>NWC</span>
+                              <span className={`px-1.5 py-0.5 text-xs rounded ${isBlinkClassic ? 'bg-blink-classic-amber/20 text-blink-classic-amber' : (darkMode ? 'bg-purple-900/30 text-purple-400' : 'bg-purple-100 text-purple-700')}`}>NWC</span>
                             </div>
-                            <p className={`text-xs font-mono truncate ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                            <p className={`text-xs font-mono truncate ${isBlinkClassic ? 'text-gray-500' : (darkMode ? 'text-gray-500' : 'text-gray-500')}`}>
                               {conn.walletPubkey?.slice(0, 8)}...{conn.walletPubkey?.slice(-8)}
                             </p>
                           </div>
                         </div>
                         <div className="flex-shrink-0 ml-2 flex items-center gap-2">
                           {activeNWC?.id === conn.id ? (
-                            <span className="px-3 py-1 text-xs font-medium bg-purple-500/20 text-purple-400 rounded">
+                            <span className={`px-3 py-1 text-xs font-medium rounded ${getWalletActiveBadgeClasses('purple')}`}>
                               Active
                             </span>
                           ) : (
@@ -5954,11 +6008,7 @@ export default function Dashboard() {
                                 }
                                 await setActiveNWC(conn.id);
                               }}
-                              className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-                                darkMode 
-                                  ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
-                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                              }`}
+                              className={`px-3 py-1 text-xs font-medium rounded transition-colors ${getWalletUseButtonClasses()}`}
                             >
                               Use
                             </button>
@@ -5974,7 +6024,7 @@ export default function Dashboard() {
                               </button>
                               <button
                                 onClick={() => setConfirmDeleteWallet(null)}
-                                className={`px-2 py-1 text-xs rounded ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                                className={`px-2 py-1 text-xs rounded ${isBlinkClassic ? 'bg-blink-classic-bg text-gray-300' : (darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700')}`}
                               >
                                 No
                               </button>
@@ -5982,7 +6032,7 @@ export default function Dashboard() {
                           ) : (
                             <button
                               onClick={() => setConfirmDeleteWallet({ type: 'nwc', id: conn.id })}
-                              className={`p-1.5 rounded transition-colors ${darkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'}`}
+                              className={`p-1.5 rounded transition-colors ${getWalletDeleteButtonClasses()}`}
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -5996,14 +6046,14 @@ export default function Dashboard() {
 
                   {/* Empty state */}
                   {(!blinkAccounts || blinkAccounts.length === 0) && (!nwcConnections || nwcConnections.length === 0) && (
-                    <div className={`rounded-lg p-8 text-center ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-                      <svg className={`w-12 h-12 mx-auto mb-3 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className={`p-8 text-center ${isBlinkClassicDark ? 'bg-transparent border border-blink-classic-border rounded-xl' : isBlinkClassicLight ? 'bg-transparent border border-blink-classic-border-light rounded-xl' : (darkMode ? 'bg-gray-900 rounded-lg' : 'bg-gray-50 rounded-lg')}`}>
+                      <svg className={`w-12 h-12 mx-auto mb-3 ${isBlinkClassic ? 'text-gray-600' : (darkMode ? 'text-gray-600' : 'text-gray-400')}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                       </svg>
-                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      <p className={`text-sm ${isBlinkClassic ? 'text-gray-400' : (darkMode ? 'text-gray-400' : 'text-gray-600')}`}>
                         No wallets connected
                       </p>
-                      <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                      <p className={`text-xs mt-1 ${isBlinkClassic ? 'text-gray-500' : (darkMode ? 'text-gray-500' : 'text-gray-500')}`}>
                         Add a Blink, NWC, or npub.cash wallet to get started
                       </p>
                     </div>

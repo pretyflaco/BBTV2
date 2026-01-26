@@ -70,8 +70,8 @@ export default function PublicPOS({ username, walletCurrency }) {
         <meta name="description" content={`Pay ${username} with Bitcoin Lightning`} />
         <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
         <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
-        <link rel="icon" href="/icons/icon-192x192.png" />
-        <link rel="apple-touch-icon" href="/icons/blink-dark-192x192.png" />
+        <link rel="icon" href="/icons/icon-ios-192x192.png" />
+        <link rel="apple-touch-icon" href="/icons/icon-ios-192x192.png" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
       </Head>
 

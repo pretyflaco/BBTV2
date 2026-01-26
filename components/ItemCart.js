@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import { formatDisplayAmount as formatCurrency, getCurrencyById, isBitcoinCurrency, parseAmountParts } from '../lib/currency-utils';
 import { formatNumber } from '../lib/number-format';
+import { unlockAudioContext, playSound } from '../lib/audio-utils';
 
 const ItemCart = forwardRef(({ 
   displayCurrency, 
@@ -67,12 +68,12 @@ const ItemCart = forwardRef(({
     return 'text-lg md:text-xl';
   };
 
-  // Play keystroke sound
+  // Play keystroke sound (also unlocks iOS audio on first press)
   const playKeystrokeSound = () => {
     if (soundEnabled) {
-      const audio = new Audio('/click.mp3');
-      audio.volume = 0.3;
-      audio.play().catch(console.error);
+      // Unlock AudioContext on user gesture for iOS Safari
+      unlockAudioContext();
+      playSound('/click.mp3', 0.3);
     }
   };
 

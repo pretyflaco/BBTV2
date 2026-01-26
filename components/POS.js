@@ -5,6 +5,7 @@ import { formatNumber } from '../lib/number-format';
 import { useNFC } from './NFCPayment';
 import Numpad from './Numpad';
 import { THEMES } from '../lib/hooks/useTheme';
+import { unlockAudioContext, playSound } from '../lib/audio-utils';
 
 const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, theme = THEMES.DARK, cycleTheme, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation, isPublicPOS = false, publicUsername = null }, ref) => {
   const [amount, setAmount] = useState('');
@@ -619,12 +620,12 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
     return 0;
   };
 
-  // Play keystroke sound
+  // Play keystroke sound (also unlocks iOS audio on first press)
   const playKeystrokeSound = () => {
     if (soundEnabled) {
-      const audio = new Audio('/click.mp3');
-      audio.volume = 0.3; // Set volume to 30% to avoid being too loud
-      audio.play().catch(console.error);
+      // Unlock AudioContext on user gesture for iOS Safari
+      unlockAudioContext();
+      playSound('/click.mp3', 0.3);
     }
   };
 

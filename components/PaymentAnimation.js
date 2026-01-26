@@ -1,48 +1,20 @@
 import { useEffect, useRef } from 'react';
-
-// Sound theme configuration
-const SOUND_THEMES = {
-  success: {
-    nfc: '/connect.mp3',
-    payment: '/success.mp3',
-  },
-  zelda: {
-    nfc: '/botw_connect.mp3',
-    payment: '/botw_shrine.mp3',
-  },
-  free: {
-    nfc: '/free_connect.mp3',
-    payment: '/free_success.mp3',
-  },
-  retro: {
-    nfc: '/retro_connect.mp3',
-    payment: '/retro_success.mp3',
-  },
-};
+import { playSound, SOUND_THEMES } from '../lib/audio-utils';
 
 export default function PaymentAnimation({ show, payment, onHide, soundEnabled = true, soundTheme = 'success' }) {
-  const audioRef = useRef(null);
+  const soundPlayedRef = useRef(false);
 
-  // Play sound when animation shows
+  // Play sound when animation shows (uses shared audio utility for iOS compatibility)
   useEffect(() => {
-    if (show && soundEnabled) {
-      try {
-        const themeConfig = SOUND_THEMES[soundTheme] || SOUND_THEMES.success;
-        
-        // Create or reuse audio element
-        if (!audioRef.current || audioRef.current.src !== themeConfig.payment) {
-          audioRef.current = new Audio(themeConfig.payment);
-          audioRef.current.volume = 0.7; // Set volume to 70%
-        }
-        
-        // Reset and play the sound
-        audioRef.current.currentTime = 0;
-        audioRef.current.play().catch(error => {
-          console.log('Could not play sound (might need user interaction first):', error);
-        });
-      } catch (error) {
-        console.log('Audio playback error:', error);
-      }
+    if (show && soundEnabled && !soundPlayedRef.current) {
+      soundPlayedRef.current = true;
+      const themeConfig = SOUND_THEMES[soundTheme] || SOUND_THEMES.success;
+      playSound(themeConfig.payment, 0.7);
+    }
+    
+    // Reset the flag when animation is hidden
+    if (!show) {
+      soundPlayedRef.current = false;
     }
   }, [show, soundEnabled, soundTheme]);
 

@@ -5,6 +5,7 @@ import { formatDisplayAmount as formatCurrency, getCurrencyById, isBitcoinCurren
 import { formatNumber } from '../lib/number-format';
 import ExpirySelector, { DEFAULT_EXPIRY, getExpiryOption } from './ExpirySelector';
 import Numpad from './Numpad';
+import { unlockAudioContext, playSound } from '../lib/audio-utils';
 
 // Grid configuration options
 const GRID_OPTIONS = [
@@ -117,12 +118,12 @@ const MultiVoucher = forwardRef(({
     }
   };
 
-  // Play keystroke sound
+  // Play keystroke sound (also unlocks iOS audio on first press)
   const playKeystrokeSound = () => {
     if (soundEnabled) {
-      const audio = new Audio('/click.mp3');
-      audio.volume = 0.3;
-      audio.play().catch(console.error);
+      // Unlock AudioContext on user gesture for iOS Safari
+      unlockAudioContext();
+      playSound('/click.mp3', 0.3);
     }
   };
 

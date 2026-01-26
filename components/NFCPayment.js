@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import { playSound, SOUND_THEMES } from '../lib/audio-utils';
 
-// TODO: refine the interface
 const decodeNDEFRecord = (record) => {
   if (!record.data) {
     console.log('No data found in NFC record');
@@ -19,26 +19,6 @@ const decodeNDEFRecord = (record) => {
 
   const decoder = new TextDecoder(record.encoding || 'utf-8');
   return decoder.decode(buffer);
-};
-
-// Sound theme configuration
-const SOUND_THEMES = {
-  success: {
-    nfc: '/connect.mp3',
-    payment: '/success.mp3',
-  },
-  zelda: {
-    nfc: '/botw_connect.mp3',
-    payment: '/botw_shrine.mp3',
-  },
-  free: {
-    nfc: '/free_connect.mp3',
-    payment: '/free_success.mp3',
-  },
-  retro: {
-    nfc: '/retro_connect.mp3',
-    payment: '/retro_success.mp3',
-  },
 };
 
 // Hook to manage NFC state and functionality
@@ -182,17 +162,11 @@ export const useNFC = ({ paymentRequest, onPaymentSuccess, onPaymentError, sound
         return;
       }
 
-      // Play NFC tap sound if enabled (only once per payment)
+      // Play NFC tap sound if enabled (only once per payment, uses shared audio utility for iOS compatibility)
       if (soundEnabled && !soundPlayedRef.current) {
         soundPlayedRef.current = true;
-        try {
-          const themeConfig = SOUND_THEMES[soundTheme] || SOUND_THEMES.success;
-          const sound = new Audio(themeConfig.nfc);
-          sound.volume = 0.5;
-          await sound.play();
-        } catch (error) {
-          console.error('Failed to play NFC tap sound:', error);
-        }
+        const themeConfig = SOUND_THEMES[soundTheme] || SOUND_THEMES.success;
+        playSound(themeConfig.nfc, 0.5);
       }
 
       setIsProcessing(true);

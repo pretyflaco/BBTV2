@@ -7,6 +7,7 @@ import { DEFAULT_EXPIRY } from './ExpirySelector';
 import { useThermalPrint } from '../lib/escpos/hooks/useThermalPrint';
 import Numpad from './Numpad';
 import { THEMES } from '../lib/hooks/useTheme';
+import { unlockAudioContext, playSound } from '../lib/audio-utils';
 
 const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, darkMode, theme = THEMES.DARK, cycleTheme, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3] }, ref) => {
   const [amount, setAmount] = useState('');
@@ -148,13 +149,10 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
     checkCompanionApp();
   }, []);
 
-  // Play success sound
+  // Play success sound (uses shared audio utility for iOS compatibility)
   const playSuccessSound = useCallback(() => {
     if (soundEnabled) {
-      const audio = new Audio('/success.mp3');
-      audio.volume = 0.5;
-      audio.play().catch(console.error);
-      successSoundRef.current = audio;
+      playSound('/success.mp3', 0.5);
     }
   }, [soundEnabled]);
 
@@ -332,12 +330,12 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
     }
   };
 
-  // Play keystroke sound
+  // Play keystroke sound (also unlocks iOS audio on first press)
   const playKeystrokeSound = () => {
     if (soundEnabled) {
-      const audio = new Audio('/click.mp3');
-      audio.volume = 0.3;
-      audio.play().catch(console.error);
+      // Unlock AudioContext on user gesture for iOS Safari
+      unlockAudioContext();
+      playSound('/click.mp3', 0.3);
     }
   };
 

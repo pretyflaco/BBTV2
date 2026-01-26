@@ -556,7 +556,7 @@ export default function Dashboard() {
       
       setLoadingRate(true);
       try {
-        const response = await fetch('/api/blink/exchange-rate', {
+        const response = await fetch('/api/rates/exchange-rate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

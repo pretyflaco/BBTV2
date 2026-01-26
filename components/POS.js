@@ -1,6 +1,6 @@
 import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import QRCode from 'react-qr-code';
-import { formatDisplayAmount as formatCurrency, getCurrencyById, isBitcoinCurrency, parseAmountParts } from '../lib/currency-utils';
+import { formatDisplayAmount as formatCurrency, getCurrencyById, isBitcoinCurrency, parseAmountParts, isStreetRateCurrency, getBaseCurrencyId } from '../lib/currency-utils';
 import { formatNumber } from '../lib/number-format';
 import { useNFC } from './NFCPayment';
 import Numpad from './Numpad';
@@ -441,7 +441,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
     
     setLoadingRate(true);
     try {
-      const response = await fetch('/api/blink/exchange-rate', {
+      const response = await fetch('/api/rates/exchange-rate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

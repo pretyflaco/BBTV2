@@ -24,6 +24,11 @@ const ItemCart = forwardRef(({
   const [selectedItems, setSelectedItems] = useState([]); // Array of { item, quantity }
   const [total, setTotal] = useState(0);
   
+  // BC Theme helpers
+  const isBlinkClassicDark = theme === 'blink-classic-dark';
+  const isBlinkClassicLight = theme === 'blink-classic-light';
+  const isBlinkClassic = isBlinkClassicDark || isBlinkClassicLight;
+  
   // Add item form state
   const [showAddForm, setShowAddForm] = useState(false);
   const [newItemName, setNewItemName] = useState('');
@@ -51,6 +56,131 @@ const ItemCart = forwardRef(({
   // Navigation indices: 0=Search, 1=AddItem, 2...(2+items.length-1)=Items, then C and OK
   const [keyboardNavIndex, setKeyboardNavIndex] = useState(0); // Start with Search selected
   const [exitedToGlobalNav, setExitedToGlobalNav] = useState(false); // Track if user exited to global nav
+
+  // Get search/add button classes based on theme (orange accent)
+  const getSearchButtonClasses = (isSelected) => {
+    if (isBlinkClassicDark) {
+      return isSelected
+        ? 'bg-blink-classic-bg border border-blink-classic-amber text-white ring-2 ring-blink-classic-amber'
+        : 'bg-transparent border border-blink-classic-border text-white hover:bg-blink-classic-bg hover:border-blink-classic-amber';
+    }
+    if (isBlinkClassicLight) {
+      return isSelected
+        ? 'bg-blink-classic-hover-light border border-blink-classic-amber text-black ring-2 ring-blink-classic-amber'
+        : 'bg-transparent border border-blink-classic-border-light text-black hover:bg-blink-classic-hover-light hover:border-blink-classic-amber';
+    }
+    // Standard themes - use original orange styling
+    return isSelected
+      ? 'border border-orange-400 ring-2 ring-orange-400 bg-orange-50 dark:bg-orange-900 text-orange-700 dark:text-orange-300'
+      : 'border border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300';
+  };
+
+  // Get item tile classes based on theme (blue accent)
+  const getItemTileClasses = (isKeyboardSelected, hasQuantity) => {
+    if (isBlinkClassicDark) {
+      if (isKeyboardSelected) {
+        return 'bg-blink-classic-bg border border-blink-classic-amber ring-2 ring-blink-classic-amber';
+      }
+      if (hasQuantity) {
+        return 'bg-transparent border border-blink-accent';
+      }
+      return 'bg-transparent border border-blink-classic-border hover:bg-blink-classic-bg hover:border-blink-classic-amber';
+    }
+    if (isBlinkClassicLight) {
+      if (isKeyboardSelected) {
+        return 'bg-blink-classic-hover-light border border-blink-classic-amber ring-2 ring-blink-classic-amber';
+      }
+      if (hasQuantity) {
+        return 'bg-transparent border border-blink-accent';
+      }
+      return 'bg-transparent border border-blink-classic-border-light hover:bg-blink-classic-hover-light hover:border-blink-classic-amber';
+    }
+    // Standard themes
+    if (isKeyboardSelected) {
+      return 'border-2 border-blue-400 ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-900';
+    }
+    if (hasQuantity) {
+      return 'border-2 border-blink-accent';
+    }
+    return 'border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400';
+  };
+
+  // Get item tile text classes
+  const getItemTileTextClasses = (isKeyboardSelected, hasQuantity) => {
+    if (isBlinkClassicDark) {
+      return isKeyboardSelected ? 'text-white' : hasQuantity ? 'text-blink-accent' : 'text-white';
+    }
+    if (isBlinkClassicLight) {
+      return isKeyboardSelected ? 'text-black' : hasQuantity ? 'text-blink-accent' : 'text-black';
+    }
+    // Standard themes
+    return isKeyboardSelected
+      ? 'text-blue-700 dark:text-blue-300'
+      : hasQuantity
+      ? 'text-blink-accent'
+      : 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300';
+  };
+
+  // Get clear button classes (red accent)
+  const getClearButtonClasses = (isSelected, isDisabled) => {
+    if (isBlinkClassicDark) {
+      if (isDisabled) {
+        return 'bg-transparent border border-blink-classic-border text-gray-600 cursor-not-allowed';
+      }
+      return isSelected
+        ? 'bg-blink-classic-bg border border-red-500 text-red-400 ring-2 ring-red-500'
+        : 'bg-transparent border border-blink-classic-border text-red-400 hover:bg-blink-classic-bg hover:border-red-500';
+    }
+    if (isBlinkClassicLight) {
+      if (isDisabled) {
+        return 'bg-transparent border border-blink-classic-border-light text-gray-400 cursor-not-allowed';
+      }
+      return isSelected
+        ? 'bg-red-50 border border-red-500 text-red-600 ring-2 ring-red-500'
+        : 'bg-transparent border border-blink-classic-border-light text-red-600 hover:bg-red-50 hover:border-red-500';
+    }
+    // Standard themes
+    if (isDisabled) {
+      return 'border-2 border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed';
+    }
+    return isSelected
+      ? 'border-2 border-red-400 ring-2 ring-red-400 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-300'
+      : 'border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300';
+  };
+
+  // Get OK button classes (green accent)
+  const getOkButtonClasses = (isSelected, isDisabled) => {
+    if (isBlinkClassicDark) {
+      if (isDisabled) {
+        return 'bg-transparent border border-blink-classic-border text-gray-600 cursor-not-allowed';
+      }
+      return isSelected
+        ? 'bg-blink-classic-bg border border-green-500 text-green-400 ring-2 ring-green-500'
+        : 'bg-transparent border border-blink-classic-border text-green-400 hover:bg-blink-classic-bg hover:border-green-500';
+    }
+    if (isBlinkClassicLight) {
+      if (isDisabled) {
+        return 'bg-transparent border border-blink-classic-border-light text-gray-400 cursor-not-allowed';
+      }
+      return isSelected
+        ? 'bg-green-50 border border-green-500 text-green-600 ring-2 ring-green-500'
+        : 'bg-transparent border border-blink-classic-border-light text-green-600 hover:bg-green-50 hover:border-green-500';
+    }
+    // Standard themes
+    if (isDisabled) {
+      return 'border-2 bg-gray-200 dark:bg-blink-dark border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed';
+    }
+    return isSelected
+      ? 'border-2 bg-green-50 dark:bg-green-900 border-green-400 ring-2 ring-green-400 text-green-700 dark:text-green-300'
+      : 'border-2 bg-white dark:bg-black border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300';
+  };
+
+  // Get expanded search input border class
+  const getSearchInputBorderClass = () => {
+    if (isBlinkClassicDark) return 'border border-blink-classic-amber';
+    if (isBlinkClassicLight) return 'border border-blink-classic-amber';
+    return 'border-2 border-orange-500 dark:border-orange-500';
+  };
 
   // Helper function to get dynamic font size based on amount length
   // Returns mobile size + desktop size (20% larger on desktop via md: breakpoint)
@@ -854,11 +984,11 @@ const ItemCart = forwardRef(({
           /* Items List with fixed header and footer */
           <div className="flex-1 flex flex-col min-h-0">
             {/* Fixed top row: Search and Add Item buttons */}
-            <div className="flex-shrink-0 max-w-md mx-auto w-full mb-2">
+            <div className="flex-shrink-0 max-w-md mx-auto w-full mb-2 pt-1">
               {isSearching ? (
                 /* Expanded Search Input */
-                <div className="w-full h-14 md:h-16 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 rounded-lg flex items-center shadow-md">
-                  <div className="flex items-center justify-center w-14 text-orange-500 dark:text-orange-400">
+                <div className={`w-full h-14 md:h-16 ${isBlinkClassic ? 'bg-transparent' : 'bg-white dark:bg-black'} ${getSearchInputBorderClass()} ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} flex items-center ${isBlinkClassic ? '' : 'shadow-md'}`}>
+                  <div className={`flex items-center justify-center w-14 ${isBlinkClassic ? 'text-blink-classic-amber' : 'text-orange-500 dark:text-orange-400'}`}>
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
@@ -882,7 +1012,7 @@ const ItemCart = forwardRef(({
                       }
                     }}
                     placeholder="Search items..."
-                    className="flex-1 h-full bg-transparent text-gray-900 dark:text-white focus:outline-none text-lg"
+                    className={`flex-1 h-full bg-transparent ${isBlinkClassicDark ? 'text-white' : isBlinkClassicLight ? 'text-black' : 'text-gray-900 dark:text-white'} focus:outline-none text-lg`}
                     autoFocus
                   />
                   <button
@@ -900,11 +1030,7 @@ const ItemCart = forwardRef(({
                   {/* Search Button */}
                   <button
                     onClick={handleSearchClick}
-                    className={`w-full h-14 md:h-16 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md flex items-center justify-center gap-2 ${
-                      keyboardNavIndex === 0
-                        ? 'border-orange-400 ring-2 ring-orange-400 bg-orange-50 dark:bg-orange-900 text-orange-700 dark:text-orange-300'
-                        : 'border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300'
-                    }`}
+                    className={`w-full h-14 md:h-16 ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} text-lg md:text-xl font-normal transition-colors ${isBlinkClassic ? '' : 'shadow-md'} flex items-center justify-center gap-2 ${getSearchButtonClasses(keyboardNavIndex === 0)}`}
                   >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -912,14 +1038,10 @@ const ItemCart = forwardRef(({
                     Search
                   </button>
                   
-                  {/* Add Item Button */}
+                  {/* Add Item Button - solid border in BC themes, dashed in standard */}
                   <button
                     onClick={() => setShowAddForm(true)}
-                    className={`w-full h-14 md:h-16 bg-white dark:bg-black border-2 border-dashed rounded-lg text-lg md:text-xl font-normal transition-colors shadow-md flex items-center justify-center gap-2 ${
-                      keyboardNavIndex === 1
-                        ? 'border-orange-400 ring-2 ring-orange-400 bg-orange-50 dark:bg-orange-900 text-orange-700 dark:text-orange-300'
-                        : 'border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300'
-                    }`}
+                    className={`w-full h-14 md:h-16 ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg border-dashed'} text-lg md:text-xl font-normal transition-colors ${isBlinkClassic ? '' : 'shadow-md'} flex items-center justify-center gap-2 ${getSearchButtonClasses(keyboardNavIndex === 1)}`}
                   >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -932,7 +1054,7 @@ const ItemCart = forwardRef(({
 
             {/* Scrollable items area - takes remaining space between fixed elements */}
             <div className="flex-1 overflow-y-auto min-h-0">
-              <div className="flex flex-col gap-3 max-w-md mx-auto pb-2">
+              <div className="flex flex-col gap-3 max-w-md mx-auto pt-1 pb-2">
                 {/* Item Buttons */}
                 {filteredItems.map((item, itemIndex) => {
                   const quantity = getSelectedQuantity(item.id);
@@ -944,24 +1066,12 @@ const ItemCart = forwardRef(({
                       ref={el => itemRefs.current[itemIndex] = el}
                     >
                       <div
-                        className={`w-full h-14 md:h-16 bg-white dark:bg-black border-2 rounded-lg transition-colors shadow-md flex items-center ${
-                          isKeyboardSelected
-                            ? 'border-blue-400 ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-900'
-                            : quantity > 0
-                            ? 'border-blink-accent'
-                            : 'border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400'
-                        }`}
+                        className={`w-full h-14 md:h-16 ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} transition-colors ${isBlinkClassic ? '' : 'shadow-md'} flex items-center ${getItemTileClasses(isKeyboardSelected, quantity > 0)}`}
                       >
                         {/* Main clickable area for item selection */}
                         <button
                           onClick={() => handleItemClick(item)}
-                          className={`flex-1 h-full flex flex-col justify-center px-4 text-left ${
-                            isKeyboardSelected
-                              ? 'text-blue-700 dark:text-blue-300'
-                              : quantity > 0
-                              ? 'text-blink-accent'
-                              : 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300'
-                          }`}
+                          className={`flex-1 h-full flex flex-col justify-center px-4 text-left ${getItemTileTextClasses(isKeyboardSelected, quantity > 0)}`}
                         >
                           <span className="text-base font-medium truncate">{item.name}</span>
                           <span className="text-sm opacity-75">{formatDisplayAmount(item.price, displayCurrency)}</span>
@@ -1048,13 +1158,7 @@ const ItemCart = forwardRef(({
                 <button
                   onClick={handleClear}
                   disabled={selectedItems.length === 0}
-                  className={`w-full h-14 md:h-16 bg-white dark:bg-black border-2 rounded-lg text-lg md:text-xl font-normal leading-none tracking-normal transition-colors shadow-md ${
-                    keyboardNavIndex === clearIndex
-                      ? 'border-red-400 ring-2 ring-red-400 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-300'
-                      : selectedItems.length === 0
-                      ? 'border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                      : 'border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300'
-                  }`}
+                  className={`w-full h-14 md:h-16 ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} text-lg md:text-xl font-normal leading-none tracking-normal transition-colors ${isBlinkClassic ? '' : 'shadow-md'} ${getClearButtonClasses(keyboardNavIndex === clearIndex, selectedItems.length === 0)}`}
                   style={{fontFamily: "'Source Sans Pro', sans-serif"}}
                 >
                   C
@@ -1064,13 +1168,7 @@ const ItemCart = forwardRef(({
                 <button
                   onClick={handleCheckout}
                   disabled={total <= 0}
-                  className={`w-full h-14 md:h-16 border-2 rounded-lg text-lg md:text-xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center ${
-                    keyboardNavIndex === okIndex
-                      ? 'bg-green-50 dark:bg-green-900 border-green-400 ring-2 ring-green-400 text-green-700 dark:text-green-300'
-                      : total <= 0 
-                      ? 'bg-gray-200 dark:bg-blink-dark border-gray-400 dark:border-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed' 
-                      : 'bg-white dark:bg-black border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'
-                  }`}
+                  className={`w-full h-14 md:h-16 ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} text-lg md:text-xl font-normal leading-none tracking-normal transition-colors ${isBlinkClassic ? '' : 'shadow-md'} flex items-center justify-center ${getOkButtonClasses(keyboardNavIndex === okIndex, total <= 0)}`}
                   style={{fontFamily: "'Source Sans Pro', sans-serif"}}
                 >
                   OK

@@ -49,8 +49,8 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
     }
     // Standard themes - use original green styling
     return isSelected
-      ? 'border-green-400 ring-2 ring-green-400 bg-green-50 dark:bg-green-900 text-green-700 dark:text-green-300'
-      : 'border-green-500 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300';
+      ? 'border border-green-400 ring-2 ring-green-400 bg-green-50 dark:bg-green-900 text-green-700 dark:text-green-300'
+      : 'border border-green-500 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300';
   };
   
   // Get custom button classes (blue in standard, amber in BC)
@@ -67,8 +67,8 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
     }
     // Standard themes - use original blue styling
     return isSelected
-      ? 'border-blue-400 ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
-      : 'border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300';
+      ? 'border border-blue-400 ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+      : 'border border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300';
   };
   
   // Get cancel button classes (red in standard, themed in BC)
@@ -85,8 +85,8 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
     }
     // Standard themes
     return isSelected
-      ? 'border-red-400 ring-2 ring-red-400 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-300'
-      : 'border-red-500 hover:border-red-600 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300';
+      ? 'border border-red-400 ring-2 ring-red-400 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-300'
+      : 'border border-red-500 hover:border-red-600 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300';
   };
   
   // Get no tip/skip button classes (yellow in standard, themed in BC)
@@ -103,8 +103,8 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
     }
     // Standard themes
     return isSelected
-      ? 'border-yellow-400 ring-2 ring-yellow-400 bg-yellow-50 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300'
-      : 'border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300';
+      ? 'border border-yellow-400 ring-2 ring-yellow-400 bg-yellow-50 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300'
+      : 'border border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300';
   };
   
   // Get background for tip dialog overlay

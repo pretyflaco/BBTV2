@@ -602,7 +602,7 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
                 
                 {/* Profile - Links to sign in */}
                 <a
-                  href="/"
+                  href="/signin"
                   className={`block w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
                 >
                   <div className="flex items-center gap-3">
@@ -614,6 +614,25 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
                     <div className="flex-1">
                       <p className="text-base font-medium text-blink-accent">Sign in to Blink Bitcoin Terminal</p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Access full features</p>
+                    </div>
+                    <span className="text-gray-400">›</span>
+                  </div>
+                </a>
+
+                {/* Switch Account - Go to /setuppwa to choose different username */}
+                <a
+                  href="/setuppwa"
+                  className={`block w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center bg-gray-500/20`}>
+                      <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-base font-medium text-gray-900 dark:text-white">Switch Account</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Use different Blink username</p>
                     </div>
                     <span className="text-gray-400">›</span>
                   </div>

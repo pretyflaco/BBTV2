@@ -1,19 +1,25 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/router';
 import { useCombinedAuth } from '../lib/hooks/useCombinedAuth';
-import NostrLoginForm from '../components/auth/NostrLoginForm';
 import WalletSetup from '../components/wallet/WalletSetup';
 import Dashboard from '../components/Dashboard';
 
 /**
- * Home Page - Handles authentication flow
+ * Home Page - Smart router based on authentication state
  * 
  * Authentication States:
  * 1. Loading: Show spinner while checking auth
- * 2. Not authenticated: Show Nostr login
+ * 2. Not authenticated: Redirect to /setuppwa (Public POS entry)
  * 3. Nostr auth but no wallet (Blink or NWC): Show WalletSetup
  * 4. Fully authenticated with wallet: Show Dashboard
+ * 
+ * User Journey:
+ * - New users land here and get redirected to /setuppwa
+ * - Users who want to sign in go to /signin from /setuppwa or /{username}
+ * - Authenticated users see Dashboard or WalletSetup
  */
 export default function Home() {
+  const router = useRouter();
   const { 
     loading, 
     isAuthenticated, 
@@ -29,6 +35,9 @@ export default function Home() {
   // This is needed because useNWC state is per-component
   const [walletSetupComplete, setWalletSetupComplete] = useState(false);
   
+  // Track if we're redirecting to prevent flash
+  const [redirecting, setRedirecting] = useState(false);
+  
   // Track the previous user to detect user changes
   const prevUserRef = useRef(publicKey);
   
@@ -41,24 +50,29 @@ export default function Home() {
     }
   }, [publicKey]);
 
+  // Redirect unauthenticated users to /setuppwa
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      console.log('[Home] Not authenticated - redirecting to /setuppwa');
+      setRedirecting(true);
+      router.replace('/setuppwa');
+    }
+  }, [loading, isAuthenticated, router]);
+
   console.log('Home render - loading:', loading, 'authenticated:', isAuthenticated, 'authMode:', authMode, 'needsWalletSetup:', needsWalletSetup, 'hasNWC:', hasNWC, 'walletSetupComplete:', walletSetupComplete);
 
-  // Loading state
-  if (loading) {
+  // Loading state or redirecting
+  if (loading || redirecting || !isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-black">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blink-accent mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading authentication...</p>
-          <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">This should only show for a few seconds</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">
+            {loading ? 'Loading authentication...' : 'Redirecting...'}
+          </p>
         </div>
       </div>
     );
-  }
-
-  // Not authenticated - show Nostr login
-  if (!isAuthenticated) {
-    return <NostrLoginForm />;
   }
 
   // Nostr authenticated but needs wallet setup (Blink OR NWC)

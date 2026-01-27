@@ -54,18 +54,52 @@ const ItemCart = forwardRef(({
 
   // Helper function to get dynamic font size based on amount length
   // Returns mobile size + desktop size (20% larger on desktop via md: breakpoint)
+  // Considers BOTH numeric digits AND total display length to prevent overflow
   const getDynamicFontSize = (displayText) => {
-    const numericOnly = String(displayText).replace(/[^0-9.]/g, '');
-    const length = numericOnly.length;
+    const text = String(displayText);
     
-    // Desktop sizes are ~20% larger (one step up in Tailwind scale)
-    if (length <= 6) return 'text-6xl md:text-7xl';
-    if (length <= 9) return 'text-5xl md:text-6xl';
-    if (length <= 11) return 'text-4xl md:text-5xl';
-    if (length <= 13) return 'text-3xl md:text-4xl';
-    if (length <= 15) return 'text-2xl md:text-3xl';
-    if (length <= 16) return 'text-xl md:text-2xl';
-    return 'text-lg md:text-xl';
+    // Extract only numeric characters (remove currency symbols, spaces, "sats", commas, etc.)
+    const numericOnly = text.replace(/[^0-9.]/g, '');
+    const numericLength = numericOnly.length;
+    
+    // Total display length (includes symbols, spaces, commas)
+    const totalLength = text.length;
+    
+    // Calculate size based on numeric length (original thresholds)
+    let sizeFromNumeric;
+    if (numericLength <= 6) sizeFromNumeric = 7;
+    else if (numericLength <= 9) sizeFromNumeric = 6;
+    else if (numericLength <= 11) sizeFromNumeric = 5;
+    else if (numericLength <= 13) sizeFromNumeric = 4;
+    else if (numericLength <= 15) sizeFromNumeric = 3;
+    else if (numericLength <= 16) sizeFromNumeric = 2;
+    else sizeFromNumeric = 1;
+    
+    // Calculate size based on total display length (for long currency symbols/names)
+    let sizeFromTotal;
+    if (totalLength <= 10) sizeFromTotal = 7;
+    else if (totalLength <= 14) sizeFromTotal = 6;
+    else if (totalLength <= 18) sizeFromTotal = 5;
+    else if (totalLength <= 22) sizeFromTotal = 4;
+    else if (totalLength <= 26) sizeFromTotal = 3;
+    else if (totalLength <= 30) sizeFromTotal = 2;
+    else sizeFromTotal = 1;
+    
+    // Use the SMALLER size to prevent overflow
+    const finalSize = Math.min(sizeFromNumeric, sizeFromTotal);
+    
+    // Map size number to Tailwind classes
+    const sizeClasses = {
+      7: 'text-6xl md:text-7xl',
+      6: 'text-5xl md:text-6xl',
+      5: 'text-4xl md:text-5xl',
+      4: 'text-3xl md:text-4xl',
+      3: 'text-2xl md:text-3xl',
+      2: 'text-xl md:text-2xl',
+      1: 'text-lg md:text-xl'
+    };
+    
+    return sizeClasses[finalSize] || sizeClasses[1];
   };
 
   // Play keystroke sound (also unlocks iOS audio on first press)

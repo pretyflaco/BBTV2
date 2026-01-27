@@ -130,20 +130,52 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
 
   // Helper function to get dynamic font size based on amount length
   // Returns mobile size + desktop size (20% larger on desktop via md: breakpoint)
+  // Considers BOTH numeric digits AND total display length to prevent overflow
   const getDynamicFontSize = (displayText) => {
-    // Extract only numeric characters (remove currency symbols, spaces, "sats", commas, etc.)
-    const numericOnly = String(displayText).replace(/[^0-9.]/g, '');
-    const length = numericOnly.length;
+    const text = String(displayText);
     
-    // More aggressive scaling to prevent word breaks on mobile
-    // Desktop sizes are ~20% larger (one step up in Tailwind scale)
-    if (length <= 6) return 'text-6xl md:text-7xl';      // Standard size (up to 6 digits) - 999,999
-    if (length <= 9) return 'text-5xl md:text-6xl';      // (7-9 digits) - millions
-    if (length <= 11) return 'text-4xl md:text-5xl';     // (10-11 digits) - billions
-    if (length <= 13) return 'text-3xl md:text-4xl';     // (12-13 digits) - trillions
-    if (length <= 15) return 'text-2xl md:text-3xl';     // (14-15 digits) - quadrillions
-    if (length <= 16) return 'text-xl md:text-2xl';      // (16 digits) - max bitcoin supply
-    return 'text-lg md:text-xl';                         // Minimum size (17+ digits - shouldn't happen)
+    // Extract only numeric characters (remove currency symbols, spaces, "sats", commas, etc.)
+    const numericOnly = text.replace(/[^0-9.]/g, '');
+    const numericLength = numericOnly.length;
+    
+    // Total display length (includes symbols, spaces, commas)
+    const totalLength = text.length;
+    
+    // Calculate size based on numeric length (original thresholds)
+    let sizeFromNumeric;
+    if (numericLength <= 6) sizeFromNumeric = 7;      // text-6xl md:text-7xl
+    else if (numericLength <= 9) sizeFromNumeric = 6; // text-5xl md:text-6xl
+    else if (numericLength <= 11) sizeFromNumeric = 5; // text-4xl md:text-5xl
+    else if (numericLength <= 13) sizeFromNumeric = 4; // text-3xl md:text-4xl
+    else if (numericLength <= 15) sizeFromNumeric = 3; // text-2xl md:text-3xl
+    else if (numericLength <= 16) sizeFromNumeric = 2; // text-xl md:text-2xl
+    else sizeFromNumeric = 1;                          // text-lg md:text-xl
+    
+    // Calculate size based on total display length (for long currency symbols/names)
+    let sizeFromTotal;
+    if (totalLength <= 10) sizeFromTotal = 7;       // Short display: "P 1,000.00"
+    else if (totalLength <= 14) sizeFromTotal = 6;  // Medium: "KSh 10,000.00"
+    else if (totalLength <= 18) sizeFromTotal = 5;  // Longer: "10,000 sats"
+    else if (totalLength <= 22) sizeFromTotal = 4;  // "1,000,000.00 sats"
+    else if (totalLength <= 26) sizeFromTotal = 3;  // Very long
+    else if (totalLength <= 30) sizeFromTotal = 2;  // Extra long
+    else sizeFromTotal = 1;                          // Maximum length
+    
+    // Use the SMALLER size to prevent overflow
+    const finalSize = Math.min(sizeFromNumeric, sizeFromTotal);
+    
+    // Map size number to Tailwind classes
+    const sizeClasses = {
+      7: 'text-6xl md:text-7xl',
+      6: 'text-5xl md:text-6xl',
+      5: 'text-4xl md:text-5xl',
+      4: 'text-3xl md:text-4xl',
+      3: 'text-2xl md:text-3xl',
+      2: 'text-xl md:text-2xl',
+      1: 'text-lg md:text-xl'
+    };
+    
+    return sizeClasses[finalSize] || sizeClasses[1];
   };
 
   // Handle tip selection and create invoice after state update

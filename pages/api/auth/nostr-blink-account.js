@@ -48,39 +48,27 @@ function verifyNostrSession(req) {
 export default async function handler(req, res) {
   console.log('[nostr-blink-account] Request method:', req.method);
   
-  // For GET requests, allow pubkey-based lookup (for external signers)
-  // This is safe because the pubkey was verified during sign-in
-  if (req.method === 'GET' && req.query.pubkey) {
-    const pubkey = req.query.pubkey.toLowerCase();
-    console.log('[nostr-blink-account] GET by pubkey:', pubkey);
-    
-    // Validate pubkey format
-    if (!/^[0-9a-f]{64}$/.test(pubkey)) {
-      return res.status(400).json({ error: 'Invalid pubkey format' });
-    }
-    
-    // Lookup by pubkey (construct the username format)
-    const username = `nostr:${pubkey}`;
-    return handleGet(req, res, pubkey, username);
+  // SECURITY FIX: Remove unauthenticated pubkey-based access
+  // Previously, anyone could GET or POST API keys just by knowing a pubkey.
+  // This was a critical vulnerability - API keys could be stolen.
+  //
+  // For external signers (Amber):
+  // - Client stores API keys locally (encrypted with device key)
+  // - Server storage is only used for cross-device sync when NIP-98 session exists
+  // - If no NIP-98 session, user must re-add their Blink account on new device
+  
+  // Log if someone tries the old unauthenticated endpoints
+  if (req.method === 'GET' && req.query.pubkey && !req.cookies['auth-token']) {
+    console.warn('[nostr-blink-account] BLOCKED: Unauthenticated GET by pubkey attempt:', req.query.pubkey?.substring(0, 8));
+    return res.status(401).json({ error: 'Authentication required - pubkey-only access is no longer supported' });
   }
   
-  // For POST requests, allow pubkey-based storage (for external signers like Amber)
-  // The pubkey was verified during sign-in flow
-  if (req.method === 'POST' && req.body?.pubkey) {
-    const pubkey = req.body.pubkey.toLowerCase();
-    console.log('[nostr-blink-account] POST by pubkey:', pubkey);
-    
-    // Validate pubkey format
-    if (!/^[0-9a-f]{64}$/.test(pubkey)) {
-      return res.status(400).json({ error: 'Invalid pubkey format' });
-    }
-    
-    // Store by pubkey (construct the username format)
-    const username = `nostr:${pubkey}`;
-    return handlePost(req, res, pubkey, username);
+  if (req.method === 'POST' && req.body?.pubkey && !req.cookies['auth-token']) {
+    console.warn('[nostr-blink-account] BLOCKED: Unauthenticated POST by pubkey attempt:', req.body?.pubkey?.substring(0, 8));
+    return res.status(401).json({ error: 'Authentication required - pubkey-only access is no longer supported' });
   }
   
-  // For session-based requests, require full session verification
+  // All requests now require full session verification
   const verification = verifyNostrSession(req);
   if (!verification.valid) {
     return res.status(401).json({ error: verification.error });

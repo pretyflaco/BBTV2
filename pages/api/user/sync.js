@@ -12,6 +12,9 @@
  * This complements the existing endpoints:
  * - /api/split-profiles (Split Payment Profiles)
  * 
+ * SECURITY: All requests require NIP-98 session authentication.
+ * Pubkey-only access has been removed to prevent API key theft.
+ * 
  * Endpoints:
  * - GET: Retrieve all synced data for user
  * - POST: Save/update synced data
@@ -22,37 +25,30 @@ const AuthManager = require('../../../lib/auth');
 const StorageManager = require('../../../lib/storage');
 
 /**
- * Extract Nostr pubkey from request
+ * Verify request has valid NIP-98 session
+ * SECURITY: No longer accepts pubkey-only authentication
  * @param {Object} req 
- * @returns {string|null}
+ * @returns {{valid: boolean, pubkey?: string, username?: string, error?: string}}
  */
-function extractPubkey(req) {
-  // Check query params (GET requests)
-  if (req.query?.pubkey) {
-    const pubkey = req.query.pubkey.toLowerCase();
-    if (/^[0-9a-f]{64}$/.test(pubkey)) {
-      return pubkey;
-    }
-  }
-  
-  // Check body (POST/PATCH requests)
-  if (req.body?.pubkey) {
-    const pubkey = req.body.pubkey.toLowerCase();
-    if (/^[0-9a-f]{64}$/.test(pubkey)) {
-      return pubkey;
-    }
-  }
-  
-  // Check session cookie
+function verifySession(req) {
   const token = req.cookies?.['auth-token'];
-  if (token) {
-    const session = AuthManager.verifySession(token);
-    if (session?.username?.startsWith('nostr:')) {
-      return session.username.replace('nostr:', '');
-    }
+  
+  if (!token) {
+    return { valid: false, error: 'Authentication required - no session token' };
   }
   
-  return null;
+  const session = AuthManager.verifySession(token);
+  
+  if (!session) {
+    return { valid: false, error: 'Invalid or expired session' };
+  }
+  
+  if (!session.username?.startsWith('nostr:')) {
+    return { valid: false, error: 'Not a Nostr session' };
+  }
+  
+  const pubkey = session.username.replace('nostr:', '');
+  return { valid: true, pubkey, username: session.username };
 }
 
 /**
@@ -78,14 +74,21 @@ const decryptNWCUri = decryptSensitiveData;
 export default async function handler(req, res) {
   console.log('[user/sync] Request method:', req.method);
   
-  const pubkey = extractPubkey(req);
+  // SECURITY: Require NIP-98 session authentication
+  // Pubkey-only access has been removed to prevent API key/NWC URI theft
+  const verification = verifySession(req);
   
-  if (!pubkey) {
-    return res.status(400).json({ error: 'Missing or invalid pubkey' });
+  if (!verification.valid) {
+    // Log attempted unauthenticated access
+    const attemptedPubkey = req.query?.pubkey || req.body?.pubkey;
+    if (attemptedPubkey) {
+      console.warn('[user/sync] BLOCKED: Unauthenticated access attempt for pubkey:', attemptedPubkey?.substring(0, 8));
+    }
+    return res.status(401).json({ error: verification.error });
   }
   
-  const username = `nostr:${pubkey}`;
-  console.log('[user/sync] User:', username);
+  const { pubkey, username } = verification;
+  console.log('[user/sync] Authenticated user:', username);
   
   try {
     switch (req.method) {

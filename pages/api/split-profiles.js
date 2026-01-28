@@ -10,50 +10,61 @@
  * - recipients: Array of recipients with Blink usernames and share percentages
  *   (Currently only 1 recipient at 100%, multi-recipient support planned)
  * 
+ * SECURITY: All requests require NIP-98 session authentication.
+ * Pubkey-only access has been removed for consistency.
+ * 
  * Endpoints:
  * - GET: Retrieve all split profiles for user
  * - POST: Create/update a split profile
  * - DELETE: Remove a split profile
  */
 
+const AuthManager = require('../../lib/auth');
 const StorageManager = require('../../lib/storage');
 
 /**
- * Extract Nostr pubkey from session or request
+ * Verify request has valid NIP-98 session
+ * SECURITY: No longer accepts pubkey-only authentication
  * @param {Object} req 
- * @returns {string|null}
+ * @returns {{valid: boolean, pubkey?: string, username?: string, error?: string}}
  */
-function extractPubkey(req) {
-  // Check query params first (for GET requests)
-  if (req.query.pubkey) {
-    const pubkey = req.query.pubkey.toLowerCase();
-    if (/^[0-9a-f]{64}$/.test(pubkey)) {
-      return pubkey;
-    }
+function verifySession(req) {
+  const token = req.cookies?.['auth-token'];
+  
+  if (!token) {
+    return { valid: false, error: 'Authentication required - no session token' };
   }
   
-  // Check body (for POST/DELETE requests)
-  if (req.body?.pubkey) {
-    const pubkey = req.body.pubkey.toLowerCase();
-    if (/^[0-9a-f]{64}$/.test(pubkey)) {
-      return pubkey;
-    }
+  const session = AuthManager.verifySession(token);
+  
+  if (!session) {
+    return { valid: false, error: 'Invalid or expired session' };
   }
   
-  return null;
+  if (!session.username?.startsWith('nostr:')) {
+    return { valid: false, error: 'Not a Nostr session' };
+  }
+  
+  const pubkey = session.username.replace('nostr:', '');
+  return { valid: true, pubkey, username: session.username };
 }
 
 export default async function handler(req, res) {
   console.log('[split-profiles] Request method:', req.method);
   
-  const pubkey = extractPubkey(req);
+  // SECURITY: Require NIP-98 session authentication
+  const verification = verifySession(req);
   
-  if (!pubkey) {
-    return res.status(400).json({ error: 'Missing or invalid pubkey' });
+  if (!verification.valid) {
+    const attemptedPubkey = req.query?.pubkey || req.body?.pubkey;
+    if (attemptedPubkey) {
+      console.warn('[split-profiles] BLOCKED: Unauthenticated access attempt for pubkey:', attemptedPubkey?.substring(0, 8));
+    }
+    return res.status(401).json({ error: verification.error });
   }
   
-  const username = `nostr:${pubkey}`;
-  console.log('[split-profiles] User:', username);
+  const { pubkey, username } = verification;
+  console.log('[split-profiles] Authenticated user:', username);
   
   try {
     switch (req.method) {

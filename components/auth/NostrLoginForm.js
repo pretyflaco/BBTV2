@@ -37,6 +37,10 @@ export default function NostrLoginForm() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [hasStoredAccount, setHasStoredAccount] = useState(false);
   
+  // Detect iOS vs Android for showing appropriate mobile options
+  const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isAndroid = typeof navigator !== 'undefined' && /Android/.test(navigator.userAgent);
+  
   // Check for stored account on mount
   useEffect(() => {
     setHasStoredAccount(NostrAuthService.hasStoredEncryptedNsec());
@@ -95,23 +99,33 @@ export default function NostrLoginForm() {
   };
 
   const handleExternalSignerSignIn = async () => {
+    console.log('[NostrLoginForm] handleExternalSignerSignIn called');
     setSigningIn(true);
     setLocalError(null);
 
-    const result = await signInWithExternalSigner();
+    try {
+      console.log('[NostrLoginForm] Calling signInWithExternalSigner...');
+      const result = await signInWithExternalSigner();
+      console.log('[NostrLoginForm] signInWithExternalSigner result:', result);
 
-    if (result.pending) {
-      // User will be redirected to external signer
-      // When they return, the page reloads fresh with new state.
-      // Reset signing state after timeout if navigation fails silently
-      setTimeout(() => {
-        setSigningIn(false);
-      }, 3000);
-      return;
-    }
+      if (result.pending) {
+        // User will be redirected to external signer
+        // When they return, the page reloads fresh with new state.
+        // Reset signing state after timeout if navigation fails silently
+        console.log('[NostrLoginForm] Redirect pending, waiting...');
+        setTimeout(() => {
+          setSigningIn(false);
+        }, 3000);
+        return;
+      }
 
-    if (!result.success) {
-      setLocalError(result.error);
+      if (!result.success) {
+        console.log('[NostrLoginForm] Sign-in failed:', result.error);
+        setLocalError(result.error);
+      }
+    } catch (error) {
+      console.error('[NostrLoginForm] Exception in handleExternalSignerSignIn:', error);
+      setLocalError(error.message || 'Sign-in failed');
     }
     
     // Always reset signing state when not pending
@@ -516,8 +530,8 @@ export default function NostrLoginForm() {
             </div>
           )}
 
-          {/* Divider before mobile signer - only show on mobile */}
-          {isMobile && (hasExtension || hasStoredAccount) && (
+          {/* Divider before mobile signer - only show on Android */}
+          {isAndroid && (hasExtension || hasStoredAccount) && (
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-300 dark:border-gray-700"></div>
@@ -528,8 +542,8 @@ export default function NostrLoginForm() {
             </div>
           )}
 
-          {/* External Signer (Amber/Nowser) - only show on mobile devices */}
-          {isMobile && (
+          {/* External Signer (Amber) - only show on Android devices */}
+          {isAndroid && (
             <button
               onClick={handleExternalSignerSignIn}
               disabled={signingIn}
@@ -548,7 +562,7 @@ export default function NostrLoginForm() {
                   <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
                   </svg>
-                  Sign in with Mobile Signer
+                  Sign in with Amber
                 </>
               )}
             </button>
@@ -566,8 +580,26 @@ export default function NostrLoginForm() {
             Create New Account
           </button>
 
-          {/* Mobile hint */}
-          {isMobile && (
+          {/* iOS hint - show when no extension detected */}
+          {isIOS && !hasExtension && (
+            <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                📱 On iOS, install the{' '}
+                <a 
+                  href="https://apps.apple.com/cy/app/nostash/id6744309333" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="font-medium underline hover:text-blue-800 dark:hover:text-blue-200"
+                >
+                  Nostash
+                </a>
+                {' '}Safari extension to sign in with your Nostr key.
+              </p>
+            </div>
+          )}
+
+          {/* Android hint */}
+          {isAndroid && (
             <p className="text-xs text-center text-gray-500 dark:text-gray-400">
               Works with{' '}
               <a 
@@ -578,25 +610,7 @@ export default function NostrLoginForm() {
               >
                 Amber
               </a>
-              {' '}(Android) or{' '}
-              <a 
-                href="https://apps.apple.com/cy/app/nostash/id6744309333" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-amber-600 dark:text-amber-400 underline"
-              >
-                Nostash
-              </a>
-              {' '}extension for Safari (iOS).{' '}
-              <a
-                href="nostr:npub1flac02t5hw6jljk8x7mec22uq37ert8d3y3mpwzcma726g5pz4lsmfzlk6"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-400 hover:text-amber-400 underline"
-              >
-                Tag flaco
-              </a>
-              {' '}if you know a NIP-46 mobile signer for iOS.
+              {' '}for secure key management
             </p>
           )}
         </div>

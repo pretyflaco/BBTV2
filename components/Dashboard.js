@@ -1522,7 +1522,10 @@ export default function Dashboard() {
     setSplitProfilesLoading(true);
     try {
       console.log('[SplitProfiles] Fetching profiles for:', publicKey);
-      const response = await fetch(`/api/split-profiles?pubkey=${publicKey}`);
+      // Use session-based authentication (no pubkey query param needed)
+      const response = await fetch('/api/split-profiles', {
+        credentials: 'include' // Include session cookie
+      });
       
       if (response.ok) {
         const data = await response.json();
@@ -1543,6 +1546,10 @@ export default function Dashboard() {
         }
         
         console.log('[SplitProfiles] Loaded', data.splitProfiles?.length || 0, 'profiles');
+      } else if (response.status === 401) {
+        // No session - this is expected for external signers without challenge auth
+        console.log('[SplitProfiles] No session available, split profiles require authentication');
+        setSplitProfiles([]);
       } else {
         console.error('[SplitProfiles] Failed to fetch:', response.status);
       }
@@ -1562,8 +1569,8 @@ export default function Dashboard() {
       const response = await fetch('/api/split-profiles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Include session cookie
         body: JSON.stringify({
-          pubkey: publicKey,
           profile,
           setActive
         })
@@ -1573,6 +1580,9 @@ export default function Dashboard() {
         const data = await response.json();
         await fetchSplitProfiles(); // Refresh the list
         return data.profile;
+      } else if (response.status === 401) {
+        setSplitProfileError('Please sign in again to save split profiles');
+        return null;
       } else {
         const error = await response.json();
         setSplitProfileError(error.error || 'Failed to save profile');
@@ -1593,8 +1603,8 @@ export default function Dashboard() {
       const response = await fetch('/api/split-profiles', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Include session cookie
         body: JSON.stringify({
-          pubkey: publicKey,
           profileId
         })
       });
@@ -1620,17 +1630,18 @@ export default function Dashboard() {
       setTipsEnabled(false);
       setTipRecipient('');
       
-      // Save null active profile to server
-      const userData = await fetch(`/api/split-profiles?pubkey=${publicKey}`).then(r => r.json());
-      await fetch('/api/split-profiles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pubkey: publicKey,
-          profile: splitProfiles[0], // Need at least one profile to update activeSplitProfileId
-          setActive: false
-        })
-      });
+      // Save null active profile to server (if we have profiles)
+      if (splitProfiles.length > 0) {
+        await fetch('/api/split-profiles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include', // Include session cookie
+          body: JSON.stringify({
+            profile: splitProfiles[0], // Need at least one profile to update activeSplitProfileId
+            setActive: false
+          })
+        });
+      }
       return;
     }
     

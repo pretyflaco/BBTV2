@@ -30,6 +30,7 @@ export default function NostrLoginForm() {
   const [signingIn, setSigningIn] = useState(false);
   const [localError, setLocalError] = useState(null);
   const [checkingReturn, setCheckingReturn] = useState(true);
+  const [hasPendingFlow, setHasPendingFlow] = useState(false);
   
   // In-app key generation state
   const [authMode, setAuthMode] = useState('main'); // 'main', 'create', 'password'
@@ -41,9 +42,17 @@ export default function NostrLoginForm() {
   const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
   const isAndroid = typeof navigator !== 'undefined' && /Android/.test(navigator.userAgent);
   
-  // Check for stored account on mount
+  // Check for stored account and pending flow on mount
   useEffect(() => {
     setHasStoredAccount(NostrAuthService.hasStoredEncryptedNsec());
+    
+    // Check if there's a pending Amber flow
+    const pendingFlow = NostrAuthService.getPendingChallengeFlow();
+    if (pendingFlow) {
+      const flowAge = Date.now() - pendingFlow.timestamp;
+      // Only consider flows less than 2 minutes old as "pending"
+      setHasPendingFlow(flowAge < 120000);
+    }
   }, []);
 
   // Check for pending signer flow on mount and focus (user returning from Amber)
@@ -100,6 +109,27 @@ export default function NostrLoginForm() {
 
   const handleExternalSignerSignIn = async () => {
     console.log('[NostrLoginForm] handleExternalSignerSignIn called');
+    
+    // Check if there's already a pending flow - prevent double-clicks
+    const pendingFlow = NostrAuthService.getPendingChallengeFlow();
+    if (pendingFlow) {
+      console.log('[NostrLoginForm] Pending flow detected, step:', pendingFlow.step);
+      
+      // Check if flow is recent (within 30 seconds) - user might be waiting for Amber
+      const flowAge = Date.now() - pendingFlow.timestamp;
+      if (flowAge < 30000) {
+        console.log('[NostrLoginForm] Flow is recent (' + Math.round(flowAge/1000) + 's old), showing waiting message');
+        setLocalError('Waiting for Amber response... If Amber did not open, please try again.');
+        // Show error for 3 seconds then clear
+        setTimeout(() => setLocalError(null), 3000);
+        return;
+      }
+      
+      // Flow is stale, clear it and proceed
+      console.log('[NostrLoginForm] Flow is stale (' + Math.round(flowAge/1000) + 's old), clearing and restarting');
+      NostrAuthService.clearPendingChallengeFlow();
+    }
+    
     setSigningIn(true);
     setLocalError(null);
 
@@ -111,11 +141,14 @@ export default function NostrLoginForm() {
       if (result.pending) {
         // User will be redirected to external signer
         // When they return, the page reloads fresh with new state.
-        // Reset signing state after timeout if navigation fails silently
+        // Keep button disabled longer to prevent re-clicks
         console.log('[NostrLoginForm] Redirect pending, waiting...');
+        setHasPendingFlow(true);
+        // Don't reset signingIn here - let it stay disabled
+        // It will reset when page reloads or after longer timeout
         setTimeout(() => {
           setSigningIn(false);
-        }, 3000);
+        }, 10000); // Increased to 10 seconds
         return;
       }
 
@@ -555,7 +588,15 @@ export default function NostrLoginForm() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Opening Signer...
+                  Opening Amber...
+                </>
+              ) : hasPendingFlow ? (
+                <>
+                  <svg className="animate-pulse -ml-1 mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Continue with Amber
                 </>
               ) : (
                 <>

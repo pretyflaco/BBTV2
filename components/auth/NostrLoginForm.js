@@ -20,6 +20,7 @@ export default function NostrLoginForm() {
     hasExtension,
     isMobile,
     availableMethods,
+    pendingAmberApproval,
     signInWithExtension,
     signInWithExternalSigner,
     checkPendingSignerFlow,
@@ -248,6 +249,67 @@ export default function NostrLoginForm() {
           <p className="mt-4 text-gray-600 dark:text-gray-400">
             {checkingReturn ? 'Completing sign-in...' : 'Checking authentication...'}
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Waiting for Amber approval view
+  if (pendingAmberApproval) {
+    const handleRetryAmber = () => {
+      // Clear the pending flow and re-trigger Amber
+      NostrAuthService.clearPendingChallengeFlow();
+      handleExternalSignerSignIn();
+    };
+    
+    const handleCancelAmber = () => {
+      // Clear the pending flow and go back to main view
+      NostrAuthService.clearPendingChallengeFlow();
+      window.location.reload();
+    };
+    
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-black">
+        <div className="max-w-md w-full space-y-6 p-8 text-center">
+          {/* Amber icon */}
+          <div className="flex justify-center mb-6">
+            <div className="w-20 h-20 bg-gradient-to-br from-amber-400 to-orange-600 rounded-2xl flex items-center justify-center animate-pulse">
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+            </div>
+          </div>
+          
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            Waiting for Amber
+          </h2>
+          
+          <p className="text-gray-600 dark:text-gray-400">
+            Please open the Amber app and <strong>approve the sign-in request</strong>.
+          </p>
+          
+          <p className="text-sm text-gray-500 dark:text-gray-500">
+            After approving in Amber, return to this page.
+          </p>
+          
+          {/* Retry button to re-open Amber */}
+          <button
+            onClick={handleRetryAmber}
+            className="w-full flex justify-center items-center py-4 px-6 border-2 border-amber-500 text-lg font-medium rounded-xl text-amber-600 dark:text-amber-400 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-colors"
+          >
+            <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Retry / Open Amber Again
+          </button>
+          
+          {/* Cancel button */}
+          <button
+            onClick={handleCancelAmber}
+            className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+          >
+            Cancel and go back
+          </button>
         </div>
       </div>
     );

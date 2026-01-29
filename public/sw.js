@@ -1,5 +1,5 @@
 // Service Worker for Blink POS
-const CACHE_NAME = 'blink-tracker-v9-2026-01-30-amber-sw-intercept'; // Update this version when deploying changes
+const CACHE_NAME = 'blink-tracker-v15-2026-01-30-restore'; // Update this version when deploying changes
 
 // IndexedDB for storing Amber/signer return params
 const DB_NAME = 'blink-pos-signer';

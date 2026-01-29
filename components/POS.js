@@ -594,8 +594,10 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
       throw new Error(`Exchange rate not available for ${currency}`);
     }
 
-    // Convert major currency units to minor units (e.g., KES to cents), then to sats
-    const amountInMinorUnits = amount * 100; // Convert to cents/minor units
+    // Use currency's fractionDigits (0 for KRW/JPY, 2 for USD/EUR, etc.)
+    const currencyInfo = getCurrencyById(currency, currencies);
+    const fractionDigits = currencyInfo?.fractionDigits ?? 2;
+    const amountInMinorUnits = amount * Math.pow(10, fractionDigits);
     const satsAmount = Math.round(amountInMinorUnits / exchangeRate.satPriceInCurrency);
     
     return satsAmount;

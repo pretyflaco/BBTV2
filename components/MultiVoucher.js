@@ -221,7 +221,10 @@ const MultiVoucher = forwardRef(({
       throw new Error(`Exchange rate not available for ${currency}`);
     }
 
-    const amountInMinorUnits = amount * 100;
+    // Use currency's fractionDigits (0 for KRW/JPY, 2 for USD/EUR, etc.)
+    const currencyInfo = getCurrencyById(currency, currencies);
+    const fractionDigits = currencyInfo?.fractionDigits ?? 2;
+    const amountInMinorUnits = amount * Math.pow(10, fractionDigits);
     const satsAmount = Math.round(amountInMinorUnits / exchangeRate.satPriceInCurrency);
     
     return satsAmount;

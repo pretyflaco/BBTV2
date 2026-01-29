@@ -794,7 +794,7 @@ const ItemCart = forwardRef(({
       <div className="flex-shrink-0 px-4">
         <div className="text-center">
           <div className="text-center">
-            <div className={`font-semibold text-gray-800 dark:text-gray-100 min-h-[72px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${getDynamicFontSize(formatDisplayAmount(total, displayCurrency))}`} style={{fontFamily: "'Source Sans Pro', sans-serif", wordBreak: 'keep-all', overflowWrap: 'normal'}}>
+            <div className={`font-inter-tight font-semibold text-gray-800 dark:text-gray-100 min-h-[72px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${getDynamicFontSize(formatDisplayAmount(total, displayCurrency))}`} style={{wordBreak: 'keep-all', overflowWrap: 'normal'}}>
               {total > 0 ? (
                 renderStyledAmount(total, displayCurrency, "text-blink-accent")
               ) : (

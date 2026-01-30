@@ -20,6 +20,8 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  console.log("Got a request from voucer component")
+
   try {
     const { 
       amount, 
@@ -30,7 +32,7 @@ export default async function handler(req, res) {
       displayAmount, 
       displayCurrency 
     } = req.body;
-
+    console.log(`displayCurrency  is :`,     displayCurrency )
     // Validate required fields
     if (!amount || !apiKey || !walletId) {
       console.error('❌ Missing required fields for voucher creation');

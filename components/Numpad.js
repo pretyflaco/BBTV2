@@ -1,4 +1,3 @@
-import React from 'react';
 import { THEMES } from '../lib/hooks/useTheme';
 
 /**

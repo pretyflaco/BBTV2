@@ -1,13 +1,13 @@
-import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
-import QRCode from 'react-qr-code';
 import { bech32 } from 'bech32';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import QRCode from 'react-qr-code';
+import { playSound, unlockAudioContext } from '../lib/audio-utils';
 import { formatDisplayAmount as formatCurrency, getCurrencyById, isBitcoinCurrency, parseAmountParts } from '../lib/currency-utils';
+import { useThermalPrint } from '../lib/escpos/hooks/useThermalPrint';
+import { THEMES } from '../lib/hooks/useTheme';
 import { formatNumber } from '../lib/number-format';
 import { DEFAULT_EXPIRY } from './ExpirySelector';
-import { useThermalPrint } from '../lib/escpos/hooks/useThermalPrint';
 import Numpad from './Numpad';
-import { THEMES } from '../lib/hooks/useTheme';
-import { unlockAudioContext, playSound } from '../lib/audio-utils';
 
 const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, darkMode, theme = THEMES.DARK, cycleTheme, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3] }, ref) => {
   const [amount, setAmount] = useState('');
@@ -126,6 +126,7 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
   useEffect(() => {
     if (onVoucherStateChange) {
       // Hide header when voucher QR is showing OR commission dialog is showing
+      console.log("Sample test")
       onVoucherStateChange((!!voucher && !redeemed) || showCommissionDialog);
     }
   }, [voucher, redeemed, showCommissionDialog, onVoucherStateChange]);
@@ -563,7 +564,7 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
     } else {
       return false; // Can't determine, allow creation
     }
-    
+    //  console.log("show value here for error handling")
     return amountInSats > walletBalance;
   }, [amount, walletBalance, displayCurrency, exchangeRate, currencies]);
 
@@ -803,7 +804,9 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
       if (data.success && data.voucher) {
         // Build LNURL
         const protocol = window.location.protocol;
+        console.log("protocol is:", protocol);
         const host = window.location.host;
+        console.log("host is:", host);
         const lnurlUrl = `${protocol}//${host}/api/voucher/lnurl/${data.voucher.id}/${amountInSats}`;
         
         console.log('🔗 LNURL URL:', lnurlUrl);
@@ -824,7 +827,7 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
           expiresAt: data.voucher.expiresAt // Include expiry for PDF
         });
 
-        console.log('✅ Voucher created:', {
+        console.log('✅ Voucher created -- Sample:', {
           chargeId: data.voucher.id.substring(0, 8) + '...',
           amount: amountInSats,
           displayAmount: numericAmount,

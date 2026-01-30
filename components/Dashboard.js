@@ -1463,6 +1463,7 @@ export default function Dashboard() {
       if (response.ok) {
         const walletsData = await response.json();
         const walletsList = walletsData.wallets || [];
+        console.log("walletsList is:", walletsList);
         setWallets(walletsList);
         
         // Debug log

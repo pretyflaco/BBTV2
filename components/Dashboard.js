@@ -1,26 +1,26 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useCombinedAuth } from '../lib/hooks/useCombinedAuth';
+import { bech32 } from 'bech32';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import QRCode from 'react-qr-code';
+import { isBitcoinCurrency } from '../lib/currency-utils';
 import { useBlinkWebSocket } from '../lib/hooks/useBlinkWebSocket';
+import { useCombinedAuth } from '../lib/hooks/useCombinedAuth';
 import { useCurrencies } from '../lib/hooks/useCurrencies';
 import { useTheme } from '../lib/hooks/useTheme';
+import { isNpubCashAddress, probeNpubCashAddress, validateNpubCashAddress } from '../lib/lnurl';
+import { BITCOIN_FORMAT_DESCRIPTIONS, BITCOIN_FORMAT_LABELS, BITCOIN_FORMAT_OPTIONS, formatNumber, FORMAT_DESCRIPTIONS, FORMAT_LABELS, FORMAT_OPTIONS, getBitcoinFormatPreview, getFormatPreview } from '../lib/number-format';
+import NWCClient from '../lib/nwc/NWCClient';
+import BatchPayments from './BatchPayments';
+import ExpirySelector from './ExpirySelector';
+import ItemCart from './ItemCart';
+import MultiVoucher from './MultiVoucher';
+import Network from './Network';
 import { useNFC } from './NFCPayment';
-import { isBitcoinCurrency } from '../lib/currency-utils';
 import PaymentAnimation from './PaymentAnimation';
 import POS from './POS';
-import Voucher from './Voucher';
-import MultiVoucher from './MultiVoucher';
-import VoucherManager from './VoucherManager';
-import Network from './Network';
-import ItemCart from './ItemCart';
-import BatchPayments from './BatchPayments';
 import KeyManagementSection from './Settings/KeyManagementSection';
-import NWCClient from '../lib/nwc/NWCClient';
-import { isNpubCashAddress, validateNpubCashAddress, probeNpubCashAddress } from '../lib/lnurl';
 import TransactionDetail, { getTransactionLabel, initTransactionLabels } from './TransactionDetail';
-import ExpirySelector from './ExpirySelector';
-import QRCode from 'react-qr-code';
-import { bech32 } from 'bech32';
-import { FORMAT_OPTIONS, FORMAT_LABELS, FORMAT_DESCRIPTIONS, getFormatPreview, BITCOIN_FORMAT_OPTIONS, BITCOIN_FORMAT_LABELS, BITCOIN_FORMAT_DESCRIPTIONS, getBitcoinFormatPreview, formatNumber } from '../lib/number-format';
+import Voucher from './Voucher';
+import VoucherManager from './VoucherManager';
 
 // Spinner colors matching the numpad buttons (rotates on each transition)
 const SPINNER_COLORS = [
@@ -46,10 +46,10 @@ const TIP_PROFILES = [
 ];
 
 export default function Dashboard() {
-  const { 
-    user, logout, authMode, getApiKey, hasServerSession, publicKey, 
-    activeBlinkAccount, blinkAccounts, addBlinkAccount, addBlinkLnAddressWallet, removeBlinkAccount, setActiveBlinkAccount, 
-    storeBlinkAccountOnServer, tippingSettings: profileTippingSettings, updateTippingSettings: updateProfileTippingSettings, 
+  const {
+    user, logout, authMode, getApiKey, hasServerSession, publicKey,
+    activeBlinkAccount, blinkAccounts, addBlinkAccount, addBlinkLnAddressWallet, removeBlinkAccount, setActiveBlinkAccount,
+    storeBlinkAccountOnServer, tippingSettings: profileTippingSettings, updateTippingSettings: updateProfileTippingSettings,
     nostrProfile,
     // NWC data from useCombinedAuth (user-scoped)
     nwcConnections, activeNWC, addNWCConnection, removeNWCConnection, setActiveNWC,
@@ -60,12 +60,12 @@ export default function Dashboard() {
   } = useCombinedAuth();
   const { currencies, loading: currenciesLoading, getAllCurrencies, popularCurrencyIds, addToPopular, removeFromPopular, isPopularCurrency } = useCurrencies();
   const { theme, cycleTheme, darkMode } = useTheme();
-  
+
   // Helper functions for consistent theme styling across all menus/submenus
   const isBlinkClassic = theme === 'blink-classic-dark' || theme === 'blink-classic-light';
   const isBlinkClassicDark = theme === 'blink-classic-dark';
   const isBlinkClassicLight = theme === 'blink-classic-light';
-  
+
   // Menu tile styling (for main menu items)
   const getMenuTileClasses = () => {
     switch (theme) {
@@ -80,7 +80,7 @@ export default function Dashboard() {
         return 'bg-gray-900 hover:bg-gray-800';
     }
   };
-  
+
   // Submenu overlay background
   const getSubmenuBgClasses = () => {
     switch (theme) {
@@ -92,7 +92,7 @@ export default function Dashboard() {
         return 'bg-white dark:bg-black';
     }
   };
-  
+
   // Submenu header styling
   const getSubmenuHeaderClasses = () => {
     switch (theme) {
@@ -104,7 +104,7 @@ export default function Dashboard() {
         return 'bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black';
     }
   };
-  
+
   // Selection tile styling (for option buttons in submenus) - unselected state
   const getSelectionTileClasses = () => {
     switch (theme) {
@@ -116,7 +116,7 @@ export default function Dashboard() {
         return 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600';
     }
   };
-  
+
   // Selection tile styling - selected/active state
   const getSelectionTileActiveClasses = () => {
     switch (theme) {
@@ -128,7 +128,7 @@ export default function Dashboard() {
         return 'border-blink-accent bg-blink-accent/10';
     }
   };
-  
+
   // Input field styling
   const getInputClasses = () => {
     switch (theme) {
@@ -140,7 +140,7 @@ export default function Dashboard() {
         return 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white';
     }
   };
-  
+
   // Wallet card styling - inactive state
   const getWalletCardClasses = () => {
     switch (theme) {
@@ -152,7 +152,7 @@ export default function Dashboard() {
         return 'bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg';
     }
   };
-  
+
   // Wallet card styling - active state (with accent color support)
   const getWalletCardActiveClasses = (accentColor = 'amber') => {
     switch (theme) {
@@ -167,7 +167,7 @@ export default function Dashboard() {
         return 'bg-blink-accent/5 dark:bg-blink-accent/10 border border-blink-accent rounded-lg';
     }
   };
-  
+
   // Wallet icon container styling
   const getWalletIconClasses = (isActive) => {
     switch (theme) {
@@ -179,7 +179,7 @@ export default function Dashboard() {
         return isActive ? 'bg-blink-accent/20' : (darkMode ? 'bg-gray-800' : 'bg-gray-200');
     }
   };
-  
+
   // Wallet "Use" button styling
   const getWalletUseButtonClasses = () => {
     switch (theme) {
@@ -191,7 +191,7 @@ export default function Dashboard() {
         return darkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-200 text-gray-700 hover:bg-gray-300';
     }
   };
-  
+
   // Wallet "Active" badge styling
   const getWalletActiveBadgeClasses = (accentColor = 'amber') => {
     switch (theme) {
@@ -204,7 +204,7 @@ export default function Dashboard() {
         return 'bg-blink-accent/20 text-blink-accent';
     }
   };
-  
+
   // Wallet delete button styling
   const getWalletDeleteButtonClasses = () => {
     switch (theme) {
@@ -216,7 +216,7 @@ export default function Dashboard() {
         return darkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100';
     }
   };
-  
+
   // Submenu option item styling - unselected state (for currency/regional options)
   const getSubmenuOptionClasses = () => {
     switch (theme) {
@@ -228,7 +228,7 @@ export default function Dashboard() {
         return darkMode ? 'bg-gray-900 hover:bg-gray-800 border-2 border-transparent' : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent';
     }
   };
-  
+
   // Submenu option item styling - selected/active state
   const getSubmenuOptionActiveClasses = () => {
     switch (theme) {
@@ -240,7 +240,7 @@ export default function Dashboard() {
         return 'bg-blink-accent/20 border-2 border-blink-accent';
     }
   };
-  
+
   // Preview/info box styling
   const getPreviewBoxClasses = () => {
     switch (theme) {
@@ -252,7 +252,7 @@ export default function Dashboard() {
         return darkMode ? 'bg-gray-900' : 'bg-gray-50';
     }
   };
-  
+
   // Section label text styling
   const getSectionLabelClasses = () => {
     switch (theme) {
@@ -264,7 +264,7 @@ export default function Dashboard() {
         return darkMode ? 'text-gray-400' : 'text-gray-600';
     }
   };
-  
+
   // Primary text styling (titles, main text)
   const getPrimaryTextClasses = () => {
     switch (theme) {
@@ -276,7 +276,7 @@ export default function Dashboard() {
         return darkMode ? 'text-white' : 'text-gray-900';
     }
   };
-  
+
   // Secondary text styling (descriptions, captions)
   const getSecondaryTextClasses = () => {
     switch (theme) {
@@ -288,7 +288,7 @@ export default function Dashboard() {
         return darkMode ? 'text-gray-400' : 'text-gray-500';
     }
   };
-  
+
   // Checkmark styling for selected items
   const getCheckmarkClasses = () => {
     switch (theme) {
@@ -299,7 +299,7 @@ export default function Dashboard() {
         return 'text-blink-accent';
     }
   };
-  
+
   const [apiKey, setApiKey] = useState(null);
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
   const [expandedMonths, setExpandedMonths] = useState(new Set());
@@ -339,7 +339,7 @@ export default function Dashboard() {
     }
     return true;
   }); // Sound effects on/off
-  
+
   const [soundTheme, setSoundTheme] = useState(() => {
     // Load sound theme from localStorage, default to 'success'
     if (typeof window !== 'undefined') {
@@ -393,7 +393,7 @@ export default function Dashboard() {
   const [npubCashValidating, setNpubCashValidating] = useState(false);
   const [npubCashValidated, setNpubCashValidated] = useState(null); // { lightningAddress, minSendable, maxSendable }
   const [confirmDeleteWallet, setConfirmDeleteWallet] = useState(null); // { type: 'blink'|'nwc', id: string }
-  
+
   // Voucher Wallet state (separate from regular wallet - for voucher feature)
   const [showVoucherWalletSettings, setShowVoucherWalletSettings] = useState(false);
   const [voucherWallet, setVoucherWallet] = useState(() => {
@@ -410,10 +410,28 @@ export default function Dashboard() {
   const [voucherWalletValidating, setVoucherWalletValidating] = useState(false);
   const [voucherWalletScopes, setVoucherWalletScopes] = useState(null); // Scopes returned from authorization query
   const [voucherWalletBalance, setVoucherWalletBalance] = useState(null); // BTC balance in sats
+  const [currency, setCurrency] = useState("SATS")//"SATS"|"USD"
+
   const [voucherWalletUsdBalance, setVoucherWalletUsdBalance] = useState(null); // USD balance in cents (for future Stablesats feature)
   const [voucherWalletBalanceLoading, setVoucherWalletBalanceLoading] = useState(false);
   const [currentAmountInSats, setCurrentAmountInSats] = useState(0); // For capacity indicator polling
-  
+  const [userWallets, setUserWallets] = useState([]);
+  useEffect(() => {
+    if (userWallets && currency) {
+      if (currency == "SATS") {
+        const bal = userWallets.find((e) => e.walletCurrency == "BTC");
+        setVoucherWalletBalance(bal?.balance || 0)
+      }
+      else {
+        const bal = userWallets.find((e) => e.walletCurrency == "USD");
+        setVoucherWalletBalance(bal?.balance || 0)
+      }
+    }
+    console.log({
+      voucherWalletBalance, userWallets, currency
+    })
+  }, [voucherWalletBalance, userWallets, currency]);
+
   // Tip Profile state
   const [showTipProfileSettings, setShowTipProfileSettings] = useState(false);
   // % Settings submenu state (shows Tip % and Commission % options when voucher wallet connected)
@@ -444,7 +462,7 @@ export default function Dashboard() {
     }
     return null;
   });
-  
+
   // Split Profiles state
   const [splitProfiles, setSplitProfiles] = useState([]);
   const [activeSplitProfile, setActiveSplitProfile] = useState(null);
@@ -457,7 +475,7 @@ export default function Dashboard() {
   const [splitProfileError, setSplitProfileError] = useState(null);
   const [recipientValidation, setRecipientValidation] = useState({ status: null, message: '', isValidating: false });
   const [useCustomWeights, setUseCustomWeights] = useState(false); // Toggle for custom weight mode
-  
+
   // Date Range Selection for Transaction History
   const [showDateRangeSelector, setShowDateRangeSelector] = useState(false);
   const [selectedDateRange, setSelectedDateRange] = useState(null); // { type: 'preset' | 'custom', start: Date, end: Date, label: string }
@@ -486,21 +504,21 @@ export default function Dashboard() {
   const touchEndX = useRef(0);
   const touchStartY = useRef(0);
   const touchEndY = useRef(0);
-  
+
   // Refs for keyboard navigation
   const posRef = useRef(null);
   const voucherRef = useRef(null);
   const multiVoucherRef = useRef(null);
   const voucherManagerRef = useRef(null);
   const cartRef = useRef(null);
-  
+
   // Save sound preference to localStorage when it changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('soundEnabled', JSON.stringify(soundEnabled));
     }
   }, [soundEnabled]);
-  
+
   // Debounce currency filter (150ms delay)
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -508,7 +526,7 @@ export default function Dashboard() {
     }, 150);
     return () => clearTimeout(timer);
   }, [currencyFilter]);
-  
+
   // Reset currency filter when closing the currency settings overlay
   useEffect(() => {
     if (!showCurrencySettings) {
@@ -516,7 +534,7 @@ export default function Dashboard() {
       setCurrencyFilterDebounced('');
     }
   }, [showCurrencySettings]);
-  
+
   // Save sound theme to localStorage when it changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -563,7 +581,6 @@ export default function Dashboard() {
       localStorage.setItem('blinkpos-bitcoin-format', bitcoinFormat);
     }
   }, [bitcoinFormat]);
-
   // Fetch exchange rate when currency changes (for sats equivalent display in ItemCart)
   useEffect(() => {
     const fetchExchangeRate = async () => {
@@ -571,7 +588,7 @@ export default function Dashboard() {
         setExchangeRate({ satPriceInCurrency: 1, currency: 'BTC' });
         return;
       }
-      
+
       setLoadingRate(true);
       try {
         const response = await fetch('/api/rates/exchange-rate', {
@@ -584,9 +601,9 @@ export default function Dashboard() {
             useBlinkpos: !apiKey
           }),
         });
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
           setExchangeRate({
             satPriceInCurrency: data.satPriceInCurrency,
@@ -602,7 +619,7 @@ export default function Dashboard() {
         setLoadingRate(false);
       }
     };
-    
+
     fetchExchangeRate();
   }, [displayCurrency, apiKey]);
 
@@ -633,21 +650,21 @@ export default function Dashboard() {
   // Fetch preferences from server on login and sync when changed
   const serverSyncTimerRef = useRef(null);
   const lastSyncedPrefsRef = useRef(null);
-  
+
   // Sync preferences to server (debounced)
   const syncPreferencesToServer = useCallback(async (prefs) => {
     if (!publicKey) return;
-    
+
     // Clear existing timer
     if (serverSyncTimerRef.current) {
       clearTimeout(serverSyncTimerRef.current);
     }
-    
+
     // Debounce the sync (2 seconds)
     serverSyncTimerRef.current = setTimeout(async () => {
       try {
         console.log('[Dashboard] Syncing preferences to server...');
-        
+
         const response = await fetch('/api/user/sync', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -657,7 +674,7 @@ export default function Dashboard() {
             data: prefs
           })
         });
-        
+
         if (response.ok) {
           console.log('[Dashboard] ✓ Preferences synced to server');
           lastSyncedPrefsRef.current = JSON.stringify(prefs);
@@ -671,20 +688,20 @@ export default function Dashboard() {
   // Fetch preferences from server on login
   useEffect(() => {
     if (!publicKey) return;
-    
+
     const fetchServerPreferences = async () => {
       try {
         console.log('[Dashboard] Fetching preferences from server...');
         const response = await fetch(`/api/user/sync?pubkey=${publicKey}`);
-        
+
         if (!response.ok) return;
-        
+
         const data = await response.json();
         const serverPrefs = data.preferences;
-        
+
         if (serverPrefs) {
           console.log('[Dashboard] Loaded preferences from server');
-          
+
           // Apply server preferences to local state
           if (serverPrefs.soundEnabled !== undefined) {
             setSoundEnabled(serverPrefs.soundEnabled);
@@ -709,7 +726,7 @@ export default function Dashboard() {
             setNumberFormat(serverPrefs.numberFormat);
             localStorage.setItem('blinkpos-number-format', serverPrefs.numberFormat);
           }
-          
+
           lastSyncedPrefsRef.current = JSON.stringify(serverPrefs);
         } else {
           // No server preferences - sync current local to server
@@ -723,14 +740,15 @@ export default function Dashboard() {
           };
           syncPreferencesToServer(currentPrefs);
         }
-        
+
         // Initialize transaction labels from server
         await initTransactionLabels();
         console.log('[Dashboard] Transaction labels synced from server');
-        
+
         // Sync voucher wallet from server
         if (data.voucherWallet && data.voucherWallet.apiKey) {
           console.log('[Dashboard] Loaded voucher wallet from server:', data.voucherWallet.label);
+          console.log("data.voucherWallet is:", data.voucherWallet);
           setVoucherWallet(data.voucherWallet);
           localStorage.setItem('blinkpos-voucher-wallet', JSON.stringify(data.voucherWallet));
         } else if (!data.voucherWallet) {
@@ -742,19 +760,19 @@ export default function Dashboard() {
             syncVoucherWalletToServer(parsed);
           }
         }
-        
+
       } catch (err) {
         console.error('[Dashboard] Failed to fetch server preferences:', err);
       }
     };
-    
+
     fetchServerPreferences();
   }, [publicKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  
+
   // Sync voucher wallet to server
   const syncVoucherWalletToServer = useCallback(async (walletData) => {
     if (!publicKey) return;
-    
+
     try {
       console.log('[Dashboard] Syncing voucher wallet to server...');
       const response = await fetch('/api/user/sync', {
@@ -766,7 +784,7 @@ export default function Dashboard() {
           data: walletData
         })
       });
-      
+
       if (response.ok) {
         console.log('[Dashboard] ✓ Voucher wallet synced to server');
       }
@@ -781,9 +799,9 @@ export default function Dashboard() {
       if (!voucherWallet || !voucherWallet.apiKey || voucherWallet.username) {
         return; // No wallet, no API key, or already has username
       }
-      
+
       console.log('[Dashboard] Migrating voucher wallet: fetching username...');
-      
+
       try {
         const response = await fetch('https://api.blink.sv/graphql', {
           method: 'POST',
@@ -795,27 +813,27 @@ export default function Dashboard() {
             query: '{ me { username } }'
           })
         });
-        
+
         if (!response.ok) {
           console.warn('[Dashboard] Failed to fetch username for voucher wallet migration');
           return;
         }
-        
+
         const data = await response.json();
         const username = data.data?.me?.username;
-        
+
         if (username) {
           console.log('[Dashboard] ✓ Voucher wallet username fetched:', username);
-          
+
           // Update wallet data with username
           const updatedWallet = { ...voucherWallet, username };
           setVoucherWallet(updatedWallet);
-          
+
           // Save to localStorage
           if (typeof window !== 'undefined') {
             localStorage.setItem('blinkpos-voucher-wallet', JSON.stringify(updatedWallet));
           }
-          
+
           // Sync to server
           syncVoucherWalletToServer(updatedWallet);
         }
@@ -823,14 +841,14 @@ export default function Dashboard() {
         console.error('[Dashboard] Failed to migrate voucher wallet username:', err);
       }
     };
-    
+
     migrateVoucherWalletUsername();
   }, [voucherWallet?.apiKey]); // Only run when voucherWallet.apiKey changes (initial load)
 
   // Sync preferences to server when they change
   useEffect(() => {
     if (!publicKey) return;
-    
+
     const currentPrefs = {
       soundEnabled,
       soundTheme,
@@ -839,9 +857,9 @@ export default function Dashboard() {
       displayCurrency,
       numberFormat
     };
-    
+
     const currentPrefsStr = JSON.stringify(currentPrefs);
-    
+
     // Only sync if preferences actually changed (avoid initial sync loop)
     if (lastSyncedPrefsRef.current && lastSyncedPrefsRef.current !== currentPrefsStr) {
       syncPreferencesToServer(currentPrefs);
@@ -906,10 +924,10 @@ export default function Dashboard() {
       if (data.errors) {
         const errorMessage = data.errors[0].message;
         if (errorMessage.includes('Invalid value for Username')) {
-          setUsernameValidation({ 
-            status: 'error', 
-            message: 'Invalid username format', 
-            isValidating: false 
+          setUsernameValidation({
+            status: 'error',
+            message: 'Invalid username format',
+            isValidating: false
           });
           return;
         }
@@ -921,25 +939,25 @@ export default function Dashboard() {
       const usernameExists = !data.data.usernameAvailable;
 
       if (usernameExists) {
-        setUsernameValidation({ 
-          status: 'success', 
-          message: 'Blink username found', 
-          isValidating: false 
+        setUsernameValidation({
+          status: 'success',
+          message: 'Blink username found',
+          isValidating: false
         });
       } else {
-        setUsernameValidation({ 
-          status: 'error', 
-          message: 'This Blink username does not exist yet', 
-          isValidating: false 
+        setUsernameValidation({
+          status: 'error',
+          message: 'This Blink username does not exist yet',
+          isValidating: false
         });
       }
 
     } catch (error) {
       console.error('Error checking username:', error);
-      setUsernameValidation({ 
-        status: 'error', 
-        message: 'Error checking username. Please try again.', 
-        isValidating: false 
+      setUsernameValidation({
+        status: 'error',
+        message: 'Error checking username. Please try again.',
+        isValidating: false
       });
     }
   };
@@ -990,7 +1008,7 @@ export default function Dashboard() {
   // NOTE: Only needed for non-POS payments. Currently disabled for POS-only mode.
   // To enable: pass apiKey and user?.username instead of null
   const { connected, lastPayment, showAnimation, hideAnimation, triggerPaymentAnimation, manualReconnect, reconnectAttempts } = useBlinkWebSocket(null, null);
-  
+
   // Track current invoice for NFC payments and payment hash for polling
   // Stores { paymentRequest, paymentHash, satoshis, memo } object
   const [currentInvoice, setCurrentInvoice] = useState(null);
@@ -1002,7 +1020,7 @@ export default function Dashboard() {
   const pollingStartTimeRef = useRef(null);
   const POLLING_INTERVAL_MS = 1000; // Poll every 1 second
   const POLLING_TIMEOUT_MS = 15 * 60 * 1000; // Stop polling after 15 minutes
-  
+
   // Poll for payment status when we have a pending invoice
   useEffect(() => {
     // Clear any existing polling
@@ -1010,12 +1028,12 @@ export default function Dashboard() {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
-    
+
     // Start polling if we have a payment hash to watch
     if (currentInvoice?.paymentHash) {
       console.log('🔄 Starting payment status polling for:', currentInvoice.paymentHash.substring(0, 16) + '...');
       pollingStartTimeRef.current = Date.now();
-      
+
       const pollPaymentStatus = async () => {
         // Check if we've exceeded the timeout
         if (Date.now() - pollingStartTimeRef.current > POLLING_TIMEOUT_MS) {
@@ -1026,20 +1044,20 @@ export default function Dashboard() {
           }
           return;
         }
-        
+
         try {
           const response = await fetch(`/api/payment-status/${currentInvoice.paymentHash}`);
           const data = await response.json();
-          
+
           if (data.status === 'completed') {
             console.log('✅ Payment completed detected via polling!');
-            
+
             // Stop polling
             if (pollingIntervalRef.current) {
               clearInterval(pollingIntervalRef.current);
               pollingIntervalRef.current = null;
             }
-            
+
             // Trigger payment animation
             triggerPaymentAnimation({
               amount: currentInvoice.satoshis || currentInvoice.amount,
@@ -1047,12 +1065,12 @@ export default function Dashboard() {
               memo: currentInvoice.memo || `Payment received`,
               isForwarded: true
             });
-            
+
             // Clear POS invoice
             if (posPaymentReceivedRef.current) {
               posPaymentReceivedRef.current();
             }
-            
+
             // Refresh transaction data
             fetchData();
           } else if (data.status === 'expired') {
@@ -1068,12 +1086,12 @@ export default function Dashboard() {
           // Continue polling despite errors
         }
       };
-      
+
       // Poll immediately, then on interval
       pollPaymentStatus();
       pollingIntervalRef.current = setInterval(pollPaymentStatus, POLLING_INTERVAL_MS);
     }
-    
+
     // Cleanup on unmount or when invoice changes
     return () => {
       if (pollingIntervalRef.current) {
@@ -1082,7 +1100,7 @@ export default function Dashboard() {
       }
     };
   }, [currentInvoice?.paymentHash]);
-  
+
   // Setup NFC for Boltcard payments
   const nfcState = useNFC({
     paymentRequest: currentInvoice?.paymentRequest,
@@ -1096,7 +1114,7 @@ export default function Dashboard() {
     soundEnabled,
     soundTheme,
   });
-  
+
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false); // ✅ Changed: Start as not loading
   const [error, setError] = useState('');
@@ -1108,7 +1126,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (user) {
       // ✅ REMOVED: fetchData() - transactions now load ONLY when user clicks "Transactions" tab
-      
+
       // Set display currency from user preference
       if (user.preferredCurrency) {
         console.log(`Setting display currency to user preference: ${user.preferredCurrency}`);
@@ -1138,17 +1156,17 @@ export default function Dashboard() {
       setCurrentAmountInSats(0);
       return;
     }
-    
+
     const pollAmount = () => {
       const amount = currentView === 'voucher'
         ? (voucherRef.current?.getAmountInSats?.() || 0)
         : (multiVoucherRef.current?.getAmountInSats?.() || 0);
       setCurrentAmountInSats(amount);
     };
-    
+
     pollAmount(); // Initial
     const interval = setInterval(pollAmount, 300); // Poll every 300ms
-    
+
     return () => clearInterval(interval);
   }, [currentView]);
 
@@ -1158,9 +1176,9 @@ export default function Dashboard() {
     if (balance === null || amountInSats === 0) {
       return 'bg-gray-400 dark:bg-gray-500';
     }
-    
+
     const percentage = (amountInSats / balance) * 100;
-    
+
     // Green: Amount ≤ 50% of balance
     if (percentage <= 50) {
       return 'bg-green-500';
@@ -1184,11 +1202,11 @@ export default function Dashboard() {
   // This ensures we show the correct wallet's transactions
   const prevActiveNWCRef = useRef(activeNWC?.id);
   const prevActiveBlinkRef = useRef(activeBlinkAccount?.id);
-  
+
   useEffect(() => {
     const nwcChanged = activeNWC?.id !== prevActiveNWCRef.current;
     const blinkChanged = activeBlinkAccount?.id !== prevActiveBlinkRef.current;
-    
+
     if (nwcChanged || blinkChanged) {
       console.log('[Dashboard] Active wallet changed:', {
         nwcFrom: prevActiveNWCRef.current?.substring(0, 8),
@@ -1196,17 +1214,17 @@ export default function Dashboard() {
         blinkFrom: prevActiveBlinkRef.current?.substring(0, 8),
         blinkTo: activeBlinkAccount?.id?.substring(0, 8)
       });
-      
+
       prevActiveNWCRef.current = activeNWC?.id;
       prevActiveBlinkRef.current = activeBlinkAccount?.id;
-      
+
       // Clear existing transactions and reset all history state
       setTransactions([]);
       setPastTransactionsLoaded(false);
       setHasMoreTransactions(false);
       setFilteredTransactions([]);
       setDateFilterActive(false);
-      
+
       // Refresh API key for the new account first, then fetch transactions
       if (blinkChanged && activeBlinkAccount) {
         fetchApiKey().then((newApiKey) => {
@@ -1258,7 +1276,7 @@ export default function Dashboard() {
       if (posPaymentReceivedRef.current) {
         posPaymentReceivedRef.current();
       }
-      
+
       // Small delay to ensure transaction is processed
       setTimeout(() => {
         fetchData();
@@ -1269,11 +1287,11 @@ export default function Dashboard() {
   const fetchData = async (overrideApiKey = null) => {
     // Use override API key if provided (for account switching), otherwise use state
     const effectiveApiKey = overrideApiKey || apiKey;
-    
+
     // Check if NWC wallet is ACTIVE (user chose to use NWC for this session)
     const isNwcActive = activeNWC && nwcClientReady;
     const hasBlinkAccount = blinkAccounts && blinkAccounts.length > 0;
-    
+
     // If NWC wallet is ACTIVE, fetch NWC transactions (even if user also has Blink account)
     // This respects the user's choice of which wallet to use
     if (isNwcActive && nwcHasCapability('list_transactions')) {
@@ -1293,39 +1311,39 @@ export default function Dashboard() {
           } catch (e) {
             console.warn('Failed to load stored NWC memos:', e);
           }
-          
+
           const formattedTransactions = result.transactions.map((tx, index) => {
             console.log(`NWC Transaction ${index}:`, JSON.stringify(tx, null, 2));
             // Convert millisats to sats
             const satsAmount = Math.round((tx.amount || 0) / 1000);
             // Format date like Blink API does
-            const txDate = tx.created_at 
+            const txDate = tx.created_at
               ? new Date(tx.created_at * 1000).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })
               : new Date().toLocaleDateString();
-            
+
             // Try to find the memo:
             // 1. First check if we have it stored locally (for BlinkPOS-created invoices with long memos)
             // 2. Then try the NWC response fields
             // 3. Fall back to a descriptive default
             const localMemo = tx.payment_hash && storedMemos[tx.payment_hash]?.memo;
             const memo = localMemo
-              || tx.description 
-              || tx.memo 
-              || tx.metadata?.description 
+              || tx.description
+              || tx.memo
+              || tx.metadata?.description
               || tx.metadata?.memo
               || tx.invoice_description
               || (tx.type === 'incoming' ? `Received ${satsAmount} sats` : `Sent ${satsAmount} sats`);
-            
+
             if (localMemo) {
               console.log(`✓ Found stored memo for ${tx.payment_hash?.substring(0, 16)}:`, localMemo.substring(0, 50) + '...');
             }
-            
+
             return {
               id: tx.payment_hash || tx.preimage || `nwc-${Date.now()}-${index}`,
               direction: tx.type === 'incoming' ? 'RECEIVE' : 'SEND',
@@ -1355,7 +1373,7 @@ export default function Dashboard() {
       }
       return; // NWC transactions fetched, don't continue to Blink
     }
-    
+
     // NWC is active but doesn't support list_transactions
     if (isNwcActive) {
       console.log('NWC wallet active but doesn\'t support list_transactions capability');
@@ -1363,7 +1381,7 @@ export default function Dashboard() {
       setTransactions([]);
       return;
     }
-    
+
     // NWC is not active - check if we can fetch Blink transactions
     // Skip if active Blink wallet is a Lightning Address wallet (no transaction history available)
     if (activeBlinkAccount?.type === 'ln-address') {
@@ -1372,7 +1390,7 @@ export default function Dashboard() {
       setTransactions([]);
       return;
     }
-    
+
     // Skip if npub.cash wallet is active (no transaction history available via Blink API)
     if (activeNpubCashWallet) {
       console.log('npub.cash wallet active - transaction history not available via Blink API');
@@ -1380,7 +1398,7 @@ export default function Dashboard() {
       setTransactions([]);
       return;
     }
-    
+
     // Skip if no Blink API credentials available
     if (!effectiveApiKey && !hasServerSession) {
       console.log('No wallet credentials available for transaction fetch');
@@ -1388,16 +1406,16 @@ export default function Dashboard() {
       setTransactions([]);
       return;
     }
-    
+
     console.log('Fetching Blink transaction history for active Blink wallet, apiKey:', effectiveApiKey ? effectiveApiKey.substring(0, 8) + '...' : 'none');
-    
+
     try {
       setLoading(true);
-      
+
       // ✅ ADDED: Fetch with 10 second timeout to prevent hanging
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-      
+
       try {
         // Build request headers
         // Always include API key for Blink accounts to ensure correct account is used
@@ -1413,16 +1431,16 @@ export default function Dashboard() {
           headers,
           credentials: 'include' // Include cookies for session-based auth
         });
-        
+
         clearTimeout(timeoutId);
 
         if (transactionsRes.ok) {
           const transactionsData = await transactionsRes.json();
-          
+
           setTransactions(transactionsData.transactions);
           setHasMoreTransactions(transactionsData.pageInfo?.hasNextPage || false);
           setError('');
-          
+
           // Don't automatically load past transactions - user must click "Show" button
           // This saves bandwidth and respects user's data plan
         } else {
@@ -1465,7 +1483,7 @@ export default function Dashboard() {
         const walletsList = walletsData.wallets || [];
         console.log("walletsList is:", walletsList);
         setWallets(walletsList);
-        
+
         // Debug log
         console.log('Fetched wallets:', walletsList);
       } else {
@@ -1483,7 +1501,7 @@ export default function Dashboard() {
       setVoucherWalletUsdBalance(null);
       return;
     }
-    
+
     setVoucherWalletBalanceLoading(true);
     try {
       const response = await fetch('/api/blink/wallets', {
@@ -1491,11 +1509,14 @@ export default function Dashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apiKey: voucherWallet.apiKey })
       });
-      
+
       const data = await response.json();
       if (data.success && data.wallets) {
         const btcWallet = data.wallets.find(w => w.walletCurrency === 'BTC');
         const usdWallet = data.wallets.find(w => w.walletCurrency === 'USD');
+        //save user wallets here
+        setUserWallets(data.wallets);
+        //wallets saved
         setVoucherWalletBalance(btcWallet?.balance || 0);
         setVoucherWalletUsdBalance(usdWallet?.balance ?? null); // null if no USD wallet
         console.log('[VoucherWallet] Balance fetched - BTC:', btcWallet?.balance || 0, 'sats, USD:', usdWallet?.balance ?? 'N/A', 'cents');
@@ -1519,7 +1540,7 @@ export default function Dashboard() {
       console.log('[SplitProfiles] No public key available');
       return;
     }
-    
+
     setSplitProfilesLoading(true);
     try {
       console.log('[SplitProfiles] Fetching profiles for:', publicKey);
@@ -1527,16 +1548,16 @@ export default function Dashboard() {
       const response = await fetch('/api/split-profiles', {
         credentials: 'include' // Include session cookie
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         setSplitProfiles(data.splitProfiles || []);
-        
+
         // Set active profile
         if (data.activeSplitProfileId && data.splitProfiles) {
           const active = data.splitProfiles.find(p => p.id === data.activeSplitProfileId);
           setActiveSplitProfile(active || null);
-          
+
           // If we have an active profile, enable tips and set the recipient
           if (active && active.recipients?.length > 0) {
             setTipsEnabled(true);
@@ -1545,7 +1566,7 @@ export default function Dashboard() {
         } else {
           setActiveSplitProfile(null);
         }
-        
+
         console.log('[SplitProfiles] Loaded', data.splitProfiles?.length || 0, 'profiles');
       } else if (response.status === 401) {
         // No session - this is expected for external signers without challenge auth
@@ -1564,7 +1585,7 @@ export default function Dashboard() {
   // Save split profile to server
   const saveSplitProfile = async (profile, setActive = false) => {
     if (!publicKey) return null;
-    
+
     setSplitProfileError(null);
     try {
       const response = await fetch('/api/split-profiles', {
@@ -1576,7 +1597,7 @@ export default function Dashboard() {
           setActive
         })
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         await fetchSplitProfiles(); // Refresh the list
@@ -1599,7 +1620,7 @@ export default function Dashboard() {
   // Delete split profile
   const deleteSplitProfile = async (profileId) => {
     if (!publicKey) return false;
-    
+
     try {
       const response = await fetch('/api/split-profiles', {
         method: 'DELETE',
@@ -1609,7 +1630,7 @@ export default function Dashboard() {
           profileId
         })
       });
-      
+
       if (response.ok) {
         await fetchSplitProfiles(); // Refresh the list
         return true;
@@ -1624,13 +1645,13 @@ export default function Dashboard() {
   // Set active split profile
   const setActiveSplitProfileById = async (profileId) => {
     if (!publicKey) return;
-    
+
     if (!profileId) {
       // Deactivate - set to None
       setActiveSplitProfile(null);
       setTipsEnabled(false);
       setTipRecipient('');
-      
+
       // Save null active profile to server (if we have profiles)
       if (splitProfiles.length > 0) {
         await fetch('/api/split-profiles', {
@@ -1645,12 +1666,12 @@ export default function Dashboard() {
       }
       return;
     }
-    
+
     const profile = splitProfiles.find(p => p.id === profileId);
     if (profile) {
       // Update server with new active profile
       await saveSplitProfile(profile, true);
-      
+
       // Local state update will happen via fetchSplitProfiles in saveSplitProfile
     }
   };
@@ -1667,43 +1688,43 @@ export default function Dashboard() {
     // Check if this is an npub.cash address
     if (isNpubCashAddress(input)) {
       setRecipientValidation({ status: null, message: '', isValidating: true });
-      
+
       try {
         // Validate the npub.cash address format
         const validation = validateNpubCashAddress(input);
         if (!validation.valid) {
-          setRecipientValidation({ 
-            status: 'error', 
-            message: validation.error, 
-            isValidating: false 
+          setRecipientValidation({
+            status: 'error',
+            message: validation.error,
+            isValidating: false
           });
           return;
         }
 
         // Probe the endpoint to confirm it responds
         const probeResult = await probeNpubCashAddress(input);
-        
+
         if (probeResult.valid) {
-          setRecipientValidation({ 
-            status: 'success', 
+          setRecipientValidation({
+            status: 'success',
             message: `Valid npub.cash address (${probeResult.minSats}-${probeResult.maxSats?.toLocaleString()} sats)`,
             isValidating: false,
             type: 'npub_cash',
             address: input
           });
         } else {
-          setRecipientValidation({ 
-            status: 'error', 
-            message: probeResult.error || 'Could not reach npub.cash endpoint', 
-            isValidating: false 
+          setRecipientValidation({
+            status: 'error',
+            message: probeResult.error || 'Could not reach npub.cash endpoint',
+            isValidating: false
           });
         }
       } catch (err) {
         console.error('npub.cash validation error:', err);
-        setRecipientValidation({ 
-          status: 'error', 
-          message: err.message || 'Failed to validate npub.cash address', 
-          isValidating: false 
+        setRecipientValidation({
+          status: 'error',
+          message: err.message || 'Failed to validate npub.cash address',
+          isValidating: false
         });
       }
       return;
@@ -1749,10 +1770,10 @@ export default function Dashboard() {
       if (data.errors) {
         const errorMessage = data.errors[0].message;
         if (errorMessage.includes('Invalid value for Username')) {
-          setRecipientValidation({ 
-            status: 'error', 
-            message: 'Invalid username format', 
-            isValidating: false 
+          setRecipientValidation({
+            status: 'error',
+            message: 'Invalid username format',
+            isValidating: false
           });
           return;
         }
@@ -1764,25 +1785,25 @@ export default function Dashboard() {
       const usernameExists = !data.data.usernameAvailable;
 
       if (usernameExists) {
-        setRecipientValidation({ 
-          status: 'success', 
-          message: 'Blink user found', 
+        setRecipientValidation({
+          status: 'success',
+          message: 'Blink user found',
           isValidating: false,
           type: 'blink'
         });
       } else {
-        setRecipientValidation({ 
-          status: 'error', 
-          message: 'Blink username not found. For npub.cash, enter full address (e.g., npub1xxx@npub.cash)', 
-          isValidating: false 
+        setRecipientValidation({
+          status: 'error',
+          message: 'Blink username not found. For npub.cash, enter full address (e.g., npub1xxx@npub.cash)',
+          isValidating: false
         });
       }
     } catch (err) {
       console.error('Recipient validation error:', err);
-      setRecipientValidation({ 
-        status: 'error', 
-        message: 'Validation failed', 
-        isValidating: false 
+      setRecipientValidation({
+        status: 'error',
+        message: 'Validation failed',
+        isValidating: false
       });
     }
   }, []);
@@ -1799,22 +1820,22 @@ export default function Dashboard() {
   // Add a validated recipient to the list
   const addRecipientToProfile = useCallback(() => {
     if (recipientValidation.status !== 'success' || !newRecipientInput.trim()) return;
-    
+
     // Use the address from validation for npub.cash, or cleaned username for Blink
     const recipientType = recipientValidation.type || 'blink';
-    const recipientAddress = recipientType === 'npub_cash' 
-      ? recipientValidation.address 
+    const recipientAddress = recipientType === 'npub_cash'
+      ? recipientValidation.address
       : newRecipientInput.trim().toLowerCase().replace('@blink.sv', '');
-    
+
     // Check if already added
     if (newSplitProfileRecipients.some(r => r.username === recipientAddress)) {
       setSplitProfileError('This recipient is already added');
       return;
     }
-    
+
     setNewSplitProfileRecipients(prev => {
-      const newRecipients = [...prev, { 
-        username: recipientAddress, 
+      const newRecipients = [...prev, {
+        username: recipientAddress,
         validated: true,
         type: recipientType,  // 'blink' or 'npub_cash'
         weight: 100 / (prev.length + 1)  // Default even weight
@@ -1860,32 +1881,32 @@ export default function Dashboard() {
       let hasMore = true;
       let batchCount = 0;
       const maxBatches = 5; // Load up to 5 more batches (500 more transactions)
-      
+
       // Build request headers
       // Always include API key to ensure correct account is used
       const headers = {};
       if (apiKey) {
         headers['X-API-KEY'] = apiKey;
       }
-      
+
       while (hasMore && batchCount < maxBatches) {
         const response = await fetch(`/api/blink/transactions?first=100&after=${nextCursor}`, { headers, credentials: 'include' });
-        
+
         if (response.ok) {
           const data = await response.json();
           allTransactions = [...allTransactions, ...data.transactions];
-          
+
           hasMore = data.pageInfo?.hasNextPage;
           nextCursor = data.pageInfo?.endCursor;
           batchCount++;
-          
+
           // Update transactions in real-time so user sees progress
           setTransactions([...allTransactions]);
         } else {
           break;
         }
       }
-      
+
       console.log(`Loaded ${allTransactions.length} total transactions across ${batchCount + 1} batches`);
       return hasMore; // Return whether more transactions are available
     } catch (error) {
@@ -1897,12 +1918,12 @@ export default function Dashboard() {
   // Load past transactions (initial load of historical data)
   const loadPastTransactions = async () => {
     if (loadingMore || !hasMoreTransactions) return;
-    
+
     setLoadingMore(true);
     try {
       // Get the last transaction from current transactions
       const lastTransaction = transactions[transactions.length - 1];
-      
+
       if (lastTransaction?.cursor) {
         // Load historical transactions (same logic as before, but triggered by user)
         const finalHasMore = await loadMoreHistoricalTransactions(lastTransaction.cursor, transactions);
@@ -1919,7 +1940,7 @@ export default function Dashboard() {
   // Load more months on demand (after initial past transactions are loaded)
   const loadMoreMonths = async () => {
     if (loadingMore || !hasMoreTransactions) return;
-    
+
     setLoadingMore(true);
     try {
       // Always include API key to ensure correct account is used
@@ -1927,14 +1948,14 @@ export default function Dashboard() {
       if (apiKey) {
         headers['X-API-KEY'] = apiKey;
       }
-      
+
       const lastTransaction = transactions[transactions.length - 1];
       const response = await fetch(`/api/blink/transactions?first=100&after=${lastTransaction?.cursor || ''}`, { headers, credentials: 'include' });
-      
+
       if (response.ok) {
         const data = await response.json();
         const newTransactions = data.transactions;
-        
+
         if (newTransactions.length > 0) {
           setTransactions(prev => [...prev, ...newTransactions]);
           setHasMoreTransactions(data.pageInfo?.hasNextPage || false);
@@ -1955,52 +1976,52 @@ export default function Dashboard() {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    
+
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0); // Last day of previous month
-    
+
     const last7Days = new Date(today);
     last7Days.setDate(last7Days.getDate() - 6); // 7 days including today
-    
+
     const last30Days = new Date(today);
     last30Days.setDate(last30Days.getDate() - 29); // 30 days including today
-    
+
     return [
-      { 
-        id: 'today', 
-        label: 'Today', 
-        start: today, 
+      {
+        id: 'today',
+        label: 'Today',
+        start: today,
         end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1) // End of today
       },
-      { 
-        id: 'yesterday', 
-        label: 'Yesterday', 
-        start: yesterday, 
+      {
+        id: 'yesterday',
+        label: 'Yesterday',
+        start: yesterday,
         end: new Date(yesterday.getTime() + 24 * 60 * 60 * 1000 - 1)
       },
-      { 
-        id: 'last7days', 
-        label: 'Last 7 Days', 
-        start: last7Days, 
+      {
+        id: 'last7days',
+        label: 'Last 7 Days',
+        start: last7Days,
         end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1)
       },
-      { 
-        id: 'last30days', 
-        label: 'Last 30 Days', 
-        start: last30Days, 
+      {
+        id: 'last30days',
+        label: 'Last 30 Days',
+        start: last30Days,
         end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1)
       },
-      { 
-        id: 'thismonth', 
-        label: 'This Month', 
-        start: thisMonthStart, 
+      {
+        id: 'thismonth',
+        label: 'This Month',
+        start: thisMonthStart,
         end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1)
       },
-      { 
-        id: 'lastmonth', 
-        label: 'Last Month', 
-        start: lastMonthStart, 
+      {
+        id: 'lastmonth',
+        label: 'Last Month',
+        start: lastMonthStart,
         end: lastMonthEnd
       }
     ];
@@ -2009,7 +2030,7 @@ export default function Dashboard() {
   // Parse createdAt value to Date object (handles various formats from Blink API)
   const parseCreatedAt = (createdAt) => {
     if (!createdAt) return null;
-    
+
     try {
       // If it's a number, it's likely a Unix timestamp
       if (typeof createdAt === 'number') {
@@ -2022,7 +2043,7 @@ export default function Dashboard() {
           return new Date(createdAt);
         }
       }
-      
+
       // If it's a string
       if (typeof createdAt === 'string') {
         // Check if it's a numeric string (timestamp)
@@ -2035,14 +2056,14 @@ export default function Dashboard() {
             return new Date(numericValue);
           }
         }
-        
+
         // Otherwise treat as ISO string or date string
         const date = new Date(createdAt);
         if (!isNaN(date.getTime())) {
           return date;
         }
       }
-      
+
       return null;
     } catch (error) {
       console.error('Error parsing createdAt:', createdAt, error);
@@ -2067,56 +2088,56 @@ export default function Dashboard() {
 
   // Filter transactions by date range
   const filterTransactionsByDateRange = (txs, startDate, endDate) => {
-    console.log('Filtering transactions:', { 
-      count: txs.length, 
-      startDate: startDate.toISOString(), 
-      endDate: endDate.toISOString() 
+    console.log('Filtering transactions:', {
+      count: txs.length,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString()
     });
-    
+
     const filtered = txs.filter(tx => {
       // Parse the createdAt field properly (handles Unix timestamps)
       const txDate = parseCreatedAt(tx.createdAt) || parseTransactionDate(tx.date);
-      
+
       if (!txDate) {
         console.log('Could not parse date for tx:', tx.id, tx.createdAt, tx.date);
         return false;
       }
-      
+
       const isInRange = txDate >= startDate && txDate <= endDate;
       return isInRange;
     });
-    
+
     console.log('Filtered result:', filtered.length, 'transactions');
     if (txs.length > 0 && filtered.length === 0) {
       // Debug: show first transaction's date info
       const firstTx = txs[0];
       const parsedDate = parseCreatedAt(firstTx.createdAt);
-      console.log('Debug first tx:', { 
-        createdAt: firstTx.createdAt, 
+      console.log('Debug first tx:', {
+        createdAt: firstTx.createdAt,
         type: typeof firstTx.createdAt,
         parsedDate: parsedDate?.toISOString(),
-        date: firstTx.date 
+        date: firstTx.date
       });
     }
-    
+
     return filtered;
   };
 
   // Load and filter transactions by date range
   const loadTransactionsForDateRange = async (dateRange) => {
     if (loadingMore) return;
-    
+
     setLoadingMore(true);
     setDateFilterActive(true);
     setSelectedDateRange(dateRange);
-    
+
     try {
       // Always include API key to ensure correct account is used
       const headers = {};
       if (apiKey) {
         headers['X-API-KEY'] = apiKey;
       }
-      
+
       // We need to load enough transactions to cover the date range
       // Start by loading initial batch, then load more if needed
       let allTransactions = [...transactions];
@@ -2124,37 +2145,37 @@ export default function Dashboard() {
       let hasMore = hasMoreTransactions;
       let batchCount = 0;
       const maxBatches = 10; // Load up to 10 batches (1000 transactions)
-      
+
       // Check if we already have transactions covering the date range
       const existingFiltered = filterTransactionsByDateRange(allTransactions, dateRange.start, dateRange.end);
-      
+
       // If we have existing transactions and the oldest one is older than our range start,
       // we might have enough data
       const oldestTx = allTransactions[allTransactions.length - 1];
       let oldestDate = parseCreatedAt(oldestTx?.createdAt) || parseTransactionDate(oldestTx?.date);
-      
+
       // Load more if we don't have enough data covering the date range
       while (hasMore && batchCount < maxBatches) {
         // If oldest transaction is older than our range start, we have enough
         if (oldestDate && oldestDate < dateRange.start) {
           break;
         }
-        
+
         batchCount++;
-        const url = cursor 
-          ? `/api/blink/transactions?first=100&after=${cursor}` 
+        const url = cursor
+          ? `/api/blink/transactions?first=100&after=${cursor}`
           : '/api/blink/transactions?first=100';
-          
+
         const response = await fetch(url, { headers, credentials: 'include' });
-        
+
         if (response.ok) {
           const data = await response.json();
-          
+
           if (data.transactions && data.transactions.length > 0) {
             allTransactions = [...allTransactions, ...data.transactions];
             cursor = data.pageInfo?.endCursor;
             hasMore = data.pageInfo?.hasNextPage || false;
-            
+
             // Update the oldest date check
             const newOldest = allTransactions[allTransactions.length - 1];
             const newOldestDate = parseCreatedAt(newOldest?.createdAt) || parseTransactionDate(newOldest?.date);
@@ -2168,18 +2189,18 @@ export default function Dashboard() {
           break;
         }
       }
-      
+
       // Update main transactions state
       setTransactions(allTransactions);
       setHasMoreTransactions(hasMore);
-      
+
       // Filter and set filtered transactions
       const filtered = filterTransactionsByDateRange(allTransactions, dateRange.start, dateRange.end);
       setFilteredTransactions(filtered);
       setPastTransactionsLoaded(true);
-      
+
       console.log(`Date range filter: ${dateRange.label}, found ${filtered.length} transactions out of ${allTransactions.length} total`);
-      
+
     } catch (error) {
       console.error('Error loading transactions for date range:', error);
     } finally {
@@ -2193,10 +2214,10 @@ export default function Dashboard() {
     if (!customDateStart || !customDateEnd) {
       return;
     }
-    
+
     const start = new Date(customDateStart);
     const end = new Date(customDateEnd);
-    
+
     // Apply time if time inputs are shown
     if (showTimeInputs && customTimeStart) {
       const [startHour, startMin] = customTimeStart.split(':').map(Number);
@@ -2204,19 +2225,19 @@ export default function Dashboard() {
     } else {
       start.setHours(0, 0, 0, 0);
     }
-    
+
     if (showTimeInputs && customTimeEnd) {
       const [endHour, endMin] = customTimeEnd.split(':').map(Number);
       end.setHours(endHour, endMin, 59, 999);
     } else {
       end.setHours(23, 59, 59, 999);
     }
-    
+
     if (start > end) {
       alert('Start date/time must be before end date/time');
       return;
     }
-    
+
     // Format label based on whether time is included
     let label;
     if (showTimeInputs) {
@@ -2227,14 +2248,14 @@ export default function Dashboard() {
     } else {
       label = `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`;
     }
-    
+
     const dateRange = {
       type: 'custom',
       start,
       end,
       label
     };
-    
+
     loadTransactionsForDateRange(dateRange);
   };
 
@@ -2253,12 +2274,12 @@ export default function Dashboard() {
   // Calculate summary stats for filtered transactions
   const getFilteredStats = () => {
     const txs = dateFilterActive ? filteredTransactions : transactions;
-    
+
     let totalReceived = 0;
     let totalSent = 0;
     let receiveCount = 0;
     let sendCount = 0;
-    
+
     txs.forEach(tx => {
       const amount = Math.abs(tx.settlementAmount || 0);
       if (tx.direction === 'RECEIVE') {
@@ -2269,7 +2290,7 @@ export default function Dashboard() {
         sendCount++;
       }
     });
-    
+
     return {
       totalReceived,
       totalSent,
@@ -2318,11 +2339,11 @@ export default function Dashboard() {
       setIsSearchingTx(false);
       return;
     }
-    
+
     // Show loading animation
     setIsSearchLoading(true);
     setIsSearchingTx(false); // Close input immediately
-    
+
     // Brief delay to show loading, then apply search
     setTimeout(() => {
       setTxSearchQuery(txSearchInput.trim());
@@ -2351,18 +2372,18 @@ export default function Dashboard() {
   // Handle view transition with loading animation
   const handleViewTransition = (newView) => {
     if (newView === currentView) return;
-    
+
     // Rotate to next spinner color
     setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);
-    
+
     // Show loading animation
     setIsViewTransitioning(true);
-    
+
     // Brief delay to show the animation, then switch view
     setTimeout(() => {
       setCurrentView(newView);
       setIsViewTransitioning(false);
-      
+
       // Reset cart navigation when entering cart view
       if (newView === 'cart' && cartRef.current) {
         cartRef.current.resetNavigation?.();
@@ -2379,16 +2400,16 @@ export default function Dashboard() {
     setExportingData(true);
     try {
       console.log('Starting full transaction export using Blink official CSV...');
-      
+
       // Get all wallet IDs
       const walletIds = wallets.map(w => w.id);
-      
+
       if (walletIds.length === 0) {
         throw new Error('No wallets found. Please ensure you are logged in.');
       }
-      
+
       console.log(`Exporting CSV for wallets: ${walletIds.join(', ')}`);
-      
+
       // Build request headers
       const headers = {
         'Content-Type': 'application/json',
@@ -2397,7 +2418,7 @@ export default function Dashboard() {
       if (apiKey) {
         headers['X-API-KEY'] = apiKey;
       }
-      
+
       // Call the CSV export API
       const response = await fetch('/api/blink/csv-export', {
         method: 'POST',
@@ -2405,32 +2426,32 @@ export default function Dashboard() {
         credentials: 'include',
         body: JSON.stringify({ walletIds })
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || `API returned ${response.status}`);
       }
-      
+
       const data = await response.json();
-      
+
       if (!data.csv) {
         throw new Error('No CSV data received from API');
       }
-      
+
       const csv = data.csv;
       console.log(`CSV received, length: ${csv.length} characters`);
-      
+
       // Generate filename with date and username
       const date = new Date();
-      const dateStr = date.getFullYear() + 
-                      String(date.getMonth() + 1).padStart(2, '0') + 
-                      String(date.getDate()).padStart(2, '0');
+      const dateStr = date.getFullYear() +
+        String(date.getMonth() + 1).padStart(2, '0') +
+        String(date.getDate()).padStart(2, '0');
       const username = user?.username || 'user';
       const filename = `${dateStr}-${username}-transactions-FULL-blink.csv`;
-      
+
       // Trigger download
       downloadCSV(csv, filename);
-      
+
       setShowExportOptions(false);
     } catch (error) {
       console.error('Error exporting transactions:', error);
@@ -2450,68 +2471,68 @@ export default function Dashboard() {
     setExportingData(true);
     try {
       console.log('Starting basic transaction export...');
-      
+
       // Always include API key to ensure correct account is used
       const headers = {};
       if (apiKey) {
         headers['X-API-KEY'] = apiKey;
       }
-      
+
       // Fetch ALL transactions by paginating through all pages
       let allTransactions = [];
       let hasMore = true;
       let cursor = null;
       let pageCount = 0;
-      
+
       while (hasMore) {
         pageCount++;
-        const url = cursor 
+        const url = cursor
           ? `/api/blink/transactions?first=100&after=${cursor}`
           : '/api/blink/transactions?first=100';
-        
+
         console.log(`Fetching page ${pageCount}, cursor: ${cursor ? cursor.substring(0, 20) + '...' : 'none'}`);
-        
+
         const response = await fetch(url, { headers, credentials: 'include' });
-        
+
         if (!response.ok) {
           const errorText = await response.text();
           console.error('API response error:', response.status, errorText);
           throw new Error(`API returned ${response.status}: ${errorText.substring(0, 200)}`);
         }
-        
+
         const data = await response.json();
         console.log(`Received ${data.transactions?.length || 0} transactions`);
-        
+
         if (!data.transactions || !Array.isArray(data.transactions)) {
           console.error('Invalid data structure:', data);
           throw new Error('Invalid transaction data received from API');
         }
-        
+
         allTransactions = [...allTransactions, ...data.transactions];
         hasMore = data.pageInfo?.hasNextPage || false;
         cursor = data.pageInfo?.endCursor;
-        
+
         console.log(`Total so far: ${allTransactions.length}, hasMore: ${hasMore}`);
       }
-      
+
       console.log(`Fetched ${allTransactions.length} total transactions across ${pageCount} pages`);
-      
+
       // Convert transactions to Basic CSV format
       console.log('Converting to Basic CSV...');
       const csv = convertTransactionsToBasicCSV(allTransactions);
       console.log(`CSV generated, length: ${csv.length} characters`);
-      
+
       // Generate filename with date and username
       const date = new Date();
-      const dateStr = date.getFullYear() + 
-                      String(date.getMonth() + 1).padStart(2, '0') + 
-                      String(date.getDate()).padStart(2, '0');
+      const dateStr = date.getFullYear() +
+        String(date.getMonth() + 1).padStart(2, '0') +
+        String(date.getDate()).padStart(2, '0');
       const username = user?.username || 'user';
       const filename = `${dateStr}-${username}-transactions-BASIC-blink.csv`;
-      
+
       // Trigger download
       downloadCSV(csv, filename);
-      
+
       setShowExportOptions(false);
     } catch (error) {
       console.error('Error exporting basic transactions:', error);
@@ -2530,13 +2551,13 @@ export default function Dashboard() {
   const convertTransactionsToBasicCSV = (txs) => {
     // CSV Header: timestamp, type, credit, debit, fee, currency, status, InMemo, username
     const header = 'timestamp,type,credit,debit,fee,currency,status,InMemo,username';
-    
+
     // CSV Rows
     const rows = txs.map((tx, index) => {
       try {
         // Timestamp - convert Unix timestamp to readable format
         const timestamp = tx.createdAt ? new Date(parseInt(tx.createdAt) * 1000).toString() : '';
-        
+
         // Determine transaction type from settlementVia
         let type = '';
         if (tx.settlementVia?.__typename === 'SettlementViaLn') {
@@ -2546,27 +2567,27 @@ export default function Dashboard() {
         } else if (tx.settlementVia?.__typename === 'SettlementViaIntraLedger') {
           type = 'intraledger';
         }
-        
+
         // Calculate credit/debit based on direction and amount
         const absoluteAmount = Math.abs(tx.settlementAmount || 0);
         const credit = tx.direction === 'RECEIVE' ? absoluteAmount : 0;
         const debit = tx.direction === 'SEND' ? absoluteAmount : 0;
-        
+
         // Fee
         const fee = Math.abs(tx.settlementFee || 0);
-        
+
         // Currency
         const currency = tx.settlementCurrency || 'BTC';
-        
+
         // Status
         const status = tx.status || '';
-        
+
         // InMemo (memo field)
         const inMemo = tx.memo || '';
-        
+
         // Username - extract from initiationVia or settlementVia
         let username = '';
-        
+
         // For RECEIVE transactions: get sender info from initiationVia
         if (tx.direction === 'RECEIVE') {
           if (tx.initiationVia?.__typename === 'InitiationViaIntraLedger') {
@@ -2577,7 +2598,7 @@ export default function Dashboard() {
             username = tx.settlementVia.counterPartyUsername || '';
           }
         }
-        
+
         // For SEND transactions: get recipient info from settlementVia
         if (tx.direction === 'SEND') {
           if (tx.settlementVia?.__typename === 'SettlementViaIntraLedger') {
@@ -2588,7 +2609,7 @@ export default function Dashboard() {
             username = tx.initiationVia.counterPartyUsername || '';
           }
         }
-        
+
         // Escape commas and quotes in fields
         const escape = (field) => {
           const str = String(field);
@@ -2597,7 +2618,7 @@ export default function Dashboard() {
           }
           return str;
         };
-        
+
         return [
           escape(timestamp),
           escape(type),
@@ -2615,19 +2636,19 @@ export default function Dashboard() {
         throw new Error(`Failed to convert transaction ${index}: ${error.message}`);
       }
     });
-    
+
     return [header, ...rows].join('\n');
   };
 
   // Download CSV file
   const downloadCSV = (csvContent, filename) => {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    
+
     // Check if native share is available (for mobile)
     if (navigator.share && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
       // Create a File object for sharing
       const file = new File([blob], filename, { type: 'text/csv' });
-      
+
       navigator.share({
         files: [file],
         title: 'Blink Transactions Export',
@@ -2666,16 +2687,16 @@ export default function Dashboard() {
     if (deferredPrompt) {
       // Show the install prompt
       deferredPrompt.prompt();
-      
+
       // Wait for the user to respond to the prompt
       const { outcome } = await deferredPrompt.userChoice;
-      
+
       if (outcome === 'accepted') {
         console.log('User accepted the install prompt');
       } else {
         console.log('User dismissed the install prompt');
       }
-      
+
       // Clear the deferred prompt
       setDeferredPrompt(null);
       setShowInstallPrompt(false);
@@ -2695,7 +2716,7 @@ export default function Dashboard() {
 
   const handleTouchEnd = () => {
     if (!touchStartX.current || !touchEndX.current) return;
-    
+
     const distanceX = touchStartX.current - touchEndX.current;
     const distanceY = touchStartY.current - touchEndY.current;
     const isLeftSwipe = distanceX > 50 && Math.abs(distanceY) < 50;
@@ -2712,7 +2733,7 @@ export default function Dashboard() {
     // Navigation order (horizontal): Cart ← → POS ← → Transactions
     // Navigation order (vertical): POS ↕ Voucher ↔ MultiVoucher
     // Navigation order (voucher row): MultiVoucher ← → Voucher
-    
+
     // Horizontal swipes (left/right) - for cart, pos, transactions, and voucher row
     // Direction convention: Swipe LEFT moves to the RIGHT item (finger drags content left, next item appears from right)
     // Top row (left to right): Cart - POS - Transactions
@@ -2771,11 +2792,11 @@ export default function Dashboard() {
     const handleKeyDown = (e) => {
       // Skip if side menu is open
       if (sideMenuOpen) return;
-      
+
       // Skip if focused on input/textarea elements
       const activeElement = document.activeElement;
       if (activeElement && (
-        activeElement.tagName === 'INPUT' || 
+        activeElement.tagName === 'INPUT' ||
         activeElement.tagName === 'TEXTAREA' ||
         activeElement.isContentEditable
       )) {
@@ -2820,7 +2841,7 @@ export default function Dashboard() {
           // If not handled (e.g., ArrowUp from Search), fall through to global navigation
         }
       }
-      
+
       // If cart view but exited to global nav, DOWN arrow re-enters local cart navigation
       if (currentView === 'cart' && e.key === 'ArrowDown' && cartRef.current?.enterLocalNav) {
         if (!cartRef.current.isCartNavActive?.()) {
@@ -2838,21 +2859,21 @@ export default function Dashboard() {
           hideAnimation();
           return;
         }
-        
+
         // Voucher success (redeemed) - Done
         if (currentView === 'voucher' && voucherRef.current?.isRedeemed?.()) {
           e.preventDefault();
           voucherRef.current.handleClear();
           return;
         }
-        
+
         // POS checkout screen - Cancel
         if (currentView === 'pos' && showingInvoice) {
           e.preventDefault();
           posRef.current?.handleClear?.();
           return;
         }
-        
+
         // Voucher checkout screen - Cancel (only if not redeemed)
         if (currentView === 'voucher' && showingVoucherQR && !voucherRef.current?.isRedeemed?.()) {
           e.preventDefault();
@@ -2864,10 +2885,10 @@ export default function Dashboard() {
       // Arrow key navigation between views (only when not in checkout or modal states)
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
         e.preventDefault(); // Prevent page scroll
-        
+
         // Block navigation during checkout states
         if (showingInvoice || showingVoucherQR || isViewTransitioning) return;
-        
+
         if (e.key === 'ArrowLeft') {
           // Navigate left: Transactions → POS → Cart, VoucherManager → Voucher → MultiVoucher
           if (currentView === 'transactions') {
@@ -3033,7 +3054,7 @@ export default function Dashboard() {
   // Group transactions by month
   const groupTransactionsByMonth = (transactions) => {
     const grouped = {};
-    
+
     transactions.forEach(tx => {
       try {
         // Parse the date string more robustly
@@ -3045,16 +3066,16 @@ export default function Dashboard() {
           // Try parsing as is
           date = new Date(tx.date);
         }
-        
+
         // Validate the date
         if (isNaN(date.getTime())) {
           console.warn('Invalid date format:', tx.date);
           return;
         }
-        
+
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         const monthLabel = date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
-        
+
         if (!grouped[monthKey]) {
           grouped[monthKey] = {
             label: monthLabel,
@@ -3063,16 +3084,16 @@ export default function Dashboard() {
             month: date.getMonth()
           };
         }
-        
+
         grouped[monthKey].transactions.push(tx);
       } catch (error) {
         console.error('Error processing transaction date:', tx.date, error);
       }
     });
-    
+
     // Sort months by date (newest first)
     const sortedEntries = Object.entries(grouped).sort(([a], [b]) => b.localeCompare(a));
-    
+
     return Object.fromEntries(sortedEntries);
   };
 
@@ -3085,19 +3106,19 @@ export default function Dashboard() {
   // Toggle month expansion and load more transactions if needed
   const toggleMonth = async (monthKey) => {
     const newExpanded = new Set(expandedMonths);
-    
+
     if (newExpanded.has(monthKey)) {
       newExpanded.delete(monthKey);
     } else {
       newExpanded.add(monthKey);
-      
+
       // If we don't have enough transactions for this month, load more
       const monthData = getMonthGroups()[monthKey];
       if (monthData && monthData.transactions.length < 20) {
         await loadMoreTransactionsForMonth(monthKey);
       }
     }
-    
+
     setExpandedMonths(newExpanded);
   };
 
@@ -3107,11 +3128,11 @@ export default function Dashboard() {
       // If we already have enough transactions for most months, don't load more
       const monthGroups = getMonthGroups();
       const monthData = monthGroups[monthKey];
-      
+
       if (monthData && monthData.transactions.length >= 10) {
         return; // Already have enough transactions for this month
       }
-      
+
       // Load more transactions if we don't have enough historical data
       if (hasMoreTransactions) {
         await loadMoreMonths();
@@ -3134,12 +3155,12 @@ export default function Dashboard() {
 
   // Determine if current view should prevent scrolling (POS-style fixed views)
   const isFixedView = currentView === 'pos' || currentView === 'cart' || currentView === 'voucher' || currentView === 'multivoucher' || currentView === 'vouchermanager';
-  
+
   return (
     <div className={`bg-white dark:bg-black ${isFixedView ? 'h-screen overflow-hidden fixed inset-0' : 'min-h-screen'}`}>
       {/* Payment Animation Overlay */}
-      <PaymentAnimation 
-        show={showAnimation} 
+      <PaymentAnimation
+        show={showAnimation}
         payment={lastPayment}
         onHide={hideAnimation}
         soundEnabled={soundEnabled}
@@ -3152,25 +3173,25 @@ export default function Dashboard() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between py-4">
               {/* Blink Logo - Left (tap to cycle theme) */}
-              <button 
+              <button
                 onClick={cycleTheme}
                 className="flex items-center focus:outline-none"
                 aria-label="Cycle theme"
               >
                 {/* Light logo for light themes (light header bg) */}
-                <img 
-                  src="/logos/blink-icon-light.svg" 
-                  alt="Blink" 
+                <img
+                  src="/logos/blink-icon-light.svg"
+                  alt="Blink"
                   className={`h-12 w-12 ${theme === 'light' || theme === 'blink-classic-light' ? 'block' : 'hidden'}`}
                 />
                 {/* Dark logo for dark themes (dark header bg) */}
-                <img 
-                  src="/logos/blink-icon-dark.svg" 
-                  alt="Blink" 
+                <img
+                  src="/logos/blink-icon-dark.svg"
+                  alt="Blink"
                   className={`h-12 w-12 ${theme === 'light' || theme === 'blink-classic-light' ? 'hidden' : 'block'}`}
                 />
               </button>
-              
+
               {/* Navigation Dots - Center - Two rows layout */}
               <div className="flex flex-col items-center gap-1">
                 {/* Upper row: Cart - POS - History */}
@@ -3178,31 +3199,28 @@ export default function Dashboard() {
                   <button
                     onClick={() => handleViewTransition('cart')}
                     disabled={isViewTransitioning}
-                    className={`w-2 h-2 rounded-full transition-colors ${
-                      currentView === 'cart'
-                        ? 'bg-blink-accent'
-                        : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
-                    }`}
+                    className={`w-2 h-2 rounded-full transition-colors ${currentView === 'cart'
+                      ? 'bg-blink-accent'
+                      : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+                      }`}
                     aria-label="Cart"
                   />
                   <button
                     onClick={() => handleViewTransition('pos')}
                     disabled={isViewTransitioning}
-                    className={`w-2 h-2 rounded-full transition-colors ${
-                      currentView === 'pos'
-                        ? 'bg-blink-accent'
-                        : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
-                    }`}
+                    className={`w-2 h-2 rounded-full transition-colors ${currentView === 'pos'
+                      ? 'bg-blink-accent'
+                      : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+                      }`}
                     aria-label="POS"
                   />
                   <button
                     onClick={() => handleViewTransition('transactions')}
                     disabled={isViewTransitioning}
-                    className={`w-2 h-2 rounded-full transition-colors ${
-                      currentView === 'transactions'
-                        ? 'bg-blink-accent'
-                        : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
-                    }`}
+                    className={`w-2 h-2 rounded-full transition-colors ${currentView === 'transactions'
+                      ? 'bg-blink-accent'
+                      : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+                      }`}
                     aria-label="History"
                   />
                 </div>
@@ -3218,13 +3236,12 @@ export default function Dashboard() {
                         }
                       }}
                       disabled={isViewTransitioning || (currentView !== 'pos' && currentView !== 'voucher' && currentView !== 'multivoucher' && currentView !== 'vouchermanager')}
-                      className={`w-2 h-2 rounded-full transition-colors ${
-                        currentView === 'multivoucher'
-                          ? 'bg-purple-600 dark:bg-purple-400'
-                          : (currentView === 'pos' || currentView === 'voucher' || currentView === 'vouchermanager')
-                            ? 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
-                            : 'bg-gray-200 dark:bg-gray-700 opacity-50 cursor-not-allowed'
-                      }`}
+                      className={`w-2 h-2 rounded-full transition-colors ${currentView === 'multivoucher'
+                        ? 'bg-purple-600 dark:bg-purple-400'
+                        : (currentView === 'pos' || currentView === 'voucher' || currentView === 'vouchermanager')
+                          ? 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+                          : 'bg-gray-200 dark:bg-gray-700 opacity-50 cursor-not-allowed'
+                        }`}
                       aria-label="Multi-Voucher"
                       title="Multi-Voucher (batch create)"
                     />
@@ -3237,13 +3254,12 @@ export default function Dashboard() {
                         }
                       }}
                       disabled={isViewTransitioning || (currentView !== 'pos' && currentView !== 'voucher' && currentView !== 'multivoucher' && currentView !== 'vouchermanager')}
-                      className={`w-2 h-2 rounded-full transition-colors ${
-                        currentView === 'voucher'
-                          ? 'bg-purple-600 dark:bg-purple-400'
-                          : (currentView === 'pos' || currentView === 'multivoucher' || currentView === 'vouchermanager')
-                            ? 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
-                            : 'bg-gray-200 dark:bg-gray-700 opacity-50 cursor-not-allowed'
-                      }`}
+                      className={`w-2 h-2 rounded-full transition-colors ${currentView === 'voucher'
+                        ? 'bg-purple-600 dark:bg-purple-400'
+                        : (currentView === 'pos' || currentView === 'multivoucher' || currentView === 'vouchermanager')
+                          ? 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+                          : 'bg-gray-200 dark:bg-gray-700 opacity-50 cursor-not-allowed'
+                        }`}
                       aria-label="Voucher"
                       title="Single Voucher"
                     />
@@ -3256,20 +3272,19 @@ export default function Dashboard() {
                         }
                       }}
                       disabled={isViewTransitioning || (currentView !== 'pos' && currentView !== 'voucher' && currentView !== 'multivoucher' && currentView !== 'vouchermanager')}
-                      className={`w-2 h-2 rounded-full transition-colors ${
-                        currentView === 'vouchermanager'
-                          ? 'bg-purple-600 dark:bg-purple-400'
-                          : (currentView === 'pos' || currentView === 'voucher' || currentView === 'multivoucher')
-                            ? 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
-                            : 'bg-gray-200 dark:bg-gray-700 opacity-50 cursor-not-allowed'
-                      }`}
+                      className={`w-2 h-2 rounded-full transition-colors ${currentView === 'vouchermanager'
+                        ? 'bg-purple-600 dark:bg-purple-400'
+                        : (currentView === 'pos' || currentView === 'voucher' || currentView === 'multivoucher')
+                          ? 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+                          : 'bg-gray-200 dark:bg-gray-700 opacity-50 cursor-not-allowed'
+                        }`}
                       aria-label="Voucher Manager"
                       title="Voucher Manager"
                     />
                   </div>
                 )}
               </div>
-              
+
               {/* Right Side: Menu Button */}
               <button
                 onClick={() => setSideMenuOpen(!sideMenuOpen)}
@@ -3288,7 +3303,7 @@ export default function Dashboard() {
       {/* Full Screen Menu */}
       {sideMenuOpen && (
         <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+          <div className="min-h-screen" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
             {/* Header */}
             <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -3324,8 +3339,8 @@ export default function Dashboard() {
                   <div className="flex items-center gap-3">
                     {/* Avatar */}
                     {authMode === 'nostr' && nostrProfile?.picture ? (
-                      <img 
-                        src={nostrProfile.picture} 
+                      <img
+                        src={nostrProfile.picture}
                         alt="Profile"
                         className="w-10 h-10 rounded-full object-cover ring-2 ring-purple-500/30"
                         onError={(e) => {
@@ -3335,16 +3350,15 @@ export default function Dashboard() {
                         }}
                       />
                     ) : null}
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      authMode === 'nostr' ? 'bg-purple-500/20' : 'bg-blink-accent/20'
-                    }`} style={{ display: (authMode === 'nostr' && nostrProfile?.picture) ? 'none' : 'flex' }}>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${authMode === 'nostr' ? 'bg-purple-500/20' : 'bg-blink-accent/20'
+                      }`} style={{ display: (authMode === 'nostr' && nostrProfile?.picture) ? 'none' : 'flex' }}>
                       <svg className={`w-5 h-5 ${authMode === 'nostr' ? 'text-purple-400' : 'text-blink-accent'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-base font-medium text-blink-accent truncate">
-                        {authMode === 'nostr' 
+                        {authMode === 'nostr'
                           ? (nostrProfile?.display_name || nostrProfile?.name || user?.username || 'Nostr User')
                           : (user?.username || 'User')}
                       </p>
@@ -3606,7 +3620,7 @@ export default function Dashboard() {
       {/* Batch Payments Overlay */}
       {showBatchPayments && voucherWallet?.apiKey && (
         <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+          <div className="min-h-screen" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
             {/* Header */}
             <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -3648,7 +3662,7 @@ export default function Dashboard() {
       {/* Circular Economy Network Overlay */}
       {showNetworkOverlay && (
         <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-hidden`}>
-          <div className="h-full flex flex-col" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+          <div className="h-full flex flex-col" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
             {/* Header */}
             <div className={`flex-shrink-0 ${getSubmenuHeaderClasses()}`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -3695,20 +3709,20 @@ export default function Dashboard() {
         // Generate LNURL for the paycode
         const username = activeBlinkAccount.username;
         const hasFixedAmount = paycodeAmount && parseInt(paycodeAmount) > 0;
-        
+
         // Use our custom LNURL-pay endpoint for fixed amounts (sets min=max)
         // Use Blink's endpoint for variable amounts
         const lnurlPayEndpoint = hasFixedAmount
           ? `https://track.twentyone.ist/api/paycode/lnurlp/${username}?amount=${paycodeAmount}`
           : `https://pay.blink.sv/.well-known/lnurlp/${username}`;
-        
+
         // Encode to LNURL using bech32
         const words = bech32.toWords(Buffer.from(lnurlPayEndpoint, 'utf8'));
         const lnurl = bech32.encode('lnurl', words, 1500);
-        
+
         // Web fallback URL - for wallets that don't support LNURL, camera apps open this page
         const webURL = `https://pay.blink.sv/${username}`;
-        
+
         // INTERIM FIX: Use raw LNURL for Blink mobile compatibility
         // Blink mobile has a bug where it doesn't properly handle URLs with ?lightning= param
         // See: https://github.com/blinkbitcoin/blink-mobile/issues/3583
@@ -3748,7 +3762,7 @@ export default function Dashboard() {
             }
 
             const { pdf } = await response.json();
-            
+
             // Download the PDF
             const link = document.createElement('a');
             link.href = `data:application/pdf;base64,${pdf}`;
@@ -3766,7 +3780,7 @@ export default function Dashboard() {
 
         return (
           <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-            <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+            <div className="min-h-screen" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
               {/* Header */}
               <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -3814,16 +3828,15 @@ export default function Dashboard() {
                         onChange={(e) => setPaycodeAmount(e.target.value)}
                         placeholder="Any amount"
                         min="1"
-                        className={`flex-1 px-3 py-2 rounded-lg border text-center ${
-                          darkMode 
-                            ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
-                        } focus:outline-none focus:ring-2 focus:ring-purple-500`}
+                        className={`flex-1 px-3 py-2 rounded-lg border text-center ${darkMode
+                          ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500'
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                          } focus:outline-none focus:ring-2 focus:ring-purple-500`}
                       />
                       <span className="text-sm text-gray-500 dark:text-gray-400">sats</span>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                      {paycodeAmount && parseInt(paycodeAmount) > 0 
+                      {paycodeAmount && parseInt(paycodeAmount) > 0
                         ? `QR will request exactly ${parseInt(paycodeAmount).toLocaleString()} sats`
                         : 'Leave empty to allow payer to choose any amount'}
                     </p>
@@ -3900,11 +3913,10 @@ export default function Dashboard() {
                       onClick={() => {
                         navigator.clipboard.writeText(paycodeURL);
                       }}
-                      className={`w-full py-3 rounded-lg text-base font-medium transition-colors flex items-center justify-center gap-2 ${
-                        darkMode 
-                          ? 'bg-gray-800 hover:bg-gray-700 text-white' 
-                          : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
-                      }`}
+                      className={`w-full py-3 rounded-lg text-base font-medium transition-colors flex items-center justify-center gap-2 ${darkMode
+                        ? 'bg-gray-800 hover:bg-gray-700 text-white'
+                        : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
+                        }`}
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -3934,7 +3946,7 @@ export default function Dashboard() {
                     <span className="text-2xl mr-2">‹</span>
                     <span className="text-lg">Back</span>
                   </button>
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
                     Themes
                   </h1>
                   <div className="w-16"></div>
@@ -3951,15 +3963,14 @@ export default function Dashboard() {
                     setSoundEnabled(false);
                     setShowSoundThemes(false);
                   }}
-                  className={`w-full p-4 rounded-lg border-2 transition-all ${
-                    !soundEnabled
-                      ? getSelectionTileActiveClasses()
-                      : getSelectionTileClasses()
-                  }`}
+                  className={`w-full p-4 rounded-lg border-2 transition-all ${!soundEnabled
+                    ? getSelectionTileActiveClasses()
+                    : getSelectionTileClasses()
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-left">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
                         None
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -3979,15 +3990,14 @@ export default function Dashboard() {
                     setSoundTheme('success');
                     setShowSoundThemes(false);
                   }}
-                  className={`w-full p-4 rounded-lg border-2 transition-all ${
-                    soundEnabled && soundTheme === 'success'
-                      ? getSelectionTileActiveClasses()
-                      : getSelectionTileClasses()
-                  }`}
+                  className={`w-full p-4 rounded-lg border-2 transition-all ${soundEnabled && soundTheme === 'success'
+                    ? getSelectionTileActiveClasses()
+                    : getSelectionTileClasses()
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-left">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
                         Success
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -4007,15 +4017,14 @@ export default function Dashboard() {
                     setSoundTheme('zelda');
                     setShowSoundThemes(false);
                   }}
-                  className={`w-full p-4 rounded-lg border-2 transition-all ${
-                    soundEnabled && soundTheme === 'zelda'
-                      ? getSelectionTileActiveClasses()
-                      : getSelectionTileClasses()
-                  }`}
+                  className={`w-full p-4 rounded-lg border-2 transition-all ${soundEnabled && soundTheme === 'zelda'
+                    ? getSelectionTileActiveClasses()
+                    : getSelectionTileClasses()
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-left">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
                         Zelda
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -4035,15 +4044,14 @@ export default function Dashboard() {
                     setSoundTheme('free');
                     setShowSoundThemes(false);
                   }}
-                  className={`w-full p-4 rounded-lg border-2 transition-all ${
-                    soundEnabled && soundTheme === 'free'
-                      ? getSelectionTileActiveClasses()
-                      : getSelectionTileClasses()
-                  }`}
+                  className={`w-full p-4 rounded-lg border-2 transition-all ${soundEnabled && soundTheme === 'free'
+                    ? getSelectionTileActiveClasses()
+                    : getSelectionTileClasses()
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-left">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
                         Free
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -4063,15 +4071,14 @@ export default function Dashboard() {
                     setSoundTheme('retro');
                     setShowSoundThemes(false);
                   }}
-                  className={`w-full p-4 rounded-lg border-2 transition-all ${
-                    soundEnabled && soundTheme === 'retro'
-                      ? getSelectionTileActiveClasses()
-                      : getSelectionTileClasses()
-                  }`}
+                  className={`w-full p-4 rounded-lg border-2 transition-all ${soundEnabled && soundTheme === 'retro'
+                    ? getSelectionTileActiveClasses()
+                    : getSelectionTileClasses()
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-left">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
                         Retro
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -4092,7 +4099,7 @@ export default function Dashboard() {
       {/* % Settings Submenu Overlay (Tip % and Commission % when voucher wallet connected) */}
       {showPercentSettings && (
         <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+          <div className="min-h-screen" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
             {/* Header */}
             <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -4171,7 +4178,7 @@ export default function Dashboard() {
       {/* Commission % Settings Overlay */}
       {showCommissionSettings && (
         <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+          <div className="min-h-screen" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
             {/* Header */}
             <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -4202,11 +4209,10 @@ export default function Dashboard() {
                 </p>
 
                 {/* Enable/Disable Commission */}
-                <div className={`p-4 rounded-lg border-2 transition-all ${
-                  commissionEnabled
-                    ? (isBlinkClassic ? 'border-blink-classic-amber bg-blink-classic-bg' : 'border-purple-600 dark:border-purple-500 bg-purple-50 dark:bg-purple-900/20')
-                    : getSelectionTileClasses()
-                }`}>
+                <div className={`p-4 rounded-lg border-2 transition-all ${commissionEnabled
+                  ? (isBlinkClassic ? 'border-blink-classic-amber bg-blink-classic-bg' : 'border-purple-600 dark:border-purple-500 bg-purple-50 dark:bg-purple-900/20')
+                  : getSelectionTileClasses()
+                  }`}>
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -4220,12 +4226,10 @@ export default function Dashboard() {
                       onClick={() => setCommissionEnabled(!commissionEnabled)}
                       className="inline-flex gap-0.5 cursor-pointer focus:outline-none"
                     >
-                      <span className={`w-5 h-5 transition-colors ${
-                        commissionEnabled ? 'bg-purple-600 dark:bg-purple-500' : 'bg-gray-300 dark:bg-gray-600'
-                      }`} />
-                      <span className={`w-5 h-5 transition-colors ${
-                        commissionEnabled ? 'bg-gray-300 dark:bg-gray-600' : 'bg-purple-600 dark:bg-purple-500'
-                      }`} />
+                      <span className={`w-5 h-5 transition-colors ${commissionEnabled ? 'bg-purple-600 dark:bg-purple-500' : 'bg-gray-300 dark:bg-gray-600'
+                        }`} />
+                      <span className={`w-5 h-5 transition-colors ${commissionEnabled ? 'bg-gray-300 dark:bg-gray-600' : 'bg-purple-600 dark:bg-purple-500'
+                        }`} />
                     </button>
                   </div>
 
@@ -4282,7 +4286,7 @@ export default function Dashboard() {
       {/* Tip Profile Settings Overlay */}
       {showTipProfileSettings && (
         <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+          <div className="min-h-screen" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
             {/* Header */}
             <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -4317,11 +4321,10 @@ export default function Dashboard() {
 
                 {/* Custom Option (No Profile) */}
                 <div
-                  className={`w-full p-4 rounded-lg border-2 transition-all ${
-                    !activeTipProfile
-                      ? getSelectionTileActiveClasses()
-                      : getSelectionTileClasses()
-                  }`}
+                  className={`w-full p-4 rounded-lg border-2 transition-all ${!activeTipProfile
+                    ? getSelectionTileActiveClasses()
+                    : getSelectionTileClasses()
+                    }`}
                 >
                   <button
                     onClick={() => {
@@ -4396,11 +4399,10 @@ export default function Dashboard() {
                       setActiveTipProfile(profile);
                       setShowTipProfileSettings(false);
                     }}
-                    className={`w-full p-4 rounded-lg border-2 transition-all ${
-                      activeTipProfile?.id === profile.id
-                        ? getSelectionTileActiveClasses()
-                        : getSelectionTileClasses()
-                    }`}
+                    className={`w-full p-4 rounded-lg border-2 transition-all ${activeTipProfile?.id === profile.id
+                      ? getSelectionTileActiveClasses()
+                      : getSelectionTileClasses()
+                      }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="text-left">
@@ -4426,7 +4428,7 @@ export default function Dashboard() {
       {/* Split Settings Overlay */}
       {showTipSettings && !showCreateSplitProfile && (
         <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+          <div className="min-h-screen" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
             {/* Header */}
             <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -4462,11 +4464,10 @@ export default function Dashboard() {
                       setUseCustomWeights(false);
                       setShowCreateSplitProfile(true);
                     }}
-                    className={`w-full py-3 text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 ${
-                      isBlinkClassic 
-                        ? 'bg-blink-classic-amber text-black hover:bg-blink-classic-amber/90' 
-                        : 'bg-blink-accent text-black hover:bg-blink-accent/90'
-                    }`}
+                    className={`w-full py-3 text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 ${isBlinkClassic
+                      ? 'bg-blink-classic-amber text-black hover:bg-blink-classic-amber/90'
+                      : 'bg-blink-accent text-black hover:bg-blink-accent/90'
+                      }`}
                   >
                     <span className="text-lg">+</span>
                     <span>New Split Profile</span>
@@ -4479,11 +4480,10 @@ export default function Dashboard() {
                     setActiveSplitProfileById(null);
                     setShowTipSettings(false);
                   }}
-                  className={`w-full p-4 transition-all ${
-                    !activeSplitProfile
-                      ? getSubmenuOptionActiveClasses()
-                      : getSubmenuOptionClasses()
-                  }`}
+                  className={`w-full p-4 transition-all ${!activeSplitProfile
+                    ? getSubmenuOptionActiveClasses()
+                    : getSubmenuOptionClasses()
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-left">
@@ -4512,90 +4512,87 @@ export default function Dashboard() {
                   // Check if profile uses custom weights (not evenly distributed)
                   const evenShare = 100 / (profile.recipients?.length || 1);
                   const hasCustomWeights = profile.recipients?.some(r => Math.abs((r.share || evenShare) - evenShare) > 0.01);
-                  
+
                   return (
-                  <div
-                    key={profile.id}
-                    className={`w-full p-4 transition-all ${
-                      activeSplitProfile?.id === profile.id
+                    <div
+                      key={profile.id}
+                      className={`w-full p-4 transition-all ${activeSplitProfile?.id === profile.id
                         ? getSubmenuOptionActiveClasses()
                         : getSubmenuOptionClasses()
-                    }`}
-                  >
-                    <button
-                      onClick={() => {
-                        setActiveSplitProfileById(profile.id);
-                        setShowTipSettings(false);
-                      }}
-                      className="w-full"
+                        }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="text-left">
-                          <h3 className={`text-lg font-semibold mb-1 ${getPrimaryTextClasses()}`}>
-                            {profile.label}
-                          </h3>
-                          <p className={`text-sm ${getSecondaryTextClasses()}`}>
-                            {hasCustomWeights 
-                              ? profile.recipients.map(r => {
+                      <button
+                        onClick={() => {
+                          setActiveSplitProfileById(profile.id);
+                          setShowTipSettings(false);
+                        }}
+                        className="w-full"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="text-left">
+                            <h3 className={`text-lg font-semibold mb-1 ${getPrimaryTextClasses()}`}>
+                              {profile.label}
+                            </h3>
+                            <p className={`text-sm ${getSecondaryTextClasses()}`}>
+                              {hasCustomWeights
+                                ? profile.recipients.map(r => {
                                   const name = r.type === 'npub_cash' ? r.username : `${r.username}@blink.sv`;
                                   return `${name} (${Math.round(r.share || evenShare)}%)`;
                                 }).join(', ')
-                              : profile.recipients.map(r => r.type === 'npub_cash' ? r.username : `${r.username}@blink.sv`).join(', ')
-                            }
-                          </p>
+                                : profile.recipients.map(r => r.type === 'npub_cash' ? r.username : `${r.username}@blink.sv`).join(', ')
+                              }
+                            </p>
+                          </div>
+                          {activeSplitProfile?.id === profile.id && (
+                            <div className={`text-2xl ${getCheckmarkClasses()}`}>✓</div>
+                          )}
                         </div>
-                        {activeSplitProfile?.id === profile.id && (
-                          <div className={`text-2xl ${getCheckmarkClasses()}`}>✓</div>
-                        )}
-                      </div>
-                    </button>
-                    {/* Edit/Delete Actions */}
-                    <div className={`flex gap-2 mt-3 pt-3 border-t ${isBlinkClassic ? (isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light') : 'border-gray-200 dark:border-gray-700'}`}>
-                      <button
-                        onClick={() => {
-                          setEditingSplitProfile(profile);
-                          setNewSplitProfileLabel(profile.label);
-                          // Initialize recipients array from profile with weights
-                          const recipients = profile.recipients?.map(r => ({ 
-                            username: r.username, 
-                            validated: true, 
-                            type: r.type || 'blink',
-                            weight: r.share || (100 / (profile.recipients?.length || 1))
-                          })) || [];
-                          setNewSplitProfileRecipients(recipients);
-                          // Check if profile uses custom weights (not evenly distributed)
-                          const evenShare = 100 / (recipients.length || 1);
-                          const hasCustomWeights = recipients.some(r => Math.abs(r.weight - evenShare) > 0.01);
-                          setUseCustomWeights(hasCustomWeights);
-                          setNewRecipientInput('');
-                          setRecipientValidation({ status: null, message: '', isValidating: false });
-                          setSplitProfileError(null);
-                          setShowCreateSplitProfile(true);
-                        }}
-                        className={`flex-1 py-2 text-sm rounded-lg transition-colors ${
-                          isBlinkClassic 
-                            ? `${getSecondaryTextClasses()} hover:text-blink-classic-amber border ${isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light'}` 
-                            : 'text-gray-600 dark:text-gray-400 hover:text-blink-accent border border-gray-300 dark:border-gray-600'
-                        }`}
-                      >
-                        Edit
                       </button>
-                      <button
-                        onClick={async () => {
-                          if (confirm('Delete this split profile?')) {
-                            await deleteSplitProfile(profile.id);
-                          }
-                        }}
-                        className={`flex-1 py-2 text-sm rounded-lg text-red-500 hover:text-red-700 border transition-colors ${
-                          isBlinkClassic 
+                      {/* Edit/Delete Actions */}
+                      <div className={`flex gap-2 mt-3 pt-3 border-t ${isBlinkClassic ? (isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light') : 'border-gray-200 dark:border-gray-700'}`}>
+                        <button
+                          onClick={() => {
+                            setEditingSplitProfile(profile);
+                            setNewSplitProfileLabel(profile.label);
+                            // Initialize recipients array from profile with weights
+                            const recipients = profile.recipients?.map(r => ({
+                              username: r.username,
+                              validated: true,
+                              type: r.type || 'blink',
+                              weight: r.share || (100 / (profile.recipients?.length || 1))
+                            })) || [];
+                            setNewSplitProfileRecipients(recipients);
+                            // Check if profile uses custom weights (not evenly distributed)
+                            const evenShare = 100 / (recipients.length || 1);
+                            const hasCustomWeights = recipients.some(r => Math.abs(r.weight - evenShare) > 0.01);
+                            setUseCustomWeights(hasCustomWeights);
+                            setNewRecipientInput('');
+                            setRecipientValidation({ status: null, message: '', isValidating: false });
+                            setSplitProfileError(null);
+                            setShowCreateSplitProfile(true);
+                          }}
+                          className={`flex-1 py-2 text-sm rounded-lg transition-colors ${isBlinkClassic
+                            ? `${getSecondaryTextClasses()} hover:text-blink-classic-amber border ${isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light'}`
+                            : 'text-gray-600 dark:text-gray-400 hover:text-blink-accent border border-gray-300 dark:border-gray-600'
+                            }`}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (confirm('Delete this split profile?')) {
+                              await deleteSplitProfile(profile.id);
+                            }
+                          }}
+                          className={`flex-1 py-2 text-sm rounded-lg text-red-500 hover:text-red-700 border transition-colors ${isBlinkClassic
                             ? (isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light')
                             : 'border-gray-300 dark:border-gray-600'
-                        }`}
-                      >
-                        Delete
-                      </button>
+                            }`}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
-                  </div>
                   );
                 })}
 
@@ -4632,7 +4629,7 @@ export default function Dashboard() {
       {/* Create/Edit Split Profile Overlay */}
       {showCreateSplitProfile && (
         <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+          <div className="min-h-screen" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
             {/* Header */}
             <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -4684,7 +4681,7 @@ export default function Dashboard() {
                   <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
                     Recipients
                   </label>
-                  
+
                   {/* Added Recipients List */}
                   {newSplitProfileRecipients.length > 0 && (
                     <div className="mb-3 space-y-2">
@@ -4704,37 +4701,36 @@ export default function Dashboard() {
                                   const newWeight = Math.max(1, Math.min(99, parseInt(e.target.value) || 1));
                                   setNewSplitProfileRecipients(prev => {
                                     // Mark this recipient as locked (manually edited)
-                                    const updated = prev.map((r, i) => 
+                                    const updated = prev.map((r, i) =>
                                       i === index ? { ...r, weight: newWeight, locked: true } : r
                                     );
-                                    
+
                                     // Calculate sum of locked weights (including the one just changed)
                                     const lockedSum = updated
                                       .filter(r => r.locked)
                                       .reduce((sum, r) => sum + r.weight, 0);
-                                    
+
                                     // Get unlocked recipients
                                     const unlockedRecipients = updated.filter(r => !r.locked);
-                                    
+
                                     // If there are unlocked recipients, distribute remaining weight among them
                                     if (unlockedRecipients.length > 0) {
                                       const remainingWeight = Math.max(0, 100 - lockedSum);
                                       const weightPerUnlocked = remainingWeight / unlockedRecipients.length;
-                                      
-                                      return updated.map(r => 
+
+                                      return updated.map(r =>
                                         r.locked ? r : { ...r, weight: weightPerUnlocked }
                                       );
                                     }
-                                    
+
                                     // All recipients are locked, just return updated
                                     return updated;
                                   });
                                 }}
-                                className={`w-16 px-2 py-1 text-sm text-center border rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white ${
-                                  recipient.locked 
-                                    ? 'border-blink-accent ring-1 ring-blink-accent/30' 
-                                    : 'border-gray-300 dark:border-gray-600'
-                                }`}
+                                className={`w-16 px-2 py-1 text-sm text-center border rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white ${recipient.locked
+                                  ? 'border-blink-accent ring-1 ring-blink-accent/30'
+                                  : 'border-gray-300 dark:border-gray-600'
+                                  }`}
                               />
                               <span className="ml-1 text-sm text-gray-500 dark:text-gray-400">%</span>
                               {recipient.locked && (
@@ -4742,25 +4738,25 @@ export default function Dashboard() {
                                   onClick={() => {
                                     // Unlock this recipient and redistribute
                                     setNewSplitProfileRecipients(prev => {
-                                      const updated = prev.map((r, i) => 
+                                      const updated = prev.map((r, i) =>
                                         i === index ? { ...r, locked: false } : r
                                       );
-                                      
+
                                       // Recalculate: get locked sum and redistribute among unlocked
                                       const lockedSum = updated
                                         .filter(r => r.locked)
                                         .reduce((sum, r) => sum + r.weight, 0);
-                                      
+
                                       const unlockedRecipients = updated.filter(r => !r.locked);
                                       if (unlockedRecipients.length > 0) {
                                         const remainingWeight = Math.max(0, 100 - lockedSum);
                                         const weightPerUnlocked = remainingWeight / unlockedRecipients.length;
-                                        
-                                        return updated.map(r => 
+
+                                        return updated.map(r =>
                                           r.locked ? r : { ...r, weight: weightPerUnlocked }
                                         );
                                       }
-                                      
+
                                       return updated;
                                     });
                                   }}
@@ -4780,7 +4776,7 @@ export default function Dashboard() {
                           </button>
                         </div>
                       ))}
-                      
+
                       {/* Custom Weights Toggle - only show when 2+ recipients */}
                       {newSplitProfileRecipients.length > 1 && (
                         <div className="flex items-center justify-between py-2 mt-2 border-t border-gray-200 dark:border-gray-700">
@@ -4792,25 +4788,23 @@ export default function Dashboard() {
                               if (useCustomWeights) {
                                 // Switching to even split - reset all weights
                                 const evenWeight = 100 / newSplitProfileRecipients.length;
-                                setNewSplitProfileRecipients(prev => 
+                                setNewSplitProfileRecipients(prev =>
                                   prev.map(r => ({ ...r, weight: evenWeight }))
                                 );
                               }
                               setUseCustomWeights(!useCustomWeights);
                             }}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                              useCustomWeights ? 'bg-blink-accent' : 'bg-gray-300 dark:bg-gray-600'
-                            }`}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${useCustomWeights ? 'bg-blink-accent' : 'bg-gray-300 dark:bg-gray-600'
+                              }`}
                           >
                             <span
-                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                useCustomWeights ? 'translate-x-6' : 'translate-x-1'
-                              }`}
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${useCustomWeights ? 'translate-x-6' : 'translate-x-1'
+                                }`}
                             />
                           </button>
                         </div>
                       )}
-                      
+
                       {/* Weight Summary */}
                       {useCustomWeights ? (
                         <div className="text-xs mt-1">
@@ -4848,11 +4842,10 @@ export default function Dashboard() {
                         }
                       }}
                       placeholder="Blink username or npub1...@npub.cash"
-                      className={`w-full px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent ${
-                        recipientValidation.status === 'success' ? 'border-green-500' :
+                      className={`w-full px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent ${recipientValidation.status === 'success' ? 'border-green-500' :
                         recipientValidation.status === 'error' ? 'border-red-500' :
-                        'border-gray-300 dark:border-gray-600'
-                      }`}
+                          'border-gray-300 dark:border-gray-600'
+                        }`}
                     />
                     {recipientValidation.isValidating && (
                       <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -4892,7 +4885,7 @@ export default function Dashboard() {
                       setSplitProfileError('Please add at least one recipient');
                       return;
                     }
-                    
+
                     // Calculate shares based on custom weights or even split
                     let recipients;
                     if (useCustomWeights && newSplitProfileRecipients.length > 1) {
@@ -4902,7 +4895,7 @@ export default function Dashboard() {
                         setSplitProfileError(`Total split weights must equal 100% (currently ${Math.round(totalWeight)}%)`);
                         return;
                       }
-                      
+
                       recipients = newSplitProfileRecipients.map(r => ({
                         username: r.username,
                         type: r.type || 'blink',
@@ -4917,14 +4910,14 @@ export default function Dashboard() {
                         share: sharePerRecipient
                       }));
                     }
-                    
+
                     const profile = {
                       id: editingSplitProfile?.id,
                       label: newSplitProfileLabel.trim(),
                       recipients,
                       useCustomWeights: useCustomWeights && newSplitProfileRecipients.length > 1
                     };
-                    
+
                     const saved = await saveSplitProfile(profile, true);
                     if (saved) {
                       setShowCreateSplitProfile(false);
@@ -4947,7 +4940,7 @@ export default function Dashboard() {
       {/* Currency Settings Overlay */}
       {showCurrencySettings && (
         <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+          <div className="min-h-screen" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
             {/* Header */}
             <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -4965,7 +4958,7 @@ export default function Dashboard() {
                   <div className="w-16"></div>
                 </div>
               </div>
-              
+
               {/* Search Input - Sticky below header */}
               <div className="max-w-md mx-auto px-4 pb-3">
                 <div className="relative">
@@ -4974,17 +4967,15 @@ export default function Dashboard() {
                     value={currencyFilter}
                     onChange={(e) => setCurrencyFilter(e.target.value)}
                     placeholder="Search currency, country..."
-                    className={`w-full px-4 py-2.5 pl-10 rounded-lg text-sm ${
-                      isBlinkClassicDark 
-                        ? 'bg-black border border-blink-classic-border text-white placeholder-gray-500 focus:border-blink-classic-amber' 
-                        : isBlinkClassicLight
-                          ? 'bg-white border border-blink-classic-border-light text-black placeholder-gray-400 focus:border-blink-classic-amber'
-                          : darkMode
-                            ? 'bg-gray-900 border border-gray-700 text-white placeholder-gray-500 focus:border-blue-500'
-                            : 'bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-500'
-                    } focus:outline-none focus:ring-1 ${
-                      isBlinkClassic ? 'focus:ring-blink-classic-amber' : 'focus:ring-blue-500'
-                    }`}
+                    className={`w-full px-4 py-2.5 pl-10 rounded-lg text-sm ${isBlinkClassicDark
+                      ? 'bg-black border border-blink-classic-border text-white placeholder-gray-500 focus:border-blink-classic-amber'
+                      : isBlinkClassicLight
+                        ? 'bg-white border border-blink-classic-border-light text-black placeholder-gray-400 focus:border-blink-classic-amber'
+                        : darkMode
+                          ? 'bg-gray-900 border border-gray-700 text-white placeholder-gray-500 focus:border-blue-500'
+                          : 'bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-500'
+                      } focus:outline-none focus:ring-1 ${isBlinkClassic ? 'focus:ring-blink-classic-amber' : 'focus:ring-blue-500'
+                      }`}
                   />
                   <svg className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${getSecondaryTextClasses()}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -5010,7 +5001,7 @@ export default function Dashboard() {
               ) : (() => {
                 const { popular, all } = getAllCurrencies();
                 const filterLower = currencyFilterDebounced.toLowerCase().trim();
-                
+
                 // Filter function for currencies
                 const matchesCurrency = (currency) => {
                   if (!filterLower) return true;
@@ -5019,10 +5010,10 @@ export default function Dashboard() {
                   const country = (currency.country || '').toLowerCase();
                   return id.includes(filterLower) || name.includes(filterLower) || country.includes(filterLower);
                 };
-                
+
                 const filteredPopular = popular.filter(matchesCurrency);
                 const filteredAll = all.filter(matchesCurrency);
-                
+
                 // Render a currency button
                 const renderCurrencyButton = (currency) => (
                   <button
@@ -5031,11 +5022,10 @@ export default function Dashboard() {
                       setDisplayCurrency(currency.id);
                       setShowCurrencySettings(false);
                     }}
-                    className={`w-full p-3 text-left transition-all ${
-                      displayCurrency === currency.id
-                        ? getSubmenuOptionActiveClasses()
-                        : getSubmenuOptionClasses()
-                    }`}
+                    className={`w-full p-3 text-left transition-all ${displayCurrency === currency.id
+                      ? getSubmenuOptionActiveClasses()
+                      : getSubmenuOptionClasses()
+                      }`}
                   >
                     <div className="flex items-center justify-between">
                       <span className={`text-sm font-medium ${getPrimaryTextClasses()}`}>
@@ -5052,11 +5042,10 @@ export default function Dashboard() {
                               addToPopular(currency.id);
                             }
                           }}
-                          className={`p-1 rounded transition-colors ${
-                            isPopularCurrency(currency.id) 
-                              ? 'text-yellow-500 hover:text-yellow-400' 
-                              : `${getSecondaryTextClasses()} hover:text-yellow-500`
-                          }`}
+                          className={`p-1 rounded transition-colors ${isPopularCurrency(currency.id)
+                            ? 'text-yellow-500 hover:text-yellow-400'
+                            : `${getSecondaryTextClasses()} hover:text-yellow-500`
+                            }`}
                           title={isPopularCurrency(currency.id) ? 'Remove from favorites' : 'Add to favorites'}
                         >
                           <svg className="w-4 h-4" fill={isPopularCurrency(currency.id) ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
@@ -5072,7 +5061,7 @@ export default function Dashboard() {
                     </div>
                   </button>
                 );
-                
+
                 // If filtering, show flat list
                 if (filterLower) {
                   const allFiltered = [...filteredPopular, ...filteredAll];
@@ -5089,7 +5078,7 @@ export default function Dashboard() {
                     </div>
                   );
                 }
-                
+
                 // Normal view with sections
                 return (
                   <div className="space-y-2">
@@ -5097,16 +5086,15 @@ export default function Dashboard() {
                     {filteredPopular.length > 0 && (
                       <>
                         {filteredPopular.map(renderCurrencyButton)}
-                        
+
                         {/* Visual divider between popular and all */}
-                        <div className={`my-4 border-t ${
-                          isBlinkClassicDark ? 'border-blink-classic-border' :
+                        <div className={`my-4 border-t ${isBlinkClassicDark ? 'border-blink-classic-border' :
                           isBlinkClassicLight ? 'border-blink-classic-border-light' :
-                          darkMode ? 'border-gray-700' : 'border-gray-200'
-                        }`} />
+                            darkMode ? 'border-gray-700' : 'border-gray-200'
+                          }`} />
                       </>
                     )}
-                    
+
                     {/* All Other Currencies */}
                     {filteredAll.map(renderCurrencyButton)}
                   </div>
@@ -5120,7 +5108,7 @@ export default function Dashboard() {
       {/* Regional Settings Overlay */}
       {showRegionalSettings && (
         <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+          <div className="min-h-screen" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
             {/* Header */}
             <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -5152,11 +5140,10 @@ export default function Dashboard() {
                     <button
                       key={format}
                       onClick={() => setNumberFormat(format)}
-                      className={`w-full p-3 text-left transition-all ${
-                        numberFormat === format
-                          ? getSubmenuOptionActiveClasses()
-                          : getSubmenuOptionClasses()
-                      }`}
+                      className={`w-full p-3 text-left transition-all ${numberFormat === format
+                        ? getSubmenuOptionActiveClasses()
+                        : getSubmenuOptionClasses()
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <div>
@@ -5205,11 +5192,10 @@ export default function Dashboard() {
                     <button
                       key={format}
                       onClick={() => setBitcoinFormat(format)}
-                      className={`w-full p-3 text-left transition-all ${
-                        bitcoinFormat === format
-                          ? getSubmenuOptionActiveClasses()
-                          : getSubmenuOptionClasses()
-                      }`}
+                      className={`w-full p-3 text-left transition-all ${bitcoinFormat === format
+                        ? getSubmenuOptionActiveClasses()
+                        : getSubmenuOptionClasses()
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <div>
@@ -5241,7 +5227,7 @@ export default function Dashboard() {
                 <h3 className={`text-sm font-medium mb-3 ${getSectionLabelClasses()}`}>
                   Language
                 </h3>
-                <div 
+                <div
                   className={`p-3 ${getSubmenuOptionActiveClasses()} opacity-60 cursor-not-allowed`}
                 >
                   <div className="flex items-center justify-between">
@@ -5267,7 +5253,7 @@ export default function Dashboard() {
       {/* Wallets Overlay */}
       {showAccountSettings && (
         <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+          <div className="min-h-screen" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
             {/* Header */}
             <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -5306,11 +5292,10 @@ export default function Dashboard() {
                 {authMode === 'nostr' && !showAddAccountForm && (
                   <button
                     onClick={() => setShowAddAccountForm(true)}
-                    className={`w-full py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-                      isBlinkClassic 
-                        ? 'bg-transparent border border-blink-classic-amber text-blink-classic-amber hover:bg-blink-classic-amber hover:text-black rounded-xl' 
-                        : 'bg-blink-accent text-black rounded-lg hover:bg-blink-accent/90'
-                    }`}
+                    className={`w-full py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${isBlinkClassic
+                      ? 'bg-transparent border border-blink-classic-amber text-blink-classic-amber hover:bg-blink-classic-amber hover:text-black rounded-xl'
+                      : 'bg-blink-accent text-black rounded-lg hover:bg-blink-accent/90'
+                      }`}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -5333,29 +5318,27 @@ export default function Dashboard() {
                           value={newAccountLabel}
                           onChange={(e) => setNewAccountLabel(e.target.value)}
                           placeholder="My Wallet"
-                          className={`w-full px-3 py-2 rounded-md border text-sm ${
-                            darkMode 
-                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
-                              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
-                          } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
+                          className={`w-full px-3 py-2 rounded-md border text-sm ${darkMode
+                            ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500'
+                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                            } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
                         />
                       </div>
-                      
+
                       <h3 className={`text-sm font-medium pt-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                         Step 2: Choose Wallet Type
                       </h3>
-                      
+
                       {/* Wallet Type Selection */}
                       <div className="space-y-2">
                         {/* Blink Lightning Address - Recommended, first option */}
                         <button
                           type="button"
                           onClick={() => setNewAccountType('blink-ln-address')}
-                          className={`w-full p-3 rounded-lg border-2 text-left transition-all hover:scale-[1.01] ${
-                            darkMode 
-                              ? 'border-amber-500/40 bg-amber-900/20 hover:border-amber-500/60' 
-                              : 'border-amber-300 bg-amber-50 hover:border-amber-400'
-                          }`}
+                          className={`w-full p-3 rounded-lg border-2 text-left transition-all hover:scale-[1.01] ${darkMode
+                            ? 'border-amber-500/40 bg-amber-900/20 hover:border-amber-500/60'
+                            : 'border-amber-300 bg-amber-50 hover:border-amber-400'
+                            }`}
                         >
                           <div className="flex items-center gap-3">
                             <span className="text-2xl">⚡</span>
@@ -5368,17 +5351,16 @@ export default function Dashboard() {
                             </div>
                           </div>
                         </button>
-                        
+
                         <div className="grid grid-cols-2 gap-2">
                           {/* Blink API Key */}
                           <button
                             type="button"
                             onClick={() => setNewAccountType('blink')}
-                            className={`p-3 rounded-lg border-2 text-center transition-all hover:scale-[1.02] ${
-                              darkMode 
-                                ? 'border-gray-600 bg-gray-800 hover:border-gray-500' 
-                                : 'border-gray-200 bg-gray-50 hover:border-gray-300'
-                            }`}
+                            className={`p-3 rounded-lg border-2 text-center transition-all hover:scale-[1.02] ${darkMode
+                              ? 'border-gray-600 bg-gray-800 hover:border-gray-500'
+                              : 'border-gray-200 bg-gray-50 hover:border-gray-300'
+                              }`}
                           >
                             <svg className={`w-6 h-6 mx-auto mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
@@ -5386,16 +5368,15 @@ export default function Dashboard() {
                             <span className={`font-medium text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>Blink API</span>
                             <p className={`text-xs mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Full features</p>
                           </button>
-                          
+
                           {/* NWC */}
                           <button
                             type="button"
                             onClick={() => setNewAccountType('nwc')}
-                            className={`p-3 rounded-lg border-2 text-center transition-all hover:scale-[1.02] ${
-                              darkMode 
-                                ? 'border-purple-500/30 bg-purple-900/10 hover:border-purple-500/50' 
-                                : 'border-purple-200 bg-purple-50 hover:border-purple-300'
-                            }`}
+                            className={`p-3 rounded-lg border-2 text-center transition-all hover:scale-[1.02] ${darkMode
+                              ? 'border-purple-500/30 bg-purple-900/10 hover:border-purple-500/50'
+                              : 'border-purple-200 bg-purple-50 hover:border-purple-300'
+                              }`}
                           >
                             <svg className="w-6 h-6 mx-auto mb-1 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -5404,16 +5385,15 @@ export default function Dashboard() {
                             <p className={`text-xs mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Any wallet</p>
                           </button>
                         </div>
-                        
+
                         {/* npub.cash - Full width below the 2-column grid */}
                         <button
                           type="button"
                           onClick={() => setNewAccountType('npub-cash')}
-                          className={`w-full p-3 rounded-lg border-2 text-left transition-all hover:scale-[1.01] ${
-                            darkMode 
-                              ? 'border-teal-500/40 bg-teal-900/20 hover:border-teal-500/60' 
-                              : 'border-teal-300 bg-teal-50 hover:border-teal-400'
-                          }`}
+                          className={`w-full p-3 rounded-lg border-2 text-left transition-all hover:scale-[1.01] ${darkMode
+                            ? 'border-teal-500/40 bg-teal-900/20 hover:border-teal-500/60'
+                            : 'border-teal-300 bg-teal-50 hover:border-teal-400'
+                            }`}
                         >
                           <div className="flex items-center gap-3">
                             <span className="text-2xl">🥜</span>
@@ -5435,11 +5415,10 @@ export default function Dashboard() {
                           setNewAccountLabel('');
                           setAddAccountError(null);
                         }}
-                        className={`w-full py-2 text-sm font-medium rounded-md transition-colors ${
-                          darkMode 
-                            ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
-                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                        }`}
+                        className={`w-full py-2 text-sm font-medium rounded-md transition-colors ${darkMode
+                          ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
                       >
                         Cancel
                       </button>
@@ -5525,11 +5504,10 @@ export default function Dashboard() {
                           autoComplete="off"
                           data-1p-ignore="true"
                           data-lpignore="true"
-                          className={`w-full px-3 py-2 rounded-md border text-sm ${
-                            darkMode 
-                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
-                              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
-                          } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
+                          className={`w-full px-3 py-2 rounded-md border text-sm ${darkMode
+                            ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500'
+                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                            } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
                         />
                         <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
                           Get from <a href="https://dashboard.blink.sv" target="_blank" rel="noopener noreferrer" className="text-blink-accent hover:underline">dashboard.blink.sv</a>
@@ -5555,11 +5533,10 @@ export default function Dashboard() {
                             setNewAccountType(null);
                             setAddAccountError(null);
                           }}
-                          className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
-                            darkMode 
-                              ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
-                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                          }`}
+                          className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${darkMode
+                            ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
                         >
                           Cancel
                         </button>
@@ -5653,17 +5630,16 @@ export default function Dashboard() {
                           autoComplete="off"
                           data-1p-ignore="true"
                           data-lpignore="true"
-                          className={`w-full px-3 py-2 rounded-md border text-sm ${
-                            darkMode 
-                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
-                              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
-                          } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
+                          className={`w-full px-3 py-2 rounded-md border text-sm ${darkMode
+                            ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500'
+                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                            } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
                         />
                         <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
                           Your Blink wallet username
                         </p>
                       </div>
-                      
+
                       {/* Validated Info */}
                       {lnAddressValidated && (
                         <div className={`p-3 rounded-md ${darkMode ? 'bg-green-900/20 border-green-500/30' : 'bg-green-50 border-green-200'} border`}>
@@ -5680,11 +5656,11 @@ export default function Dashboard() {
                           </p>
                         </div>
                       )}
-                      
+
                       {addAccountError && (
                         <p className="text-sm text-red-500">{addAccountError}</p>
                       )}
-                      
+
                       {/* Validate button */}
                       {!lnAddressValidated && newAccountLnAddress.trim() && (
                         <button
@@ -5695,7 +5671,7 @@ export default function Dashboard() {
                           {lnAddressValidating ? 'Validating...' : 'Validate'}
                         </button>
                       )}
-                      
+
                       <div className="flex gap-2">
                         {lnAddressValidated && (
                           <button
@@ -5716,11 +5692,10 @@ export default function Dashboard() {
                             setAddAccountError(null);
                             setLnAddressValidated(null);
                           }}
-                          className={`${lnAddressValidated ? 'flex-1' : 'w-full'} py-2 text-sm font-medium rounded-md transition-colors ${
-                            darkMode 
-                              ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
-                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                          }`}
+                          className={`${lnAddressValidated ? 'flex-1' : 'w-full'} py-2 text-sm font-medium rounded-md transition-colors ${darkMode
+                            ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
                         >
                           Cancel
                         </button>
@@ -5808,17 +5783,16 @@ export default function Dashboard() {
                           autoComplete="off"
                           data-1p-ignore="true"
                           data-lpignore="true"
-                          className={`w-full px-3 py-2 rounded-md border text-sm font-mono resize-none ${
-                            darkMode 
-                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
-                              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
-                          } focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
+                          className={`w-full px-3 py-2 rounded-md border text-sm font-mono resize-none ${darkMode
+                            ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500'
+                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                            } focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
                         />
                         <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
                           Get from your wallet app (Alby, Coinos, Zeus, minibits.cash, etc.)
                         </p>
                       </div>
-                      
+
                       {/* NWC Validation Result */}
                       {nwcValidated && (
                         <div className={`p-3 rounded-lg ${darkMode ? 'bg-green-900/20 border border-green-500/30' : 'bg-green-50 border border-green-200'}`}>
@@ -5846,11 +5820,10 @@ export default function Dashboard() {
                         <button
                           type="submit"
                           disabled={addAccountLoading || nwcValidating}
-                          className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors disabled:opacity-50 ${
-                            nwcValidated
-                              ? 'bg-purple-600 text-white hover:bg-purple-700'
-                              : 'bg-purple-600 text-white hover:bg-purple-700'
-                          }`}
+                          className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors disabled:opacity-50 ${nwcValidated
+                            ? 'bg-purple-600 text-white hover:bg-purple-700'
+                            : 'bg-purple-600 text-white hover:bg-purple-700'
+                            }`}
                         >
                           {nwcValidating ? 'Validating...' : addAccountLoading ? 'Adding...' : nwcValidated ? 'Add Wallet' : 'Validate'}
                         </button>
@@ -5864,11 +5837,10 @@ export default function Dashboard() {
                             setNwcValidated(null);
                             setAddAccountError(null);
                           }}
-                          className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
-                            darkMode 
-                              ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
-                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                          }`}
+                          className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${darkMode
+                            ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
                         >
                           Cancel
                         </button>
@@ -5960,18 +5932,17 @@ export default function Dashboard() {
                           autoComplete="off"
                           data-1p-ignore="true"
                           data-lpignore="true"
-                          className={`w-full px-3 py-2 rounded-md border text-sm ${
-                            npubCashValidated ? 'border-green-500' : 
-                            darkMode 
-                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
+                          className={`w-full px-3 py-2 rounded-md border text-sm ${npubCashValidated ? 'border-green-500' :
+                            darkMode
+                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500'
                               : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
-                          } focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent`}
+                            } focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent`}
                         />
                         <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
                           Your full npub.cash Lightning Address
                         </p>
                       </div>
-                      
+
                       {/* Validation result */}
                       {npubCashValidated && (
                         <div className={`p-3 rounded-md ${darkMode ? 'bg-green-900/20 border-green-500/30' : 'bg-green-50 border-green-200'} border`}>
@@ -6014,11 +5985,10 @@ export default function Dashboard() {
                             setNpubCashValidated(null);
                             setAddAccountError(null);
                           }}
-                          className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
-                            darkMode 
-                              ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
-                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                          }`}
+                          className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${darkMode
+                            ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
                         >
                           Cancel
                         </button>
@@ -6033,17 +6003,15 @@ export default function Dashboard() {
                   {blinkAccounts && blinkAccounts.filter(a => a.type !== 'npub-cash').map((account) => (
                     <div
                       key={`blink-${account.id}`}
-                      className={`p-4 transition-colors ${
-                        account.isActive && !activeNWC
-                          ? getWalletCardActiveClasses('amber')
-                          : getWalletCardClasses()
-                      }`}
+                      className={`p-4 transition-colors ${account.isActive && !activeNWC
+                        ? getWalletCardActiveClasses('amber')
+                        : getWalletCardClasses()
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${
-                            getWalletIconClasses(account.isActive && !activeNWC)
-                          }`}>
+                          <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${getWalletIconClasses(account.isActive && !activeNWC)
+                            }`}>
                             <span className="text-lg">⚡</span>
                           </div>
                           <div className="min-w-0">
@@ -6114,17 +6082,15 @@ export default function Dashboard() {
                   {npubCashWallets && npubCashWallets.map((wallet) => (
                     <div
                       key={`npubcash-${wallet.id}`}
-                      className={`p-4 transition-colors ${
-                        wallet.isActive && !activeNWC
-                          ? getWalletCardActiveClasses('teal')
-                          : getWalletCardClasses()
-                      }`}
+                      className={`p-4 transition-colors ${wallet.isActive && !activeNWC
+                        ? getWalletCardActiveClasses('teal')
+                        : getWalletCardClasses()
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${
-                            getWalletIconClasses(wallet.isActive && !activeNWC)
-                          }`}>
+                          <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${getWalletIconClasses(wallet.isActive && !activeNWC)
+                            }`}>
                             <span className="text-lg">🥜</span>
                           </div>
                           <div className="min-w-0">
@@ -6198,17 +6164,15 @@ export default function Dashboard() {
                   {nwcConnections && nwcConnections.map((conn) => (
                     <div
                       key={`nwc-${conn.id}`}
-                      className={`p-4 transition-colors ${
-                        activeNWC?.id === conn.id
-                          ? getWalletCardActiveClasses('purple')
-                          : getWalletCardClasses()
-                      }`}
+                      className={`p-4 transition-colors ${activeNWC?.id === conn.id
+                        ? getWalletCardActiveClasses('purple')
+                        : getWalletCardClasses()
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${
-                            getWalletIconClasses(activeNWC?.id === conn.id)
-                          }`}>
+                          <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${getWalletIconClasses(activeNWC?.id === conn.id)
+                            }`}>
                             <svg className={`w-5 h-5 ${activeNWC?.id === conn.id ? (isBlinkClassic ? 'text-blink-classic-amber' : 'text-purple-400') : (isBlinkClassic ? 'text-gray-400' : (darkMode ? 'text-gray-400' : 'text-gray-600'))}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                             </svg>
@@ -6315,7 +6279,7 @@ export default function Dashboard() {
       {/* Voucher Wallet Overlay */}
       {showVoucherWalletSettings && (
         <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+          <div className="min-h-screen" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
             {/* Header */}
             <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -6388,11 +6352,10 @@ export default function Dashboard() {
                           )}
                           <div className="flex flex-wrap gap-1 mt-1">
                             {voucherWallet.scopes?.map((scope) => (
-                              <span key={scope} className={`px-1.5 py-0.5 rounded text-xs ${
-                                scope === 'WRITE' 
-                                  ? 'bg-green-500/20 text-green-400' 
-                                  : 'bg-gray-500/20 text-gray-400'
-                              }`}>
+                              <span key={scope} className={`px-1.5 py-0.5 rounded text-xs ${scope === 'WRITE'
+                                ? 'bg-green-500/20 text-green-400'
+                                : 'bg-gray-500/20 text-gray-400'
+                                }`}>
                                 {scope}
                               </span>
                             ))}
@@ -6471,11 +6434,11 @@ export default function Dashboard() {
                         setVoucherWalletError('Please enter an API key');
                         return;
                       }
-                      
+
                       setVoucherWalletLoading(true);
                       setVoucherWalletError(null);
                       setVoucherWalletScopes(null);
-                      
+
                       try {
                         // Step 1: Check scopes using authorization query
                         setVoucherWalletValidating(true);
@@ -6489,19 +6452,19 @@ export default function Dashboard() {
                             query: '{ authorization { scopes } }'
                           })
                         });
-                        
+
                         if (!scopeResponse.ok) {
                           throw new Error('Invalid API key');
                         }
-                        
+
                         const scopeData = await scopeResponse.json();
                         if (scopeData.errors) {
                           throw new Error(scopeData.errors[0]?.message || 'Failed to check API key scopes');
                         }
-                        
+
                         const scopes = scopeData.data?.authorization?.scopes || [];
                         setVoucherWalletScopes(scopes);
-                        
+
                         // Step 2: Verify WRITE scope is present
                         if (!scopes.includes('WRITE')) {
                           setVoucherWalletError(`This API key does not have WRITE scope. Found scopes: ${scopes.join(', ') || 'none'}. The voucher feature requires WRITE permission.`);
@@ -6509,7 +6472,7 @@ export default function Dashboard() {
                           setVoucherWalletValidating(false);
                           return;
                         }
-                        
+
                         // Step 3: Get user info and wallet ID
                         const userResponse = await fetch('https://api.blink.sv/graphql', {
                           method: 'POST',
@@ -6521,24 +6484,23 @@ export default function Dashboard() {
                             query: '{ me { id username defaultAccount { displayCurrency wallets { id walletCurrency } } } }'
                           })
                         });
-                        
+
                         if (!userResponse.ok) {
                           throw new Error('Failed to validate API key');
                         }
-                        
+
                         const userData = await userResponse.json();
                         if (userData.errors || !userData.data?.me?.id) {
                           throw new Error('Invalid API key');
                         }
-                        
+
                         // Get BTC wallet ID
                         const wallets = userData.data.me.defaultAccount?.wallets || [];
                         const btcWallet = wallets.find(w => w.walletCurrency === 'BTC');
-                        
                         if (!btcWallet) {
                           throw new Error('No BTC wallet found for this account. The voucher feature requires a BTC wallet.');
                         }
-                        
+
                         // Save voucher wallet
                         const walletData = {
                           apiKey: voucherWalletApiKey.trim(),
@@ -6550,15 +6512,15 @@ export default function Dashboard() {
                           scopes: scopes,
                           createdAt: Date.now()
                         };
-                        
+
                         if (typeof window !== 'undefined') {
                           localStorage.setItem('blinkpos-voucher-wallet', JSON.stringify(walletData));
                         }
                         setVoucherWallet(walletData);
-                        
+
                         // Sync to server for cross-device access
                         syncVoucherWalletToServer(walletData);
-                        
+
                         // Reset form
                         setVoucherWalletApiKey('');
                         setVoucherWalletLabel('');
@@ -6582,11 +6544,10 @@ export default function Dashboard() {
                           autoComplete="off"
                           data-1p-ignore="true"
                           data-lpignore="true"
-                          className={`w-full px-3 py-2 rounded-md border text-sm ${
-                            darkMode 
-                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
-                              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
-                          } focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
+                          className={`w-full px-3 py-2 rounded-md border text-sm ${darkMode
+                            ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500'
+                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                            } focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
                         />
                       </div>
                       <div>
@@ -6606,25 +6567,23 @@ export default function Dashboard() {
                           autoComplete="off"
                           data-1p-ignore="true"
                           data-lpignore="true"
-                          className={`w-full px-3 py-2 rounded-md border text-sm ${
-                            darkMode 
-                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500' 
-                              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
-                          } focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
+                          className={`w-full px-3 py-2 rounded-md border text-sm ${darkMode
+                            ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500'
+                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                            } focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
                         />
                         <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                          Get from <a href="https://dashboard.blink.sv" target="_blank" rel="noopener noreferrer" className="text-purple-500 hover:underline">dashboard.blink.sv</a>. 
+                          Get from <a href="https://dashboard.blink.sv" target="_blank" rel="noopener noreferrer" className="text-purple-500 hover:underline">dashboard.blink.sv</a>.
                           Must have <span className="font-semibold">WRITE</span> scope.
                         </p>
                       </div>
-                      
+
                       {/* Scopes Display */}
                       {voucherWalletScopes && (
-                        <div className={`p-3 rounded-md ${
-                          voucherWalletScopes.includes('WRITE')
-                            ? darkMode ? 'bg-green-900/20 border border-green-500/30' : 'bg-green-50 border border-green-200'
-                            : darkMode ? 'bg-red-900/20 border border-red-500/30' : 'bg-red-50 border border-red-200'
-                        }`}>
+                        <div className={`p-3 rounded-md ${voucherWalletScopes.includes('WRITE')
+                          ? darkMode ? 'bg-green-900/20 border border-green-500/30' : 'bg-green-50 border border-green-200'
+                          : darkMode ? 'bg-red-900/20 border border-red-500/30' : 'bg-red-50 border border-red-200'
+                          }`}>
                           <div className="flex items-center gap-2 mb-1">
                             {voucherWalletScopes.includes('WRITE') ? (
                               <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -6635,41 +6594,39 @@ export default function Dashboard() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                               </svg>
                             )}
-                            <span className={`text-sm font-medium ${
-                              voucherWalletScopes.includes('WRITE')
-                                ? darkMode ? 'text-green-400' : 'text-green-700'
-                                : darkMode ? 'text-red-400' : 'text-red-700'
-                            }`}>
+                            <span className={`text-sm font-medium ${voucherWalletScopes.includes('WRITE')
+                              ? darkMode ? 'text-green-400' : 'text-green-700'
+                              : darkMode ? 'text-red-400' : 'text-red-700'
+                              }`}>
                               {voucherWalletScopes.includes('WRITE') ? 'WRITE scope found' : 'Missing WRITE scope'}
                             </span>
                           </div>
                           <div className="flex flex-wrap gap-1">
                             {voucherWalletScopes.map((scope) => (
-                              <span key={scope} className={`px-2 py-0.5 rounded text-xs ${
-                                scope === 'WRITE' 
-                                  ? 'bg-green-500/20 text-green-400' 
-                                  : darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'
-                              }`}>
+                              <span key={scope} className={`px-2 py-0.5 rounded text-xs ${scope === 'WRITE'
+                                ? 'bg-green-500/20 text-green-400'
+                                : darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'
+                                }`}>
                                 {scope}
                               </span>
                             ))}
                           </div>
                         </div>
                       )}
-                      
+
                       {voucherWalletError && (
                         <div className={`p-3 rounded-md ${darkMode ? 'bg-red-900/20 border border-red-500/30' : 'bg-red-50 border border-red-200'}`}>
                           <p className="text-sm text-red-500">{voucherWalletError}</p>
                         </div>
                       )}
-                      
+
                       <button
                         type="submit"
                         disabled={voucherWalletLoading || !voucherWalletApiKey.trim()}
                         className="w-full py-3 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
-                        {voucherWalletLoading 
-                          ? (voucherWalletValidating ? 'Checking scopes...' : 'Adding...') 
+                        {voucherWalletLoading
+                          ? (voucherWalletValidating ? 'Checking scopes...' : 'Adding...')
                           : 'Add Sending Wallet'
                         }
                       </button>
@@ -6707,7 +6664,7 @@ export default function Dashboard() {
                     <span className="text-2xl mr-2">‹</span>
                     <span className="text-lg">Back</span>
                   </button>
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
                     Export Options
                   </h1>
                   <div className="w-16"></div>
@@ -6732,9 +6689,9 @@ export default function Dashboard() {
                         // Export filtered transactions
                         const csv = convertTransactionsToBasicCSV(filteredTransactions);
                         const date = new Date();
-                        const dateStr = date.getFullYear() + 
-                                        String(date.getMonth() + 1).padStart(2, '0') + 
-                                        String(date.getDate()).padStart(2, '0');
+                        const dateStr = date.getFullYear() +
+                          String(date.getMonth() + 1).padStart(2, '0') +
+                          String(date.getDate()).padStart(2, '0');
                         const username = user?.username || 'user';
                         const rangeLabel = selectedDateRange?.label?.replace(/[^a-zA-Z0-9]/g, '-') || 'filtered';
                         const filename = `${dateStr}-${username}-${rangeLabel}-transactions.csv`;
@@ -6746,7 +6703,7 @@ export default function Dashboard() {
                     >
                       <div className="flex items-center justify-between">
                         <div className="text-left">
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
                             Export Filtered
                           </h3>
                           <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -6778,7 +6735,7 @@ export default function Dashboard() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-left">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
                         Basic (All)
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -6801,7 +6758,7 @@ export default function Dashboard() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-left">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
                         Full (All)
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -6816,7 +6773,7 @@ export default function Dashboard() {
                   </div>
                 </button>
               </div>
-              
+
               {/* Info Text */}
               <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
                 {dateFilterActive && filteredTransactions.length > 0 && (
@@ -6854,7 +6811,7 @@ export default function Dashboard() {
                     <span className="text-2xl mr-2">‹</span>
                     <span className="text-lg">Back</span>
                   </button>
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
                     Select Date Range
                   </h1>
                   <div className="w-16"></div>
@@ -6878,7 +6835,7 @@ export default function Dashboard() {
                         disabled={loadingMore}
                         className="p-4 rounded-lg border-2 border-blue-500 dark:border-blue-400 bg-white dark:bg-blink-dark hover:border-blue-600 dark:hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-left"
                       >
-                        <h4 className="text-base font-semibold text-gray-900 dark:text-white" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+                        <h4 className="text-base font-semibold text-gray-900 dark:text-white" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
                           {preset.label}
                         </h4>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -6918,7 +6875,7 @@ export default function Dashboard() {
                         )}
                       </div>
                     </div>
-                    
+
                     {/* End Date/Time */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -6948,11 +6905,10 @@ export default function Dashboard() {
                     <button
                       type="button"
                       onClick={() => setShowTimeInputs(!showTimeInputs)}
-                      className={`flex items-center gap-2 text-sm font-medium transition-colors ${
-                        showTimeInputs 
-                          ? 'text-blue-600 dark:text-blue-400' 
-                          : 'text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400'
-                      }`}
+                      className={`flex items-center gap-2 text-sm font-medium transition-colors ${showTimeInputs
+                        ? 'text-blue-600 dark:text-blue-400'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400'
+                        }`}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -6978,7 +6934,7 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
-              
+
               {/* Info Text */}
               <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
                 <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -6990,7 +6946,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <main 
+      <main
         className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mobile-content ${isFixedView ? 'h-[calc(100vh-80px)] overflow-hidden py-2' : 'py-6'}`}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -7016,77 +6972,77 @@ export default function Dashboard() {
                       return (
                         <div className="flex items-center gap-2">
                           <img src="/purpledot.svg" alt="Voucher Wallet" className="w-2 h-2" />
-                          <span className="font-semibold text-purple-600 dark:text-purple-400" style={{fontSize: '11.2px'}}>
+                          <span className="font-semibold text-purple-600 dark:text-purple-400" style={{ fontSize: '11.2px' }}>
                             {voucherWallet.label || voucherWallet.username || 'Voucher Wallet'}
                           </span>
                         </div>
                       );
                     } else {
                       return (
-                        <button 
+                        <button
                           onClick={() => setShowVoucherWalletSettings(true)}
                           className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                         >
                           <img src="/yellowdot.svg" alt="No Wallet" className="w-2 h-2" />
-                          <span className="font-semibold text-yellow-600 dark:text-yellow-400" style={{fontSize: '11.2px'}}>
+                          <span className="font-semibold text-yellow-600 dark:text-yellow-400" style={{ fontSize: '11.2px' }}>
                             Connect voucher wallet
                           </span>
                         </button>
                       );
                     }
                   }
-                  
+
                   // For POS/Cart view, show regular wallet
                   const hasWallet = activeNWC || activeNpubCashWallet || activeBlinkAccount;
                   const noWallet = !hasWallet;
                   const dotColor = activeNWC ? "/purpledot.svg" : activeNpubCashWallet ? "/tealdot.svg" : hasWallet ? "/bluedot.svg" : "/yellowdot.svg";
-                  const textColorClass = activeNWC ? 'text-purple-600 dark:text-purple-400' : 
-                    activeNpubCashWallet ? 'text-teal-600 dark:text-teal-400' : 
-                    hasWallet ? 'text-blue-600 dark:text-blue-400' :
-                    'text-yellow-600 dark:text-yellow-400';
+                  const textColorClass = activeNWC ? 'text-purple-600 dark:text-purple-400' :
+                    activeNpubCashWallet ? 'text-teal-600 dark:text-teal-400' :
+                      hasWallet ? 'text-blue-600 dark:text-blue-400' :
+                        'text-yellow-600 dark:text-yellow-400';
                   const displayText = activeNWC ? activeNWC.label : activeNpubCashWallet ? (activeNpubCashWallet.label || activeNpubCashWallet.lightningAddress) : (activeBlinkAccount?.label || activeBlinkAccount?.username || 'Connect wallet to start');
-                  
+
                   if (noWallet) {
                     return (
-                      <button 
+                      <button
                         onClick={() => setShowAccountSettings(true)}
                         className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                       >
                         <img src={dotColor} alt="Owner" className="w-2 h-2" />
-                        <span className={`font-semibold ${textColorClass}`} style={{fontSize: '11.2px'}}>
+                        <span className={`font-semibold ${textColorClass}`} style={{ fontSize: '11.2px' }}>
                           {displayText}
                         </span>
                       </button>
                     );
                   }
-                  
+
                   return (
                     <div className="flex items-center gap-2">
                       <img src={dotColor} alt="Owner" className="w-2 h-2" />
-                      <span className={`font-semibold ${textColorClass}`} style={{fontSize: '11.2px'}}>
+                      <span className={`font-semibold ${textColorClass}`} style={{ fontSize: '11.2px' }}>
                         {displayText}
                       </span>
                     </div>
                   );
                 })()}
               </div>
-              
+
               {/* Center: View label */}
               <div className="flex-1 text-center">
                 <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wider">
                   {currentView === 'pos' ? 'Point Of Sale' :
-                   currentView === 'cart' ? 'Item Cart' :
-                   currentView === 'voucher' ? 'Single Voucher' :
-                   currentView === 'multivoucher' ? 'Multi-Voucher' :
-                   currentView === 'vouchermanager' ? 'Voucher Manager' : ''}
+                    currentView === 'cart' ? 'Item Cart' :
+                      currentView === 'voucher' ? 'Single Voucher' :
+                        currentView === 'multivoucher' ? 'Multi-Voucher' :
+                          currentView === 'vouchermanager' ? 'Voucher Manager' : ''}
                 </span>
               </div>
-              
+
               {/* Right side: Capacity Indicator (on Voucher and MultiVoucher screens) */}
               <div className="flex-1 flex justify-end">
                 {(currentView === 'voucher' || currentView === 'multivoucher') && !showingVoucherQR && (
-                  <div 
-                    className="flex items-center" 
+                  <div
+                    className="flex items-center"
                     title="Wallet capacity"
                   >
                     {voucherWalletBalanceLoading ? (
@@ -7098,19 +7054,19 @@ export default function Dashboard() {
                 )}
               </div>
             </div>
-            
+
             {/* Agent Display Row - Always reserve space for consistent numpad positioning */}
             {/* On POS/Cart: Show split profile if active, otherwise empty placeholder */}
             {/* On Voucher/MultiVoucher/VoucherManager: Show Expiry selector on right, or empty placeholder */}
             <div className="flex items-center gap-2 min-h-[18px]">
               {activeSplitProfile && currentView !== 'voucher' && currentView !== 'multivoucher' && currentView !== 'vouchermanager' && (
                 <>
-                  <img 
-                    src="/greendot.svg" 
-                    alt="Split Active" 
+                  <img
+                    src="/greendot.svg"
+                    alt="Split Active"
                     className="w-2 h-2"
                   />
-                  <span className="text-green-600 dark:text-green-400 font-semibold" style={{fontSize: '11.2px'}}>
+                  <span className="text-green-600 dark:text-green-400 font-semibold" style={{ fontSize: '11.2px' }}>
                     {activeSplitProfile.label}
                   </span>
                 </>
@@ -7167,7 +7123,7 @@ export default function Dashboard() {
             />
           </div>
         ) : currentView === 'pos' ? (
-          <POS 
+          <POS
             ref={posRef}
             apiKey={apiKey}
             user={user}
@@ -7244,6 +7200,8 @@ export default function Dashboard() {
             bitcoinFormat={bitcoinFormat}
             currencies={currencies}
             darkMode={darkMode}
+            setCurrency={setCurrency}
+            currency={currency}
             theme={theme}
             cycleTheme={cycleTheme}
             soundEnabled={soundEnabled}
@@ -7281,724 +7239,714 @@ export default function Dashboard() {
             {/* Most Recent Transactions */}
             <div className="mb-8">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Most Recent Transactions</h2>
-          {(() => {
-            // Check if current wallet type doesn't support transaction history
-            const isLnAddressWallet = activeBlinkAccount?.type === 'ln-address';
-            const isNpubCashWallet = activeNpubCashWallet?.type === 'npub-cash' && !activeNWC;
-            const walletDoesNotSupportHistory = isLnAddressWallet || isNpubCashWallet;
+              {(() => {
+                // Check if current wallet type doesn't support transaction history
+                const isLnAddressWallet = activeBlinkAccount?.type === 'ln-address';
+                const isNpubCashWallet = activeNpubCashWallet?.type === 'npub-cash' && !activeNWC;
+                const walletDoesNotSupportHistory = isLnAddressWallet || isNpubCashWallet;
 
-            if (walletDoesNotSupportHistory && transactions.length === 0) {
-              // Show informative message about wallet limitation
-              const walletType = isLnAddressWallet ? 'Blink Lightning Address' : 'npub.cash';
-              return (
-                <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6">
-                  <div className="flex flex-col items-center gap-4 text-center">
-                    <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                      <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-                        Transaction History Not Available
-                      </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 max-w-md">
-                        {walletType} wallets are designed for receiving payments only and do not provide transaction history.
-                        {isLnAddressWallet && " To view transaction history, please use a Blink API Key wallet."}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              );
-            }
-
-            // Show normal transaction list
-            return (
-              <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black overflow-hidden sm:rounded-md">
-                <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {transactions.slice(0, 5).map((tx) => (
-                    <li 
-                      key={tx.id} 
-                      className="px-6 py-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                      onClick={() => setSelectedTransaction(tx)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <div className={`flex-shrink-0 w-2 h-2 rounded-full mr-3 ${
-                            tx.direction === 'RECEIVE' ? 'bg-green-500' : 'bg-red-500'
-                          }`}></div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                              {tx.amount}
-                            </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">{tx.memo}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="text-right">
-                            <p className="text-sm text-gray-900 dark:text-gray-100">{tx.status}</p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">{tx.date}</p>
-                          </div>
-                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                if (walletDoesNotSupportHistory && transactions.length === 0) {
+                  // Show informative message about wallet limitation
+                  const walletType = isLnAddressWallet ? 'Blink Lightning Address' : 'npub.cash';
+                  return (
+                    <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6">
+                      <div className="flex flex-col items-center gap-4 text-center">
+                        <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                          <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                         </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            );
-          })()}
-        </div>
-
-        {/* Past Transactions - Grouped by Month or Filtered */}
-        <div>
-          {/* Title Row - Own line */}
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-            {dateFilterActive ? 'Filtered Transactions' : 'Past Transactions'}
-          </h2>
-          
-          {/* Date Range Tag - Own line when active */}
-          {dateFilterActive && selectedDateRange && (
-            <div className="mb-4">
-              <button
-                onClick={clearDateFilter}
-                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
-              >
-                <span>{selectedDateRange.label}</span>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          )}
-
-          {/* Top Action Buttons - Only visible when there are transactions */}
-          {transactions.length > 0 && (
-          <div className="mb-4">
-            {isSearchingTx ? (
-              /* Expanded Search Input */
-              <div className="max-w-sm h-10 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 rounded-lg flex items-center shadow-md">
-                {/* Cancel button */}
-                <button
-                  onClick={() => { setIsSearchingTx(false); setTxSearchInput(''); }}
-                  className="w-10 h-full flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-                <input
-                  ref={txSearchInputRef}
-                  type="text"
-                  value={txSearchInput}
-                  onChange={(e) => setTxSearchInput(e.target.value)}
-                  onKeyDown={handleTxSearchKeyDown}
-                  placeholder="Search memo, amount, username..."
-                  className="flex-1 h-full bg-transparent text-gray-900 dark:text-white focus:outline-none text-sm"
-                  autoFocus
-                />
-                {/* Submit button */}
-                <button
-                  onClick={handleTxSearchSubmit}
-                  disabled={!txSearchInput.trim()}
-                  className="w-10 h-full flex items-center justify-center text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300 disabled:text-gray-300 dark:disabled:text-gray-600 transition-colors"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </button>
-              </div>
-            ) : (
-              /* Filter, Search, Export buttons row */
-              <div className="flex gap-2 max-w-sm">
-                {/* Filter Button */}
-                <button
-                  onClick={() => setShowDateRangeSelector(true)}
-                  disabled={loadingMore}
-                  className="flex-1 h-10 bg-white dark:bg-black border border-blue-500 dark:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  Filter
-                </button>
-                
-                {/* Search Button */}
-                <button
-                  onClick={txSearchQuery ? handleTxSearchClose : handleTxSearchClick}
-                  className={`flex-1 h-10 bg-white dark:bg-black border rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-                    txSearchQuery 
-                      ? 'border-orange-500 dark:border-orange-400 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-300' 
-                      : 'border-orange-500 dark:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400'
-                  }`}
-                >
-                  {isSearchLoading ? (
-                    /* Loading spinner */
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-orange-500 border-t-transparent"></div>
-                  ) : txSearchQuery ? (
-                    /* Active search - show query with X */
-                    <>
-                      <span className="truncate max-w-[80px]">"{txSearchQuery}"</span>
-                      <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </>
-                  ) : (
-                    /* Default search icon */
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                      Search
-                    </>
-                  )}
-                </button>
-                
-                {/* Export Button */}
-                <button
-                  onClick={() => setShowExportOptions(true)}
-                  className="flex-1 h-10 bg-white dark:bg-black border border-yellow-500 dark:border-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Export
-                </button>
-              </div>
-            )}
-          </div>
-          )}
-
-          {/* Summary Stats - Show when date filter is active */}
-          {dateFilterActive && filteredTransactions.length > 0 && (() => {
-            const stats = getFilteredStats();
-            const currency = filteredTransactions[0]?.settlementCurrency || 'BTC';
-            const formatStatAmount = (amount) => {
-              if (currency === 'BTC') {
-                return `${Math.abs(amount).toLocaleString()} sats`;
-              } else if (currency === 'USD') {
-                return `$${(Math.abs(amount) / 100).toFixed(2)}`;
-              }
-              return `${Math.abs(amount).toLocaleString()} ${currency}`;
-            };
-            
-            return (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-3 text-center">
-                  <div className="text-xs text-green-600 dark:text-green-400 font-medium uppercase">Received</div>
-                  <div className="text-lg font-bold text-green-700 dark:text-green-300">{formatStatAmount(stats.totalReceived)}</div>
-                  <div className="text-xs text-green-500 dark:text-green-500">{stats.receiveCount} transactions</div>
-                </div>
-                <div className="bg-red-50 dark:bg-red-900/30 rounded-lg p-3 text-center">
-                  <div className="text-xs text-red-600 dark:text-red-400 font-medium uppercase">Sent</div>
-                  <div className="text-lg font-bold text-red-700 dark:text-red-300">{formatStatAmount(stats.totalSent)}</div>
-                  <div className="text-xs text-red-500 dark:text-red-500">{stats.sendCount} transactions</div>
-                </div>
-                <div className={`rounded-lg p-3 text-center ${stats.netAmount >= 0 ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-orange-50 dark:bg-orange-900/30'}`}>
-                  <div className={`text-xs font-medium uppercase ${stats.netAmount >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400'}`}>Net</div>
-                  <div className={`text-lg font-bold ${stats.netAmount >= 0 ? 'text-blue-700 dark:text-blue-300' : 'text-orange-700 dark:text-orange-300'}`}>
-                    {stats.netAmount >= 0 ? '+' : '-'}{formatStatAmount(stats.netAmount)}
-                  </div>
-                </div>
-                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-center">
-                  <div className="text-xs text-gray-600 dark:text-gray-400 font-medium uppercase">Total</div>
-                  <div className="text-lg font-bold text-gray-700 dark:text-gray-300">{stats.transactionCount}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-500">transactions</div>
-                </div>
-              </div>
-            );
-          })()}
-          
-          {!pastTransactionsLoaded ? (
-            <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6 text-center text-gray-500 dark:text-gray-400">
-              <div className="flex flex-col items-center gap-3">
-                <svg className="w-12 h-12 text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <p>Click "Show" to select a date range and view transactions</p>
-              </div>
-            </div>
-          ) : dateFilterActive && filteredTransactions.length === 0 ? (
-            <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6 text-center text-gray-500 dark:text-gray-400">
-              <div className="flex flex-col items-center gap-3">
-                <svg className="w-12 h-12 text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p>No transactions found for {selectedDateRange?.label || 'selected date range'}</p>
-                <button
-                  onClick={() => setShowDateRangeSelector(true)}
-                  className="mt-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Try Different Range
-                </button>
-              </div>
-            </div>
-          ) : isSearchLoading ? (
-            /* Search Loading State */
-            <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-8 text-center">
-              <div className="flex flex-col items-center gap-3">
-                <div className="animate-spin rounded-full h-8 w-8 border-3 border-orange-500 border-t-transparent"></div>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">Searching...</p>
-              </div>
-            </div>
-          ) : dateFilterActive && filteredTransactions.length > 0 ? (
-            (() => {
-              const displayTxs = getDisplayTransactions();
-
-              if (displayTxs.length === 0 && txSearchQuery) {
-                // Search returned no results
-                return (
-                  <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6 text-center text-gray-500 dark:text-gray-400">
-                    <div className="flex flex-col items-center gap-3">
-                      <svg className="w-12 h-12 text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                      <p>No transactions match "{txSearchQuery}"</p>
-                      <button
-                        onClick={handleTxSearchClose}
-                        className="mt-2 px-4 py-2 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-                      >
-                        Clear Search
-                      </button>
-                    </div>
-                  </div>
-                );
-              }
-              
-              return (
-                <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg overflow-hidden">
-                  {/* Search Results Count */}
-                  {txSearchQuery && (
-                    <div className="px-4 py-2 bg-orange-50 dark:bg-orange-900/20 border-b border-orange-200 dark:border-orange-800">
-                      <span className="text-sm text-orange-700 dark:text-orange-300">
-                        Found {displayTxs.length} result{displayTxs.length !== 1 ? 's' : ''} for "{txSearchQuery}"
-                      </span>
-                    </div>
-                  )}
-                  
-                  {/* Filtered Transactions List - Mobile */}
-                  <div className="block sm:hidden">
-                    <div className="p-4 space-y-3">
-                      {displayTxs.map((tx) => {
-                        const txLabel = getTransactionLabel(tx.id);
-                        return (
-                          <div 
-                            key={tx.id} 
-                            className={`bg-white dark:bg-blink-dark rounded-lg p-4 border cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-colors ${
-                              txLabel.id !== 'none' 
-                                ? `${txLabel.borderLight} dark:${txLabel.borderDark}` 
-                                : 'border-gray-200 dark:border-gray-700'
-                            }`}
-                            onClick={() => setSelectedTransaction(tx)}
-                          >
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                {/* Label indicator dot */}
-                                {txLabel.id !== 'none' && (
-                                  <div className={`w-2.5 h-2.5 rounded-full ${txLabel.bgLight} dark:${txLabel.bgDark}`} 
-                                    style={{ backgroundColor: txLabel.color === 'blue' ? '#3b82f6' : txLabel.color === 'purple' ? '#a855f7' : txLabel.color === 'orange' ? '#f97316' : txLabel.color === 'cyan' ? '#06b6d4' : txLabel.color === 'green' ? '#22c55e' : txLabel.color === 'red' ? '#ef4444' : txLabel.color === 'pink' ? '#ec4899' : txLabel.color === 'amber' ? '#f59e0b' : '#6b7280' }}
-                                  />
-                                )}
-                                <span className={`text-lg font-medium ${
-                                  tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                                }`}>
-                                  {tx.amount}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
-                                  {tx.status}
-                                </span>
-                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                                </svg>
-                              </div>
-                            </div>
-                            <div className="text-sm text-gray-900 dark:text-gray-100 mb-1">{tx.date}</div>
-                            {tx.memo && tx.memo !== '-' && (
-                              <div className="text-sm text-gray-500 dark:text-gray-400">{tx.memo}</div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Filtered Transactions Table - Desktop */}
-                  <div className="hidden sm:block">
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                        <thead className="bg-gray-50 dark:bg-gray-800">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Memo</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"></th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white dark:bg-blink-dark divide-y divide-gray-200 dark:divide-gray-700">
-                          {displayTxs.map((tx) => (
-                            <tr 
-                              key={tx.id} 
-                              className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
-                              onClick={() => setSelectedTransaction(tx)}
-                            >
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span className={`text-sm font-medium ${
-                                  tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                                }`}>
-                                  {tx.amount}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
-                                  {tx.status}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{tx.date}</td>
-                              <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{tx.memo && tx.memo !== '-' ? tx.memo : '-'}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-right">
-                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                                </svg>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()
-          ) : isSearchLoading ? (
-            /* Search Loading State (for month-grouped view) */
-            <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-8 text-center">
-              <div className="flex flex-col items-center gap-3">
-                <div className="animate-spin rounded-full h-8 w-8 border-3 border-orange-500 border-t-transparent"></div>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">Searching...</p>
-              </div>
-            </div>
-          ) : (() => {
-            const monthGroups = getMonthGroups();
-
-            // Apply search filter to month groups if search is active
-            const filteredMonthGroups = {};
-            Object.entries(monthGroups).forEach(([monthKey, monthData]) => {
-              const filteredTxs = filterTransactionsBySearch(monthData.transactions, txSearchQuery);
-              if (filteredTxs.length > 0) {
-                filteredMonthGroups[monthKey] = {
-                  ...monthData,
-                  transactions: filteredTxs
-                };
-              }
-            });
-            
-            const monthKeys = Object.keys(filteredMonthGroups);
-            
-            // Show search no results message
-            if (monthKeys.length === 0 && txSearchQuery) {
-              return (
-                <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6 text-center text-gray-500 dark:text-gray-400">
-                  <div className="flex flex-col items-center gap-3">
-                    <svg className="w-12 h-12 text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    <p>No transactions match "{txSearchQuery}"</p>
-                    <button
-                      onClick={handleTxSearchClose}
-                      className="mt-2 px-4 py-2 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-                    >
-                      Clear Search
-                    </button>
-                  </div>
-                </div>
-              );
-            }
-            
-            if (monthKeys.length === 0) {
-              // Check if current wallet type doesn't support transaction history
-              const isLnAddressWallet = activeBlinkAccount?.type === 'ln-address';
-              const isNpubCashWallet = activeNpubCashWallet?.type === 'npub-cash' && !activeNWC;
-              const walletDoesNotSupportHistory = isLnAddressWallet || isNpubCashWallet;
-
-              if (walletDoesNotSupportHistory) {
-                // Show informative message about wallet limitation
-                const walletType = isLnAddressWallet ? 'Blink Lightning Address' : 'npub.cash';
-                return (
-                  <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6">
-                    <div className="flex flex-col items-center gap-4 text-center">
-                      <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                        <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-                          Transaction History Not Available
-                        </h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 max-w-md">
-                          {walletType} wallets are designed for receiving payments only and do not provide transaction history.
-                          {isLnAddressWallet && " To view transaction history, please use a Blink API Key wallet."}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-
-              return (
-                <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6 text-center text-gray-500 dark:text-gray-400">
-                  No past transactions available
-                </div>
-              );
-            }
-            
-            // Calculate total search results count
-            const totalSearchResults = txSearchQuery 
-              ? Object.values(filteredMonthGroups).reduce((sum, m) => sum + m.transactions.length, 0)
-              : 0;
-            
-            return (
-              <div className="space-y-4">
-                {/* Search Results Count */}
-                {txSearchQuery && (
-                  <div className="px-4 py-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
-                    <span className="text-sm text-orange-700 dark:text-orange-300">
-                      Found {totalSearchResults} result{totalSearchResults !== 1 ? 's' : ''} for "{txSearchQuery}"
-                    </span>
-                  </div>
-                )}
-                
-                {monthKeys.map(monthKey => {
-                  const monthData = filteredMonthGroups[monthKey];
-                  const isExpanded = expandedMonths.has(monthKey);
-                  const transactionCount = monthData.transactions.length;
-                  
-                  return (
-                    <div key={monthKey} className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg overflow-hidden">
-                      {/* Month Header - Clickable */}
-                      <button
-                        onClick={() => toggleMonth(monthKey)}
-                        className="w-full px-6 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:bg-white dark:focus:bg-gray-700 transition-colors month-group-header"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-                              {monthData.label}
-                            </h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {transactionCount} transaction{transactionCount !== 1 ? 's' : ''}
-                            </p>
-                          </div>
-                          <div className="flex items-center">
-                            <svg
-                              className={`w-5 h-5 text-gray-400 transform transition-transform ${
-                                isExpanded ? 'rotate-180' : ''
-                              }`}
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                            </svg>
-                          </div>
+                        <div>
+                          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                            Transaction History Not Available
+                          </h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 max-w-md">
+                            {walletType} wallets are designed for receiving payments only and do not provide transaction history.
+                            {isLnAddressWallet && " To view transaction history, please use a Blink API Key wallet."}
+                          </p>
                         </div>
-                      </button>
-                      
-                      {/* Month Transactions - Expandable */}
-                      {isExpanded && (
-                        <div className="border-t border-gray-200 dark:border-gray-700 month-group-content">
-                          {/* Mobile-friendly card layout for small screens */}
-                          <div className="block sm:hidden">
-                            <div className="p-4 space-y-3">
-                              {monthData.transactions.map((tx) => {
-                                const txLabel = getTransactionLabel(tx.id);
-                                return (
-                                  <div 
-                                    key={tx.id} 
-                                    className={`bg-white dark:bg-blink-dark rounded-lg p-4 border transaction-card-mobile cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-colors ${
-                                      txLabel.id !== 'none' 
-                                        ? `${txLabel.borderLight} dark:${txLabel.borderDark}` 
-                                        : 'border-gray-200 dark:border-gray-700'
-                                    }`}
-                                    onClick={() => setSelectedTransaction(tx)}
-                                  >
-                                    <div className="flex items-center justify-between mb-2">
-                                      <div className="flex items-center gap-2">
-                                        {/* Label indicator dot */}
-                                        {txLabel.id !== 'none' && (
-                                          <div className={`w-2.5 h-2.5 rounded-full`} 
-                                            style={{ backgroundColor: txLabel.color === 'blue' ? '#3b82f6' : txLabel.color === 'purple' ? '#a855f7' : txLabel.color === 'orange' ? '#f97316' : txLabel.color === 'cyan' ? '#06b6d4' : txLabel.color === 'green' ? '#22c55e' : txLabel.color === 'red' ? '#ef4444' : txLabel.color === 'pink' ? '#ec4899' : txLabel.color === 'amber' ? '#f59e0b' : '#6b7280' }}
-                                          />
-                                        )}
-                                        <span className={`text-lg font-medium ${
-                                          tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                                        }`}>
-                                          {tx.amount}
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
-                                          {tx.status}
-                                        </span>
-                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                                        </svg>
-                                      </div>
-                                    </div>
-                                    <div className="text-sm text-gray-900 dark:text-gray-100 mb-1">{tx.date}</div>
-                                    {tx.memo && tx.memo !== '-' && (
-                                      <div className="text-sm text-gray-500 dark:text-gray-400">{tx.memo}</div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          {/* Desktop table layout for larger screens */}
-                          <div className="hidden sm:block">
-                            <div className="overflow-x-auto">
-                              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                <thead className="bg-white dark:bg-blink-dark">
-                                  <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                      Amount
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                      Status
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                      Date
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                      Memo
-                                    </th>
-                                    <th className="px-6 py-3"></th>
-                                  </tr>
-                                </thead>
-                                <tbody className="bg-white dark:bg-blink-dark divide-y divide-gray-200 dark:divide-gray-700">
-                                  {monthData.transactions.map((tx) => (
-                                    <tr 
-                                      key={tx.id} 
-                                      className="hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-blink-dark cursor-pointer"
-                                      onClick={() => setSelectedTransaction(tx)}
-                                    >
-                                      <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className={`text-sm font-medium ${
-                                          tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                                        }`}>
-                                          {tx.amount}
-                                        </span>
-                                      </td>
-                                      <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
-                                          {tx.status}
-                                        </span>
-                                      </td>
-                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                                        {tx.date}
-                                      </td>
-                                      <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                                        {tx.memo && tx.memo !== '-' ? tx.memo : '-'}
-                                      </td>
-                                      <td className="px-6 py-4 whitespace-nowrap">
-                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                                        </svg>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                      </div>
                     </div>
                   );
-                })}
-              </div>
-            );
-          })()}
-          
-          {/* Bottom Action Buttons - Show Filter/Export only when > 5 transactions loaded */}
-          {(() => {
-            const displayTxCount = dateFilterActive ? filteredTransactions.length : transactions.length;
-            const showBottomFilterExport = displayTxCount > 5;
-            const showMoreButton = pastTransactionsLoaded && hasMoreTransactions;
-            
-            // Don't show section at all if nothing to show
-            if (!showBottomFilterExport && !showMoreButton) return null;
-            
-            return (
-              <div className="mt-6 px-4">
-                <div className={`grid gap-3 max-w-sm mx-auto ${
-                  showBottomFilterExport && showMoreButton ? 'grid-cols-3' : 
-                  showMoreButton ? 'grid-cols-1' : 'grid-cols-2'
-                }`}>
-                  {/* Filter Button - Only when > 5 transactions */}
-                  {showBottomFilterExport && (
-                    <button
-                      onClick={() => setShowDateRangeSelector(true)}
-                      disabled={loadingMore}
-                      className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:border-gray-400 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-black rounded-lg text-lg font-normal transition-colors shadow-md"
-                      style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-                    >
-                      <div className="flex items-center justify-center gap-2">
+                }
+
+                // Show normal transaction list
+                return (
+                  <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black overflow-hidden sm:rounded-md">
+                    <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {transactions.slice(0, 5).map((tx) => (
+                        <li
+                          key={tx.id}
+                          className="px-6 py-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                          onClick={() => setSelectedTransaction(tx)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              <div className={`flex-shrink-0 w-2 h-2 rounded-full mr-3 ${tx.direction === 'RECEIVE' ? 'bg-green-500' : 'bg-red-500'
+                                }`}></div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                  {tx.amount}
+                                </p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">{tx.memo}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="text-right">
+                                <p className="text-sm text-gray-900 dark:text-gray-100">{tx.status}</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">{tx.date}</p>
+                              </div>
+                              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                              </svg>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Past Transactions - Grouped by Month or Filtered */}
+            <div>
+              {/* Title Row - Own line */}
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+                {dateFilterActive ? 'Filtered Transactions' : 'Past Transactions'}
+              </h2>
+
+              {/* Date Range Tag - Own line when active */}
+              {dateFilterActive && selectedDateRange && (
+                <div className="mb-4">
+                  <button
+                    onClick={clearDateFilter}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                  >
+                    <span>{selectedDateRange.label}</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+
+              {/* Top Action Buttons - Only visible when there are transactions */}
+              {transactions.length > 0 && (
+                <div className="mb-4">
+                  {isSearchingTx ? (
+                    /* Expanded Search Input */
+                    <div className="max-w-sm h-10 bg-white dark:bg-black border-2 border-orange-500 dark:border-orange-500 rounded-lg flex items-center shadow-md">
+                      {/* Cancel button */}
+                      <button
+                        onClick={() => { setIsSearchingTx(false); setTxSearchInput(''); }}
+                        className="w-10 h-full flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                      <input
+                        ref={txSearchInputRef}
+                        type="text"
+                        value={txSearchInput}
+                        onChange={(e) => setTxSearchInput(e.target.value)}
+                        onKeyDown={handleTxSearchKeyDown}
+                        placeholder="Search memo, amount, username..."
+                        className="flex-1 h-full bg-transparent text-gray-900 dark:text-white focus:outline-none text-sm"
+                        autoFocus
+                      />
+                      {/* Submit button */}
+                      <button
+                        onClick={handleTxSearchSubmit}
+                        disabled={!txSearchInput.trim()}
+                        className="w-10 h-full flex items-center justify-center text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300 disabled:text-gray-300 dark:disabled:text-gray-600 transition-colors"
+                      >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    /* Filter, Search, Export buttons row */
+                    <div className="flex gap-2 max-w-sm">
+                      {/* Filter Button */}
+                      <button
+                        onClick={() => setShowDateRangeSelector(true)}
+                        disabled={loadingMore}
+                        className="flex-1 h-10 bg-white dark:bg-black border border-blue-500 dark:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                         Filter
-                      </div>
-                    </button>
-                  )}
+                      </button>
 
-                  {/* Show More Button - Only when more data is available */}
-                  {showMoreButton && (
-                    <button
-                      onClick={loadMoreMonths}
-                      disabled={loadingMore}
-                      className="h-16 bg-white dark:bg-black border-2 border-gray-400 dark:border-gray-500 hover:border-gray-500 dark:hover:border-gray-400 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 disabled:border-gray-300 disabled:text-gray-300 disabled:cursor-not-allowed rounded-lg text-lg font-normal transition-colors shadow-md"
-                      style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-                    >
-                      {loadingMore ? (
-                        <div className="flex items-center justify-center">
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent mr-2"></div>
-                          Loading...
-                        </div>
-                      ) : (
-                        'More'
-                      )}
-                    </button>
-                  )}
-                  
-                  {/* Export Button - Only when > 5 transactions */}
-                  {showBottomFilterExport && (
-                    <button
-                      onClick={() => setShowExportOptions(true)}
-                      className="h-16 bg-white dark:bg-black border-2 border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 rounded-lg text-lg font-normal transition-colors shadow-md"
-                      style={{fontFamily: "'Source Sans Pro', sans-serif"}}
-                    >
-                      Export
-                    </button>
+                      {/* Search Button */}
+                      <button
+                        onClick={txSearchQuery ? handleTxSearchClose : handleTxSearchClick}
+                        className={`flex-1 h-10 bg-white dark:bg-black border rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${txSearchQuery
+                          ? 'border-orange-500 dark:border-orange-400 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-300'
+                          : 'border-orange-500 dark:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400'
+                          }`}
+                      >
+                        {isSearchLoading ? (
+                          /* Loading spinner */
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-orange-500 border-t-transparent"></div>
+                        ) : txSearchQuery ? (
+                          /* Active search - show query with X */
+                          <>
+                            <span className="truncate max-w-[80px]">"{txSearchQuery}"</span>
+                            <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </>
+                        ) : (
+                          /* Default search icon */
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            Search
+                          </>
+                        )}
+                      </button>
+
+                      {/* Export Button */}
+                      <button
+                        onClick={() => setShowExportOptions(true)}
+                        className="flex-1 h-10 bg-white dark:bg-black border border-yellow-500 dark:border-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Export
+                      </button>
+                    </div>
                   )}
                 </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-2">
-                  {dateFilterActive && selectedDateRange
-                    ? `Showing: ${selectedDateRange.label}`
-                    : hasMoreTransactions 
-                      ? `${transactions.length} transactions loaded · More available`
-                      : `All ${transactions.length} transactions loaded`}
-                </p>
-              </div>
-            );
-          })()}
-        </div>
+              )}
+
+              {/* Summary Stats - Show when date filter is active */}
+              {dateFilterActive && filteredTransactions.length > 0 && (() => {
+                const stats = getFilteredStats();
+                const currency = filteredTransactions[0]?.settlementCurrency || 'BTC';
+                const formatStatAmount = (amount) => {
+                  if (currency === 'BTC') {
+                    return `${Math.abs(amount).toLocaleString()} sats`;
+                  } else if (currency === 'USD') {
+                    return `$${(Math.abs(amount) / 100).toFixed(2)}`;
+                  }
+                  return `${Math.abs(amount).toLocaleString()} ${currency}`;
+                };
+
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                    <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-3 text-center">
+                      <div className="text-xs text-green-600 dark:text-green-400 font-medium uppercase">Received</div>
+                      <div className="text-lg font-bold text-green-700 dark:text-green-300">{formatStatAmount(stats.totalReceived)}</div>
+                      <div className="text-xs text-green-500 dark:text-green-500">{stats.receiveCount} transactions</div>
+                    </div>
+                    <div className="bg-red-50 dark:bg-red-900/30 rounded-lg p-3 text-center">
+                      <div className="text-xs text-red-600 dark:text-red-400 font-medium uppercase">Sent</div>
+                      <div className="text-lg font-bold text-red-700 dark:text-red-300">{formatStatAmount(stats.totalSent)}</div>
+                      <div className="text-xs text-red-500 dark:text-red-500">{stats.sendCount} transactions</div>
+                    </div>
+                    <div className={`rounded-lg p-3 text-center ${stats.netAmount >= 0 ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-orange-50 dark:bg-orange-900/30'}`}>
+                      <div className={`text-xs font-medium uppercase ${stats.netAmount >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400'}`}>Net</div>
+                      <div className={`text-lg font-bold ${stats.netAmount >= 0 ? 'text-blue-700 dark:text-blue-300' : 'text-orange-700 dark:text-orange-300'}`}>
+                        {stats.netAmount >= 0 ? '+' : '-'}{formatStatAmount(stats.netAmount)}
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-center">
+                      <div className="text-xs text-gray-600 dark:text-gray-400 font-medium uppercase">Total</div>
+                      <div className="text-lg font-bold text-gray-700 dark:text-gray-300">{stats.transactionCount}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-500">transactions</div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {!pastTransactionsLoaded ? (
+                <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6 text-center text-gray-500 dark:text-gray-400">
+                  <div className="flex flex-col items-center gap-3">
+                    <svg className="w-12 h-12 text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <p>Click "Show" to select a date range and view transactions</p>
+                  </div>
+                </div>
+              ) : dateFilterActive && filteredTransactions.length === 0 ? (
+                <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6 text-center text-gray-500 dark:text-gray-400">
+                  <div className="flex flex-col items-center gap-3">
+                    <svg className="w-12 h-12 text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p>No transactions found for {selectedDateRange?.label || 'selected date range'}</p>
+                    <button
+                      onClick={() => setShowDateRangeSelector(true)}
+                      className="mt-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Try Different Range
+                    </button>
+                  </div>
+                </div>
+              ) : isSearchLoading ? (
+                /* Search Loading State */
+                <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-8 text-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="animate-spin rounded-full h-8 w-8 border-3 border-orange-500 border-t-transparent"></div>
+                    <p className="text-gray-500 dark:text-gray-400 text-sm">Searching...</p>
+                  </div>
+                </div>
+              ) : dateFilterActive && filteredTransactions.length > 0 ? (
+                (() => {
+                  const displayTxs = getDisplayTransactions();
+
+                  if (displayTxs.length === 0 && txSearchQuery) {
+                    // Search returned no results
+                    return (
+                      <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6 text-center text-gray-500 dark:text-gray-400">
+                        <div className="flex flex-col items-center gap-3">
+                          <svg className="w-12 h-12 text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                          </svg>
+                          <p>No transactions match "{txSearchQuery}"</p>
+                          <button
+                            onClick={handleTxSearchClose}
+                            className="mt-2 px-4 py-2 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                          >
+                            Clear Search
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg overflow-hidden">
+                      {/* Search Results Count */}
+                      {txSearchQuery && (
+                        <div className="px-4 py-2 bg-orange-50 dark:bg-orange-900/20 border-b border-orange-200 dark:border-orange-800">
+                          <span className="text-sm text-orange-700 dark:text-orange-300">
+                            Found {displayTxs.length} result{displayTxs.length !== 1 ? 's' : ''} for "{txSearchQuery}"
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Filtered Transactions List - Mobile */}
+                      <div className="block sm:hidden">
+                        <div className="p-4 space-y-3">
+                          {displayTxs.map((tx) => {
+                            const txLabel = getTransactionLabel(tx.id);
+                            return (
+                              <div
+                                key={tx.id}
+                                className={`bg-white dark:bg-blink-dark rounded-lg p-4 border cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-colors ${txLabel.id !== 'none'
+                                  ? `${txLabel.borderLight} dark:${txLabel.borderDark}`
+                                  : 'border-gray-200 dark:border-gray-700'
+                                  }`}
+                                onClick={() => setSelectedTransaction(tx)}
+                              >
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    {/* Label indicator dot */}
+                                    {txLabel.id !== 'none' && (
+                                      <div className={`w-2.5 h-2.5 rounded-full ${txLabel.bgLight} dark:${txLabel.bgDark}`}
+                                        style={{ backgroundColor: txLabel.color === 'blue' ? '#3b82f6' : txLabel.color === 'purple' ? '#a855f7' : txLabel.color === 'orange' ? '#f97316' : txLabel.color === 'cyan' ? '#06b6d4' : txLabel.color === 'green' ? '#22c55e' : txLabel.color === 'red' ? '#ef4444' : txLabel.color === 'pink' ? '#ec4899' : txLabel.color === 'amber' ? '#f59e0b' : '#6b7280' }}
+                                      />
+                                    )}
+                                    <span className={`text-lg font-medium ${tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                                      }`}>
+                                      {tx.amount}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                                      {tx.status}
+                                    </span>
+                                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                                    </svg>
+                                  </div>
+                                </div>
+                                <div className="text-sm text-gray-900 dark:text-gray-100 mb-1">{tx.date}</div>
+                                {tx.memo && tx.memo !== '-' && (
+                                  <div className="text-sm text-gray-500 dark:text-gray-400">{tx.memo}</div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Filtered Transactions Table - Desktop */}
+                      <div className="hidden sm:block">
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead className="bg-gray-50 dark:bg-gray-800">
+                              <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Memo</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"></th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white dark:bg-blink-dark divide-y divide-gray-200 dark:divide-gray-700">
+                              {displayTxs.map((tx) => (
+                                <tr
+                                  key={tx.id}
+                                  className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                                  onClick={() => setSelectedTransaction(tx)}
+                                >
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className={`text-sm font-medium ${tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                                      }`}>
+                                      {tx.amount}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                                      {tx.status}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{tx.date}</td>
+                                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{tx.memo && tx.memo !== '-' ? tx.memo : '-'}</td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                                    </svg>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()
+              ) : isSearchLoading ? (
+                /* Search Loading State (for month-grouped view) */
+                <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-8 text-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="animate-spin rounded-full h-8 w-8 border-3 border-orange-500 border-t-transparent"></div>
+                    <p className="text-gray-500 dark:text-gray-400 text-sm">Searching...</p>
+                  </div>
+                </div>
+              ) : (() => {
+                const monthGroups = getMonthGroups();
+
+                // Apply search filter to month groups if search is active
+                const filteredMonthGroups = {};
+                Object.entries(monthGroups).forEach(([monthKey, monthData]) => {
+                  const filteredTxs = filterTransactionsBySearch(monthData.transactions, txSearchQuery);
+                  if (filteredTxs.length > 0) {
+                    filteredMonthGroups[monthKey] = {
+                      ...monthData,
+                      transactions: filteredTxs
+                    };
+                  }
+                });
+
+                const monthKeys = Object.keys(filteredMonthGroups);
+
+                // Show search no results message
+                if (monthKeys.length === 0 && txSearchQuery) {
+                  return (
+                    <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6 text-center text-gray-500 dark:text-gray-400">
+                      <div className="flex flex-col items-center gap-3">
+                        <svg className="w-12 h-12 text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <p>No transactions match "{txSearchQuery}"</p>
+                        <button
+                          onClick={handleTxSearchClose}
+                          className="mt-2 px-4 py-2 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                        >
+                          Clear Search
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (monthKeys.length === 0) {
+                  // Check if current wallet type doesn't support transaction history
+                  const isLnAddressWallet = activeBlinkAccount?.type === 'ln-address';
+                  const isNpubCashWallet = activeNpubCashWallet?.type === 'npub-cash' && !activeNWC;
+                  const walletDoesNotSupportHistory = isLnAddressWallet || isNpubCashWallet;
+
+                  if (walletDoesNotSupportHistory) {
+                    // Show informative message about wallet limitation
+                    const walletType = isLnAddressWallet ? 'Blink Lightning Address' : 'npub.cash';
+                    return (
+                      <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6">
+                        <div className="flex flex-col items-center gap-4 text-center">
+                          <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                            <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                              Transaction History Not Available
+                            </h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 max-w-md">
+                              {walletType} wallets are designed for receiving payments only and do not provide transaction history.
+                              {isLnAddressWallet && " To view transaction history, please use a Blink API Key wallet."}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg p-6 text-center text-gray-500 dark:text-gray-400">
+                      No past transactions available
+                    </div>
+                  );
+                }
+
+                // Calculate total search results count
+                const totalSearchResults = txSearchQuery
+                  ? Object.values(filteredMonthGroups).reduce((sum, m) => sum + m.transactions.length, 0)
+                  : 0;
+
+                return (
+                  <div className="space-y-4">
+                    {/* Search Results Count */}
+                    {txSearchQuery && (
+                      <div className="px-4 py-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                        <span className="text-sm text-orange-700 dark:text-orange-300">
+                          Found {totalSearchResults} result{totalSearchResults !== 1 ? 's' : ''} for "{txSearchQuery}"
+                        </span>
+                      </div>
+                    )}
+
+                    {monthKeys.map(monthKey => {
+                      const monthData = filteredMonthGroups[monthKey];
+                      const isExpanded = expandedMonths.has(monthKey);
+                      const transactionCount = monthData.transactions.length;
+
+                      return (
+                        <div key={monthKey} className="bg-white dark:bg-blink-dark shadow dark:shadow-black rounded-lg overflow-hidden">
+                          {/* Month Header - Clickable */}
+                          <button
+                            onClick={() => toggleMonth(monthKey)}
+                            className="w-full px-6 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:bg-white dark:focus:bg-gray-700 transition-colors month-group-header"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+                                  {monthData.label}
+                                </h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                  {transactionCount} transaction{transactionCount !== 1 ? 's' : ''}
+                                </p>
+                              </div>
+                              <div className="flex items-center">
+                                <svg
+                                  className={`w-5 h-5 text-gray-400 transform transition-transform ${isExpanded ? 'rotate-180' : ''
+                                    }`}
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </div>
+                            </div>
+                          </button>
+
+                          {/* Month Transactions - Expandable */}
+                          {isExpanded && (
+                            <div className="border-t border-gray-200 dark:border-gray-700 month-group-content">
+                              {/* Mobile-friendly card layout for small screens */}
+                              <div className="block sm:hidden">
+                                <div className="p-4 space-y-3">
+                                  {monthData.transactions.map((tx) => {
+                                    const txLabel = getTransactionLabel(tx.id);
+                                    return (
+                                      <div
+                                        key={tx.id}
+                                        className={`bg-white dark:bg-blink-dark rounded-lg p-4 border transaction-card-mobile cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-colors ${txLabel.id !== 'none'
+                                          ? `${txLabel.borderLight} dark:${txLabel.borderDark}`
+                                          : 'border-gray-200 dark:border-gray-700'
+                                          }`}
+                                        onClick={() => setSelectedTransaction(tx)}
+                                      >
+                                        <div className="flex items-center justify-between mb-2">
+                                          <div className="flex items-center gap-2">
+                                            {/* Label indicator dot */}
+                                            {txLabel.id !== 'none' && (
+                                              <div className={`w-2.5 h-2.5 rounded-full`}
+                                                style={{ backgroundColor: txLabel.color === 'blue' ? '#3b82f6' : txLabel.color === 'purple' ? '#a855f7' : txLabel.color === 'orange' ? '#f97316' : txLabel.color === 'cyan' ? '#06b6d4' : txLabel.color === 'green' ? '#22c55e' : txLabel.color === 'red' ? '#ef4444' : txLabel.color === 'pink' ? '#ec4899' : txLabel.color === 'amber' ? '#f59e0b' : '#6b7280' }}
+                                              />
+                                            )}
+                                            <span className={`text-lg font-medium ${tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                                              }`}>
+                                              {tx.amount}
+                                            </span>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                                              {tx.status}
+                                            </span>
+                                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                                            </svg>
+                                          </div>
+                                        </div>
+                                        <div className="text-sm text-gray-900 dark:text-gray-100 mb-1">{tx.date}</div>
+                                        {tx.memo && tx.memo !== '-' && (
+                                          <div className="text-sm text-gray-500 dark:text-gray-400">{tx.memo}</div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* Desktop table layout for larger screens */}
+                              <div className="hidden sm:block">
+                                <div className="overflow-x-auto">
+                                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                    <thead className="bg-white dark:bg-blink-dark">
+                                      <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                          Amount
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                          Status
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                          Date
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                          Memo
+                                        </th>
+                                        <th className="px-6 py-3"></th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="bg-white dark:bg-blink-dark divide-y divide-gray-200 dark:divide-gray-700">
+                                      {monthData.transactions.map((tx) => (
+                                        <tr
+                                          key={tx.id}
+                                          className="hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-blink-dark cursor-pointer"
+                                          onClick={() => setSelectedTransaction(tx)}
+                                        >
+                                          <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className={`text-sm font-medium ${tx.direction === 'RECEIVE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                                              }`}>
+                                              {tx.amount}
+                                            </span>
+                                          </td>
+                                          <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                                              {tx.status}
+                                            </span>
+                                          </td>
+                                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                                            {tx.date}
+                                          </td>
+                                          <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                                            {tx.memo && tx.memo !== '-' ? tx.memo : '-'}
+                                          </td>
+                                          <td className="px-6 py-4 whitespace-nowrap">
+                                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                                            </svg>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
+              {/* Bottom Action Buttons - Show Filter/Export only when > 5 transactions loaded */}
+              {(() => {
+                const displayTxCount = dateFilterActive ? filteredTransactions.length : transactions.length;
+                const showBottomFilterExport = displayTxCount > 5;
+                const showMoreButton = pastTransactionsLoaded && hasMoreTransactions;
+
+                // Don't show section at all if nothing to show
+                if (!showBottomFilterExport && !showMoreButton) return null;
+
+                return (
+                  <div className="mt-6 px-4">
+                    <div className={`grid gap-3 max-w-sm mx-auto ${showBottomFilterExport && showMoreButton ? 'grid-cols-3' :
+                      showMoreButton ? 'grid-cols-1' : 'grid-cols-2'
+                      }`}>
+                      {/* Filter Button - Only when > 5 transactions */}
+                      {showBottomFilterExport && (
+                        <button
+                          onClick={() => setShowDateRangeSelector(true)}
+                          disabled={loadingMore}
+                          className="h-16 bg-white dark:bg-black border-2 border-blue-600 dark:border-blue-500 hover:border-blue-700 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:border-gray-400 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-black rounded-lg text-lg font-normal transition-colors shadow-md"
+                          style={{ fontFamily: "'Source Sans Pro', sans-serif" }}
+                        >
+                          <div className="flex items-center justify-center gap-2">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            Filter
+                          </div>
+                        </button>
+                      )}
+
+                      {/* Show More Button - Only when more data is available */}
+                      {showMoreButton && (
+                        <button
+                          onClick={loadMoreMonths}
+                          disabled={loadingMore}
+                          className="h-16 bg-white dark:bg-black border-2 border-gray-400 dark:border-gray-500 hover:border-gray-500 dark:hover:border-gray-400 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 disabled:border-gray-300 disabled:text-gray-300 disabled:cursor-not-allowed rounded-lg text-lg font-normal transition-colors shadow-md"
+                          style={{ fontFamily: "'Source Sans Pro', sans-serif" }}
+                        >
+                          {loadingMore ? (
+                            <div className="flex items-center justify-center">
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent mr-2"></div>
+                              Loading...
+                            </div>
+                          ) : (
+                            'More'
+                          )}
+                        </button>
+                      )}
+
+                      {/* Export Button - Only when > 5 transactions */}
+                      {showBottomFilterExport && (
+                        <button
+                          onClick={() => setShowExportOptions(true)}
+                          className="h-16 bg-white dark:bg-black border-2 border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                          style={{ fontFamily: "'Source Sans Pro', sans-serif" }}
+                        >
+                          Export
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-2">
+                      {dateFilterActive && selectedDateRange
+                        ? `Showing: ${selectedDateRange.label}`
+                        : hasMoreTransactions
+                          ? `${transactions.length} transactions loaded · More available`
+                          : `All ${transactions.length} transactions loaded`}
+                    </p>
+                  </div>
+                );
+              })()}
+            </div>
           </>
         )}
       </main>

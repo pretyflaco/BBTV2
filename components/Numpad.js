@@ -19,6 +19,8 @@ import { THEMES } from '../lib/hooks/useTheme';
  */
 export default function Numpad({
   theme = THEMES.DARK,
+  onToggle = undefined,
+  disabledToggled = undefined,
   onDigitPress,
   onClear,
   onBackspace,
@@ -177,7 +179,14 @@ export default function Numpad({
           >
             +
           </button>
-        ) : (
+        ) : onToggle? <button
+          onClick={onToggle}
+          disabled={disabledToggled}
+          className={getButtonClasses('plus')}
+          style={fontStyle}
+        >
+          {"Toggle"}
+        </button>:(
           <div></div> // Empty cell when showPlus is false
         )}
 

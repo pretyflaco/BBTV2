@@ -9,7 +9,7 @@ import { formatNumber } from '../lib/number-format';
 import { DEFAULT_EXPIRY } from './ExpirySelector';
 import Numpad from './Numpad';
 
-const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, darkMode, theme = THEMES.DARK, cycleTheme, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3] }, ref) => {
+const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurrency,setCurrency,currency="SATS", numberFormat = 'auto', bitcoinFormat = 'sats', currencies, darkMode, theme = THEMES.DARK, cycleTheme, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3] }, ref) => {
   const [amount, setAmount] = useState('');
   const [voucher, setVoucher] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -29,6 +29,7 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
   const [commissionOptionIndex, setCommissionOptionIndex] = useState(0); // Keyboard navigation index
   // Expiry selection state
   const [selectedExpiry, setSelectedExpiry] = useState(DEFAULT_EXPIRY);
+
   // Thermal print state
   const [thermalPrintMethod, setThermalPrintMethod] = useState('auto');
   const [showThermalOptions, setShowThermalOptions] = useState(false);
@@ -1287,7 +1288,7 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
               {voucher.displayCurrency && !isBitcoinCurrency(voucher.displayCurrency) ? (
                 <div>
                   <div>{formatDisplayAmount(voucher.displayAmount, voucher.displayCurrency)}</div>
-                  <div className="text-lg opacity-80 mt-1">({voucher.amount} sats)</div>
+                  <div className="text-lg opacity-80 mt-1">({voucher.amount} {currency})</div>
                 </div>
               ) : (
                 <div>{formatDisplayAmount(voucher.amount, voucher.displayCurrency || 'BTC')}</div>
@@ -1366,7 +1367,7 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
                   {voucher.displayCurrency && !isBitcoinCurrency(voucher.displayCurrency) ? (
                     <div>
                       <div>{formatDisplayAmount(voucher.displayAmount, voucher.displayCurrency)}</div>
-                      <div className="text-lg text-gray-600 dark:text-gray-400 mt-1">({voucher.amount} sats)</div>
+                      <div className="text-lg text-gray-600 dark:text-gray-400 mt-1">({voucher.amount} {currency})</div>
                     </div>
                   ) : (
                     <div>{formatDisplayAmount(voucher.amount, voucher.displayCurrency || 'BTC')}</div>
@@ -1658,19 +1659,22 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
               getDynamicFontSize(formatDisplayAmount(amount || 0, displayCurrency))
             }`} style={{fontFamily: "'Source Sans Pro', sans-serif", wordBreak: 'keep-all', overflowWrap: 'normal'}}>
               <div className="max-w-full">
-                {amount === '0' || amount === '0.' 
+                 {/* {amount === '0' || amount === '0.' 
                   ? (isBitcoinCurrency(displayCurrency) || getCurrencyById(displayCurrency, currencies)?.fractionDigits === 0 
                       ? '0' 
                       : getCurrencyById(displayCurrency, currencies)?.symbol + '0.')
                   : renderStyledAmount(amount || 0, displayCurrency)
-                }
+                }  */}
+                
+                {amount ||"0"} {" "}
+                {currency?.toLowerCase()||"sats"}
               </div>
             </div>
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-400">
             <div className="mb-1 min-h-[20px] max-w-full overflow-x-auto px-2">
               {!isBitcoinCurrency(displayCurrency) ? (
-                `(${getSatsEquivalent(parseFloat(amount) || 0)} sats)`
+                `(${getSatsEquivalent(parseFloat(amount) || 0)} ${currency})`
               ) : null}
             </div>
           </div>
@@ -1692,6 +1696,9 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
         {/* Spacer for consistent layout */}
         <div className="h-16 mb-2"></div>
         <Numpad
+        onToggle={()=>{
+          setCurrency(currency=="SATS" ? "USD":"SATS");
+        }}
           theme={theme}
           onDigitPress={handleDigitPress}
           onClear={handleClear}

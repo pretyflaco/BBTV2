@@ -11,10 +11,12 @@ import { useState, useEffect, useRef } from 'react';
 import { useNostrAuth } from '../../lib/hooks/useNostrAuth';
 import { useTheme } from '../../lib/hooks/useTheme';
 import NostrAuthService from '../../lib/nostr/NostrAuthService';
+import NostrConnectService from '../../lib/nostr/NostrConnectService';
+import NostrConnectModal from './NostrConnectModal';
 
 // Build version - update this when deploying changes
 // This helps verify the correct build is running in the browser
-const BUILD_VERSION = 'v24-manual-step2';
+const BUILD_VERSION = 'v26-nip46';
 const BUILD_DATE = '2025-02-01';
 
 export default function NostrLoginForm() {
@@ -27,6 +29,7 @@ export default function NostrLoginForm() {
     availableMethods,
     signInWithExtension,
     signInWithExternalSigner,
+    signInWithNostrConnect,
     checkPendingSignerFlow,
     createAccountWithPassword,
     signInWithPassword
@@ -39,6 +42,12 @@ export default function NostrLoginForm() {
   // v24: Manual Step 2 state - when Step 1 (pubkey) completes, show manual button for Step 2
   const [awaitingStep2, setAwaitingStep2] = useState(false);
   const [step1Pubkey, setStep1Pubkey] = useState(null);
+  
+  // v26: NIP-46 Nostr Connect state
+  const [showNostrConnectModal, setShowNostrConnectModal] = useState(false);
+  const [nostrConnectURI, setNostrConnectURI] = useState('');
+  const [waitingForNostrConnect, setWaitingForNostrConnect] = useState(false);
+  const [nostrConnectError, setNostrConnectError] = useState(null);
   
   // Ref to prevent multiple rapid sign-in attempts (refs don't trigger re-renders)
   const signingInRef = useRef(false);
@@ -298,6 +307,137 @@ export default function NostrLoginForm() {
     setStep1Pubkey(null);
     setLocalError(null);
   };
+
+  // v26: NIP-46 Nostr Connect handlers
+  const handleNostrConnectSignIn = async () => {
+    console.log('[NostrLoginForm] v26: Starting Nostr Connect flow');
+    setLocalError(null);
+    setNostrConnectError(null);
+    
+    try {
+      // Generate the nostrconnect:// URI
+      const uri = NostrConnectService.generateConnectionURI();
+      setNostrConnectURI(uri);
+      setShowNostrConnectModal(true);
+      setWaitingForNostrConnect(false);
+      
+      console.log('[NostrLoginForm] v26: Generated URI, showing modal');
+    } catch (error) {
+      console.error('[NostrLoginForm] v26: Failed to generate connection URI:', error);
+      setLocalError('Failed to start Nostr Connect: ' + error.message);
+    }
+  };
+
+  const handleNostrConnectComplete = async () => {
+    console.log('[NostrLoginForm] v26: Waiting for Nostr Connect...');
+    setWaitingForNostrConnect(true);
+    setNostrConnectError(null);
+    
+    try {
+      const result = await NostrConnectService.waitForConnection(nostrConnectURI);
+      
+      if (result.success && result.publicKey) {
+        console.log('[NostrLoginForm] v26: Connection successful, pubkey:', result.publicKey.substring(0, 16) + '...');
+        
+        // Complete sign-in using the hook
+        if (signInWithNostrConnect) {
+          const signInResult = await signInWithNostrConnect(result.publicKey);
+          if (signInResult.success) {
+            console.log('[NostrLoginForm] v26: Sign-in complete!');
+            setShowNostrConnectModal(false);
+            setNostrConnectURI('');
+            setWaitingForNostrConnect(false);
+          } else {
+            setNostrConnectError(signInResult.error || 'Sign-in failed');
+            setWaitingForNostrConnect(false);
+          }
+        } else {
+          console.warn('[NostrLoginForm] v26: signInWithNostrConnect not available, manual auth setup');
+          // Fallback: manually store auth and reload
+          NostrAuthService.storeAuthData(result.publicKey, 'nostrConnect');
+          window.location.reload();
+        }
+      } else {
+        console.error('[NostrLoginForm] v26: Connection failed:', result.error);
+        setNostrConnectError(result.error || 'Connection failed');
+        setWaitingForNostrConnect(false);
+      }
+    } catch (error) {
+      console.error('[NostrLoginForm] v26: Exception during connection:', error);
+      setNostrConnectError(error.message || 'Connection failed');
+      setWaitingForNostrConnect(false);
+    }
+  };
+
+  const handleBunkerURLSubmit = async (bunkerUrl) => {
+    console.log('[NostrLoginForm] v26: Connecting with bunker URL...');
+    setWaitingForNostrConnect(true);
+    setNostrConnectError(null);
+    
+    try {
+      const result = await NostrConnectService.connectWithBunkerURL(bunkerUrl);
+      
+      if (result.success && result.publicKey) {
+        console.log('[NostrLoginForm] v26: Bunker connection successful, pubkey:', result.publicKey.substring(0, 16) + '...');
+        
+        if (signInWithNostrConnect) {
+          const signInResult = await signInWithNostrConnect(result.publicKey);
+          if (signInResult.success) {
+            console.log('[NostrLoginForm] v26: Sign-in complete via bunker URL!');
+            setShowNostrConnectModal(false);
+            setNostrConnectURI('');
+            setWaitingForNostrConnect(false);
+          } else {
+            setNostrConnectError(signInResult.error || 'Sign-in failed');
+            setWaitingForNostrConnect(false);
+          }
+        } else {
+          NostrAuthService.storeAuthData(result.publicKey, 'nostrConnect');
+          window.location.reload();
+        }
+      } else {
+        console.error('[NostrLoginForm] v26: Bunker connection failed:', result.error);
+        setNostrConnectError(result.error || 'Connection failed');
+        setWaitingForNostrConnect(false);
+      }
+    } catch (error) {
+      console.error('[NostrLoginForm] v26: Exception during bunker connection:', error);
+      setNostrConnectError(error.message || 'Connection failed');
+      setWaitingForNostrConnect(false);
+    }
+  };
+
+  const handleNostrConnectRetry = () => {
+    console.log('[NostrLoginForm] v26: Retrying Nostr Connect...');
+    setWaitingForNostrConnect(false);
+    setNostrConnectError(null);
+    // Generate a new URI
+    try {
+      const uri = NostrConnectService.generateConnectionURI();
+      setNostrConnectURI(uri);
+    } catch (error) {
+      setNostrConnectError('Failed to generate new connection: ' + error.message);
+    }
+  };
+
+  const handleNostrConnectClose = () => {
+    console.log('[NostrLoginForm] v26: Closing Nostr Connect modal');
+    setShowNostrConnectModal(false);
+    setNostrConnectURI('');
+    setWaitingForNostrConnect(false);
+    setNostrConnectError(null);
+  };
+
+  // Start the connection process when modal is shown with URI
+  useEffect(() => {
+    if (showNostrConnectModal && nostrConnectURI && !waitingForNostrConnect) {
+      // Small delay to let the QR code render, then start waiting
+      const timer = setTimeout(() => {
+        handleNostrConnectComplete();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [showNostrConnectModal, nostrConnectURI]);
 
   // Handle create new account with password
   const handleCreateAccount = async (e) => {
@@ -792,6 +932,20 @@ export default function NostrLoginForm() {
             </>
           )}
 
+          {/* v26: Nostr Connect - PRIMARY method for Android (relay-based, no URL schemes) */}
+          {isAndroid && (
+            <button
+              onClick={handleNostrConnectSignIn}
+              disabled={signingIn}
+              className="group relative w-full flex justify-center items-center py-4 px-6 border border-transparent text-lg font-medium rounded-xl text-white bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
+            >
+              <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              Connect with Nostr Connect
+            </button>
+          )}
+
           {/* Extension Sign-In (Desktop) */}
           {hasExtension && (
             <button
@@ -845,42 +999,42 @@ export default function NostrLoginForm() {
             </div>
           )}
 
-          {/* Divider before mobile signer - only show on Android */}
-          {isAndroid && (hasExtension || hasStoredAccount) && (
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300 dark:border-gray-700"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-gray-50 dark:bg-black text-gray-500">or</span>
-              </div>
-            </div>
-          )}
-
-          {/* External Signer (Amber) - only show on Android devices */}
+          {/* v26: External Signer (Amber) - SECONDARY method for Android (NIP-55 offline backup) */}
           {isAndroid && (
-            <button
-              onClick={handleExternalSignerSignIn}
-              disabled={signingIn}
-              className="group relative w-full flex justify-center items-center py-4 px-6 border-2 border-amber-500 text-lg font-medium rounded-xl text-amber-600 dark:text-amber-400 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {signingIn ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Opening Signer...
-                </>
-              ) : (
-                <>
-                  <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                  </svg>
-                  Sign in with Amber
-                </>
-              )}
-            </button>
+            <>
+              {/* Divider before NIP-55 option */}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300 dark:border-gray-700"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-gray-50 dark:bg-black text-gray-500">or use offline signing</span>
+                </div>
+              </div>
+              
+              <button
+                onClick={handleExternalSignerSignIn}
+                disabled={signingIn}
+                className="group relative w-full flex justify-center items-center py-4 px-6 border-2 border-amber-500 text-lg font-medium rounded-xl text-amber-600 dark:text-amber-400 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {signingIn ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Opening Signer...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    Sign in with Amber (NIP-55 offline)
+                  </>
+                )}
+              </button>
+            </>
           )}
 
           {/* Create New Account Button */}
@@ -916,12 +1070,12 @@ export default function NostrLoginForm() {
           {/* Android hint */}
           {isAndroid && (
             <p className="text-xs text-center text-gray-500 dark:text-gray-400">
-              Works with{' '}
+              Nostr Connect and NIP-55 work with{' '}
               <a 
                 href="https://github.com/greenart7c3/Amber" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="text-amber-600 dark:text-amber-400 underline"
+                className="text-purple-600 dark:text-purple-400 underline"
               >
                 Amber
               </a>
@@ -929,6 +1083,18 @@ export default function NostrLoginForm() {
             </p>
           )}
         </div>
+
+        {/* v26: Nostr Connect Modal */}
+        {showNostrConnectModal && (
+          <NostrConnectModal
+            uri={nostrConnectURI}
+            waiting={waitingForNostrConnect}
+            error={nostrConnectError}
+            onClose={handleNostrConnectClose}
+            onBunkerSubmit={handleBunkerURLSubmit}
+            onRetry={handleNostrConnectRetry}
+          />
+        )}
 
         {/* Error Display */}
         {displayError && (

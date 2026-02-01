@@ -7,7 +7,7 @@
  * - In-app key generation with password protection
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNostrAuth } from '../../lib/hooks/useNostrAuth';
 import { useTheme } from '../../lib/hooks/useTheme';
 import NostrAuthService from '../../lib/nostr/NostrAuthService';
@@ -16,7 +16,7 @@ import NostrConnectModal from './NostrConnectModal';
 
 // Build version - update this when deploying changes
 // This helps verify the correct build is running in the browser
-const BUILD_VERSION = 'v28-nip46-restore';
+const BUILD_VERSION = 'v29-nip46-blocking';
 const BUILD_DATE = '2025-02-01';
 
 export default function NostrLoginForm() {
@@ -43,11 +43,10 @@ export default function NostrLoginForm() {
   const [awaitingStep2, setAwaitingStep2] = useState(false);
   const [step1Pubkey, setStep1Pubkey] = useState(null);
   
-  // v26: NIP-46 Nostr Connect state
+  // v26/v29: NIP-46 Nostr Connect state
+  // v29: Simplified - modal now handles the full sign-in flow internally
   const [showNostrConnectModal, setShowNostrConnectModal] = useState(false);
   const [nostrConnectURI, setNostrConnectURI] = useState('');
-  const [waitingForNostrConnect, setWaitingForNostrConnect] = useState(false);
-  const [nostrConnectError, setNostrConnectError] = useState(null);
   
   // Ref to prevent multiple rapid sign-in attempts (refs don't trigger re-renders)
   const signingInRef = useRef(false);
@@ -328,116 +327,24 @@ export default function NostrLoginForm() {
     }
   };
 
-  const handleNostrConnectComplete = async () => {
-    console.log('[NostrLoginForm] v26: Waiting for Nostr Connect...');
-    setWaitingForNostrConnect(true);
-    setNostrConnectError(null);
-    
-    try {
-      const result = await NostrConnectService.waitForConnection(nostrConnectURI);
-      
-      if (result.success && result.publicKey) {
-        console.log('[NostrLoginForm] v26: Connection successful, pubkey:', result.publicKey.substring(0, 16) + '...');
-        
-        // Complete sign-in using the hook
-        if (signInWithNostrConnect) {
-          const signInResult = await signInWithNostrConnect(result.publicKey);
-          if (signInResult.success) {
-            console.log('[NostrLoginForm] v26: Sign-in complete!');
-            setShowNostrConnectModal(false);
-            setNostrConnectURI('');
-            setWaitingForNostrConnect(false);
-          } else {
-            setNostrConnectError(signInResult.error || 'Sign-in failed');
-            setWaitingForNostrConnect(false);
-          }
-        } else {
-          console.warn('[NostrLoginForm] v26: signInWithNostrConnect not available, manual auth setup');
-          // Fallback: manually store auth and reload
-          NostrAuthService.storeAuthData(result.publicKey, 'nostrConnect');
-          window.location.reload();
-        }
-      } else {
-        console.error('[NostrLoginForm] v26: Connection failed:', result.error);
-        setNostrConnectError(result.error || 'Connection failed');
-        setWaitingForNostrConnect(false);
-      }
-    } catch (error) {
-      console.error('[NostrLoginForm] v26: Exception during connection:', error);
-      setNostrConnectError(error.message || 'Connection failed');
-      setWaitingForNostrConnect(false);
-    }
-  };
-
-  const handleBunkerURLSubmit = async (bunkerUrl) => {
-    console.log('[NostrLoginForm] v26: Connecting with bunker URL...');
-    setWaitingForNostrConnect(true);
-    setNostrConnectError(null);
-    
-    try {
-      const result = await NostrConnectService.connectWithBunkerURL(bunkerUrl);
-      
-      if (result.success && result.publicKey) {
-        console.log('[NostrLoginForm] v26: Bunker connection successful, pubkey:', result.publicKey.substring(0, 16) + '...');
-        
-        if (signInWithNostrConnect) {
-          const signInResult = await signInWithNostrConnect(result.publicKey);
-          if (signInResult.success) {
-            console.log('[NostrLoginForm] v26: Sign-in complete via bunker URL!');
-            setShowNostrConnectModal(false);
-            setNostrConnectURI('');
-            setWaitingForNostrConnect(false);
-          } else {
-            setNostrConnectError(signInResult.error || 'Sign-in failed');
-            setWaitingForNostrConnect(false);
-          }
-        } else {
-          NostrAuthService.storeAuthData(result.publicKey, 'nostrConnect');
-          window.location.reload();
-        }
-      } else {
-        console.error('[NostrLoginForm] v26: Bunker connection failed:', result.error);
-        setNostrConnectError(result.error || 'Connection failed');
-        setWaitingForNostrConnect(false);
-      }
-    } catch (error) {
-      console.error('[NostrLoginForm] v26: Exception during bunker connection:', error);
-      setNostrConnectError(error.message || 'Connection failed');
-      setWaitingForNostrConnect(false);
-    }
-  };
-
-  const handleNostrConnectRetry = () => {
-    console.log('[NostrLoginForm] v26: Retrying Nostr Connect...');
-    setWaitingForNostrConnect(false);
-    setNostrConnectError(null);
-    // Generate a new URI
-    try {
-      const uri = NostrConnectService.generateConnectionURI();
-      setNostrConnectURI(uri);
-    } catch (error) {
-      setNostrConnectError('Failed to generate new connection: ' + error.message);
-    }
-  };
-
-  const handleNostrConnectClose = () => {
-    console.log('[NostrLoginForm] v26: Closing Nostr Connect modal');
+  // v29: Handle successful Nostr Connect sign-in
+  // Called by NostrConnectModal after the FULL sign-in flow is complete
+  const handleNostrConnectSuccess = useCallback((pubkey) => {
+    console.log('[NostrLoginForm] v29: Nostr Connect complete, pubkey:', pubkey?.substring(0, 16) + '...');
     setShowNostrConnectModal(false);
     setNostrConnectURI('');
-    setWaitingForNostrConnect(false);
-    setNostrConnectError(null);
+    // Navigation will happen automatically via auth state change
+  }, []);
+
+  // v29: Handle modal cancel
+  const handleNostrConnectClose = () => {
+    console.log('[NostrLoginForm] v29: Closing Nostr Connect modal');
+    setShowNostrConnectModal(false);
+    setNostrConnectURI('');
   };
 
-  // Start the connection process when modal is shown with URI
-  useEffect(() => {
-    if (showNostrConnectModal && nostrConnectURI && !waitingForNostrConnect) {
-      // Small delay to let the QR code render, then start waiting
-      const timer = setTimeout(() => {
-        handleNostrConnectComplete();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [showNostrConnectModal, nostrConnectURI]);
+  // v29: The modal now handles the full connection flow internally,
+  // so we don't need a useEffect here anymore to auto-start the connection.
 
   // Handle create new account with password
   const handleCreateAccount = async (e) => {
@@ -1084,15 +991,13 @@ export default function NostrLoginForm() {
           )}
         </div>
 
-        {/* v26: Nostr Connect Modal */}
+        {/* v29: Nostr Connect Modal - now handles full sign-in flow with progress UI */}
         {showNostrConnectModal && (
           <NostrConnectModal
             uri={nostrConnectURI}
-            waiting={waitingForNostrConnect}
-            error={nostrConnectError}
-            onClose={handleNostrConnectClose}
-            onBunkerSubmit={handleBunkerURLSubmit}
-            onRetry={handleNostrConnectRetry}
+            onSuccess={handleNostrConnectSuccess}
+            onCancel={handleNostrConnectClose}
+            signInWithNostrConnect={signInWithNostrConnect}
           />
         )}
 

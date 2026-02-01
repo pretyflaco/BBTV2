@@ -14,7 +14,7 @@ import NostrAuthService from '../../lib/nostr/NostrAuthService';
 
 // Build version - update this when deploying changes
 // This helps verify the correct build is running in the browser
-const BUILD_VERSION = 'v23-deferred-nav';
+const BUILD_VERSION = 'v24-manual-step2';
 const BUILD_DATE = '2025-02-01';
 
 export default function NostrLoginForm() {
@@ -35,6 +35,10 @@ export default function NostrLoginForm() {
   const [signingIn, setSigningIn] = useState(false);
   const [localError, setLocalError] = useState(null);
   const [checkingReturn, setCheckingReturn] = useState(true);
+  
+  // v24: Manual Step 2 state - when Step 1 (pubkey) completes, show manual button for Step 2
+  const [awaitingStep2, setAwaitingStep2] = useState(false);
+  const [step1Pubkey, setStep1Pubkey] = useState(null);
   
   // Ref to prevent multiple rapid sign-in attempts (refs don't trigger re-renders)
   const signingInRef = useRef(false);
@@ -134,12 +138,28 @@ export default function NostrLoginForm() {
   useEffect(() => {
     const checkSignerReturn = async () => {
       const result = await checkPendingSignerFlow();
+      
+      // v24: Check if Step 1 completed and we need manual Step 2
+      if (result.needsManualStep2) {
+        console.log('[NostrLoginForm] v24: Step 1 complete, showing manual Step 2 button');
+        console.log('[NostrLoginForm] v24: pubkey:', result.pubkey?.substring(0, 16) + '...');
+        setAwaitingStep2(true);
+        setStep1Pubkey(result.pubkey);
+        setCheckingReturn(false);
+        setLocalError(null);
+        return;
+      }
+      
       if (result.success) {
         // Sign-in completed successfully
         console.log('Signed in via external signer');
+        setAwaitingStep2(false);
+        setStep1Pubkey(null);
       } else if (result.error && result.pending !== false) {
         // Show error only if there was a pending flow that failed
         setLocalError(result.error);
+        setAwaitingStep2(false);
+        setStep1Pubkey(null);
       }
       setCheckingReturn(false);
     };
@@ -234,6 +254,51 @@ export default function NostrLoginForm() {
     setSigningIn(false);
   };
 
+  // v24: Handle user tap on "Continue to Amber" button for Step 2 (sign challenge)
+  // This is a user-initiated navigation which is more reliable on Android than automatic redirects
+  const handleContinueToAmber = async () => {
+    console.log('[NostrLoginForm] v24: handleContinueToAmber called - user-initiated Step 2');
+    setSigningIn(true);
+    setLocalError(null);
+    
+    try {
+      // Call retrySignChallengeRedirect which will navigate to Amber for signing
+      const result = await NostrAuthService.retrySignChallengeRedirect();
+      console.log('[NostrLoginForm] v24: retrySignChallengeRedirect result:', JSON.stringify(result));
+      
+      if (result.pending) {
+        // Navigation initiated, user will be redirected to Amber
+        console.log('[NostrLoginForm] v24: Redirect to Amber initiated');
+        // Keep signing in state until redirect or timeout
+        setTimeout(() => {
+          setSigningIn(false);
+        }, 3000);
+        return;
+      }
+      
+      if (!result.success) {
+        console.log('[NostrLoginForm] v24: Step 2 redirect failed:', result.error);
+        setLocalError(result.error);
+        // If redirect failed, allow retry
+        setAwaitingStep2(true);
+      }
+    } catch (error) {
+      console.error('[NostrLoginForm] v24: Exception in handleContinueToAmber:', error);
+      setLocalError(error.message || 'Failed to open Amber');
+    }
+    
+    setSigningIn(false);
+  };
+
+  // v24: Handle cancel/restart of the sign-in flow
+  const handleCancelStep2 = () => {
+    console.log('[NostrLoginForm] v24: User cancelled Step 2, clearing flow');
+    NostrAuthService.clearPendingChallengeFlow();
+    setAwaitingStep2(false);
+    setStep1Pubkey(null);
+    setLocalError(null);
+  };
+
   // Handle create new account with password
   const handleCreateAccount = async (e) => {
     e.preventDefault();
@@ -317,6 +382,100 @@ export default function NostrLoginForm() {
           <p className="mt-4 text-gray-600 dark:text-gray-400">
             {checkingReturn ? 'Completing sign-in...' : 'Checking authentication...'}
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // v24: Manual Step 2 View - Show when pubkey obtained, waiting for user to tap to continue signing
+  if (awaitingStep2) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-black">
+        <div className="max-w-md w-full space-y-8 p-8">
+          {/* Header */}
+          <div className="text-center">
+            <div className="flex justify-center mb-6">
+              <div className="w-20 h-20 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full flex items-center justify-center">
+                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+              Identity Confirmed!
+            </h2>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              Step 1 of 2 complete
+            </p>
+            {step1Pubkey && (
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-500 font-mono">
+                {step1Pubkey.substring(0, 8)}...{step1Pubkey.substring(step1Pubkey.length - 8)}
+              </p>
+            )}
+          </div>
+
+          {/* Explanation */}
+          <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              <strong>Almost there!</strong> Amber has confirmed your identity. 
+              Now tap the button below to sign in securely.
+            </p>
+          </div>
+
+          {/* Continue Button */}
+          <button
+            onClick={handleContinueToAmber}
+            disabled={signingIn}
+            className="group relative w-full flex justify-center items-center py-5 px-6 border-2 border-amber-500 text-xl font-bold rounded-xl text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
+          >
+            {signingIn ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-6 w-6 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Opening Amber...
+              </>
+            ) : (
+              <>
+                <svg className="w-7 h-7 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                Continue to Amber
+                <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              </>
+            )}
+          </button>
+
+          {/* Error Display */}
+          {displayError && (
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <p className="text-sm text-red-600 dark:text-red-400">
+                {displayError}
+              </p>
+              <p className="text-xs text-red-500 dark:text-red-400 mt-2">
+                Tap the button above to try again
+              </p>
+            </div>
+          )}
+
+          {/* Cancel/Start Over */}
+          <button
+            onClick={handleCancelStep2}
+            disabled={signingIn}
+            className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 disabled:opacity-50"
+          >
+            Cancel and start over
+          </button>
+
+          {/* Help text */}
+          <div className="text-center">
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              Having trouble? Make sure Amber is installed and try tapping the button above.
+            </p>
+          </div>
         </div>
       </div>
     );

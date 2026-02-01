@@ -20,7 +20,6 @@ export default function NostrLoginForm() {
     hasExtension,
     isMobile,
     availableMethods,
-    pendingAmberApproval,
     signInWithExtension,
     signInWithExternalSigner,
     checkPendingSignerFlow,
@@ -31,7 +30,6 @@ export default function NostrLoginForm() {
   const [signingIn, setSigningIn] = useState(false);
   const [localError, setLocalError] = useState(null);
   const [checkingReturn, setCheckingReturn] = useState(true);
-  const [hasPendingFlow, setHasPendingFlow] = useState(false);
   
   // In-app key generation state
   const [authMode, setAuthMode] = useState('main'); // 'main', 'create', 'password'
@@ -43,17 +41,9 @@ export default function NostrLoginForm() {
   const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
   const isAndroid = typeof navigator !== 'undefined' && /Android/.test(navigator.userAgent);
   
-  // Check for stored account and pending flow on mount
+  // Check for stored account on mount
   useEffect(() => {
     setHasStoredAccount(NostrAuthService.hasStoredEncryptedNsec());
-    
-    // Check if there's a pending Amber flow
-    const pendingFlow = NostrAuthService.getPendingChallengeFlow();
-    if (pendingFlow) {
-      const flowAge = Date.now() - pendingFlow.timestamp;
-      // Only consider flows less than 2 minutes old as "pending"
-      setHasPendingFlow(flowAge < 120000);
-    }
   }, []);
 
   // Check for pending signer flow on mount and focus (user returning from Amber)
@@ -110,27 +100,6 @@ export default function NostrLoginForm() {
 
   const handleExternalSignerSignIn = async () => {
     console.log('[NostrLoginForm] handleExternalSignerSignIn called');
-    
-    // Check if there's already a pending flow - prevent double-clicks
-    const pendingFlow = NostrAuthService.getPendingChallengeFlow();
-    if (pendingFlow) {
-      console.log('[NostrLoginForm] Pending flow detected, step:', pendingFlow.step);
-      
-      // Check if flow is recent (within 30 seconds) - user might be waiting for Amber
-      const flowAge = Date.now() - pendingFlow.timestamp;
-      if (flowAge < 30000) {
-        console.log('[NostrLoginForm] Flow is recent (' + Math.round(flowAge/1000) + 's old), showing waiting message');
-        setLocalError('Waiting for Amber response... If Amber did not open, please try again.');
-        // Show error for 3 seconds then clear
-        setTimeout(() => setLocalError(null), 3000);
-        return;
-      }
-      
-      // Flow is stale, clear it and proceed
-      console.log('[NostrLoginForm] Flow is stale (' + Math.round(flowAge/1000) + 's old), clearing and restarting');
-      NostrAuthService.clearPendingChallengeFlow();
-    }
-    
     setSigningIn(true);
     setLocalError(null);
 
@@ -142,14 +111,11 @@ export default function NostrLoginForm() {
       if (result.pending) {
         // User will be redirected to external signer
         // When they return, the page reloads fresh with new state.
-        // Keep button disabled longer to prevent re-clicks
+        // Reset signing state after timeout if navigation fails silently
         console.log('[NostrLoginForm] Redirect pending, waiting...');
-        setHasPendingFlow(true);
-        // Don't reset signingIn here - let it stay disabled
-        // It will reset when page reloads or after longer timeout
         setTimeout(() => {
           setSigningIn(false);
-        }, 10000); // Increased to 10 seconds
+        }, 3000);
         return;
       }
 
@@ -249,67 +215,6 @@ export default function NostrLoginForm() {
           <p className="mt-4 text-gray-600 dark:text-gray-400">
             {checkingReturn ? 'Completing sign-in...' : 'Checking authentication...'}
           </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Waiting for Amber approval view
-  if (pendingAmberApproval) {
-    const handleRetryAmber = () => {
-      // Clear the pending flow and re-trigger Amber
-      NostrAuthService.clearPendingChallengeFlow();
-      handleExternalSignerSignIn();
-    };
-    
-    const handleCancelAmber = () => {
-      // Clear the pending flow and go back to main view
-      NostrAuthService.clearPendingChallengeFlow();
-      window.location.reload();
-    };
-    
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-black">
-        <div className="max-w-md w-full space-y-6 p-8 text-center">
-          {/* Amber icon */}
-          <div className="flex justify-center mb-6">
-            <div className="w-20 h-20 bg-gradient-to-br from-amber-400 to-orange-600 rounded-2xl flex items-center justify-center animate-pulse">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-              </svg>
-            </div>
-          </div>
-          
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            Waiting for Amber
-          </h2>
-          
-          <p className="text-gray-600 dark:text-gray-400">
-            Please open the Amber app and <strong>approve the sign-in request</strong>.
-          </p>
-          
-          <p className="text-sm text-gray-500 dark:text-gray-500">
-            After approving in Amber, return to this page.
-          </p>
-          
-          {/* Retry button to re-open Amber */}
-          <button
-            onClick={handleRetryAmber}
-            className="w-full flex justify-center items-center py-4 px-6 border-2 border-amber-500 text-lg font-medium rounded-xl text-amber-600 dark:text-amber-400 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-colors"
-          >
-            <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Retry / Open Amber Again
-          </button>
-          
-          {/* Cancel button */}
-          <button
-            onClick={handleCancelAmber}
-            className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-          >
-            Cancel and go back
-          </button>
         </div>
       </div>
     );
@@ -650,15 +555,7 @@ export default function NostrLoginForm() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Opening Amber...
-                </>
-              ) : hasPendingFlow ? (
-                <>
-                  <svg className="animate-pulse -ml-1 mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Continue with Amber
+                  Opening Signer...
                 </>
               ) : (
                 <>

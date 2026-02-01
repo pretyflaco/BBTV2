@@ -14,7 +14,7 @@ import NostrAuthService from '../../lib/nostr/NostrAuthService';
 
 // Build version - update this when deploying changes
 // This helps verify the correct build is running in the browser
-const BUILD_VERSION = 'v20-fix-multiclick';
+const BUILD_VERSION = 'v21-retry-redirect';
 const BUILD_DATE = '2025-02-01';
 
 export default function NostrLoginForm() {

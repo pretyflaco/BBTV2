@@ -31,6 +31,11 @@ export default function NostrLoginForm() {
   const [localError, setLocalError] = useState(null);
   const [checkingReturn, setCheckingReturn] = useState(true);
   
+  // Debug mode state (tap logo 5 times to activate)
+  const [logoTapCount, setLogoTapCount] = useState(0);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [debugInfo, setDebugInfo] = useState('');
+  
   // In-app key generation state
   const [authMode, setAuthMode] = useState('main'); // 'main', 'create', 'password'
   const [password, setPassword] = useState('');
@@ -45,6 +50,75 @@ export default function NostrLoginForm() {
   useEffect(() => {
     setHasStoredAccount(NostrAuthService.hasStoredEncryptedNsec());
   }, []);
+
+  // Debug: Handle logo tap for debug mode
+  const handleLogoTap = () => {
+    const newCount = logoTapCount + 1;
+    setLogoTapCount(newCount);
+    console.log(`[DEBUG] Logo tap ${newCount}/5`);
+    
+    if (newCount >= 5) {
+      setShowDebugPanel(true);
+      setLogoTapCount(0);
+      updateDebugInfo();
+    }
+    
+    // Reset tap count after 2 seconds of inactivity
+    setTimeout(() => setLogoTapCount(0), 2000);
+  };
+
+  // Debug: Update debug info display
+  const updateDebugInfo = () => {
+    const info = {
+      url: window.location.href,
+      urlParams: window.location.search,
+      challengeFlow: localStorage.getItem('blinkpos_challenge_flow'),
+      signinFlow: localStorage.getItem('blinkpos_signin_flow'),
+      pubkey: localStorage.getItem('blinkpos_pubkey'),
+      method: localStorage.getItem('blinkpos_signin_method'),
+      isPWA: window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone,
+      userAgent: navigator.userAgent.substring(0, 100)
+    };
+    setDebugInfo(JSON.stringify(info, null, 2));
+    console.log('[DEBUG] Current state:', info);
+  };
+
+  // Debug: Clear all auth state
+  const handleDebugClearAuth = () => {
+    console.log('[DEBUG] Clearing all auth state...');
+    localStorage.removeItem('blinkpos_challenge_flow');
+    localStorage.removeItem('blinkpos_signin_flow');
+    localStorage.removeItem('blinkpos_pubkey');
+    localStorage.removeItem('blinkpos_signin_method');
+    // Clear URL params
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.search = '';
+    window.history.replaceState({}, '', cleanUrl.toString());
+    // Update debug info
+    updateDebugInfo();
+    setLocalError(null);
+    alert('Auth state cleared! You can try signing in again.');
+  };
+
+  // Debug: Clear everything including encrypted nsec
+  const handleDebugClearAll = () => {
+    console.log('[DEBUG] Clearing ALL data including account...');
+    localStorage.removeItem('blinkpos_challenge_flow');
+    localStorage.removeItem('blinkpos_signin_flow');
+    localStorage.removeItem('blinkpos_pubkey');
+    localStorage.removeItem('blinkpos_signin_method');
+    localStorage.removeItem('blinkpos_encrypted_nsec');
+    localStorage.removeItem('blinkpos_profiles');
+    // Clear URL params
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.search = '';
+    window.history.replaceState({}, '', cleanUrl.toString());
+    setHasStoredAccount(false);
+    updateDebugInfo();
+    setLocalError(null);
+    alert('All data cleared! Page will reload.');
+    window.location.reload();
+  };
 
   // Check for pending signer flow on mount and focus (user returning from Amber)
   useEffect(() => {
@@ -414,8 +488,8 @@ export default function NostrLoginForm() {
   
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-black">
-      {/* Fixed header with logo like dashboard */}
-      <div className="px-4 py-4">
+      {/* Fixed header with logo like dashboard - TAP 5 TIMES FOR DEBUG */}
+      <div className="px-4 py-4" onClick={handleLogoTap}>
         <img 
           src="/logos/blink-icon-light.svg" 
           alt="Blink" 
@@ -427,6 +501,53 @@ export default function NostrLoginForm() {
           className="h-12 w-12 hidden dark:block"
         />
       </div>
+      
+      {/* Debug Panel - shown after 5 logo taps */}
+      {showDebugPanel && (
+        <div className="fixed inset-0 bg-black/80 z-50 p-4 overflow-auto">
+          <div className="bg-gray-900 rounded-xl p-4 max-w-lg mx-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-white">🔧 Debug Panel</h3>
+              <button 
+                onClick={() => setShowDebugPanel(false)}
+                className="text-gray-400 hover:text-white text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="space-y-3">
+              <button
+                onClick={handleDebugClearAuth}
+                className="w-full py-3 px-4 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium"
+              >
+                🔄 Clear Auth State (Keep Account)
+              </button>
+              
+              <button
+                onClick={handleDebugClearAll}
+                className="w-full py-3 px-4 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium"
+              >
+                🗑️ Clear ALL Data & Reload
+              </button>
+              
+              <button
+                onClick={updateDebugInfo}
+                className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
+              >
+                🔍 Refresh Debug Info
+              </button>
+              
+              <div className="mt-4">
+                <h4 className="text-sm font-medium text-gray-400 mb-2">Current State:</h4>
+                <pre className="bg-black p-3 rounded text-xs text-green-400 overflow-auto max-h-64 whitespace-pre-wrap">
+                  {debugInfo || 'Tap "Refresh Debug Info"'}
+                </pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       
       <div className="flex items-center justify-center min-h-[calc(100vh-80px)]">
         <div className="max-w-md w-full space-y-8 p-8">

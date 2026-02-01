@@ -7,15 +7,15 @@
  * - In-app key generation with password protection
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNostrAuth } from '../../lib/hooks/useNostrAuth';
 import { useTheme } from '../../lib/hooks/useTheme';
 import NostrAuthService from '../../lib/nostr/NostrAuthService';
 
 // Build version - update this when deploying changes
 // This helps verify the correct build is running in the browser
-const BUILD_VERSION = 'v19-trace-logout';
-const BUILD_DATE = '2026-02-01';
+const BUILD_VERSION = 'v20-fix-multiclick';
+const BUILD_DATE = '2025-02-01';
 
 export default function NostrLoginForm() {
   const { darkMode } = useTheme();
@@ -35,6 +35,9 @@ export default function NostrLoginForm() {
   const [signingIn, setSigningIn] = useState(false);
   const [localError, setLocalError] = useState(null);
   const [checkingReturn, setCheckingReturn] = useState(true);
+  
+  // Ref to prevent multiple rapid sign-in attempts (refs don't trigger re-renders)
+  const signingInRef = useRef(false);
   
   // Debug mode state (tap logo 5 times to activate)
   const [logoTapCount, setLogoTapCount] = useState(0);
@@ -180,7 +183,18 @@ export default function NostrLoginForm() {
   };
 
   const handleExternalSignerSignIn = async () => {
-    console.log('[NostrLoginForm] handleExternalSignerSignIn called');
+    console.log('[NostrLoginForm] handleExternalSignerSignIn called, signingInRef:', signingInRef.current);
+    
+    // CRITICAL: Prevent multiple rapid clicks from overwriting challenge flow
+    // This fixes the bug where 12+ rapid clicks would each fetch a new challenge,
+    // causing the final return from Amber to have mismatched challenge data
+    if (signingInRef.current) {
+      console.log('[NostrLoginForm] Sign-in already in progress (ref), ignoring click');
+      return;
+    }
+    
+    // Set ref immediately to block any subsequent calls
+    signingInRef.current = true;
     setSigningIn(true);
     setLocalError(null);
 
@@ -192,10 +206,16 @@ export default function NostrLoginForm() {
       if (result.pending) {
         // User will be redirected to external signer
         // When they return, the page reloads fresh with new state.
-        // Reset signing state after timeout if navigation fails silently
-        console.log('[NostrLoginForm] Redirect pending, waiting...');
+        // Keep signingInRef true - it will be reset on page reload
+        console.log('[NostrLoginForm] Redirect pending, keeping signingInRef locked');
         setTimeout(() => {
+          // Only reset UI state after timeout, but keep ref locked to prevent re-clicks
           setSigningIn(false);
+          // Reset ref after longer timeout in case redirect failed
+          setTimeout(() => {
+            signingInRef.current = false;
+            console.log('[NostrLoginForm] signingInRef reset after timeout');
+          }, 5000);
         }, 3000);
         return;
       }
@@ -209,7 +229,8 @@ export default function NostrLoginForm() {
       setLocalError(error.message || 'Sign-in failed');
     }
     
-    // Always reset signing state when not pending
+    // Reset both ref and state when not pending
+    signingInRef.current = false;
     setSigningIn(false);
   };
 

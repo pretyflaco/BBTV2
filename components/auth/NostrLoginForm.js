@@ -14,7 +14,7 @@ import NostrAuthService from '../../lib/nostr/NostrAuthService';
 
 // Build version - update this when deploying changes
 // This helps verify the correct build is running in the browser
-const BUILD_VERSION = 'v18-show-build-version';
+const BUILD_VERSION = 'v19-trace-logout';
 const BUILD_DATE = '2026-02-01';
 
 export default function NostrLoginForm() {

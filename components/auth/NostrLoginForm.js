@@ -12,6 +12,11 @@ import { useNostrAuth } from '../../lib/hooks/useNostrAuth';
 import { useTheme } from '../../lib/hooks/useTheme';
 import NostrAuthService from '../../lib/nostr/NostrAuthService';
 
+// Build version - update this when deploying changes
+// This helps verify the correct build is running in the browser
+const BUILD_VERSION = 'v18-show-build-version';
+const BUILD_DATE = '2026-02-01';
+
 export default function NostrLoginForm() {
   const { darkMode } = useTheme();
   const {
@@ -70,6 +75,8 @@ export default function NostrLoginForm() {
   // Debug: Update debug info display
   const updateDebugInfo = () => {
     const info = {
+      buildVersion: BUILD_VERSION,
+      buildDate: BUILD_DATE,
       url: window.location.href,
       urlParams: window.location.search,
       challengeFlow: localStorage.getItem('blinkpos_challenge_flow'),
@@ -80,7 +87,7 @@ export default function NostrLoginForm() {
       userAgent: navigator.userAgent.substring(0, 100)
     };
     setDebugInfo(JSON.stringify(info, null, 2));
-    console.log('[DEBUG] Current state:', info);
+    console.log('[DEBUG] Build:', BUILD_VERSION, '| Current state:', info);
   };
 
   // Debug: Clear all auth state
@@ -514,6 +521,13 @@ export default function NostrLoginForm() {
               >
                 ×
               </button>
+            </div>
+            
+            {/* Build Version - Prominent display */}
+            <div className="mb-4 p-3 bg-blue-900/50 border border-blue-500 rounded-lg">
+              <div className="text-xs text-blue-300 uppercase tracking-wide mb-1">Build Version</div>
+              <div className="text-lg font-mono font-bold text-blue-100">{BUILD_VERSION}</div>
+              <div className="text-xs text-blue-400 mt-1">Built: {BUILD_DATE}</div>
             </div>
             
             <div className="space-y-3">

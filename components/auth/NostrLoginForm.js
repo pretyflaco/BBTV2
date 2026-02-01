@@ -307,22 +307,20 @@ export default function NostrLoginForm() {
     setLocalError(null);
   };
 
-  // v26: NIP-46 Nostr Connect handlers
+  // v26/v29: NIP-46 Nostr Connect handlers
   const handleNostrConnectSignIn = async () => {
-    console.log('[NostrLoginForm] v26: Starting Nostr Connect flow');
+    console.log('[NostrLoginForm] v29: Starting Nostr Connect flow');
     setLocalError(null);
-    setNostrConnectError(null);
     
     try {
       // Generate the nostrconnect:// URI
       const uri = NostrConnectService.generateConnectionURI();
       setNostrConnectURI(uri);
       setShowNostrConnectModal(true);
-      setWaitingForNostrConnect(false);
       
-      console.log('[NostrLoginForm] v26: Generated URI, showing modal');
+      console.log('[NostrLoginForm] v29: Generated URI, showing modal');
     } catch (error) {
-      console.error('[NostrLoginForm] v26: Failed to generate connection URI:', error);
+      console.error('[NostrLoginForm] v29: Failed to generate connection URI:', error);
       setLocalError('Failed to start Nostr Connect: ' + error.message);
     }
   };

@@ -1,5 +1,5 @@
 // Service Worker for Blink POS
-const CACHE_NAME = 'blink-tracker-v10-revert-amber-to-working'; // Update this version when deploying changes
+const CACHE_NAME = 'blink-tracker-v11-pwa-signer-nav-fix'; // Update this version when deploying changes
 const urlsToCache = [
   '/',
   '/manifest.json',

@@ -16,7 +16,7 @@ import NostrConnectModal from './NostrConnectModal';
 
 // Build version - update this when deploying changes
 // This helps verify the correct build is running in the browser
-const BUILD_VERSION = 'v27-nip46-mobile';
+const BUILD_VERSION = 'v28-nip46-restore';
 const BUILD_DATE = '2025-02-01';
 
 export default function NostrLoginForm() {

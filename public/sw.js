@@ -1,5 +1,5 @@
 // Service Worker for Blink POS
-const CACHE_NAME = 'blink-tracker-v14-new-build'; // Update this version when deploying changes
+const CACHE_NAME = 'blink-tracker-v15-version-check'; // Update this version when deploying changes
 const urlsToCache = [
   '/',
   '/manifest.json',

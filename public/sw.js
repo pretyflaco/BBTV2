@@ -1,5 +1,5 @@
 // Service Worker for Blink POS
-const CACHE_NAME = 'blink-tracker-v12-challenge-flow-debug'; // Update this version when deploying changes
+const CACHE_NAME = 'blink-tracker-v13-force-refresh'; // Update this version when deploying changes
 const urlsToCache = [
   '/',
   '/manifest.json',

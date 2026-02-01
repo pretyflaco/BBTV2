@@ -14,7 +14,7 @@ import NostrAuthService from '../../lib/nostr/NostrAuthService';
 
 // Build version - update this when deploying changes
 // This helps verify the correct build is running in the browser
-const BUILD_VERSION = 'v24-manual-step2';
+const BUILD_VERSION = 'v25-anchor-links';
 const BUILD_DATE = '2025-02-01';
 
 export default function NostrLoginForm() {
@@ -39,6 +39,12 @@ export default function NostrLoginForm() {
   // v24: Manual Step 2 state - when Step 1 (pubkey) completes, show manual button for Step 2
   const [awaitingStep2, setAwaitingStep2] = useState(false);
   const [step1Pubkey, setStep1Pubkey] = useState(null);
+  
+  // v25: Pre-built anchor URLs for actual <a href> links
+  // These allow the user to tap actual anchor elements instead of buttons that call JS
+  const [step2AnchorUrl, setStep2AnchorUrl] = useState('');
+  const [step1AnchorUrl, setStep1AnchorUrl] = useState('');
+  const [preparingUrl, setPreparingUrl] = useState(false);
   
   // Ref to prevent multiple rapid sign-in attempts (refs don't trigger re-renders)
   const signingInRef = useRef(false);
@@ -188,6 +194,26 @@ export default function NostrLoginForm() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [checkPendingSignerFlow]);
+
+  // v25: Build the Step 2 anchor URL when awaitingStep2 becomes true
+  // This allows us to render an actual <a href> that the user can tap
+  useEffect(() => {
+    if (awaitingStep2) {
+      console.log('[NostrLoginForm] v25: Building Step 2 anchor URL...');
+      const result = NostrAuthService.buildSignChallengeUrl();
+      if (result.url) {
+        console.log('[NostrLoginForm] v25: Step 2 URL built successfully');
+        setStep2AnchorUrl(result.url);
+        setLocalError(null);
+      } else {
+        console.log('[NostrLoginForm] v25: Failed to build Step 2 URL:', result.error);
+        setStep2AnchorUrl('');
+        setLocalError(result.error);
+      }
+    } else {
+      setStep2AnchorUrl('');
+    }
+  }, [awaitingStep2]);
 
   const handleExtensionSignIn = async () => {
     setSigningIn(true);
@@ -418,34 +444,57 @@ export default function NostrLoginForm() {
           <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
             <p className="text-sm text-amber-700 dark:text-amber-300">
               <strong>Almost there!</strong> Amber has confirmed your identity. 
-              Now tap the button below to sign in securely.
+              Now tap the link below to sign in securely.
+            </p>
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+              v25: Using native anchor link (no JavaScript navigation)
             </p>
           </div>
 
-          {/* Continue Button */}
+          {/* v25: Continue Link - Using actual <a href> instead of button+JS */}
+          {step2AnchorUrl ? (
+            <a
+              href={step2AnchorUrl}
+              className="group relative w-full flex justify-center items-center py-5 px-6 border-2 border-amber-500 text-xl font-bold rounded-xl text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-all shadow-lg hover:shadow-xl no-underline"
+              onClick={() => {
+                console.log('[NostrLoginForm] v25: User tapped Step 2 anchor link');
+                // Note: We don't prevent default - let the native link work
+              }}
+            >
+              <svg className="w-7 h-7 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+              Open Amber to Sign
+              <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </a>
+          ) : (
+            <div className="w-full flex justify-center items-center py-5 px-6 border-2 border-gray-300 text-xl font-bold rounded-xl text-gray-400 bg-gray-100 dark:bg-gray-800 dark:border-gray-700">
+              <svg className="animate-spin -ml-1 mr-3 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Preparing...
+            </div>
+          )}
+
+          {/* Fallback: Old button method if anchor doesn't work */}
           <button
             onClick={handleContinueToAmber}
-            disabled={signingIn}
-            className="group relative w-full flex justify-center items-center py-5 px-6 border-2 border-amber-500 text-xl font-bold rounded-xl text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
+            disabled={signingIn || !step2AnchorUrl}
+            className="w-full flex justify-center items-center py-3 px-4 border border-gray-300 dark:border-gray-600 text-sm rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             {signingIn ? (
               <>
-                <svg className="animate-spin -ml-1 mr-3 h-6 w-6 text-white" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Opening Amber...
+                Opening...
               </>
             ) : (
-              <>
-                <svg className="w-7 h-7 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                </svg>
-                Continue to Amber
-                <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
-              </>
+              <>Alternative: Try JS Navigation</>
             )}
           </button>
 
@@ -473,7 +522,7 @@ export default function NostrLoginForm() {
           {/* Help text */}
           <div className="text-center">
             <p className="text-xs text-gray-400 dark:text-gray-500">
-              Having trouble? Make sure Amber is installed and try tapping the button above.
+              Having trouble? Make sure Amber is installed. If the orange link doesn&apos;t work, try the gray button below it.
             </p>
           </div>
         </div>
@@ -859,28 +908,78 @@ export default function NostrLoginForm() {
 
           {/* External Signer (Amber) - only show on Android devices */}
           {isAndroid && (
-            <button
-              onClick={handleExternalSignerSignIn}
-              disabled={signingIn}
-              className="group relative w-full flex justify-center items-center py-4 px-6 border-2 border-amber-500 text-lg font-medium rounded-xl text-amber-600 dark:text-amber-400 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {signingIn ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Opening Signer...
-                </>
-              ) : (
-                <>
+            <>
+              {/* v25: If we have a prepared URL, show anchor link */}
+              {step1AnchorUrl ? (
+                <a
+                  href={step1AnchorUrl}
+                  className="group relative w-full flex justify-center items-center py-4 px-6 border-2 border-amber-500 text-lg font-medium rounded-xl text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-all shadow-lg hover:shadow-xl no-underline"
+                  onClick={() => {
+                    console.log('[NostrLoginForm] v25: User tapped Step 1 anchor link');
+                  }}
+                >
                   <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
                   </svg>
-                  Sign in with Amber
-                </>
+                  Open Amber
+                  <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
+                </a>
+              ) : (
+                /* Prepare button - fetches challenge and builds URL */
+                <button
+                  onClick={async () => {
+                    console.log('[NostrLoginForm] v25: Preparing Step 1 anchor URL...');
+                    setPreparingUrl(true);
+                    setLocalError(null);
+                    
+                    const result = await NostrAuthService.buildGetPubkeyUrl();
+                    
+                    if (result.url) {
+                      console.log('[NostrLoginForm] v25: Step 1 URL prepared, showing anchor');
+                      setStep1AnchorUrl(result.url);
+                    } else {
+                      console.log('[NostrLoginForm] v25: Failed to prepare Step 1 URL:', result.error);
+                      setLocalError(result.error || 'Failed to prepare sign-in');
+                      // Fall back to old method
+                      handleExternalSignerSignIn();
+                    }
+                    setPreparingUrl(false);
+                  }}
+                  disabled={signingIn || preparingUrl}
+                  className="group relative w-full flex justify-center items-center py-4 px-6 border-2 border-amber-500 text-lg font-medium rounded-xl text-amber-600 dark:text-amber-400 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {preparingUrl ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Preparing...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                      Sign in with Amber
+                    </>
+                  )}
+                </button>
               )}
-            </button>
+              
+              {/* v25: Fallback button for JS navigation if anchor doesn't work */}
+              {step1AnchorUrl && (
+                <button
+                  onClick={handleExternalSignerSignIn}
+                  disabled={signingIn}
+                  className="w-full flex justify-center items-center py-2 px-4 border border-gray-300 dark:border-gray-600 text-sm rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  {signingIn ? 'Opening...' : 'Alternative: Try JS Navigation'}
+                </button>
+              )}
+            </>
           )}
 
           {/* Create New Account Button */}

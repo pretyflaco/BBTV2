@@ -29,12 +29,20 @@ function MyApp({ Component, pageProps }) {
     // Only run on client side to prevent hydration mismatch
     if (typeof window === 'undefined') return;
 
-    // Initialize remote logging for iOS devices to debug NIP-46 WebSocket issues
+    // Initialize remote logging for mobile devices to debug NIP-46 WebSocket issues
     // This sends console logs to /api/debug/remote-log for real-time viewing on desktop
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    if (isIOS) {
-      initRemoteLogger();
-      console.log('[App] Remote logging enabled for iOS debugging');
+    const isAndroid = /Android/.test(navigator.userAgent);
+    const isMobile = isIOS || isAndroid;
+    
+    // Enable for all mobile devices during debugging
+    if (isMobile) {
+      try {
+        const result = initRemoteLogger();
+        console.log('[App] v39: Remote logging enabled, device:', result?.deviceId);
+      } catch (e) {
+        // Silent fail if remote logger has issues
+      }
     }
 
     // Global error handler for WebSocket/relay connection errors

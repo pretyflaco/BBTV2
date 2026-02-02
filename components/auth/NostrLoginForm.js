@@ -16,7 +16,7 @@ import NostrConnectModal from './NostrConnectModal';
 
 // Build version - update this when deploying changes
 // This helps verify the correct build is running in the browser
-const BUILD_VERSION = 'v43-ws-sync-init';
+const BUILD_VERSION = 'v44-ws-in-document';
 const BUILD_DATE = '2025-02-02';
 
 export default function NostrLoginForm() {

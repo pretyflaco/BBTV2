@@ -1,6 +1,14 @@
 /**
  * NostrConnectModal - Mobile-friendly modal for NIP-46 connection
  * 
+ * v55: QR Code first for desktop, toggle for mobile
+ * - Desktop: Shows QR code immediately as primary method for scanning with mobile signers
+ * - Desktop: Auto-starts waiting for connection when modal opens
+ * - Desktop: Keeps "Open in Desktop Signer" button for Peridot and similar apps
+ * - Mobile: Adds "Show QR Code" toggle to scan from another device
+ * - Mobile: Keeps existing Open in Amber/Aegis buttons as primary
+ * - Both: Bunker URL paste remains as fallback option
+ * 
  * v51: Added NDK implementation for more reliable NIP-46 connections
  * - Uses @nostr-dev-kit/ndk instead of nostr-tools when NEXT_PUBLIC_USE_NDK_NIP46=true
  * - NDK handles NIP-46 more robustly, especially with nsec.app on iOS Safari
@@ -158,6 +166,7 @@ export default function NostrConnectModal({
   // UI state
   const [showBunkerInput, setShowBunkerInput] = useState(false);
   const [showQRCode, setShowQRCode] = useState(false);
+  const [showMobileQR, setShowMobileQR] = useState(false); // v55: QR toggle for mobile
   const [bunkerUrl, setBunkerUrl] = useState('');
   const [copied, setCopied] = useState(false);
   
@@ -183,11 +192,15 @@ export default function NostrConnectModal({
   }, [copied]);
 
   // Start waiting for connection when modal mounts with URI
+  // v55: On desktop, auto-start immediately since QR is shown
   useEffect(() => {
-    if (uri && stage === 'idle') {
-      // Just mount the modal - user will tap a button to start
+    if (uri && stage === 'idle' && !isIOS && !isAndroid) {
+      // Desktop: Auto-start waiting for connection since QR is shown immediately
+      console.log('[NostrConnectModal] v55: Desktop - auto-starting connection wait for QR scan');
+      setStage('waiting');
+      startWaitingForConnection();
     }
-  }, [uri, stage]);
+  }, [uri, stage, startWaitingForConnection]);
 
   const handleCopyLink = async () => {
     try {
@@ -201,12 +214,15 @@ export default function NostrConnectModal({
   };
 
   const handleOpenInSigner = () => {
-    console.log('[NostrConnectModal] v32: Opening in signer app (nostrconnect://) and starting wait...');
-    setStage('waiting');
-    // Open the nostrconnect:// URI - Amber handles this on Android
+    console.log('[NostrConnectModal] v55: Opening in signer app (nostrconnect://)');
+    // Open the nostrconnect:// URI - Amber handles this on Android, desktop signers like Peridot on desktop
     window.location.href = uri;
-    // Start waiting for the connection
-    startWaitingForConnection();
+    
+    // If not already waiting (mobile case), start waiting
+    if (stage !== 'waiting') {
+      setStage('waiting');
+      startWaitingForConnection();
+    }
   };
 
   // v32: Open in Aegis using nostrsigner:// scheme
@@ -581,161 +597,405 @@ export default function NostrConnectModal({
           {/* Main Options View (idle state) */}
           {stage === 'idle' && (
             <>
-              {/* Primary Actions */}
-              <div className="space-y-3 mb-5">
-                {/* v34: Platform-specific signer buttons */}
-                
-                {/* iOS: Show nsec.app as recommended option + Aegis as alternative */}
-                {isIOS && (
-                  <>
-                    {/* nsec.app recommendation banner */}
-                    <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl mb-3">
-                      <p className="text-sm text-green-700 dark:text-green-400 font-medium">
-                        ✅ <strong>Recommended for iOS:</strong> Use nsec.app (web-based signer)
-                      </p>
-                      <p className="text-xs text-green-600 dark:text-green-500 mt-1">
-                        Works reliably in Safari. Native iOS signers have known issues.
-                      </p>
-                    </div>
-                    
-                    {/* nsec.app button - opens in new tab */}
-                    <a
-                      href="https://use.nsec.app"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full py-3 px-4 text-base font-semibold text-white bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                    >
-                      <span>🔐</span>
-                      <span>Open nsec.app</span>
-                    </a>
-                    
-                    {/* Divider */}
-                    <div className="flex items-center gap-3 my-2">
-                      <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
-                      <span className="text-xs text-gray-400 dark:text-gray-500">or try native signer</span>
-                      <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
-                    </div>
-                    
-                    {/* Aegis button - secondary option */}
-                    <button
-                      onClick={handleOpenInAegis}
-                      className="w-full py-2.5 px-4 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl transition-all flex items-center justify-center gap-2"
-                    >
-                      <span>📱</span>
-                      <span>Open in Aegis</span>
-                    </button>
-                  </>
-                )}
-                
-                {/* Android: Show both "Open in Amber" and "Open in Aegis" */}
-                {isAndroid && (
-                  <>
-                    {/* Amber button - uses nostrconnect:// which Amber registers */}
-                    <button
-                      onClick={handleOpenInSigner}
-                      className="w-full py-3 px-4 text-base font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                    >
-                      <span>🔶</span>
-                      <span>Open in Amber</span>
-                    </button>
-                    
-                    {/* Aegis button - uses nostrsigner:// which Aegis registers */}
-                    <button
-                      onClick={handleOpenInAegis}
-                      className="w-full py-3 px-4 text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-violet-700 hover:from-purple-700 hover:to-violet-800 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                    >
-                      <span>🛡️</span>
-                      <span>Open in Aegis</span>
-                    </button>
-                  </>
-                )}
-                
-                {/* Desktop: Show generic "Open in Signer" */}
-                {!isIOS && !isAndroid && (
-                  <button
-                    onClick={handleOpenInSigner}
-                    className="w-full py-3 px-4 text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                  >
-                    <span>🔗</span>
-                    <span>Open Nostr Connect URI</span>
-                  </button>
-                )}
-
-                {/* Copy Link Button */}
-                <button
-                  onClick={handleCopyLink}
-                  className={`w-full py-3 px-4 text-base font-medium rounded-xl transition-all flex items-center justify-center gap-2 ${
-                    copied 
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-2 border-green-500'
-                      : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border-2 border-transparent'
-                  }`}
-                >
-                  {copied ? (
-                    <>
-                      <span>✓</span>
-                      <span>Copied! Paste in signer app</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>📋</span>
-                      <span>Copy Link</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Instructions - platform specific */}
-              <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 mb-5">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  How to connect:
-                </p>
-                <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-1.5 list-decimal list-inside">
-                  {isIOS ? (
-                    <>
-                      <li>Tap <strong>"Open nsec.app"</strong> and sign in or create an account</li>
-                      <li>In nsec.app: tap <strong>"Connect App"</strong> → <strong>"Advanced options"</strong></li>
-                      <li>Copy the <strong>bunker URL</strong></li>
-                      <li>Return here and paste it in <strong>"Use bunker URL"</strong> below</li>
-                    </>
-                  ) : isAndroid ? (
-                    <>
-                      <li>Tap <strong>"Open in Amber"</strong> or <strong>"Open in Aegis"</strong></li>
-                      <li>Approve the connection request in your signer</li>
-                      <li>Approve the authentication when prompted</li>
-                      <li>Return here to complete sign-in</li>
-                    </>
-                  ) : (
-                    <>
-                      <li>Click <strong>"Open Nostr Connect URI"</strong> above</li>
-                      <li>Select your signer app</li>
-                      <li>Approve the connection request</li>
-                      <li>Approve the authentication</li>
-                    </>
-                  )}
-                </ol>
-              </div>
-
-              {/* Expandable QR Code Section */}
-              <div className="border-t border-gray-100 dark:border-gray-800 pt-4 mb-4">
-                <button
-                  onClick={() => setShowQRCode(!showQRCode)}
-                  className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors flex items-center justify-center gap-1"
-                >
-                  <span>{showQRCode ? '▼' : '▶'}</span>
-                  <span>Show QR code (for scanning from another device)</span>
-                </button>
-                
-                {showQRCode && (
-                  <div className="mt-4 flex justify-center">
-                    <div className="p-3 bg-white rounded-xl shadow-sm border border-gray-200">
+              {/* v55: Desktop QR-first experience */}
+              {!isIOS && !isAndroid && (
+                <div className="space-y-4">
+                  {/* QR Code - Primary for desktop */}
+                  <div className="flex flex-col items-center">
+                    <div className="p-4 bg-white rounded-xl shadow-sm border border-gray-200">
                       <QRCodeSVG
                         value={uri}
-                        size={160}
+                        size={200}
                         level="M"
                         includeMargin={false}
                       />
                     </div>
-            </div>
+                    <p className="mt-3 text-sm text-gray-600 dark:text-gray-400 text-center">
+                      Scan with your mobile signer app
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-500 text-center">
+                      (Amber, nsec.app, Aegis, or any NIP-46 signer)
+                    </p>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">or</span>
+                    <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+                  </div>
+
+                  {/* Desktop signer button (for Peridot, etc.) */}
+                  <button
+                    onClick={handleOpenInSigner}
+                    className="w-full py-3 px-4 text-base font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>🔗</span>
+                    <span>Open in Desktop Signer</span>
+                  </button>
+
+                  {/* Copy Link Button */}
+                  <button
+                    onClick={handleCopyLink}
+                    className={`w-full py-3 px-4 text-base font-medium rounded-xl transition-all flex items-center justify-center gap-2 ${
+                      copied 
+                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-2 border-green-500'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border-2 border-transparent'
+                    }`}
+                  >
+                    {copied ? (
+                      <>
+                        <span>✓</span>
+                        <span>Copied! Paste in signer app</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>📋</span>
+                        <span>Copy Link</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Alternative: Bunker URL Input (fallback) */}
+                  <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
+                    {!showBunkerInput ? (
+                      <button
+                        onClick={() => setShowBunkerInput(true)}
+                        className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors flex items-center justify-center gap-1"
+                      >
+                        <span>▶</span>
+                        <span>Paste bunker URL instead</span>
+                      </button>
+                    ) : (
+                      <form onSubmit={handleBunkerSubmit} className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                            Paste bunker:// URL from your signer
+                          </label>
+                          <input
+                            type="text"
+                            value={bunkerUrl}
+                            onChange={(e) => setBunkerUrl(e.target.value)}
+                            placeholder="bunker://..."
+                            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            autoFocus
+                          />
+                          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                            <strong>nsec.app:</strong> Connect App → Advanced options → Copy Bunker URL<br/>
+                            <strong>Amber:</strong> Applications → + → Copy bunker URL
+                          </p>
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={!bunkerUrl.trim()}
+                          className="w-full py-2.5 px-4 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 rounded-lg transition-colors disabled:cursor-not-allowed"
+                        >
+                          Connect with Bunker URL
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowBunkerInput(false);
+                            setBunkerUrl('');
+                          }}
+                          className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                        >
+                          ← Back
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* v55: Mobile experience - iOS */}
+              {isIOS && (
+                <div className="space-y-3">
+                  {/* nsec.app recommendation banner */}
+                  <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+                    <p className="text-sm text-green-700 dark:text-green-400 font-medium">
+                      ✅ <strong>Recommended for iOS:</strong> Use nsec.app (web-based signer)
+                    </p>
+                    <p className="text-xs text-green-600 dark:text-green-500 mt-1">
+                      Works reliably in Safari. Native iOS signers have known issues.
+                    </p>
+                  </div>
+                  
+                  {/* nsec.app button - opens in new tab */}
+                  <a
+                    href="https://use.nsec.app"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-3 px-4 text-base font-semibold text-white bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <span>🔐</span>
+                    <span>Open nsec.app</span>
+                  </a>
+                  
+                  {/* Divider */}
+                  <div className="flex items-center gap-3 my-2">
+                    <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">or try native signer</span>
+                    <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+                  </div>
+                  
+                  {/* Aegis button - secondary option */}
+                  <button
+                    onClick={handleOpenInAegis}
+                    className="w-full py-2.5 px-4 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>📱</span>
+                    <span>Open in Aegis</span>
+                  </button>
+
+                  {/* Copy Link Button */}
+                  <button
+                    onClick={handleCopyLink}
+                    className={`w-full py-3 px-4 text-base font-medium rounded-xl transition-all flex items-center justify-center gap-2 ${
+                      copied 
+                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-2 border-green-500'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border-2 border-transparent'
+                    }`}
+                  >
+                    {copied ? (
+                      <>
+                        <span>✓</span>
+                        <span>Copied! Paste in signer app</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>📋</span>
+                        <span>Copy Link</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Instructions */}
+                  <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      How to connect:
+                    </p>
+                    <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-1.5 list-decimal list-inside">
+                      <li>Tap <strong>"Open nsec.app"</strong> and sign in or create an account</li>
+                      <li>In nsec.app: tap <strong>"Connect App"</strong> → <strong>"Advanced options"</strong></li>
+                      <li>Copy the <strong>bunker URL</strong></li>
+                      <li>Return here and paste it in <strong>"Use bunker URL"</strong> below</li>
+                    </ol>
+                  </div>
+
+                  {/* v55: Show QR Code toggle for mobile */}
+                  <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
+                    <button
+                      onClick={() => setShowMobileQR(!showMobileQR)}
+                      className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors flex items-center justify-center gap-1"
+                    >
+                      <span>{showMobileQR ? '▼' : '▶'}</span>
+                      <span>Show QR code (scan from another device)</span>
+                    </button>
+                    
+                    {showMobileQR && (
+                      <div className="mt-4 flex flex-col items-center">
+                        <div className="p-4 bg-white rounded-xl shadow-sm border border-gray-200">
+                          <QRCodeSVG
+                            value={uri}
+                            size={200}
+                            level="M"
+                            includeMargin={false}
+                          />
+                        </div>
+                        <p className="mt-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+                          Scan this QR from another device
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Alternative: Bunker URL Input */}
+                  <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
+                    {!showBunkerInput ? (
+                      <button
+                        onClick={() => setShowBunkerInput(true)}
+                        className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                      >
+                        Paste bunker URL from nsec.app
+                      </button>
+                    ) : (
+                      <form onSubmit={handleBunkerSubmit} className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                            Paste bunker:// URL from nsec.app
+                          </label>
+                          <input
+                            type="text"
+                            value={bunkerUrl}
+                            onChange={(e) => setBunkerUrl(e.target.value)}
+                            placeholder="bunker://..."
+                            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            autoFocus
+                          />
+                          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                            <strong>nsec.app:</strong> Connect App → Advanced options → Copy Bunker URL<br/>
+                            <strong>Aegis:</strong> Settings → Copy bunker URL
+                          </p>
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={!bunkerUrl.trim()}
+                          className="w-full py-2.5 px-4 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 rounded-lg transition-colors disabled:cursor-not-allowed"
+                        >
+                          Connect with Bunker URL
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowBunkerInput(false);
+                            setBunkerUrl('');
+                          }}
+                          className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                        >
+                          ← Back
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* v55: Mobile experience - Android */}
+              {isAndroid && (
+                <div className="space-y-3">
+                  {/* Amber button - uses nostrconnect:// which Amber registers */}
+                  <button
+                    onClick={handleOpenInSigner}
+                    className="w-full py-3 px-4 text-base font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <span>🔶</span>
+                    <span>Open in Amber</span>
+                  </button>
+                  
+                  {/* Aegis button - uses nostrsigner:// which Aegis registers */}
+                  <button
+                    onClick={handleOpenInAegis}
+                    className="w-full py-3 px-4 text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-violet-700 hover:from-purple-700 hover:to-violet-800 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <span>🛡️</span>
+                    <span>Open in Aegis</span>
+                  </button>
+
+                  {/* Copy Link Button */}
+                  <button
+                    onClick={handleCopyLink}
+                    className={`w-full py-3 px-4 text-base font-medium rounded-xl transition-all flex items-center justify-center gap-2 ${
+                      copied 
+                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-2 border-green-500'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border-2 border-transparent'
+                    }`}
+                  >
+                    {copied ? (
+                      <>
+                        <span>✓</span>
+                        <span>Copied! Paste in signer app</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>📋</span>
+                        <span>Copy Link</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Instructions */}
+                  <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      How to connect:
+                    </p>
+                    <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-1.5 list-decimal list-inside">
+                      <li>Tap <strong>"Open in Amber"</strong> or <strong>"Open in Aegis"</strong></li>
+                      <li>Approve the connection request in your signer</li>
+                      <li>Approve the authentication when prompted</li>
+                      <li>Return here to complete sign-in</li>
+                    </ol>
+                  </div>
+
+                  {/* v55: Show QR Code toggle for mobile */}
+                  <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
+                    <button
+                      onClick={() => setShowMobileQR(!showMobileQR)}
+                      className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors flex items-center justify-center gap-1"
+                    >
+                      <span>{showMobileQR ? '▼' : '▶'}</span>
+                      <span>Show QR code (scan from another device)</span>
+                    </button>
+                    
+                    {showMobileQR && (
+                      <div className="mt-4 flex flex-col items-center">
+                        <div className="p-4 bg-white rounded-xl shadow-sm border border-gray-200">
+                          <QRCodeSVG
+                            value={uri}
+                            size={200}
+                            level="M"
+                            includeMargin={false}
+                          />
+                        </div>
+                        <p className="mt-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+                          Scan this QR from another device
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Alternative: Bunker URL Input */}
+                  <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
+                    {!showBunkerInput ? (
+                      <button
+                        onClick={() => setShowBunkerInput(true)}
+                        className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                      >
+                        Or paste bunker URL instead
+                      </button>
+                    ) : (
+                      <form onSubmit={handleBunkerSubmit} className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                            Paste bunker:// URL from your signer
+                          </label>
+                          <input
+                            type="text"
+                            value={bunkerUrl}
+                            onChange={(e) => setBunkerUrl(e.target.value)}
+                            placeholder="bunker://..."
+                            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            autoFocus
+                          />
+                          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                            <strong>Amber:</strong> Applications → + → Copy bunker URL<br/>
+                            <strong>Aegis:</strong> Settings → Copy bunker URL<br/>
+                            <strong>nsec.app:</strong> Connect App → Advanced options → Copy Bunker URL
+                          </p>
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={!bunkerUrl.trim()}
+                          className="w-full py-2.5 px-4 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 rounded-lg transition-colors disabled:cursor-not-allowed"
+                        >
+                          Connect with Bunker URL
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowBunkerInput(false);
+                            setBunkerUrl('');
+                          }}
+                          className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                        >
+                          ← Back
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {/* Awaiting nsec.app Approval View */}
@@ -812,68 +1072,6 @@ export default function NostrConnectModal({
                 ← Back to options
               </button>
             </div>
-          )}
-              </div>
-
-              {/* Alternative: Bunker URL Input */}
-              <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
-                {!showBunkerInput ? (
-                  <button
-                    onClick={() => setShowBunkerInput(true)}
-                    className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-                  >
-                    {isIOS ? 'Paste bunker URL from nsec.app' : 'Or paste bunker URL instead'}
-                  </button>
-                ) : (
-                  <form onSubmit={handleBunkerSubmit} className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                        Paste bunker:// URL from Amber
-                      </label>
-                      <input
-                        type="text"
-                        value={bunkerUrl}
-                        onChange={(e) => setBunkerUrl(e.target.value)}
-                        placeholder="bunker://..."
-                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        autoFocus
-                      />
-                      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                        {isIOS ? (
-                          <>
-                            <strong>nsec.app:</strong> Connect App → Advanced options → Copy Bunker URL<br/>
-                            <strong>Aegis:</strong> Settings → Copy bunker URL
-                          </>
-                        ) : (
-                          <>
-                            <strong>Amber:</strong> Applications → + → Copy bunker URL<br/>
-                            <strong>Aegis:</strong> Settings → Copy bunker URL<br/>
-                            <strong>nsec.app:</strong> Connect App → Advanced options → Copy Bunker URL
-                          </>
-                        )}
-                      </p>
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={!bunkerUrl.trim()}
-                      className="w-full py-2.5 px-4 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 rounded-lg transition-colors disabled:cursor-not-allowed"
-                    >
-                      Connect with Bunker URL
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowBunkerInput(false);
-                        setBunkerUrl('');
-                      }}
-                      className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-                    >
-                      ← Back
-                    </button>
-                  </form>
-                )}
-              </div>
-            </>
           )}
         </div>
 

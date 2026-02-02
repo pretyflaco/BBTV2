@@ -1,6 +1,12 @@
 /**
  * NostrConnectModal - Mobile-friendly modal for NIP-46 connection
  * 
+ * v51: Added NDK implementation for more reliable NIP-46 connections
+ * - Uses @nostr-dev-kit/ndk instead of nostr-tools when NEXT_PUBLIC_USE_NDK_NIP46=true
+ * - NDK handles NIP-46 more robustly, especially with nsec.app on iOS Safari
+ * - Supports both bunker:// URLs and NIP-05 identifiers (e.g., user@nsec.app)
+ * - Feature flag allows side-by-side comparison during testing
+ * 
  * v50: Patched nostr-tools to add 'since' filter to NIP-46 subscriptions
  * - PERMANENT FIX: Using patch-package to modify nostr-tools/nip46.js
  * - Added 'since: Math.floor(Date.now() / 1000) - 60' to subscription filter
@@ -53,6 +59,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import NostrConnectService from '../../lib/nostr/NostrConnectService';
+import NostrConnectServiceNDK from '../../lib/nostr/NostrConnectServiceNDK';
+
+// v51: Feature flag to use NDK implementation
+const USE_NDK = process.env.NEXT_PUBLIC_USE_NDK_NIP46 === 'true';
+
+// Get the appropriate service based on feature flag
+const getService = () => USE_NDK ? NostrConnectServiceNDK : NostrConnectService;
 
 // Detect iOS
 const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -308,7 +321,7 @@ export default function NostrConnectModal({
     e.preventDefault();
     if (!bunkerUrl.trim()) return;
     
-    console.log('[NostrConnectModal] v49: Connecting with bunker URL...');
+    console.log(`[NostrConnectModal] v51: Connecting with bunker URL (using ${USE_NDK ? 'NDK' : 'nostr-tools'})...`);
     setStage('waiting');
     setErrorMessage('');
     setAwaitingApproval(false);
@@ -316,7 +329,7 @@ export default function NostrConnectModal({
     
     // Auth URL callback for nsec.app approval flow (some signers use this)
     const handleAuthUrl = (url) => {
-      console.log('[NostrConnectModal] v49: Received auth URL:', url);
+      console.log('[NostrConnectModal] v51: Received auth URL:', url);
       setAuthUrl(url);
       setAwaitingApproval(true);
       setStage('awaiting_approval');
@@ -324,86 +337,96 @@ export default function NostrConnectModal({
       // Open the auth URL in a popup
       const popup = window.open(url, 'nsec_auth', 'width=500,height=700,popup=yes,scrollbars=yes');
       if (!popup) {
-        console.warn('[NostrConnectModal] v49: Popup blocked, user needs to click link');
+        console.warn('[NostrConnectModal] v51: Popup blocked, user needs to click link');
       }
     };
     
     try {
-      // v49: Single attempt - but we handle "invalid secret" as "needs approval"
-      const result = await NostrConnectService.connectWithBunkerURL(
-        bunkerUrl.trim(), 
-        1,
-        false, 
-        handleAuthUrl
-      );
+      let result;
       
-      // v49: If we get "invalid secret" with canRetryWithSameUrl, show approval UI
-      // This happens because nsec.app doesn't send auth_url - it shows approval in its app
-      if (result.needsApproval && result.canRetryWithSameUrl) {
-        console.log('[NostrConnectModal] v49: nsec.app requires approval (no auth_url), showing approval UI');
-        setStage('awaiting_approval');
-        setAwaitingApproval(true);
-        // No authUrl - nsec.app doesn't send one, user must check nsec.app manually
-        return;
+      if (USE_NDK) {
+        // v51: Use NDK implementation
+        result = await NostrConnectServiceNDK.connect(bunkerUrl.trim(), {
+          onAuthUrl: handleAuthUrl,
+          onStatusChange: (status) => {
+            console.log('[NostrConnectModal] v51 NDK status:', status);
+            if (status === 'awaiting_approval') {
+              setStage('awaiting_approval');
+              setAwaitingApproval(true);
+            }
+          }
+        });
+      } else {
+        // Legacy: Use nostr-tools implementation
+        result = await NostrConnectService.connectWithBunkerURL(
+          bunkerUrl.trim(), 
+          1,
+          false, 
+          handleAuthUrl
+        );
       }
       
-      // v49: Handle truly expired secret (only after retry fails)
-      if (result.secretExpired || result.needsNewBunkerUrl) {
-        console.log('[NostrConnectModal] v49: Bunker URL secret truly expired');
-        setStage('error');
-        setErrorMessage(result.error || 'This bunker URL has expired. Please generate a NEW bunker URL in nsec.app and try again.');
-        setErrorStage('connected');
-        // Clear the bunker URL input to prompt user for a new one
-        setBunkerUrl('');
+      // Handle result - both implementations return similar structure
+      if (result.needsApproval) {
+        console.log('[NostrConnectModal] v51: Signer requires approval, showing approval UI');
+        setStage('awaiting_approval');
+        setAwaitingApproval(true);
+        if (result.error) {
+          setErrorMessage(result.error);
+        }
         return;
       }
       
       if (result.success && result.publicKey) {
-        console.log('[NostrConnectModal] v49: Bunker connection successful');
+        console.log('[NostrConnectModal] v51: Connection successful');
         setAwaitingApproval(false);
         setAuthUrl(null);
         await handleConnectionSuccess(result.publicKey);
       } else {
         setStage('error');
-        setErrorMessage(result.error || 'Bunker connection failed');
+        setErrorMessage(result.error || 'Connection failed');
         setErrorStage('connected');
       }
     } catch (error) {
       setStage('error');
-      setErrorMessage(error.message || 'Bunker connection failed');
+      setErrorMessage(error.message || 'Connection failed');
       setErrorStage('connected');
     }
   };
   
   // Handle retry after nsec.app approval
-  // v49: After approval, retry with the SAME bunker URL
-  // If we get "invalid secret" again on retry, THEN we know it's truly expired
+  // v51: Updated to work with both NDK and nostr-tools implementations
   const handleRetryAfterApproval = async () => {
-    console.log('[NostrConnectModal] v49: Retrying after approval with same bunker URL...');
+    console.log(`[NostrConnectModal] v51: Retrying after approval (using ${USE_NDK ? 'NDK' : 'nostr-tools'})...`);
     setStage('waiting');
     setAwaitingApproval(false);
     setAuthUrl(null);
+    setErrorMessage('');
     
     try {
-      // Try connecting again with the SAME bunker URL - should work now that user approved
-      const result = await NostrConnectService.connectWithBunkerURL(bunkerUrl.trim(), 1, false);
+      let result;
+      
+      if (USE_NDK) {
+        // v51: Retry with NDK
+        result = await NostrConnectServiceNDK.connect(bunkerUrl.trim(), {
+          onStatusChange: (status) => {
+            console.log('[NostrConnectModal] v51 NDK retry status:', status);
+          }
+        });
+      } else {
+        // Legacy: Retry with nostr-tools
+        result = await NostrConnectService.connectWithBunkerURL(bunkerUrl.trim(), 1, false);
+      }
       
       if (result.success && result.publicKey) {
-        console.log('[NostrConnectModal] v49: Connection successful after approval');
+        console.log('[NostrConnectModal] v51: Connection successful after approval');
         await handleConnectionSuccess(result.publicKey);
-      } else if (result.needsApproval && result.canRetryWithSameUrl) {
+      } else if (result.needsApproval) {
         // Still needs approval - maybe user didn't actually approve yet
-        console.log('[NostrConnectModal] v49: Still needs approval - asking user to try again');
+        console.log('[NostrConnectModal] v51: Still needs approval - asking user to try again');
         setStage('awaiting_approval');
         setAwaitingApproval(true);
-        setErrorMessage('Please make sure you approved the connection in nsec.app, then try again.');
-      } else if (result.error?.includes('invalid secret')) {
-        // v49: If we get "invalid secret" AGAIN on retry, it's truly expired
-        console.log('[NostrConnectModal] v49: Got "invalid secret" on retry - URL is truly expired');
-        setStage('error');
-        setErrorMessage('This bunker URL has expired or was already used. Please generate a NEW bunker URL in nsec.app and try again.');
-        setErrorStage('connected');
-        setBunkerUrl(''); // Clear to prompt for new URL
+        setErrorMessage('Please make sure you approved the connection in your signer app, then try again.');
       } else {
         setStage('error');
         setErrorMessage(result.error || 'Connection failed. Please try with a new bunker URL.');
@@ -417,32 +440,35 @@ export default function NostrConnectModal({
   };
 
   const handleRetry = async () => {
-    console.log('[NostrConnectModal] v32: Retrying...');
+    console.log('[NostrConnectModal] v51: Retrying...');
     setErrorMessage('');
     setShowSlowWarning(false);
     setErrorStage(null);
     
-    // Check if we still have a relay connection
-    if (NostrConnectService.isConnected() && connectedPubkey) {
+    // Check if we still have a relay connection (use appropriate service)
+    const service = getService();
+    if (service.isConnected() && connectedPubkey) {
       // Retry just the NIP-98 part
-      console.log('[NostrConnectModal] v32: Still connected, retrying from signing stage');
+      console.log('[NostrConnectModal] v51: Still connected, retrying from signing stage');
       setStage('signing');
       await handleConnectionSuccess(connectedPubkey);
     } else {
       // Need to reconnect from scratch
-      console.log('[NostrConnectModal] v32: Not connected, restarting from beginning');
+      console.log('[NostrConnectModal] v51: Not connected, restarting from beginning');
       setStage('idle');
       setConnectedPubkey(null);
     }
   };
 
   const handleCancel = () => {
-    console.log('[NostrConnectModal] v32: User cancelled');
+    console.log('[NostrConnectModal] v51: User cancelled');
     // Clean disconnect
     if (slowTimerRef.current) {
       clearTimeout(slowTimerRef.current);
     }
-    NostrConnectService.disconnect();
+    // Disconnect using appropriate service
+    const service = getService();
+    service.disconnect();
     onCancel?.();
   };
 

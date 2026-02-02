@@ -12,12 +12,16 @@ import { useNostrAuth } from '../../lib/hooks/useNostrAuth';
 import { useTheme } from '../../lib/hooks/useTheme';
 import NostrAuthService from '../../lib/nostr/NostrAuthService';
 import NostrConnectService from '../../lib/nostr/NostrConnectService';
+import NostrConnectServiceNDK from '../../lib/nostr/NostrConnectServiceNDK';
 import NostrConnectModal from './NostrConnectModal';
 
 // Build version - update this when deploying changes
 // This helps verify the correct build is running in the browser
-const BUILD_VERSION = 'v50-patch-nostr-tools-since-filter';
+const BUILD_VERSION = 'v51-ndk-nip46';
 const BUILD_DATE = '2025-02-03';
+
+// v51: Feature flag to use NDK implementation
+const USE_NDK = process.env.NEXT_PUBLIC_USE_NDK_NIP46 === 'true';
 
 export default function NostrLoginForm() {
   const { darkMode } = useTheme();

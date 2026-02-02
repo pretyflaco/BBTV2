@@ -16,7 +16,7 @@ import NostrConnectModal from './NostrConnectModal';
 
 // Build version - update this when deploying changes
 // This helps verify the correct build is running in the browser
-const BUILD_VERSION = 'v37-detailed-signer-debug';
+const BUILD_VERSION = 'v38-remote-logging';
 const BUILD_DATE = '2025-02-02';
 
 export default function NostrLoginForm() {

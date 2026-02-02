@@ -1,6 +1,11 @@
 /**
  * NostrConnectModal - Mobile-friendly modal for NIP-46 connection
  * 
+ * v35: Added nsec.app auth_url approval flow support
+ * - When connecting from a new device, nsec.app sends auth_url for approval
+ * - Shows "Awaiting Approval" UI with link to approve in nsec.app
+ * - After approval, user clicks "I've Approved - Continue" to complete connection
+ * 
  * v34: Added nsec.app as recommended cross-platform option
  * - nsec.app works reliably on iOS, Android, and desktop browsers
  * - Shows "Use nsec.app" as primary option on iOS (since native signers have issues)
@@ -127,6 +132,9 @@ export default function NostrConnectModal({
   const [errorMessage, setErrorMessage] = useState('');
   const [errorStage, setErrorStage] = useState(null);
   const [showSlowWarning, setShowSlowWarning] = useState(false);
+  
+  const [awaitingApproval, setAwaitingApproval] = useState(false);
+  const [authUrl, setAuthUrl] = useState(null);
   
   // Timer refs
   const slowTimerRef = { current: null };
@@ -278,29 +286,70 @@ export default function NostrConnectModal({
     e.preventDefault();
     if (!bunkerUrl.trim()) return;
     
-    console.log('[NostrConnectModal] v32: Connecting with bunker URL...');
+    console.log('[NostrConnectModal] v35: Connecting with bunker URL...');
     setStage('waiting');
     setErrorMessage('');
+    setAwaitingApproval(false);
+    setAuthUrl(null);
+    
+    // Auth URL callback for nsec.app approval flow
+    const handleAuthUrl = (url) => {
+      console.log('[NostrConnectModal] v35: Received auth URL:', url);
+      setAuthUrl(url);
+      setAwaitingApproval(true);
+      setStage('awaiting_approval');
+      
+      // Open the auth URL in a popup
+      const popup = window.open(url, 'nsec_auth', 'width=500,height=700,popup=yes,scrollbars=yes');
+      if (!popup) {
+        console.warn('[NostrConnectModal] v35: Popup blocked, user needs to click link');
+      }
+    };
     
     try {
-      // First attempt with existing client key
-      let result = await NostrConnectService.connectWithBunkerURL(bunkerUrl.trim());
+      // First attempt with existing client key, with auth callback
+      let result = await NostrConnectService.connectWithBunkerURL(
+        bunkerUrl.trim(), 
+        3, 
+        false, 
+        handleAuthUrl
+      );
       
-      // If we get "invalid secret" error, retry with a fresh client key
-      // This happens when the bunker URL was created for a different client
-      if (!result.success && result.error && result.error.includes('invalid secret')) {
-        console.log('[NostrConnectModal] v32: Got "invalid secret" error, retrying with fresh client key...');
+      // If nsec.app requires approval, show the approval UI
+      if (result.needsApproval) {
+        console.log('[NostrConnectModal] v35: nsec.app requires approval');
+        // Keep the awaiting_approval stage - don't change anything
+        // User will click "Try Again" after approving
+        return;
+      }
+      
+      // If we get "invalid secret" error without auth URL being opened, retry with fresh key
+      if (!result.success && result.error && result.error.includes('invalid secret') && !result.authUrlOpened) {
+        console.log('[NostrConnectModal] v35: Got "invalid secret" error, retrying with fresh client key...');
         setErrorMessage('Retrying with fresh credentials...');
         
         // Small delay to show the message
         await new Promise(resolve => setTimeout(resolve, 500));
         
         // Retry with forceNewClientKey=true
-        result = await NostrConnectService.connectWithBunkerURL(bunkerUrl.trim(), 3, true);
+        result = await NostrConnectService.connectWithBunkerURL(
+          bunkerUrl.trim(), 
+          3, 
+          true, 
+          handleAuthUrl
+        );
+        
+        // Check again for approval flow
+        if (result.needsApproval) {
+          console.log('[NostrConnectModal] v35: nsec.app requires approval after fresh key');
+          return;
+        }
       }
       
       if (result.success && result.publicKey) {
-        console.log('[NostrConnectModal] v32: Bunker connection successful');
+        console.log('[NostrConnectModal] v35: Bunker connection successful');
+        setAwaitingApproval(false);
+        setAuthUrl(null);
         await handleConnectionSuccess(result.publicKey);
       } else {
         setStage('error');
@@ -310,6 +359,32 @@ export default function NostrConnectModal({
     } catch (error) {
       setStage('error');
       setErrorMessage(error.message || 'Bunker connection failed');
+      setErrorStage('connected');
+    }
+  };
+  
+  // Handle retry after nsec.app approval
+  const handleRetryAfterApproval = async () => {
+    console.log('[NostrConnectModal] v35: Retrying after approval...');
+    setStage('waiting');
+    setAwaitingApproval(false);
+    setAuthUrl(null);
+    
+    try {
+      // Try connecting again - should work now that user approved
+      const result = await NostrConnectService.connectWithBunkerURL(bunkerUrl.trim(), 3, false);
+      
+      if (result.success && result.publicKey) {
+        console.log('[NostrConnectModal] v35: Connection successful after approval');
+        await handleConnectionSuccess(result.publicKey);
+      } else {
+        setStage('error');
+        setErrorMessage(result.error || 'Connection failed. Please try again.');
+        setErrorStage('connected');
+      }
+    } catch (error) {
+      setStage('error');
+      setErrorMessage(error.message || 'Connection failed');
       setErrorStage('connected');
     }
   };
@@ -349,10 +424,13 @@ export default function NostrConnectModal({
     setShowSlowWarning(false);
     setErrorMessage('');
     setErrorStage(null);
+    setAwaitingApproval(false);
+    setAuthUrl(null);
   };
 
   // Determine what to render based on stage
   const isInConnectionFlow = ['waiting', 'connected', 'signing', 'syncing', 'complete'].includes(stage);
+  const isAwaitingApproval = stage === 'awaiting_approval';
   const isInErrorState = stage === 'error';
 
   return (
@@ -363,10 +441,11 @@ export default function NostrConnectModal({
           <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
             {stage === 'complete' ? '✓ Connected!' : 
              isInErrorState ? '⚠️ Connection Failed' :
+             isAwaitingApproval ? '🔐 Approval Required' :
              isInConnectionFlow ? '🔗 Connecting...' : 
              '🔗 Connect with Nostr Signer'}
           </h3>
-          {!isInConnectionFlow && !isInErrorState && (
+          {!isInConnectionFlow && !isInErrorState && !isAwaitingApproval && (
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               NIP-46 Nostr Connect
             </p>
@@ -603,8 +682,60 @@ export default function NostrConnectModal({
                         includeMargin={false}
                       />
                     </div>
-                  </div>
-                )}
+            </div>
+          )}
+
+          {/* Awaiting nsec.app Approval View */}
+          {isAwaitingApproval && (
+            <div className="py-4 text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                <svg className="w-8 h-8 text-blue-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              
+              <h4 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                Approve in nsec.app
+              </h4>
+              
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                A popup should have opened. Please approve the connection request in nsec.app, then tap the button below.
+              </p>
+              
+              {/* Link to open auth URL manually if popup was blocked */}
+              {authUrl && (
+                <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                    Popup didn't open? Click here:
+                  </p>
+                  <a
+                    href={authUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline break-all"
+                  >
+                    Open nsec.app approval page →
+                  </a>
+                </div>
+              )}
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={handleRetryAfterApproval}
+                  className="flex-1 py-3 px-4 text-base font-semibold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors"
+                >
+                  I've Approved - Continue
+                </button>
+              </div>
+              
+              <button
+                onClick={handleBackToOptions}
+                className="mt-3 w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+              >
+                ← Back to options
+              </button>
+            </div>
+          )}
               </div>
 
               {/* Alternative: Bunker URL Input */}

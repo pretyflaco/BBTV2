@@ -16,8 +16,8 @@ import NostrConnectModal from './NostrConnectModal';
 
 // Build version - update this when deploying changes
 // This helps verify the correct build is running in the browser
-const BUILD_VERSION = 'v48-auth-url-race-fix';
-const BUILD_DATE = '2025-02-02';
+const BUILD_VERSION = 'v50-patch-nostr-tools-since-filter';
+const BUILD_DATE = '2025-02-03';
 
 export default function NostrLoginForm() {
   const { darkMode } = useTheme();

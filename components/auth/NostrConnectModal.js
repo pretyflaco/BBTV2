@@ -1,11 +1,21 @@
 /**
  * NostrConnectModal - Mobile-friendly modal for NIP-46 connection
  * 
- * v48: Fixed auth_url race condition with nsec.app
- * - nsec.app sends "invalid secret" BEFORE auth_url callback fires
- * - Now we wait for auth_url after getting "invalid secret" 
- * - After approval, user can retry with SAME bunker URL (secret is still valid)
- * - Only prompt for new bunker URL if NO auth_url was received
+ * v50: Patched nostr-tools to add 'since' filter to NIP-46 subscriptions
+ * - PERMANENT FIX: Using patch-package to modify nostr-tools/nip46.js
+ * - Added 'since: Math.floor(Date.now() / 1000) - 60' to subscription filter
+ * - This prevents relay from replaying old cached NIP-46 events (the root cause)
+ * - Same fix nsec.app backend uses for strfry relay compatibility
+ * 
+ * v49: Fixed iOS Safari "invalid secret" - OLD RELAY RESPONSES
+ * - ROOT CAUSE: nostr-tools uses limit:0 with no 'since' filter
+ * - Relay sends ALL historical events including old error responses
+ * - When using shared pool, old subscriptions interfere with new ones
+ * - FIX: NostrConnectService now creates FRESH pool for each connection
+ * - FIX: Always show approval UI on first "invalid secret" (nsec.app needs approval)
+ * - FIX: Only mark URL as expired after retry also fails
+ * 
+ * v48: Fixed auth_url race condition with nsec.app (but nsec.app doesn't use auth_url!)
  * 
  * v47: Fixed iOS Safari "invalid secret" issue
  * - Bunker URL secrets are SINGLE-USE - don't retry with same URL
@@ -298,15 +308,15 @@ export default function NostrConnectModal({
     e.preventDefault();
     if (!bunkerUrl.trim()) return;
     
-    console.log('[NostrConnectModal] v48: Connecting with bunker URL...');
+    console.log('[NostrConnectModal] v49: Connecting with bunker URL...');
     setStage('waiting');
     setErrorMessage('');
     setAwaitingApproval(false);
     setAuthUrl(null);
     
-    // Auth URL callback for nsec.app approval flow
+    // Auth URL callback for nsec.app approval flow (some signers use this)
     const handleAuthUrl = (url) => {
-      console.log('[NostrConnectModal] v48: Received auth URL:', url);
+      console.log('[NostrConnectModal] v49: Received auth URL:', url);
       setAuthUrl(url);
       setAwaitingApproval(true);
       setStage('awaiting_approval');
@@ -314,12 +324,12 @@ export default function NostrConnectModal({
       // Open the auth URL in a popup
       const popup = window.open(url, 'nsec_auth', 'width=500,height=700,popup=yes,scrollbars=yes');
       if (!popup) {
-        console.warn('[NostrConnectModal] v48: Popup blocked, user needs to click link');
+        console.warn('[NostrConnectModal] v49: Popup blocked, user needs to click link');
       }
     };
     
     try {
-      // v48: Single attempt - but now we properly handle auth_url flow
+      // v49: Single attempt - but we handle "invalid secret" as "needs approval"
       const result = await NostrConnectService.connectWithBunkerURL(
         bunkerUrl.trim(), 
         1,
@@ -327,17 +337,19 @@ export default function NostrConnectModal({
         handleAuthUrl
       );
       
-      // If nsec.app requires approval, show the approval UI
-      // v48: canRetryWithSameUrl means secret is valid, just needs approval
+      // v49: If we get "invalid secret" with canRetryWithSameUrl, show approval UI
+      // This happens because nsec.app doesn't send auth_url - it shows approval in its app
       if (result.needsApproval && result.canRetryWithSameUrl) {
-        console.log('[NostrConnectModal] v48: nsec.app requires approval, can retry with same URL');
-        // Stage is already set to awaiting_approval by the handleAuthUrl callback
+        console.log('[NostrConnectModal] v49: nsec.app requires approval (no auth_url), showing approval UI');
+        setStage('awaiting_approval');
+        setAwaitingApproval(true);
+        // No authUrl - nsec.app doesn't send one, user must check nsec.app manually
         return;
       }
       
-      // v48: Handle expired/consumed secret - user needs a NEW bunker URL
+      // v49: Handle truly expired secret (only after retry fails)
       if (result.secretExpired || result.needsNewBunkerUrl) {
-        console.log('[NostrConnectModal] v48: Bunker URL secret expired or consumed');
+        console.log('[NostrConnectModal] v49: Bunker URL secret truly expired');
         setStage('error');
         setErrorMessage(result.error || 'This bunker URL has expired. Please generate a NEW bunker URL in nsec.app and try again.');
         setErrorStage('connected');
@@ -347,7 +359,7 @@ export default function NostrConnectModal({
       }
       
       if (result.success && result.publicKey) {
-        console.log('[NostrConnectModal] v48: Bunker connection successful');
+        console.log('[NostrConnectModal] v49: Bunker connection successful');
         setAwaitingApproval(false);
         setAuthUrl(null);
         await handleConnectionSuccess(result.publicKey);
@@ -364,9 +376,10 @@ export default function NostrConnectModal({
   };
   
   // Handle retry after nsec.app approval
-  // v48: After approval, retry with the SAME bunker URL - the secret is still valid
+  // v49: After approval, retry with the SAME bunker URL
+  // If we get "invalid secret" again on retry, THEN we know it's truly expired
   const handleRetryAfterApproval = async () => {
-    console.log('[NostrConnectModal] v48: Retrying after approval with same bunker URL...');
+    console.log('[NostrConnectModal] v49: Retrying after approval with same bunker URL...');
     setStage('waiting');
     setAwaitingApproval(false);
     setAuthUrl(null);
@@ -376,13 +389,21 @@ export default function NostrConnectModal({
       const result = await NostrConnectService.connectWithBunkerURL(bunkerUrl.trim(), 1, false);
       
       if (result.success && result.publicKey) {
-        console.log('[NostrConnectModal] v48: Connection successful after approval');
+        console.log('[NostrConnectModal] v49: Connection successful after approval');
         await handleConnectionSuccess(result.publicKey);
-      } else if (result.needsApproval) {
-        // Still needs approval - show the UI again
-        console.log('[NostrConnectModal] v48: Still needs approval');
+      } else if (result.needsApproval && result.canRetryWithSameUrl) {
+        // Still needs approval - maybe user didn't actually approve yet
+        console.log('[NostrConnectModal] v49: Still needs approval - asking user to try again');
         setStage('awaiting_approval');
         setAwaitingApproval(true);
+        setErrorMessage('Please make sure you approved the connection in nsec.app, then try again.');
+      } else if (result.error?.includes('invalid secret')) {
+        // v49: If we get "invalid secret" AGAIN on retry, it's truly expired
+        console.log('[NostrConnectModal] v49: Got "invalid secret" on retry - URL is truly expired');
+        setStage('error');
+        setErrorMessage('This bunker URL has expired or was already used. Please generate a NEW bunker URL in nsec.app and try again.');
+        setErrorStage('connected');
+        setBunkerUrl(''); // Clear to prompt for new URL
       } else {
         setStage('error');
         setErrorMessage(result.error || 'Connection failed. Please try with a new bunker URL.');
@@ -705,10 +726,27 @@ export default function NostrConnectModal({
               </h4>
               
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                A popup should have opened. Please approve the connection request in nsec.app, then tap the button below.
+                {authUrl 
+                  ? 'A popup should have opened. Please approve the connection request in nsec.app, then tap the button below.'
+                  : 'Please open nsec.app and look for a connection request to approve. After approving, tap the button below.'}
               </p>
               
-              {/* Link to open auth URL manually if popup was blocked */}
+              {/* v49: Instructions for nsec.app if no auth_url was provided */}
+              {!authUrl && (
+                <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-left">
+                  <p className="text-sm text-amber-700 dark:text-amber-400 font-medium mb-2">
+                    📱 In nsec.app:
+                  </p>
+                  <ol className="text-xs text-amber-600 dark:text-amber-500 space-y-1 list-decimal list-inside">
+                    <li>Open the nsec.app tab/window</li>
+                    <li>Look for a notification or "Pending" request</li>
+                    <li>Tap to approve the connection</li>
+                    <li>Return here and tap "Retry Connection"</li>
+                  </ol>
+                </div>
+              )}
+              
+              {/* Link to open auth URL manually if one was provided but popup was blocked */}
               {authUrl && (
                 <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
@@ -730,9 +768,16 @@ export default function NostrConnectModal({
                   onClick={handleRetryAfterApproval}
                   className="flex-1 py-3 px-4 text-base font-semibold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors"
                 >
-                  I've Approved - Continue
+                  Retry Connection
                 </button>
               </div>
+              
+              {/* Show any error message */}
+              {errorMessage && (
+                <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
+                  {errorMessage}
+                </p>
+              )}
               
               <button
                 onClick={handleBackToOptions}

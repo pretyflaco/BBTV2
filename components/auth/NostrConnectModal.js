@@ -1,6 +1,12 @@
 /**
  * NostrConnectModal - Mobile-friendly modal for NIP-46 connection
  * 
+ * v34: Added nsec.app as recommended cross-platform option
+ * - nsec.app works reliably on iOS, Android, and desktop browsers
+ * - Shows "Use nsec.app" as primary option on iOS (since native signers have issues)
+ * - Added instructions for how to use nsec.app with bunker:// URL
+ * - Added helpful tip about nsec.app being recommended for iOS
+ * 
  * v32: Simplified Aegis support - fire-and-forget approach.
  * - Uses nostrsigner:// scheme which Aegis registers on both iOS and Android
  * - No callbacks - just open Aegis and wait for relay connection
@@ -445,17 +451,48 @@ export default function NostrConnectModal({
             <>
               {/* Primary Actions */}
               <div className="space-y-3 mb-5">
-                {/* v32: Platform-specific signer buttons */}
+                {/* v34: Platform-specific signer buttons */}
                 
-                {/* iOS: Show "Open in Aegis" only */}
+                {/* iOS: Show nsec.app as recommended option + Aegis as alternative */}
                 {isIOS && (
-                  <button
-                    onClick={handleOpenInAegis}
-                    className="w-full py-3 px-4 text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-violet-700 hover:from-purple-700 hover:to-violet-800 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                  >
-                    <span>📱</span>
-                    <span>Open in Aegis</span>
-                  </button>
+                  <>
+                    {/* nsec.app recommendation banner */}
+                    <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl mb-3">
+                      <p className="text-sm text-green-700 dark:text-green-400 font-medium">
+                        ✅ <strong>Recommended for iOS:</strong> Use nsec.app (web-based signer)
+                      </p>
+                      <p className="text-xs text-green-600 dark:text-green-500 mt-1">
+                        Works reliably in Safari. Native iOS signers have known issues.
+                      </p>
+                    </div>
+                    
+                    {/* nsec.app button - opens in new tab */}
+                    <a
+                      href="https://use.nsec.app"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-3 px-4 text-base font-semibold text-white bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                    >
+                      <span>🔐</span>
+                      <span>Open nsec.app</span>
+                    </a>
+                    
+                    {/* Divider */}
+                    <div className="flex items-center gap-3 my-2">
+                      <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+                      <span className="text-xs text-gray-400 dark:text-gray-500">or try native signer</span>
+                      <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    
+                    {/* Aegis button - secondary option */}
+                    <button
+                      onClick={handleOpenInAegis}
+                      className="w-full py-2.5 px-4 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl transition-all flex items-center justify-center gap-2"
+                    >
+                      <span>📱</span>
+                      <span>Open in Aegis</span>
+                    </button>
+                  </>
                 )}
                 
                 {/* Android: Show both "Open in Amber" and "Open in Aegis" */}
@@ -523,10 +560,10 @@ export default function NostrConnectModal({
                 <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-1.5 list-decimal list-inside">
                   {isIOS ? (
                     <>
-                      <li>Tap <strong>"Open in Aegis"</strong> above</li>
-                      <li>Aegis will open and show a connection request</li>
-                      <li>Approve the connection</li>
-                      <li>Return here and wait for completion</li>
+                      <li>Tap <strong>"Open nsec.app"</strong> and sign in or create an account</li>
+                      <li>In nsec.app: tap <strong>"Connect App"</strong> → <strong>"Advanced options"</strong></li>
+                      <li>Copy the <strong>bunker URL</strong></li>
+                      <li>Return here and paste it in <strong>"Use bunker URL"</strong> below</li>
                     </>
                   ) : isAndroid ? (
                     <>
@@ -577,7 +614,7 @@ export default function NostrConnectModal({
                     onClick={() => setShowBunkerInput(true)}
                     className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
                   >
-                    Or paste bunker URL from Amber instead
+                    {isIOS ? 'Paste bunker URL from nsec.app' : 'Or paste bunker URL instead'}
                   </button>
                 ) : (
                   <form onSubmit={handleBunkerSubmit} className="space-y-3">
@@ -595,11 +632,15 @@ export default function NostrConnectModal({
                       />
                       <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
                         {isIOS ? (
-                          <>In Aegis: Settings → Copy bunker URL</>
+                          <>
+                            <strong>nsec.app:</strong> Connect App → Advanced options → Copy Bunker URL<br/>
+                            <strong>Aegis:</strong> Settings → Copy bunker URL
+                          </>
                         ) : (
                           <>
-                            In Amber: Applications → + → Copy bunker URL<br/>
-                            In Aegis: Settings → Copy bunker URL
+                            <strong>Amber:</strong> Applications → + → Copy bunker URL<br/>
+                            <strong>Aegis:</strong> Settings → Copy bunker URL<br/>
+                            <strong>nsec.app:</strong> Connect App → Advanced options → Copy Bunker URL
                           </>
                         )}
                       </p>

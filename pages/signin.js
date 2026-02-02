@@ -60,13 +60,72 @@ export default function SignIn() {
             var isMobile = /iPad|iPhone|iPod|Android/.test(ua);
             if (!isMobile) return;
             
-            console.log('[WSDebug] v41: Installing WebSocket debugger inline...');
+            // Generate device ID for this session
+            var platform = /iPad|iPhone|iPod/.test(ua) ? 'ios' : 'android';
+            var wsDeviceId = 'ws-' + platform + '-' + Math.random().toString(36).substr(2, 6);
+            
+            // Direct log sender - bypasses console.log to send WS logs directly to server
+            var logQueue = [];
+            var sendTimeout = null;
+            
+            function sendLogsDirectly() {
+              if (logQueue.length === 0) return;
+              var logs = logQueue.splice(0, 50);
+              var data = JSON.stringify({
+                logs: logs,
+                deviceId: wsDeviceId,
+                userAgent: ua
+              });
+              
+              // Try sendBeacon first
+              if (navigator.sendBeacon) {
+                navigator.sendBeacon('/api/debug/remote-log', new Blob([data], {type: 'application/json'}));
+              }
+              // Also try fetch
+              fetch('/api/debug/remote-log', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: data,
+                keepalive: true
+              }).catch(function(){});
+            }
+            
+            function wsLog(msg) {
+              console.log(msg); // Also log to console
+              logQueue.push('[LOG] ' + msg);
+              if (!sendTimeout) {
+                sendTimeout = setTimeout(function() {
+                  sendTimeout = null;
+                  sendLogsDirectly();
+                }, 200);
+              }
+            }
+            
+            function wsWarn(msg) {
+              console.warn(msg);
+              logQueue.push('[WARN] ' + msg);
+              if (!sendTimeout) {
+                sendTimeout = setTimeout(function() {
+                  sendTimeout = null;
+                  sendLogsDirectly();
+                }, 200);
+              }
+            }
+            
+            function wsError(msg) {
+              console.error(msg);
+              logQueue.push('[ERROR] ' + msg);
+              // Send errors immediately
+              sendLogsDirectly();
+            }
+            
+            wsLog('[WSDebug] v42: Installing WebSocket debugger...');
             
             var OriginalWebSocket = window.WebSocket;
             
             window.WebSocket = function(url, protocols) {
-              console.log('[WSDebug] ====== NEW CONNECTION ======');
-              console.log('[WSDebug] URL:', url);
+              wsLog('[WSDebug] ====== NEW CONNECTION ======');
+              wsLog('[WSDebug] URL: ' + url);
               
               var ws = protocols 
                 ? new OriginalWebSocket(url, protocols) 
@@ -75,58 +134,58 @@ export default function SignIn() {
               var originalSend = ws.send.bind(ws);
               
               ws.send = function(data) {
-                console.log('[WSDebug] >>> SENDING to ' + url.substring(0, 30) + '...');
+                wsLog('[WSDebug] >>> SENDING to ' + url.substring(0, 30) + '...');
                 
                 if (typeof data === 'string') {
-                  console.log('[WSDebug] >>> String length:', data.length);
-                  console.log('[WSDebug] >>> Content:', data.substring(0, 300));
+                  wsLog('[WSDebug] >>> String length: ' + data.length);
+                  wsLog('[WSDebug] >>> Content: ' + data.substring(0, 500));
                   
                   // Check for encoding issues
                   if (data.charCodeAt(0) === 0xFEFF) {
-                    console.warn('[WSDebug] >>> WARNING: BOM at start!');
+                    wsWarn('[WSDebug] >>> WARNING: BOM at start!');
                   }
                   if (data.length === 0) {
-                    console.error('[WSDebug] >>> ERROR: Empty string being sent!');
+                    wsError('[WSDebug] >>> ERROR: Empty string being sent!');
                   }
                   
-                  // Log first few character codes
+                  // Log first few character codes (crucial for encoding debugging)
                   var codes = [];
-                  for (var i = 0; i < Math.min(20, data.length); i++) {
+                  for (var i = 0; i < Math.min(30, data.length); i++) {
                     codes.push(data.charCodeAt(i));
                   }
-                  console.log('[WSDebug] >>> First 20 char codes:', codes.join(','));
+                  wsLog('[WSDebug] >>> First 30 char codes: ' + codes.join(','));
                 }
                 
                 return originalSend(data);
               };
               
               ws.addEventListener('open', function() {
-                console.log('[WSDebug] <<< CONNECTED to ' + url);
+                wsLog('[WSDebug] <<< CONNECTED to ' + url);
               });
               
               ws.addEventListener('message', function(event) {
-                console.log('[WSDebug] <<< RECEIVED from ' + url.substring(0, 30) + '...');
+                wsLog('[WSDebug] <<< RECEIVED from ' + url.substring(0, 30) + '...');
                 if (typeof event.data === 'string') {
-                  console.log('[WSDebug] <<< Length:', event.data.length);
-                  console.log('[WSDebug] <<< Content:', event.data.substring(0, 300));
+                  wsLog('[WSDebug] <<< Length: ' + event.data.length);
+                  wsLog('[WSDebug] <<< Content: ' + event.data.substring(0, 500));
                   
                   // Check for NOTICE messages (relay errors)
                   if (event.data.indexOf('NOTICE') !== -1) {
-                    console.warn('[WSDebug] <<< RELAY NOTICE DETECTED');
+                    wsWarn('[WSDebug] <<< RELAY NOTICE DETECTED');
                   }
-                  // Check for invalid secret
-                  if (event.data.indexOf('invalid') !== -1) {
-                    console.error('[WSDebug] <<< INVALID RESPONSE DETECTED');
+                  // Check for invalid/error responses
+                  if (event.data.indexOf('invalid') !== -1 || event.data.indexOf('error') !== -1) {
+                    wsError('[WSDebug] <<< ERROR/INVALID RESPONSE DETECTED');
                   }
                 }
               });
               
               ws.addEventListener('error', function(event) {
-                console.error('[WSDebug] !!! ERROR on ' + url);
+                wsError('[WSDebug] !!! ERROR on ' + url);
               });
               
               ws.addEventListener('close', function(event) {
-                console.log('[WSDebug] XXX CLOSED ' + url + ' code=' + event.code + ' reason=' + (event.reason || 'none'));
+                wsLog('[WSDebug] XXX CLOSED ' + url + ' code=' + event.code + ' reason=' + (event.reason || 'none'));
               });
               
               return ws;
@@ -137,7 +196,10 @@ export default function SignIn() {
             window.WebSocket.CLOSING = OriginalWebSocket.CLOSING;
             window.WebSocket.CLOSED = OriginalWebSocket.CLOSED;
             
-            console.log('[WSDebug] v41: WebSocket debugger installed!');
+            wsLog('[WSDebug] v42: WebSocket debugger installed successfully!');
+            
+            // Send init confirmation immediately
+            sendLogsDirectly();
           })();
         `}
       </Script>

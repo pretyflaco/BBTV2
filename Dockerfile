@@ -24,6 +24,10 @@ COPY . .
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED 1
 
+# v52: NEXT_PUBLIC_* variables must be set at build time for Next.js
+# They get inlined into the JavaScript bundle during build
+ENV NEXT_PUBLIC_USE_NDK_NIP46=true
+
 RUN npm run build
 
 # Production image, copy all the files and run next

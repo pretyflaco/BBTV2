@@ -17,8 +17,8 @@ import NostrConnectModal from './NostrConnectModal';
 
 // Build version - update this when deploying changes
 // This helps verify the correct build is running in the browser
-const BUILD_VERSION = 'v51-ndk-nip46';
-const BUILD_DATE = '2025-02-03';
+const BUILD_VERSION = 'v52-ndk-build-fix';
+const BUILD_DATE = '2025-06-03';
 
 // v51: Feature flag to use NDK implementation
 const USE_NDK = process.env.NEXT_PUBLIC_USE_NDK_NIP46 === 'true';

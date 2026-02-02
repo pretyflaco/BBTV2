@@ -1,6 +1,12 @@
 /**
  * NostrConnectModal - Mobile-friendly modal for NIP-46 connection
  * 
+ * v47: Fixed iOS Safari "invalid secret" issue
+ * - Bunker URL secrets are SINGLE-USE - don't retry with same URL
+ * - Clear error messaging when secret is expired/consumed
+ * - After approval flow, user MUST generate new bunker URL
+ * - Uses shared SimplePool per nostr-tools recommendations
+ * 
  * v35: Added nsec.app auth_url approval flow support
  * - When connecting from a new device, nsec.app sends auth_url for approval
  * - Shows "Awaiting Approval" UI with link to approve in nsec.app
@@ -286,7 +292,7 @@ export default function NostrConnectModal({
     e.preventDefault();
     if (!bunkerUrl.trim()) return;
     
-    console.log('[NostrConnectModal] v35: Connecting with bunker URL...');
+    console.log('[NostrConnectModal] v47: Connecting with bunker URL...');
     setStage('waiting');
     setErrorMessage('');
     setAwaitingApproval(false);
@@ -294,7 +300,7 @@ export default function NostrConnectModal({
     
     // Auth URL callback for nsec.app approval flow
     const handleAuthUrl = (url) => {
-      console.log('[NostrConnectModal] v35: Received auth URL:', url);
+      console.log('[NostrConnectModal] v47: Received auth URL:', url);
       setAuthUrl(url);
       setAwaitingApproval(true);
       setStage('awaiting_approval');
@@ -302,52 +308,41 @@ export default function NostrConnectModal({
       // Open the auth URL in a popup
       const popup = window.open(url, 'nsec_auth', 'width=500,height=700,popup=yes,scrollbars=yes');
       if (!popup) {
-        console.warn('[NostrConnectModal] v35: Popup blocked, user needs to click link');
+        console.warn('[NostrConnectModal] v47: Popup blocked, user needs to click link');
       }
     };
     
     try {
-      // First attempt with existing client key, with auth callback
-      let result = await NostrConnectService.connectWithBunkerURL(
+      // v47: Single attempt - bunker URL secrets are single-use!
+      // Don't retry with the same URL - it will always fail
+      const result = await NostrConnectService.connectWithBunkerURL(
         bunkerUrl.trim(), 
-        3, 
+        1,  // maxRetries=1 since secrets are single-use
         false, 
         handleAuthUrl
       );
       
       // If nsec.app requires approval, show the approval UI
       if (result.needsApproval) {
-        console.log('[NostrConnectModal] v35: nsec.app requires approval');
+        console.log('[NostrConnectModal] v47: nsec.app requires approval');
         // Keep the awaiting_approval stage - don't change anything
         // User will click "Try Again" after approving
         return;
       }
       
-      // If we get "invalid secret" error without auth URL being opened, retry with fresh key
-      if (!result.success && result.error && result.error.includes('invalid secret') && !result.authUrlOpened) {
-        console.log('[NostrConnectModal] v35: Got "invalid secret" error, retrying with fresh client key...');
-        setErrorMessage('Retrying with fresh credentials...');
-        
-        // Small delay to show the message
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Retry with forceNewClientKey=true
-        result = await NostrConnectService.connectWithBunkerURL(
-          bunkerUrl.trim(), 
-          3, 
-          true, 
-          handleAuthUrl
-        );
-        
-        // Check again for approval flow
-        if (result.needsApproval) {
-          console.log('[NostrConnectModal] v35: nsec.app requires approval after fresh key');
-          return;
-        }
+      // v47: Handle expired/consumed secret - user needs a NEW bunker URL
+      if (result.secretExpired || result.needsNewBunkerUrl) {
+        console.log('[NostrConnectModal] v47: Bunker URL secret expired or consumed');
+        setStage('error');
+        setErrorMessage(result.error || 'This bunker URL has expired. Please generate a NEW bunker URL in nsec.app and try again.');
+        setErrorStage('connected');
+        // Clear the bunker URL input to prompt user for a new one
+        setBunkerUrl('');
+        return;
       }
       
       if (result.success && result.publicKey) {
-        console.log('[NostrConnectModal] v35: Bunker connection successful');
+        console.log('[NostrConnectModal] v47: Bunker connection successful');
         setAwaitingApproval(false);
         setAuthUrl(null);
         await handleConnectionSuccess(result.publicKey);
@@ -364,29 +359,22 @@ export default function NostrConnectModal({
   };
   
   // Handle retry after nsec.app approval
+  // v47: After approval, user MUST use a NEW bunker URL because secrets are single-use
   const handleRetryAfterApproval = async () => {
-    console.log('[NostrConnectModal] v35: Retrying after approval...');
-    setStage('waiting');
+    console.log('[NostrConnectModal] v47: User clicked continue after approval...');
+    
+    // v47: Important! After approval, the original bunker URL secret is consumed.
+    // User needs to generate a NEW bunker URL from nsec.app
+    setStage('error');
+    setErrorMessage(
+      'After approving in nsec.app, you need to generate a NEW bunker URL. ' +
+      'Go back to nsec.app → Connect App → Advanced options → Copy the NEW bunker URL and paste it here.'
+    );
+    setErrorStage('connected');
     setAwaitingApproval(false);
     setAuthUrl(null);
-    
-    try {
-      // Try connecting again - should work now that user approved
-      const result = await NostrConnectService.connectWithBunkerURL(bunkerUrl.trim(), 3, false);
-      
-      if (result.success && result.publicKey) {
-        console.log('[NostrConnectModal] v35: Connection successful after approval');
-        await handleConnectionSuccess(result.publicKey);
-      } else {
-        setStage('error');
-        setErrorMessage(result.error || 'Connection failed. Please try again.');
-        setErrorStage('connected');
-      }
-    } catch (error) {
-      setStage('error');
-      setErrorMessage(error.message || 'Connection failed');
-      setErrorStage('connected');
-    }
+    // Clear the old bunker URL
+    setBunkerUrl('');
   };
 
   const handleRetry = async () => {

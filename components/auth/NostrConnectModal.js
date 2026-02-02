@@ -277,7 +277,21 @@ export default function NostrConnectModal({
     setErrorMessage('');
     
     try {
-      const result = await NostrConnectService.connectWithBunkerURL(bunkerUrl.trim());
+      // First attempt with existing client key
+      let result = await NostrConnectService.connectWithBunkerURL(bunkerUrl.trim());
+      
+      // If we get "invalid secret" error, retry with a fresh client key
+      // This happens when the bunker URL was created for a different client
+      if (!result.success && result.error && result.error.includes('invalid secret')) {
+        console.log('[NostrConnectModal] v32: Got "invalid secret" error, retrying with fresh client key...');
+        setErrorMessage('Retrying with fresh credentials...');
+        
+        // Small delay to show the message
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Retry with forceNewClientKey=true
+        result = await NostrConnectService.connectWithBunkerURL(bunkerUrl.trim(), 3, true);
+      }
       
       if (result.success && result.publicKey) {
         console.log('[NostrConnectModal] v32: Bunker connection successful');

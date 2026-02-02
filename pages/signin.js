@@ -55,151 +55,151 @@ export default function SignIn() {
       <Script id="ws-debugger-init" strategy="beforeInteractive">
         {`
           (function() {
-            // Only install on mobile for debugging
-            var ua = navigator.userAgent;
-            var isMobile = /iPad|iPhone|iPod|Android/.test(ua);
-            if (!isMobile) return;
-            
-            // Generate device ID for this session
-            var platform = /iPad|iPhone|iPod/.test(ua) ? 'ios' : 'android';
-            var wsDeviceId = 'ws-' + platform + '-' + Math.random().toString(36).substr(2, 6);
-            
-            // Direct log sender - bypasses console.log to send WS logs directly to server
-            var logQueue = [];
-            var sendTimeout = null;
-            
-            function sendLogsDirectly() {
-              if (logQueue.length === 0) return;
-              var logs = logQueue.splice(0, 50);
-              var data = JSON.stringify({
-                logs: logs,
-                deviceId: wsDeviceId,
-                userAgent: ua
-              });
+            try {
+              // Only install on mobile for debugging
+              var ua = navigator.userAgent;
+              var isMobile = /iPad|iPhone|iPod|Android/.test(ua);
+              if (!isMobile) return;
               
-              // Try sendBeacon first
-              if (navigator.sendBeacon) {
-                navigator.sendBeacon('/api/debug/remote-log', new Blob([data], {type: 'application/json'}));
+              // Generate device ID for this session
+              var platform = /iPad|iPhone|iPod/.test(ua) ? 'ios' : 'android';
+              var wsDeviceId = 'ws-' + platform + '-' + Math.random().toString(36).substr(2, 6);
+              
+              // IMMEDIATE sync send on init - use XHR which is more reliable
+              function sendImmediate(msg) {
+                try {
+                  var xhr = new XMLHttpRequest();
+                  xhr.open('POST', '/api/debug/remote-log', false); // SYNC request
+                  xhr.setRequestHeader('Content-Type', 'application/json');
+                  xhr.send(JSON.stringify({
+                    logs: [msg],
+                    deviceId: wsDeviceId,
+                    userAgent: ua
+                  }));
+                } catch(e) {}
               }
-              // Also try fetch
-              fetch('/api/debug/remote-log', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: data,
-                keepalive: true
-              }).catch(function(){});
-            }
-            
-            function wsLog(msg) {
-              console.log(msg); // Also log to console
-              logQueue.push('[LOG] ' + msg);
-              if (!sendTimeout) {
-                sendTimeout = setTimeout(function() {
-                  sendTimeout = null;
-                  sendLogsDirectly();
-                }, 200);
-              }
-            }
-            
-            function wsWarn(msg) {
-              console.warn(msg);
-              logQueue.push('[WARN] ' + msg);
-              if (!sendTimeout) {
-                sendTimeout = setTimeout(function() {
-                  sendTimeout = null;
-                  sendLogsDirectly();
-                }, 200);
-              }
-            }
-            
-            function wsError(msg) {
-              console.error(msg);
-              logQueue.push('[ERROR] ' + msg);
-              // Send errors immediately
-              sendLogsDirectly();
-            }
-            
-            wsLog('[WSDebug] v42: Installing WebSocket debugger...');
-            
-            var OriginalWebSocket = window.WebSocket;
-            
-            window.WebSocket = function(url, protocols) {
-              wsLog('[WSDebug] ====== NEW CONNECTION ======');
-              wsLog('[WSDebug] URL: ' + url);
               
-              var ws = protocols 
-                ? new OriginalWebSocket(url, protocols) 
-                : new OriginalWebSocket(url);
+              sendImmediate('[WSDebug] v43: Script starting execution...');
               
-              var originalSend = ws.send.bind(ws);
+              // Async log sender for later
+              var logQueue = [];
+              var sendTimeout = null;
               
-              ws.send = function(data) {
-                wsLog('[WSDebug] >>> SENDING to ' + url.substring(0, 30) + '...');
+              function sendLogsAsync() {
+                if (logQueue.length === 0) return;
+                var logs = logQueue.splice(0, 50);
+                var data = JSON.stringify({
+                  logs: logs,
+                  deviceId: wsDeviceId,
+                  userAgent: ua
+                });
                 
-                if (typeof data === 'string') {
-                  wsLog('[WSDebug] >>> String length: ' + data.length);
-                  wsLog('[WSDebug] >>> Content: ' + data.substring(0, 500));
-                  
-                  // Check for encoding issues
-                  if (data.charCodeAt(0) === 0xFEFF) {
-                    wsWarn('[WSDebug] >>> WARNING: BOM at start!');
-                  }
-                  if (data.length === 0) {
-                    wsError('[WSDebug] >>> ERROR: Empty string being sent!');
-                  }
-                  
-                  // Log first few character codes (crucial for encoding debugging)
-                  var codes = [];
-                  for (var i = 0; i < Math.min(30, data.length); i++) {
-                    codes.push(data.charCodeAt(i));
-                  }
-                  wsLog('[WSDebug] >>> First 30 char codes: ' + codes.join(','));
+                if (navigator.sendBeacon) {
+                  navigator.sendBeacon('/api/debug/remote-log', new Blob([data], {type: 'application/json'}));
                 }
+                fetch('/api/debug/remote-log', {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'},
+                  body: data,
+                  keepalive: true
+                }).catch(function(){});
+              }
+              
+              function wsLog(msg) {
+                console.log(msg);
+                logQueue.push('[LOG] ' + msg);
+                if (!sendTimeout) {
+                  sendTimeout = setTimeout(function() {
+                    sendTimeout = null;
+                    sendLogsAsync();
+                  }, 100);
+                }
+              }
+              
+              sendImmediate('[WSDebug] v43: About to patch WebSocket...');
+              
+              var OriginalWebSocket = window.WebSocket;
+              if (!OriginalWebSocket) {
+                sendImmediate('[WSDebug] ERROR: window.WebSocket is undefined!');
+                return;
+              }
+              
+              window.WebSocket = function(url, protocols) {
+                wsLog('[WSDebug] ====== NEW CONNECTION ======');
+                wsLog('[WSDebug] URL: ' + url);
                 
-                return originalSend(data);
+                var ws = protocols 
+                  ? new OriginalWebSocket(url, protocols) 
+                  : new OriginalWebSocket(url);
+                
+                var originalSend = ws.send.bind(ws);
+                
+                ws.send = function(data) {
+                  wsLog('[WSDebug] >>> SEND to ' + url.substring(0, 35));
+                  
+                  if (typeof data === 'string') {
+                    wsLog('[WSDebug] >>> len=' + data.length + ' data=' + data.substring(0, 400));
+                    
+                    // Log character codes for encoding debugging
+                    var codes = [];
+                    for (var i = 0; i < Math.min(50, data.length); i++) {
+                      codes.push(data.charCodeAt(i));
+                    }
+                    wsLog('[WSDebug] >>> charCodes: ' + codes.join(','));
+                    
+                    if (data.charCodeAt(0) === 0xFEFF) {
+                      wsLog('[WSDebug] >>> WARNING: BOM DETECTED!');
+                    }
+                    if (data.length === 0) {
+                      wsLog('[WSDebug] >>> ERROR: EMPTY STRING!');
+                    }
+                  }
+                  
+                  return originalSend(data);
+                };
+                
+                ws.addEventListener('open', function() {
+                  wsLog('[WSDebug] <<< CONNECTED ' + url);
+                });
+                
+                ws.addEventListener('message', function(event) {
+                  wsLog('[WSDebug] <<< RECV from ' + url.substring(0, 35));
+                  if (typeof event.data === 'string') {
+                    wsLog('[WSDebug] <<< len=' + event.data.length + ' data=' + event.data.substring(0, 400));
+                  }
+                });
+                
+                ws.addEventListener('error', function() {
+                  wsLog('[WSDebug] !!! ERROR ' + url);
+                });
+                
+                ws.addEventListener('close', function(event) {
+                  wsLog('[WSDebug] XXX CLOSE ' + url + ' code=' + event.code);
+                });
+                
+                return ws;
               };
               
-              ws.addEventListener('open', function() {
-                wsLog('[WSDebug] <<< CONNECTED to ' + url);
-              });
+              window.WebSocket.CONNECTING = OriginalWebSocket.CONNECTING;
+              window.WebSocket.OPEN = OriginalWebSocket.OPEN;
+              window.WebSocket.CLOSING = OriginalWebSocket.CLOSING;
+              window.WebSocket.CLOSED = OriginalWebSocket.CLOSED;
               
-              ws.addEventListener('message', function(event) {
-                wsLog('[WSDebug] <<< RECEIVED from ' + url.substring(0, 30) + '...');
-                if (typeof event.data === 'string') {
-                  wsLog('[WSDebug] <<< Length: ' + event.data.length);
-                  wsLog('[WSDebug] <<< Content: ' + event.data.substring(0, 500));
-                  
-                  // Check for NOTICE messages (relay errors)
-                  if (event.data.indexOf('NOTICE') !== -1) {
-                    wsWarn('[WSDebug] <<< RELAY NOTICE DETECTED');
-                  }
-                  // Check for invalid/error responses
-                  if (event.data.indexOf('invalid') !== -1 || event.data.indexOf('error') !== -1) {
-                    wsError('[WSDebug] <<< ERROR/INVALID RESPONSE DETECTED');
-                  }
-                }
-              });
+              sendImmediate('[WSDebug] v43: WebSocket patched successfully!');
               
-              ws.addEventListener('error', function(event) {
-                wsError('[WSDebug] !!! ERROR on ' + url);
-              });
-              
-              ws.addEventListener('close', function(event) {
-                wsLog('[WSDebug] XXX CLOSED ' + url + ' code=' + event.code + ' reason=' + (event.reason || 'none'));
-              });
-              
-              return ws;
-            };
-            
-            window.WebSocket.CONNECTING = OriginalWebSocket.CONNECTING;
-            window.WebSocket.OPEN = OriginalWebSocket.OPEN;
-            window.WebSocket.CLOSING = OriginalWebSocket.CLOSING;
-            window.WebSocket.CLOSED = OriginalWebSocket.CLOSED;
-            
-            wsLog('[WSDebug] v42: WebSocket debugger installed successfully!');
-            
-            // Send init confirmation immediately
-            sendLogsDirectly();
+            } catch(err) {
+              // Try to report the error
+              try {
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', '/api/debug/remote-log', false);
+                xhr.setRequestHeader('Content-Type', 'application/json');
+                xhr.send(JSON.stringify({
+                  logs: ['[WSDebug] FATAL ERROR: ' + (err.message || err)],
+                  deviceId: 'ws-error',
+                  userAgent: navigator.userAgent
+                }));
+              } catch(e) {}
+            }
           })();
         `}
       </Script>

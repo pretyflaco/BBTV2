@@ -4,6 +4,7 @@ import Head from 'next/head';
 import Script from 'next/script';
 import NostrLoginForm from '../components/auth/NostrLoginForm';
 import { useCombinedAuth } from '../lib/hooks/useCombinedAuth';
+import { installWebSocketDebugger } from '../lib/debug/wsDebugger';
 
 /**
  * Sign In Page - Dedicated Nostr authentication
@@ -50,6 +51,97 @@ export default function SignIn() {
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
       </Head>
 
+      {/* WebSocket debugger - MUST run before any WebSocket connections */}
+      <Script id="ws-debugger-init" strategy="beforeInteractive">
+        {`
+          (function() {
+            // Only install on mobile for debugging
+            var ua = navigator.userAgent;
+            var isMobile = /iPad|iPhone|iPod|Android/.test(ua);
+            if (!isMobile) return;
+            
+            console.log('[WSDebug] v41: Installing WebSocket debugger inline...');
+            
+            var OriginalWebSocket = window.WebSocket;
+            
+            window.WebSocket = function(url, protocols) {
+              console.log('[WSDebug] ====== NEW CONNECTION ======');
+              console.log('[WSDebug] URL:', url);
+              
+              var ws = protocols 
+                ? new OriginalWebSocket(url, protocols) 
+                : new OriginalWebSocket(url);
+              
+              var originalSend = ws.send.bind(ws);
+              
+              ws.send = function(data) {
+                console.log('[WSDebug] >>> SENDING to ' + url.substring(0, 30) + '...');
+                
+                if (typeof data === 'string') {
+                  console.log('[WSDebug] >>> String length:', data.length);
+                  console.log('[WSDebug] >>> Content:', data.substring(0, 300));
+                  
+                  // Check for encoding issues
+                  if (data.charCodeAt(0) === 0xFEFF) {
+                    console.warn('[WSDebug] >>> WARNING: BOM at start!');
+                  }
+                  if (data.length === 0) {
+                    console.error('[WSDebug] >>> ERROR: Empty string being sent!');
+                  }
+                  
+                  // Log first few character codes
+                  var codes = [];
+                  for (var i = 0; i < Math.min(20, data.length); i++) {
+                    codes.push(data.charCodeAt(i));
+                  }
+                  console.log('[WSDebug] >>> First 20 char codes:', codes.join(','));
+                }
+                
+                return originalSend(data);
+              };
+              
+              ws.addEventListener('open', function() {
+                console.log('[WSDebug] <<< CONNECTED to ' + url);
+              });
+              
+              ws.addEventListener('message', function(event) {
+                console.log('[WSDebug] <<< RECEIVED from ' + url.substring(0, 30) + '...');
+                if (typeof event.data === 'string') {
+                  console.log('[WSDebug] <<< Length:', event.data.length);
+                  console.log('[WSDebug] <<< Content:', event.data.substring(0, 300));
+                  
+                  // Check for NOTICE messages (relay errors)
+                  if (event.data.indexOf('NOTICE') !== -1) {
+                    console.warn('[WSDebug] <<< RELAY NOTICE DETECTED');
+                  }
+                  // Check for invalid secret
+                  if (event.data.indexOf('invalid') !== -1) {
+                    console.error('[WSDebug] <<< INVALID RESPONSE DETECTED');
+                  }
+                }
+              });
+              
+              ws.addEventListener('error', function(event) {
+                console.error('[WSDebug] !!! ERROR on ' + url);
+              });
+              
+              ws.addEventListener('close', function(event) {
+                console.log('[WSDebug] XXX CLOSED ' + url + ' code=' + event.code + ' reason=' + (event.reason || 'none'));
+              });
+              
+              return ws;
+            };
+            
+            window.WebSocket.CONNECTING = OriginalWebSocket.CONNECTING;
+            window.WebSocket.OPEN = OriginalWebSocket.OPEN;
+            window.WebSocket.CLOSING = OriginalWebSocket.CLOSING;
+            window.WebSocket.CLOSED = OriginalWebSocket.CLOSED;
+            
+            console.log('[WSDebug] v41: WebSocket debugger installed!');
+          })();
+        `}
+      </Script>
+
       {/* Inline remote logger - runs immediately before React hydration */}
       <Script id="remote-logger-init" strategy="beforeInteractive">
         {`
@@ -73,7 +165,7 @@ export default function SignIn() {
             // Send immediate beacon
             try {
               var data = JSON.stringify({
-                logs: ['[INLINE] v40 Remote logger script executed - ' + deviceId + ' - ' + ua.substring(0,80)],
+                logs: ['[IMMEDIATE] RemoteLogger INIT - device: ' + deviceId + ', UA: ' + ua.substring(0,80)],
                 deviceId: deviceId,
                 userAgent: ua
               });

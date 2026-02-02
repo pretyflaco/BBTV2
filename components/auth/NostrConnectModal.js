@@ -1,10 +1,11 @@
 /**
  * NostrConnectModal - Mobile-friendly modal for NIP-46 connection
  * 
- * v31: Added Aegis x-callback-url support for iOS.
- * - iOS: "Open in Aegis" button uses aegis://x-callback-url/auth/nip46
- * - Saves connection state to localStorage before redirect
- * - Returns via https:// callback URL with aegis=success/error params
+ * v32: Simplified Aegis support - fire-and-forget approach.
+ * - Uses nostrsigner:// scheme which Aegis registers on both iOS and Android
+ * - No callbacks - just open Aegis and wait for relay connection
+ * - Shows both "Open in Amber" and "Open in Aegis" buttons on Android
+ * - Shows "Open in Aegis" on iOS
  * 
  * v29: Added progress stepper UI for blocking sign-in flow.
  * - Shows connection options (Open in Amber, Copy Link, QR, Bunker URL)
@@ -101,14 +102,12 @@ function ProgressStepper({ currentStage, errorStage }) {
  * @param {Function} props.onSuccess - Called when sign-in is fully complete
  * @param {Function} props.onCancel - Called when user cancels
  * @param {Function} props.signInWithNostrConnect - The sign-in function from useNostrAuth
- * @param {boolean} props.autoConnect - If true, immediately start waiting for connection (for Aegis callback)
  */
 export default function NostrConnectModal({
   uri,
   onSuccess,
   onCancel,
-  signInWithNostrConnect,
-  autoConnect = false
+  signInWithNostrConnect
 }) {
   // UI state
   const [showBunkerInput, setShowBunkerInput] = useState(false);
@@ -135,87 +134,76 @@ export default function NostrConnectModal({
   }, [copied]);
 
   // Start waiting for connection when modal mounts with URI
-  // v31: If autoConnect is true (returning from Aegis), immediately start waiting
   useEffect(() => {
-    if (uri && stage === 'idle' && autoConnect) {
-      console.log('[NostrConnectModal] v31: autoConnect=true, immediately starting wait...');
-      setStage('waiting');
-      startWaitingForConnection();
+    if (uri && stage === 'idle') {
+      // Just mount the modal - user will tap a button to start
     }
-  }, [uri, stage, autoConnect, startWaitingForConnection]);
+  }, [uri, stage]);
 
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(uri);
       setCopied(true);
-      console.log('[NostrConnectModal] v31: Copied URI to clipboard');
+      console.log('[NostrConnectModal] v32: Copied URI to clipboard');
     } catch (err) {
-      console.error('[NostrConnectModal] v31: Failed to copy:', err);
+      console.error('[NostrConnectModal] v32: Failed to copy:', err);
       window.prompt('Copy this link:', uri);
     }
   };
 
   const handleOpenInSigner = () => {
-    console.log('[NostrConnectModal] v31: Opening in signer app and starting wait...');
+    console.log('[NostrConnectModal] v32: Opening in signer app (nostrconnect://) and starting wait...');
     setStage('waiting');
-    // Open the nostrconnect:// URI - Amber should handle it on Android
+    // Open the nostrconnect:// URI - Amber handles this on Android
     window.location.href = uri;
     // Start waiting for the connection
     startWaitingForConnection();
   };
 
-  // v31: Aegis x-callback-url for iOS
-  // Aegis uses a different URL scheme that returns via callback URL
+  // v32: Open in Aegis using nostrsigner:// scheme
+  // This is a fire-and-forget approach - we open Aegis and wait for relay connection
+  // No callbacks needed since we're waiting on the relay anyway
   const handleOpenInAegis = () => {
-    console.log('[NostrConnectModal] v31: Opening in Aegis with x-callback-url...');
+    console.log('[NostrConnectModal] v32: Opening in Aegis (nostrsigner://) and starting wait...');
     
-    // Get the base URL for callbacks (production or localhost)
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://track.twentyone.ist';
-    
-    // Save connection state to localStorage so we can resume after callback
-    const connectionState = {
-      uri: uri,
-      timestamp: Date.now(),
-      // Extract secret from the URI for reconnection
-      secret: uri.includes('secret=') ? uri.split('secret=')[1]?.split('&')[0] : null
-    };
-    localStorage.setItem('blinkpos_aegis_connection', JSON.stringify(connectionState));
-    console.log('[NostrConnectModal] v31: Saved connection state to localStorage');
-    
-    // Build the Aegis x-callback-url
-    // Format: aegis://x-callback-url/auth/nip46?method=connect&nostrconnect=<encoded>&x-source=blinkpos&x-success=<url>&x-error=<url>
+    // Build the Aegis URL using nostrsigner:// scheme
+    // Format: nostrsigner://x-callback-url/auth/nip46?method=connect&nostrconnect=<encoded>
+    // We omit callbacks since PWAs can't register custom URL schemes
     const nostrConnectEncoded = encodeURIComponent(uri);
-    const successUrl = encodeURIComponent(`${baseUrl}/signin?aegis=success`);
-    const errorUrl = encodeURIComponent(`${baseUrl}/signin?aegis=error`);
     
-    const aegisUrl = `aegis://x-callback-url/auth/nip46?method=connect&nostrconnect=${nostrConnectEncoded}&x-source=blinkpos&x-success=${successUrl}&x-error=${errorUrl}`;
+    // Use nostrsigner:// which Aegis registers on both iOS and Android
+    const aegisUrl = `nostrsigner://x-callback-url/auth/nip46?method=connect&nostrconnect=${nostrConnectEncoded}&x-source=blinkpos`;
     
-    console.log('[NostrConnectModal] v31: Aegis URL:', aegisUrl.substring(0, 100) + '...');
+    console.log('[NostrConnectModal] v32: Aegis URL:', aegisUrl.substring(0, 100) + '...');
     
     setStage('waiting');
     
-    // Redirect to Aegis
+    // Open Aegis
     window.location.href = aegisUrl;
+    
+    // Start waiting for the connection via relay
+    // Aegis will connect to the relay specified in the nostrconnect URI
+    startWaitingForConnection();
   };
 
   const startWaitingForConnection = useCallback(async () => {
-    console.log('[NostrConnectModal] v31: Waiting for NIP-46 connection...');
+    console.log('[NostrConnectModal] v32: Waiting for NIP-46 connection...');
     
     try {
       const result = await NostrConnectService.waitForConnection(uri);
       
       if (result.success && result.publicKey) {
-        console.log('[NostrConnectModal] v31: Connection successful, pubkey:', result.publicKey.substring(0, 16) + '...');
+        console.log('[NostrConnectModal] v32: Connection successful, pubkey:', result.publicKey.substring(0, 16) + '...');
         setConnectedPubkey(result.publicKey);
         await handleConnectionSuccess(result.publicKey);
       } else {
-        console.error('[NostrConnectModal] v31: Connection failed:', result.error);
+        console.error('[NostrConnectModal] v32: Connection failed:', result.error);
         setStage('error');
         setErrorMessage(result.error || 'Connection failed');
         setErrorStage('connected');
       }
     } catch (error) {
-      console.error('[NostrConnectModal] v31: Exception during connection:', error);
+      console.error('[NostrConnectModal] v32: Exception during connection:', error);
       setStage('error');
       setErrorMessage(error.message || 'Connection failed');
       setErrorStage('connected');
@@ -223,7 +211,7 @@ export default function NostrConnectModal({
   }, [uri]);
 
   const handleConnectionSuccess = async (pubkey) => {
-    console.log('[NostrConnectModal] v31: Handling connection success...');
+    console.log('[NostrConnectModal] v32: Handling connection success...');
     setStage('connected');
     setConnectedPubkey(pubkey);
     
@@ -244,7 +232,7 @@ export default function NostrConnectModal({
       // Call the sign-in function with progress callback
       const result = await signInWithNostrConnect(pubkey, {
         onProgress: (progressStage, message) => {
-          console.log('[NostrConnectModal] v31: Progress:', progressStage, message);
+          console.log('[NostrConnectModal] v32: Progress:', progressStage, message);
           if (progressStage === 'signing') setStage('signing');
           else if (progressStage === 'syncing') setStage('syncing');
           else if (progressStage === 'complete') setStage('complete');
@@ -284,7 +272,7 @@ export default function NostrConnectModal({
     e.preventDefault();
     if (!bunkerUrl.trim()) return;
     
-    console.log('[NostrConnectModal] v31: Connecting with bunker URL...');
+    console.log('[NostrConnectModal] v32: Connecting with bunker URL...');
     setStage('waiting');
     setErrorMessage('');
     
@@ -292,7 +280,7 @@ export default function NostrConnectModal({
       const result = await NostrConnectService.connectWithBunkerURL(bunkerUrl.trim());
       
       if (result.success && result.publicKey) {
-        console.log('[NostrConnectModal] v31: Bunker connection successful');
+        console.log('[NostrConnectModal] v32: Bunker connection successful');
         await handleConnectionSuccess(result.publicKey);
       } else {
         setStage('error');
@@ -307,7 +295,7 @@ export default function NostrConnectModal({
   };
 
   const handleRetry = async () => {
-    console.log('[NostrConnectModal] v31: Retrying...');
+    console.log('[NostrConnectModal] v32: Retrying...');
     setErrorMessage('');
     setShowSlowWarning(false);
     setErrorStage(null);
@@ -315,19 +303,19 @@ export default function NostrConnectModal({
     // Check if we still have a relay connection
     if (NostrConnectService.isConnected() && connectedPubkey) {
       // Retry just the NIP-98 part
-      console.log('[NostrConnectModal] v31: Still connected, retrying from signing stage');
+      console.log('[NostrConnectModal] v32: Still connected, retrying from signing stage');
       setStage('signing');
       await handleConnectionSuccess(connectedPubkey);
     } else {
       // Need to reconnect from scratch
-      console.log('[NostrConnectModal] v31: Not connected, restarting from beginning');
+      console.log('[NostrConnectModal] v32: Not connected, restarting from beginning');
       setStage('idle');
       setConnectedPubkey(null);
     }
   };
 
   const handleCancel = () => {
-    console.log('[NostrConnectModal] v31: User cancelled');
+    console.log('[NostrConnectModal] v32: User cancelled');
     // Clean disconnect
     if (slowTimerRef.current) {
       clearTimeout(slowTimerRef.current);
@@ -443,9 +431,9 @@ export default function NostrConnectModal({
             <>
               {/* Primary Actions */}
               <div className="space-y-3 mb-5">
-                {/* v31: Platform-specific signer buttons */}
+                {/* v32: Platform-specific signer buttons */}
                 
-                {/* iOS: Show "Open in Aegis" with x-callback-url */}
+                {/* iOS: Show "Open in Aegis" only */}
                 {isIOS && (
                   <button
                     onClick={handleOpenInAegis}
@@ -456,15 +444,27 @@ export default function NostrConnectModal({
                   </button>
                 )}
                 
-                {/* Android: Show "Open in Signer App" (works with Amber via nostrconnect://) */}
+                {/* Android: Show both "Open in Amber" and "Open in Aegis" */}
                 {isAndroid && (
-                  <button
-                    onClick={handleOpenInSigner}
-                    className="w-full py-3 px-4 text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                  >
-                    <span>📱</span>
-                    <span>Open in Signer App</span>
-                  </button>
+                  <>
+                    {/* Amber button - uses nostrconnect:// which Amber registers */}
+                    <button
+                      onClick={handleOpenInSigner}
+                      className="w-full py-3 px-4 text-base font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                    >
+                      <span>🔶</span>
+                      <span>Open in Amber</span>
+                    </button>
+                    
+                    {/* Aegis button - uses nostrsigner:// which Aegis registers */}
+                    <button
+                      onClick={handleOpenInAegis}
+                      className="w-full py-3 px-4 text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-violet-700 hover:from-purple-700 hover:to-violet-800 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                    >
+                      <span>🛡️</span>
+                      <span>Open in Aegis</span>
+                    </button>
+                  </>
                 )}
                 
                 {/* Desktop: Show generic "Open in Signer" */}
@@ -512,12 +512,19 @@ export default function NostrConnectModal({
                       <li>Tap <strong>"Open in Aegis"</strong> above</li>
                       <li>Aegis will open and show a connection request</li>
                       <li>Approve the connection</li>
-                      <li>You'll be returned here automatically</li>
+                      <li>Return here and wait for completion</li>
+                    </>
+                  ) : isAndroid ? (
+                    <>
+                      <li>Tap <strong>"Open in Amber"</strong> or <strong>"Open in Aegis"</strong></li>
+                      <li>Approve the connection request in your signer</li>
+                      <li>Approve the authentication when prompted</li>
+                      <li>Return here to complete sign-in</li>
                     </>
                   ) : (
                     <>
-                      <li>Tap <strong>"Open in Signer App"</strong> above</li>
-                      <li>Select your signer (Amber, etc.)</li>
+                      <li>Click <strong>"Open Nostr Connect URI"</strong> above</li>
+                      <li>Select your signer app</li>
                       <li>Approve the connection request</li>
                       <li>Approve the authentication</li>
                     </>

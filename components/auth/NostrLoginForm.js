@@ -16,7 +16,7 @@ import NostrConnectModal from './NostrConnectModal';
 
 // Build version - update this when deploying changes
 // This helps verify the correct build is running in the browser
-const BUILD_VERSION = 'v45-nostr-tools-upgrade';
+const BUILD_VERSION = 'v46-nip44-diagnostics';
 const BUILD_DATE = '2025-02-02';
 
 export default function NostrLoginForm() {
@@ -55,6 +55,9 @@ export default function NostrLoginForm() {
   const [logoTapCount, setLogoTapCount] = useState(0);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [debugInfo, setDebugInfo] = useState('');
+  const [runningDiagnostics, setRunningDiagnostics] = useState(false);
+  const [diagnosticResults, setDiagnosticResults] = useState(null);
+  const [diagnosticLogs, setDiagnosticLogs] = useState([]);
   
   // In-app key generation state
   const [authMode, setAuthMode] = useState('main'); // 'main', 'create', 'password'
@@ -140,6 +143,37 @@ export default function NostrLoginForm() {
     setLocalError(null);
     alert('All data cleared! Page will reload.');
     window.location.reload();
+  };
+
+  // Debug: Run NIP-44 crypto diagnostics
+  const handleRunNIP44Diagnostics = async () => {
+    setRunningDiagnostics(true);
+    setDiagnosticLogs([]);
+    setDiagnosticResults(null);
+    
+    try {
+      // Dynamic import to avoid loading diagnostic code in production
+      const { runNIP44Diagnostics, sendDiagnosticsToServer } = await import('../../lib/debug/nip44DiagnosticTest');
+      
+      const logs = [];
+      const logCallback = (msg) => {
+        logs.push(msg);
+        setDiagnosticLogs([...logs]);
+      };
+      
+      const results = await runNIP44Diagnostics(logCallback);
+      setDiagnosticResults(results);
+      
+      // Send to server for remote debugging
+      await sendDiagnosticsToServer(results);
+      
+      console.log('[DEBUG] NIP-44 Diagnostics complete:', results);
+    } catch (error) {
+      console.error('[DEBUG] NIP-44 Diagnostics failed:', error);
+      setDiagnosticResults({ overall: 'ERROR', error: error.message });
+    } finally {
+      setRunningDiagnostics(false);
+    }
   };
 
   // Check for pending signer flow on mount and focus (user returning from Amber)
@@ -756,6 +790,61 @@ export default function NostrLoginForm() {
             </div>
             
             <div className="space-y-3">
+              {/* NIP-44 Diagnostics Button - Primary action for iOS debugging */}
+              <button
+                onClick={handleRunNIP44Diagnostics}
+                disabled={runningDiagnostics}
+                className="w-full py-3 px-4 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 text-white rounded-lg font-medium flex items-center justify-center gap-2"
+              >
+                {runningDiagnostics ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Running NIP-44 Tests...
+                  </>
+                ) : (
+                  <>🧪 Run NIP-44 Crypto Diagnostics</>
+                )}
+              </button>
+              
+              {/* Diagnostic Results Summary */}
+              {diagnosticResults && (
+                <div className={`p-3 rounded-lg border ${
+                  diagnosticResults.overall === 'PASS' 
+                    ? 'bg-green-900/50 border-green-500' 
+                    : diagnosticResults.overall === 'ERROR'
+                    ? 'bg-red-900/50 border-red-500'
+                    : 'bg-yellow-900/50 border-yellow-500'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white">
+                      {diagnosticResults.overall === 'PASS' ? '✅ All Tests Passed' : 
+                       diagnosticResults.overall === 'ERROR' ? '❌ Error Running Tests' :
+                       '⚠️ Some Tests Failed'}
+                    </span>
+                    <span className="text-sm text-gray-300">
+                      {diagnosticResults.summary || diagnosticResults.error}
+                    </span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Diagnostic Logs */}
+              {diagnosticLogs.length > 0 && (
+                <div className="mt-2">
+                  <h4 className="text-sm font-medium text-gray-400 mb-2">Test Output:</h4>
+                  <pre className="bg-black p-3 rounded text-xs text-green-400 overflow-auto max-h-48 whitespace-pre-wrap font-mono">
+                    {diagnosticLogs.join('\n')}
+                  </pre>
+                </div>
+              )}
+              
+              <div className="border-t border-gray-700 my-3 pt-3">
+                <h4 className="text-sm font-medium text-gray-400 mb-2">Other Actions:</h4>
+              </div>
+              
               <button
                 onClick={handleDebugClearAuth}
                 className="w-full py-3 px-4 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium"

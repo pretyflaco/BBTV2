@@ -1,6 +1,11 @@
 /**
  * NostrConnectModal - Mobile-friendly modal for NIP-46 connection
  * 
+ * v31: Added Aegis x-callback-url support for iOS.
+ * - iOS: "Open in Aegis" button uses aegis://x-callback-url/auth/nip46
+ * - Saves connection state to localStorage before redirect
+ * - Returns via https:// callback URL with aegis=success/error params
+ * 
  * v29: Added progress stepper UI for blocking sign-in flow.
  * - Shows connection options (Open in Amber, Copy Link, QR, Bunker URL)
  * - After connection: shows progress stepper (connected → signing → syncing → complete)
@@ -14,6 +19,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import NostrConnectService from '../../lib/nostr/NostrConnectService';
+
+// Detect iOS
+const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+const isAndroid = typeof navigator !== 'undefined' && /Android/.test(navigator.userAgent);
 
 // Progress Stepper Component
 function ProgressStepper({ currentStage, errorStage }) {
@@ -92,12 +101,14 @@ function ProgressStepper({ currentStage, errorStage }) {
  * @param {Function} props.onSuccess - Called when sign-in is fully complete
  * @param {Function} props.onCancel - Called when user cancels
  * @param {Function} props.signInWithNostrConnect - The sign-in function from useNostrAuth
+ * @param {boolean} props.autoConnect - If true, immediately start waiting for connection (for Aegis callback)
  */
 export default function NostrConnectModal({
   uri,
   onSuccess,
   onCancel,
-  signInWithNostrConnect
+  signInWithNostrConnect,
+  autoConnect = false
 }) {
   // UI state
   const [showBunkerInput, setShowBunkerInput] = useState(false);
@@ -124,51 +135,87 @@ export default function NostrConnectModal({
   }, [copied]);
 
   // Start waiting for connection when modal mounts with URI
+  // v31: If autoConnect is true (returning from Aegis), immediately start waiting
   useEffect(() => {
-    if (uri && stage === 'idle') {
-      // Start waiting in background, but don't show waiting UI until user taps
-      // This allows the QR/buttons to be visible
+    if (uri && stage === 'idle' && autoConnect) {
+      console.log('[NostrConnectModal] v31: autoConnect=true, immediately starting wait...');
+      setStage('waiting');
+      startWaitingForConnection();
     }
-  }, [uri, stage]);
+  }, [uri, stage, autoConnect, startWaitingForConnection]);
 
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(uri);
       setCopied(true);
-      console.log('[NostrConnectModal] v30: Copied URI to clipboard');
+      console.log('[NostrConnectModal] v31: Copied URI to clipboard');
     } catch (err) {
-      console.error('[NostrConnectModal] v30: Failed to copy:', err);
+      console.error('[NostrConnectModal] v31: Failed to copy:', err);
       window.prompt('Copy this link:', uri);
     }
   };
 
   const handleOpenInSigner = () => {
-    console.log('[NostrConnectModal] v30: Opening in signer app and starting wait...');
+    console.log('[NostrConnectModal] v31: Opening in signer app and starting wait...');
     setStage('waiting');
-    // Open the nostrconnect:// URI - Amber/Aegis should handle it
+    // Open the nostrconnect:// URI - Amber should handle it on Android
     window.location.href = uri;
     // Start waiting for the connection
     startWaitingForConnection();
   };
 
+  // v31: Aegis x-callback-url for iOS
+  // Aegis uses a different URL scheme that returns via callback URL
+  const handleOpenInAegis = () => {
+    console.log('[NostrConnectModal] v31: Opening in Aegis with x-callback-url...');
+    
+    // Get the base URL for callbacks (production or localhost)
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://track.twentyone.ist';
+    
+    // Save connection state to localStorage so we can resume after callback
+    const connectionState = {
+      uri: uri,
+      timestamp: Date.now(),
+      // Extract secret from the URI for reconnection
+      secret: uri.includes('secret=') ? uri.split('secret=')[1]?.split('&')[0] : null
+    };
+    localStorage.setItem('blinkpos_aegis_connection', JSON.stringify(connectionState));
+    console.log('[NostrConnectModal] v31: Saved connection state to localStorage');
+    
+    // Build the Aegis x-callback-url
+    // Format: aegis://x-callback-url/auth/nip46?method=connect&nostrconnect=<encoded>&x-source=blinkpos&x-success=<url>&x-error=<url>
+    const nostrConnectEncoded = encodeURIComponent(uri);
+    const successUrl = encodeURIComponent(`${baseUrl}/signin?aegis=success`);
+    const errorUrl = encodeURIComponent(`${baseUrl}/signin?aegis=error`);
+    
+    const aegisUrl = `aegis://x-callback-url/auth/nip46?method=connect&nostrconnect=${nostrConnectEncoded}&x-source=blinkpos&x-success=${successUrl}&x-error=${errorUrl}`;
+    
+    console.log('[NostrConnectModal] v31: Aegis URL:', aegisUrl.substring(0, 100) + '...');
+    
+    setStage('waiting');
+    
+    // Redirect to Aegis
+    window.location.href = aegisUrl;
+  };
+
   const startWaitingForConnection = useCallback(async () => {
-    console.log('[NostrConnectModal] v30: Waiting for NIP-46 connection...');
+    console.log('[NostrConnectModal] v31: Waiting for NIP-46 connection...');
     
     try {
       const result = await NostrConnectService.waitForConnection(uri);
       
       if (result.success && result.publicKey) {
-        console.log('[NostrConnectModal] v30: Connection successful, pubkey:', result.publicKey.substring(0, 16) + '...');
+        console.log('[NostrConnectModal] v31: Connection successful, pubkey:', result.publicKey.substring(0, 16) + '...');
         setConnectedPubkey(result.publicKey);
         await handleConnectionSuccess(result.publicKey);
       } else {
-        console.error('[NostrConnectModal] v30: Connection failed:', result.error);
+        console.error('[NostrConnectModal] v31: Connection failed:', result.error);
         setStage('error');
         setErrorMessage(result.error || 'Connection failed');
         setErrorStage('connected');
       }
     } catch (error) {
-      console.error('[NostrConnectModal] v30: Exception during connection:', error);
+      console.error('[NostrConnectModal] v31: Exception during connection:', error);
       setStage('error');
       setErrorMessage(error.message || 'Connection failed');
       setErrorStage('connected');
@@ -176,7 +223,7 @@ export default function NostrConnectModal({
   }, [uri]);
 
   const handleConnectionSuccess = async (pubkey) => {
-    console.log('[NostrConnectModal] v30: Handling connection success...');
+    console.log('[NostrConnectModal] v31: Handling connection success...');
     setStage('connected');
     setConnectedPubkey(pubkey);
     
@@ -197,7 +244,7 @@ export default function NostrConnectModal({
       // Call the sign-in function with progress callback
       const result = await signInWithNostrConnect(pubkey, {
         onProgress: (progressStage, message) => {
-          console.log('[NostrConnectModal] v30: Progress:', progressStage, message);
+          console.log('[NostrConnectModal] v31: Progress:', progressStage, message);
           if (progressStage === 'signing') setStage('signing');
           else if (progressStage === 'syncing') setStage('syncing');
           else if (progressStage === 'complete') setStage('complete');
@@ -237,7 +284,7 @@ export default function NostrConnectModal({
     e.preventDefault();
     if (!bunkerUrl.trim()) return;
     
-    console.log('[NostrConnectModal] v30: Connecting with bunker URL...');
+    console.log('[NostrConnectModal] v31: Connecting with bunker URL...');
     setStage('waiting');
     setErrorMessage('');
     
@@ -245,7 +292,7 @@ export default function NostrConnectModal({
       const result = await NostrConnectService.connectWithBunkerURL(bunkerUrl.trim());
       
       if (result.success && result.publicKey) {
-        console.log('[NostrConnectModal] v30: Bunker connection successful');
+        console.log('[NostrConnectModal] v31: Bunker connection successful');
         await handleConnectionSuccess(result.publicKey);
       } else {
         setStage('error');
@@ -260,7 +307,7 @@ export default function NostrConnectModal({
   };
 
   const handleRetry = async () => {
-    console.log('[NostrConnectModal] v30: Retrying...');
+    console.log('[NostrConnectModal] v31: Retrying...');
     setErrorMessage('');
     setShowSlowWarning(false);
     setErrorStage(null);
@@ -268,19 +315,19 @@ export default function NostrConnectModal({
     // Check if we still have a relay connection
     if (NostrConnectService.isConnected() && connectedPubkey) {
       // Retry just the NIP-98 part
-      console.log('[NostrConnectModal] v30: Still connected, retrying from signing stage');
+      console.log('[NostrConnectModal] v31: Still connected, retrying from signing stage');
       setStage('signing');
       await handleConnectionSuccess(connectedPubkey);
     } else {
       // Need to reconnect from scratch
-      console.log('[NostrConnectModal] v30: Not connected, restarting from beginning');
+      console.log('[NostrConnectModal] v31: Not connected, restarting from beginning');
       setStage('idle');
       setConnectedPubkey(null);
     }
   };
 
   const handleCancel = () => {
-    console.log('[NostrConnectModal] v30: User cancelled');
+    console.log('[NostrConnectModal] v31: User cancelled');
     // Clean disconnect
     if (slowTimerRef.current) {
       clearTimeout(slowTimerRef.current);
@@ -396,14 +443,40 @@ export default function NostrConnectModal({
             <>
               {/* Primary Actions */}
               <div className="space-y-3 mb-5">
-                {/* Open in Signer App Button */}
-                <button
-                  onClick={handleOpenInSigner}
-                  className="w-full py-3 px-4 text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                >
-                  <span>📱</span>
-                  <span>Open in Signer App</span>
-                </button>
+                {/* v31: Platform-specific signer buttons */}
+                
+                {/* iOS: Show "Open in Aegis" with x-callback-url */}
+                {isIOS && (
+                  <button
+                    onClick={handleOpenInAegis}
+                    className="w-full py-3 px-4 text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-violet-700 hover:from-purple-700 hover:to-violet-800 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <span>📱</span>
+                    <span>Open in Aegis</span>
+                  </button>
+                )}
+                
+                {/* Android: Show "Open in Signer App" (works with Amber via nostrconnect://) */}
+                {isAndroid && (
+                  <button
+                    onClick={handleOpenInSigner}
+                    className="w-full py-3 px-4 text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <span>📱</span>
+                    <span>Open in Signer App</span>
+                  </button>
+                )}
+                
+                {/* Desktop: Show generic "Open in Signer" */}
+                {!isIOS && !isAndroid && (
+                  <button
+                    onClick={handleOpenInSigner}
+                    className="w-full py-3 px-4 text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <span>🔗</span>
+                    <span>Open Nostr Connect URI</span>
+                  </button>
+                )}
 
                 {/* Copy Link Button */}
                 <button
@@ -417,7 +490,7 @@ export default function NostrConnectModal({
                   {copied ? (
                     <>
                       <span>✓</span>
-                      <span>Copied! Paste in Amber</span>
+                      <span>Copied! Paste in signer app</span>
                     </>
                   ) : (
                     <>
@@ -428,16 +501,27 @@ export default function NostrConnectModal({
                 </button>
               </div>
 
-              {/* Instructions */}
+              {/* Instructions - platform specific */}
               <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 mb-5">
                 <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   How to connect:
                 </p>
                 <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-1.5 list-decimal list-inside">
-                  <li>Tap <strong>"Open in Signer App"</strong> above</li>
-                  <li>Select your signer (Amber, Aegis, etc.)</li>
-                  <li>Approve the connection request</li>
-                  <li>Approve the authentication</li>
+                  {isIOS ? (
+                    <>
+                      <li>Tap <strong>"Open in Aegis"</strong> above</li>
+                      <li>Aegis will open and show a connection request</li>
+                      <li>Approve the connection</li>
+                      <li>You'll be returned here automatically</li>
+                    </>
+                  ) : (
+                    <>
+                      <li>Tap <strong>"Open in Signer App"</strong> above</li>
+                      <li>Select your signer (Amber, etc.)</li>
+                      <li>Approve the connection request</li>
+                      <li>Approve the authentication</li>
+                    </>
+                  )}
                 </ol>
               </div>
 
@@ -489,8 +573,14 @@ export default function NostrConnectModal({
                         autoFocus
                       />
                       <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                        In Amber: Applications → + → Copy bunker URL<br/>
-                        In Aegis: Settings → Copy bunker URL
+                        {isIOS ? (
+                          <>In Aegis: Settings → Copy bunker URL</>
+                        ) : (
+                          <>
+                            In Amber: Applications → + → Copy bunker URL<br/>
+                            In Aegis: Settings → Copy bunker URL
+                          </>
+                        )}
                       </p>
                     </div>
                     <button

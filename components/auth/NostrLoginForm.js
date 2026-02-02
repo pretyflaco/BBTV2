@@ -16,7 +16,7 @@ import NostrConnectModal from './NostrConnectModal';
 
 // Build version - update this when deploying changes
 // This helps verify the correct build is running in the browser
-const BUILD_VERSION = 'v30-aegis-ios-support';
+const BUILD_VERSION = 'v31-aegis-xcallback';
 const BUILD_DATE = '2025-02-02';
 
 export default function NostrLoginForm() {
@@ -45,8 +45,10 @@ export default function NostrLoginForm() {
   
   // v26/v29: NIP-46 Nostr Connect state
   // v29: Simplified - modal now handles the full sign-in flow internally
+  // v31: Added autoConnect for Aegis callback
   const [showNostrConnectModal, setShowNostrConnectModal] = useState(false);
   const [nostrConnectURI, setNostrConnectURI] = useState('');
+  const [nostrConnectAutoConnect, setNostrConnectAutoConnect] = useState(false);
   
   // Ref to prevent multiple rapid sign-in attempts (refs don't trigger re-renders)
   const signingInRef = useRef(false);
@@ -69,6 +71,84 @@ export default function NostrLoginForm() {
   // Check for stored account on mount
   useEffect(() => {
     setHasStoredAccount(NostrAuthService.hasStoredEncryptedNsec());
+  }, []);
+
+  // v31: Handle Aegis x-callback-url return
+  // When user returns from Aegis, URL will have ?aegis=success or ?aegis=error
+  useEffect(() => {
+    const handleAegisCallback = async () => {
+      if (typeof window === 'undefined') return;
+      
+      const urlParams = new URLSearchParams(window.location.search);
+      const aegisStatus = urlParams.get('aegis');
+      const aegisRelay = urlParams.get('relay'); // Aegis returns the relay URL on success
+      const aegisError = urlParams.get('errorMessage');
+      
+      if (!aegisStatus) return; // Not an Aegis callback
+      
+      console.log('[NostrLoginForm] v31: Aegis callback detected:', aegisStatus);
+      console.log('[NostrLoginForm] v31: Aegis relay:', aegisRelay);
+      console.log('[NostrLoginForm] v31: Aegis error:', aegisError);
+      
+      // Clean URL params
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.search = '';
+      window.history.replaceState({}, '', cleanUrl.toString());
+      
+      // Get saved connection state
+      const savedStateStr = localStorage.getItem('blinkpos_aegis_connection');
+      if (!savedStateStr) {
+        console.error('[NostrLoginForm] v31: No saved Aegis connection state found');
+        setLocalError('Aegis callback received but no connection state was saved. Please try again.');
+        return;
+      }
+      
+      const savedState = JSON.parse(savedStateStr);
+      console.log('[NostrLoginForm] v31: Saved state:', { 
+        hasUri: !!savedState.uri, 
+        timestamp: savedState.timestamp,
+        age: Date.now() - savedState.timestamp 
+      });
+      
+      // Check if state is too old (more than 5 minutes)
+      if (Date.now() - savedState.timestamp > 5 * 60 * 1000) {
+        console.error('[NostrLoginForm] v31: Aegis connection state is too old');
+        localStorage.removeItem('blinkpos_aegis_connection');
+        setLocalError('Connection timed out. Please try again.');
+        return;
+      }
+      
+      if (aegisStatus === 'error') {
+        console.error('[NostrLoginForm] v31: Aegis returned an error:', aegisError);
+        localStorage.removeItem('blinkpos_aegis_connection');
+        setLocalError(aegisError || 'Aegis connection was cancelled or failed');
+        return;
+      }
+      
+      if (aegisStatus === 'success') {
+        console.log('[NostrLoginForm] v31: Aegis connection successful!');
+        
+        // Now we need to connect to Aegis's local relay and complete the auth flow
+        // The relay URL from Aegis tells us where to connect
+        const relayUrl = aegisRelay || 'wss://localrelay.link:28443';
+        console.log('[NostrLoginForm] v31: Will connect via relay:', relayUrl);
+        
+        // Open the NostrConnectModal to complete the flow
+        // The modal will handle waiting for connection and signing
+        // Use autoConnect=true to immediately start waiting
+        setNostrConnectURI(savedState.uri);
+        setNostrConnectAutoConnect(true);
+        setShowNostrConnectModal(true);
+        
+        // Clear saved state
+        localStorage.removeItem('blinkpos_aegis_connection');
+        
+        // Note: The modal will auto-start waiting for the connection
+        // Since Aegis said success, the connection should already be established
+      }
+    };
+    
+    handleAegisCallback();
   }, []);
 
   // Debug: Handle logo tap for debug mode
@@ -309,18 +389,19 @@ export default function NostrLoginForm() {
 
   // v26/v29: NIP-46 Nostr Connect handlers
   const handleNostrConnectSignIn = async () => {
-    console.log('[NostrLoginForm] v29: Starting Nostr Connect flow');
+    console.log('[NostrLoginForm] v31: Starting Nostr Connect flow');
     setLocalError(null);
     
     try {
       // Generate the nostrconnect:// URI
       const uri = NostrConnectService.generateConnectionURI();
       setNostrConnectURI(uri);
+      setNostrConnectAutoConnect(false); // User-initiated, not auto-connect
       setShowNostrConnectModal(true);
       
-      console.log('[NostrLoginForm] v29: Generated URI, showing modal');
+      console.log('[NostrLoginForm] v31: Generated URI, showing modal');
     } catch (error) {
-      console.error('[NostrLoginForm] v29: Failed to generate connection URI:', error);
+      console.error('[NostrLoginForm] v31: Failed to generate connection URI:', error);
       setLocalError('Failed to start Nostr Connect: ' + error.message);
     }
   };
@@ -328,17 +409,19 @@ export default function NostrLoginForm() {
   // v29: Handle successful Nostr Connect sign-in
   // Called by NostrConnectModal after the FULL sign-in flow is complete
   const handleNostrConnectSuccess = useCallback((pubkey) => {
-    console.log('[NostrLoginForm] v29: Nostr Connect complete, pubkey:', pubkey?.substring(0, 16) + '...');
+    console.log('[NostrLoginForm] v31: Nostr Connect complete, pubkey:', pubkey?.substring(0, 16) + '...');
     setShowNostrConnectModal(false);
     setNostrConnectURI('');
+    setNostrConnectAutoConnect(false);
     // Navigation will happen automatically via auth state change
   }, []);
 
   // v29: Handle modal cancel
   const handleNostrConnectClose = () => {
-    console.log('[NostrLoginForm] v29: Closing Nostr Connect modal');
+    console.log('[NostrLoginForm] v31: Closing Nostr Connect modal');
     setShowNostrConnectModal(false);
     setNostrConnectURI('');
+    setNostrConnectAutoConnect(false);
   };
 
   // v29: The modal now handles the full connection flow internally,
@@ -1010,13 +1093,15 @@ export default function NostrLoginForm() {
           )}
         </div>
 
-        {/* v29: Nostr Connect Modal - now handles full sign-in flow with progress UI */}
+        {/* v31: Nostr Connect Modal - now handles full sign-in flow with progress UI */}
+        {/* autoConnect prop tells modal to immediately start waiting (for Aegis callback) */}
         {showNostrConnectModal && (
           <NostrConnectModal
             uri={nostrConnectURI}
             onSuccess={handleNostrConnectSuccess}
             onCancel={handleNostrConnectClose}
             signInWithNostrConnect={signInWithNostrConnect}
+            autoConnect={nostrConnectAutoConnect}
           />
         )}
 

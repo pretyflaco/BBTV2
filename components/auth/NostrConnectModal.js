@@ -135,40 +135,40 @@ export default function NostrConnectModal({
     try {
       await navigator.clipboard.writeText(uri);
       setCopied(true);
-      console.log('[NostrConnectModal] v29: Copied URI to clipboard');
+      console.log('[NostrConnectModal] v30: Copied URI to clipboard');
     } catch (err) {
-      console.error('[NostrConnectModal] v29: Failed to copy:', err);
+      console.error('[NostrConnectModal] v30: Failed to copy:', err);
       window.prompt('Copy this link:', uri);
     }
   };
 
-  const handleOpenInAmber = () => {
-    console.log('[NostrConnectModal] v29: Opening in Amber and starting wait...');
+  const handleOpenInSigner = () => {
+    console.log('[NostrConnectModal] v30: Opening in signer app and starting wait...');
     setStage('waiting');
-    // Open the nostrconnect:// URI - Amber should handle it
+    // Open the nostrconnect:// URI - Amber/Aegis should handle it
     window.location.href = uri;
     // Start waiting for the connection
     startWaitingForConnection();
   };
 
   const startWaitingForConnection = useCallback(async () => {
-    console.log('[NostrConnectModal] v29: Waiting for NIP-46 connection...');
+    console.log('[NostrConnectModal] v30: Waiting for NIP-46 connection...');
     
     try {
       const result = await NostrConnectService.waitForConnection(uri);
       
       if (result.success && result.publicKey) {
-        console.log('[NostrConnectModal] v29: Connection successful, pubkey:', result.publicKey.substring(0, 16) + '...');
+        console.log('[NostrConnectModal] v30: Connection successful, pubkey:', result.publicKey.substring(0, 16) + '...');
         setConnectedPubkey(result.publicKey);
         await handleConnectionSuccess(result.publicKey);
       } else {
-        console.error('[NostrConnectModal] v29: Connection failed:', result.error);
+        console.error('[NostrConnectModal] v30: Connection failed:', result.error);
         setStage('error');
         setErrorMessage(result.error || 'Connection failed');
         setErrorStage('connected');
       }
     } catch (error) {
-      console.error('[NostrConnectModal] v29: Exception during connection:', error);
+      console.error('[NostrConnectModal] v30: Exception during connection:', error);
       setStage('error');
       setErrorMessage(error.message || 'Connection failed');
       setErrorStage('connected');
@@ -176,7 +176,7 @@ export default function NostrConnectModal({
   }, [uri]);
 
   const handleConnectionSuccess = async (pubkey) => {
-    console.log('[NostrConnectModal] v29: Handling connection success...');
+    console.log('[NostrConnectModal] v30: Handling connection success...');
     setStage('connected');
     setConnectedPubkey(pubkey);
     
@@ -197,7 +197,7 @@ export default function NostrConnectModal({
       // Call the sign-in function with progress callback
       const result = await signInWithNostrConnect(pubkey, {
         onProgress: (progressStage, message) => {
-          console.log('[NostrConnectModal] v29: Progress:', progressStage, message);
+          console.log('[NostrConnectModal] v30: Progress:', progressStage, message);
           if (progressStage === 'signing') setStage('signing');
           else if (progressStage === 'syncing') setStage('syncing');
           else if (progressStage === 'complete') setStage('complete');
@@ -237,7 +237,7 @@ export default function NostrConnectModal({
     e.preventDefault();
     if (!bunkerUrl.trim()) return;
     
-    console.log('[NostrConnectModal] v29: Connecting with bunker URL...');
+    console.log('[NostrConnectModal] v30: Connecting with bunker URL...');
     setStage('waiting');
     setErrorMessage('');
     
@@ -245,7 +245,7 @@ export default function NostrConnectModal({
       const result = await NostrConnectService.connectWithBunkerURL(bunkerUrl.trim());
       
       if (result.success && result.publicKey) {
-        console.log('[NostrConnectModal] v29: Bunker connection successful');
+        console.log('[NostrConnectModal] v30: Bunker connection successful');
         await handleConnectionSuccess(result.publicKey);
       } else {
         setStage('error');
@@ -260,7 +260,7 @@ export default function NostrConnectModal({
   };
 
   const handleRetry = async () => {
-    console.log('[NostrConnectModal] v29: Retrying...');
+    console.log('[NostrConnectModal] v30: Retrying...');
     setErrorMessage('');
     setShowSlowWarning(false);
     setErrorStage(null);
@@ -268,19 +268,19 @@ export default function NostrConnectModal({
     // Check if we still have a relay connection
     if (NostrConnectService.isConnected() && connectedPubkey) {
       // Retry just the NIP-98 part
-      console.log('[NostrConnectModal] v29: Still connected, retrying from signing stage');
+      console.log('[NostrConnectModal] v30: Still connected, retrying from signing stage');
       setStage('signing');
       await handleConnectionSuccess(connectedPubkey);
     } else {
       // Need to reconnect from scratch
-      console.log('[NostrConnectModal] v29: Not connected, restarting from beginning');
+      console.log('[NostrConnectModal] v30: Not connected, restarting from beginning');
       setStage('idle');
       setConnectedPubkey(null);
     }
   };
 
   const handleCancel = () => {
-    console.log('[NostrConnectModal] v29: User cancelled');
+    console.log('[NostrConnectModal] v30: User cancelled');
     // Clean disconnect
     if (slowTimerRef.current) {
       clearTimeout(slowTimerRef.current);
@@ -309,7 +309,7 @@ export default function NostrConnectModal({
             {stage === 'complete' ? '✓ Connected!' : 
              isInErrorState ? '⚠️ Connection Failed' :
              isInConnectionFlow ? '🔗 Connecting...' : 
-             '🔗 Connect with Amber'}
+             '🔗 Connect with Nostr Signer'}
           </h3>
           {!isInConnectionFlow && !isInErrorState && (
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -396,13 +396,13 @@ export default function NostrConnectModal({
             <>
               {/* Primary Actions */}
               <div className="space-y-3 mb-5">
-                {/* Open in Amber Button */}
+                {/* Open in Signer App Button */}
                 <button
-                  onClick={handleOpenInAmber}
+                  onClick={handleOpenInSigner}
                   className="w-full py-3 px-4 text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                 >
                   <span>📱</span>
-                  <span>Open in Amber</span>
+                  <span>Open in Signer App</span>
                 </button>
 
                 {/* Copy Link Button */}
@@ -434,10 +434,10 @@ export default function NostrConnectModal({
                   How to connect:
                 </p>
                 <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-1.5 list-decimal list-inside">
-                  <li>Tap <strong>"Open in Amber"</strong> above</li>
-                  <li>Approve the connection in Amber</li>
-                  <li>Approve the authentication request</li>
-                  <li>Return to this app automatically</li>
+                  <li>Tap <strong>"Open in Signer App"</strong> above</li>
+                  <li>Select your signer (Amber, Aegis, etc.)</li>
+                  <li>Approve the connection request</li>
+                  <li>Approve the authentication</li>
                 </ol>
               </div>
 
@@ -489,7 +489,8 @@ export default function NostrConnectModal({
                         autoFocus
                       />
                       <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                        In Amber: Applications → + → Copy bunker URL
+                        In Amber: Applications → + → Copy bunker URL<br/>
+                        In Aegis: Settings → Copy bunker URL
                       </p>
                     </div>
                     <button

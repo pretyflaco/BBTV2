@@ -17,7 +17,7 @@ import NostrConnectModal from './NostrConnectModal';
 
 // Build version - update this when deploying changes
 // This helps verify the correct build is running in the browser
-const BUILD_VERSION = 'v62-ndk-sign-event';
+const BUILD_VERSION = 'v63-ndk-event-fix';
 const BUILD_DATE = '2025-06-03';
 
 // v51: Feature flag to use NDK implementation

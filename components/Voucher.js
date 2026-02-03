@@ -9,7 +9,7 @@ import { formatNumber } from '../lib/number-format';
 import { DEFAULT_EXPIRY } from './ExpirySelector';
 import Numpad from './Numpad';
 
-const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurrency,setCurrency,currency="SATS", numberFormat = 'auto', bitcoinFormat = 'sats', currencies, darkMode, theme = THEMES.DARK, cycleTheme, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3] }, ref) => {
+const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, displayCurrency,setCurrency, currency="SATS", numberFormat = 'auto', bitcoinFormat = 'sats', currencies, darkMode, theme = THEMES.DARK, cycleTheme, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3] }, ref) => {
   const [amount, setAmount] = useState('');
   const [voucher, setVoucher] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -216,6 +216,8 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
 
   // Handle commission selection and create voucher after state update
   useEffect(() => {
+    //  console.log("voucherWallet is :", voucherWallet);
+    console.log("userWallets is:", userWallets);
     if (pendingCommissionSelection !== null) {
       const newCommissionPercent = pendingCommissionSelection;
       
@@ -229,7 +231,7 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
       // Create voucher with the specific commission percentage
       createVoucherWithCommission(newCommissionPercent);
     }
-  }, [pendingCommissionSelection]);
+  }, [pendingCommissionSelection, userWallets]);
 
   // Reset commission option index when dialog opens
   useEffect(() => {
@@ -765,10 +767,19 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
           throw new Error('Amount too small. Converts to less than 1 satoshi.');
         }
       }
-
+      console.log("currency is:", currency);
+      console.log('displayCurrency is:', displayCurrency);
+      console.log("voucherWallet is: ", voucherWallet);
+      console.log("userWallets is:", userWallets);
+      let walletId = voucherWallet.walletId
+      if (currency == "USD"){
+        console.log("userWallets[1].id is:", userWallets[1].id);
+        walletId = userWallets[0].id;
+      }
+  
       console.log('🔨 Creating voucher:', {
         displayAmount: numericAmount,
-        displayCurrency: displayCurrency,
+        displayCurrency: currency,
         commissionPercent: effectiveCommissionPercent,
         commissionAmount: commissionAmount,
         netAmount: netAmount,
@@ -786,12 +797,12 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
         body: JSON.stringify({
           amount: amountInSats,
           apiKey: voucherWallet.apiKey,
-          walletId: voucherWallet.walletId,
+          walletId: walletId, // voucherWallet.walletId,
           expiryId: selectedExpiry,
           // Include commission info for memo and printout
           commissionPercent: effectiveCommissionPercent,
           displayAmount: numericAmount,
-          displayCurrency: displayCurrency
+          displayCurrency: currency
         }),
       });
 
@@ -821,7 +832,7 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
           ...data.voucher,
           lnurl: lnurl,
           displayAmount: numericAmount, // Original entered amount (voucher price)
-          displayCurrency: displayCurrency,
+          displayCurrency: currency,
           commissionPercent: effectiveCommissionPercent,
           commissionAmount: commissionAmount,
           netAmount: netAmount, // Amount after commission deduction
@@ -832,7 +843,7 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
           chargeId: data.voucher.id.substring(0, 8) + '...',
           amount: amountInSats,
           displayAmount: numericAmount,
-          displayCurrency: displayCurrency,
+          displayCurrency: currency,
           commissionPercent: effectiveCommissionPercent,
           lnurlUrl: lnurlUrl,
           lnurl: lnurl.substring(0, 30) + '...'

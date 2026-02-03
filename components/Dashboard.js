@@ -1123,6 +1123,7 @@ export default function Dashboard() {
   const posPaymentReceivedRef = useRef(null);
 
   // Set display currency from user preference (removed immediate fetchData)
+  // preferredCurrency
   useEffect(() => {
     if (user) {
       // ✅ REMOVED: fetchData() - transactions now load ONLY when user clicks "Transactions" tab
@@ -7193,6 +7194,7 @@ export default function Dashboard() {
         ) : currentView === 'voucher' ? (
           <Voucher
             ref={voucherRef}
+            userWallets={userWallets}
             voucherWallet={voucherWallet}
             walletBalance={voucherWalletBalance}
             displayCurrency={displayCurrency}

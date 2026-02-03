@@ -17,7 +17,7 @@ import NostrConnectModal from './NostrConnectModal';
 
 // Build version - update this when deploying changes
 // This helps verify the correct build is running in the browser
-const BUILD_VERSION = 'v60-retry-without-secret';
+const BUILD_VERSION = 'v61-bunker-url-retry';
 const BUILD_DATE = '2025-06-03';
 
 // v51: Feature flag to use NDK implementation

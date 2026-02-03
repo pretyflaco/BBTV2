@@ -980,9 +980,8 @@ export default function NostrConnectModal({
                   <button
                     onClick={() => {
                       handleCopyLink();
-                      // Start waiting for connection when link is copied
+                      // Start waiting for connection when link is copied (don't change stage - keep showing UI)
                       if (stage === 'idle') {
-                        setStage('waiting');
                         startWaitingForConnection();
                       }
                     }}
@@ -1035,9 +1034,8 @@ export default function NostrConnectModal({
                       onClick={() => {
                         const newShowQR = !showMobileQR;
                         setShowMobileQR(newShowQR);
-                        // Start waiting for connection when QR is shown
+                        // Start waiting for connection when QR is shown (don't change stage - keep showing UI)
                         if (newShowQR && stage === 'idle') {
-                          setStage('waiting');
                           startWaitingForConnection();
                         }
                       }}
@@ -1167,9 +1165,8 @@ export default function NostrConnectModal({
                       onClick={() => {
                         const newShowQR = !showMobileQR;
                         setShowMobileQR(newShowQR);
-                        // Start waiting for connection when QR is shown
+                        // Start waiting for connection when QR is shown (don't change stage - keep showing UI)
                         if (newShowQR && stage === 'idle') {
-                          setStage('waiting');
                           startWaitingForConnection();
                         }
                       }}

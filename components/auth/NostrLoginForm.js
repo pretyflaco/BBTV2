@@ -1047,16 +1047,16 @@ export default function NostrLoginForm() {
           {isIOS && !hasExtension && (
             <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
               <p className="text-sm text-blue-700 dark:text-blue-300">
-                📱 Nostr Connect works with{' '}
+                📱 Nostr Connect works best with{' '}
                 <a 
-                  href="https://testflight.apple.com/join/DUzVMDMK" 
+                  href="https://nsec.app" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="font-medium underline hover:text-blue-800 dark:hover:text-blue-200"
                 >
-                  Aegis
+                  nsec.app
                 </a>
-                {' '}signer. Alternatively, install the{' '}
+                {' '}(web-based signer). For browser extension, install{' '}
                 <a 
                   href="https://apps.apple.com/cy/app/nostash/id6744309333" 
                   target="_blank" 
@@ -1065,7 +1065,7 @@ export default function NostrLoginForm() {
                 >
                   Nostash
                 </a>
-                {' '}Safari extension.
+                {' '}for Safari.
               </p>
             </div>
           )}
@@ -1082,16 +1082,7 @@ export default function NostrLoginForm() {
               >
                 Amber
               </a>
-              {' '}or{' '}
-              <a 
-                href="https://github.com/ZharlieW/Aegis" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-purple-600 dark:text-purple-400 underline"
-              >
-                Aegis
-              </a>
-              {' '}signer apps
+              {' '}signer app
             </p>
           )}
         </div>

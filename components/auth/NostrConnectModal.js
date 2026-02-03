@@ -4,7 +4,7 @@
  * Supports multiple connection methods:
  * - QR Code scanning (nostrconnect://) - for Amber, other mobile signers
  * - Bunker URL paste (bunker://) - for nsec.app, Portal
- * - Direct app open - for Amber (Android), Aegis
+ * - Direct app open - for Amber (Android)
  * 
  * Features:
  * - Desktop: Shows QR code as primary method, auto-starts waiting for connection
@@ -184,32 +184,6 @@ export default function NostrConnectModal({
       setStage('waiting');
       startWaitingForConnection();
     }
-  };
-
-  // Open in Aegis using nostrsigner:// scheme
-  // This is a fire-and-forget approach - we open Aegis and wait for relay connection
-  // No callbacks needed since we're waiting on the relay anyway
-  const handleOpenInAegis = () => {
-    logAuth('NostrConnectModal', 'Opening in Aegis (nostrsigner://) and starting wait...');
-    
-    // Build the Aegis URL using nostrsigner:// scheme
-    // Format: nostrsigner://x-callback-url/auth/nip46?method=connect&nostrconnect=<encoded>
-    // We omit callbacks since PWAs can't register custom URL schemes
-    const nostrConnectEncoded = encodeURIComponent(uri);
-    
-    // Use nostrsigner:// which Aegis registers on both iOS and Android
-    const aegisUrl = `nostrsigner://x-callback-url/auth/nip46?method=connect&nostrconnect=${nostrConnectEncoded}&x-source=blinkpos`;
-    
-    logAuth('NostrConnectModal', 'Aegis URL:', aegisUrl.substring(0, 100) + '...');
-    
-    setStage('waiting');
-    
-    // Open Aegis
-    window.location.href = aegisUrl;
-    
-    // Start waiting for the connection via relay
-    // Aegis will connect to the relay specified in the nostrconnect URI
-    startWaitingForConnection();
   };
 
   const startWaitingForConnection = useCallback(async () => {
@@ -597,7 +571,7 @@ export default function NostrConnectModal({
                       Scan with your mobile signer app
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-500 text-center">
-                      (Amber, nsec.app, Aegis, or any NIP-46 signer)
+                      (Amber, nsec.app, or any NIP-46 signer)
                     </p>
                   </div>
 
@@ -697,10 +671,6 @@ export default function NostrConnectModal({
                       <div className="flex items-start gap-2">
                         <span className="font-semibold text-amber-600 dark:text-amber-400">Amber:</span>
                         <span>Applications → + → Copy bunker URL</span>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <span className="font-semibold text-purple-600 dark:text-purple-400">Aegis:</span>
-                        <span>Settings → Copy bunker URL</span>
                       </div>
                     </div>
                   </div>
@@ -894,7 +864,7 @@ export default function NostrConnectModal({
                           Scan with your mobile signer app
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-500 text-center">
-                          (Amber, nsec.app, Aegis, or any NIP-46 signer)
+                          (Amber, nsec.app, or any NIP-46 signer)
                         </p>
                       </div>
 
@@ -986,10 +956,6 @@ export default function NostrConnectModal({
                             <span className="font-semibold text-amber-600 dark:text-amber-400">Amber:</span>
                             <span>Applications → + → Copy bunker URL</span>
                           </div>
-                          <div className="flex items-start gap-2">
-                            <span className="font-semibold text-purple-600 dark:text-purple-400">Aegis:</span>
-                            <span>Settings → Copy bunker URL</span>
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -1020,22 +986,6 @@ export default function NostrConnectModal({
                     <span>🔐</span>
                     <span>Open nsec.app</span>
                   </a>
-                  
-                  {/* Divider */}
-                  <div className="flex items-center gap-3 my-2">
-                    <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
-                    <span className="text-xs text-gray-400 dark:text-gray-500">or try native signer</span>
-                    <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
-                  </div>
-                  
-                  {/* Aegis button - secondary option */}
-                  <button
-                    onClick={handleOpenInAegis}
-                    className="w-full py-2.5 px-4 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl transition-all flex items-center justify-center gap-2"
-                  >
-                    <span>📱</span>
-                    <span>Open in Aegis</span>
-                  </button>
 
                   {/* Copy Link Button */}
                   <button
@@ -1123,8 +1073,7 @@ export default function NostrConnectModal({
                             autoFocus
                           />
                           <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                            <strong>nsec.app:</strong> Connect App → Advanced options → Copy Bunker URL<br/>
-                            <strong>Aegis:</strong> Settings → Copy bunker URL
+                            <strong>nsec.app:</strong> Connect App → Advanced options → Copy Bunker URL
                           </p>
                         </div>
                         <button
@@ -1161,15 +1110,6 @@ export default function NostrConnectModal({
                     <span>🔶</span>
                     <span>Open in Amber</span>
                   </button>
-                  
-                  {/* Aegis button - uses nostrsigner:// which Aegis registers */}
-                  <button
-                    onClick={handleOpenInAegis}
-                    className="w-full py-3 px-4 text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-violet-700 hover:from-purple-700 hover:to-violet-800 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                  >
-                    <span>🛡️</span>
-                    <span>Open in Aegis</span>
-                  </button>
 
                   {/* Copy Link Button */}
                   <button
@@ -1199,7 +1139,7 @@ export default function NostrConnectModal({
                       How to connect:
                     </p>
                     <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-1.5 list-decimal list-inside">
-                      <li>Tap <strong>"Open in Amber"</strong> or <strong>"Open in Aegis"</strong></li>
+                      <li>Tap <strong>"Open in Amber"</strong></li>
                       <li>Approve the connection request in your signer</li>
                       <li>Approve the authentication when prompted</li>
                       <li>Return here to complete sign-in</li>
@@ -1258,7 +1198,6 @@ export default function NostrConnectModal({
                           />
                           <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
                             <strong>Amber:</strong> Applications → + → Copy bunker URL<br/>
-                            <strong>Aegis:</strong> Settings → Copy bunker URL<br/>
                             <strong>nsec.app:</strong> Connect App → Advanced options → Copy Bunker URL
                           </p>
                         </div>

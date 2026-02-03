@@ -28,6 +28,10 @@ ENV NEXT_TELEMETRY_DISABLED 1
 # They get inlined into the JavaScript bundle during build
 ENV NEXT_PUBLIC_USE_NDK_NIP46=true
 
+# Limit Node.js memory to avoid OOM on low-memory servers
+# Disable webpack cache to save disk space during build
+ENV NODE_OPTIONS="--max-old-space-size=512"
+
 RUN npm run build
 
 # Production image, copy all the files and run next

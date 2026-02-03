@@ -17,7 +17,7 @@ import NostrConnectModal from './NostrConnectModal';
 
 // Build version - update this when deploying changes
 // This helps verify the correct build is running in the browser
-const BUILD_VERSION = 'v64-approval-ui';
+const BUILD_VERSION = 'v65-fix-amber-qr';
 const BUILD_DATE = '2025-06-03';
 
 // v51: Feature flag to use NDK implementation

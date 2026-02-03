@@ -17,7 +17,7 @@ import NostrConnectModal from './NostrConnectModal';
 
 // Build version - update this when deploying changes
 // This helps verify the correct build is running in the browser
-const BUILD_VERSION = 'v55-qrcode-flow';
+const BUILD_VERSION = 'v56-desktop-nostrconnect';
 const BUILD_DATE = '2025-06-03';
 
 // v51: Feature flag to use NDK implementation
@@ -930,20 +930,19 @@ export default function NostrLoginForm() {
             </>
           )}
 
-          {/* v30: Nostr Connect - PRIMARY method for mobile (relay-based) */}
-          {/* Works with Amber (Android), Aegis (iOS/Android), and other NIP-46 signers */}
-          {(isAndroid || isIOS) && (
-            <button
-              onClick={handleNostrConnectSignIn}
-              disabled={signingIn}
-              className="group relative w-full flex justify-center items-center py-4 px-6 border border-transparent text-lg font-medium rounded-xl text-white bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
-            >
-              <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-              </svg>
-              Connect with Nostr Connect
-            </button>
-          )}
+          {/* v56: Nostr Connect - Available for ALL platforms */}
+          {/* Desktop: Shows QR code to scan with mobile signer (nsec.app, Amber, etc.) */}
+          {/* Mobile: Opens signer app directly via NIP-46 relay connection */}
+          <button
+            onClick={handleNostrConnectSignIn}
+            disabled={signingIn}
+            className="group relative w-full flex justify-center items-center py-4 px-6 border border-transparent text-lg font-medium rounded-xl text-white bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
+          >
+            <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+            {isMobile ? 'Connect with Nostr Connect' : 'Connect with Remote Signer'}
+          </button>
 
           {/* Extension Sign-In (Desktop) */}
           {hasExtension && (
@@ -975,7 +974,7 @@ export default function NostrLoginForm() {
           {!hasExtension && !isMobile && !hasStoredAccount && (
             <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
               <p className="text-sm text-blue-700 dark:text-blue-300">
-                💡 Install a Nostr extension like{' '}
+                💡 Use "Connect with Remote Signer" above to scan a QR code with your mobile signer app, or install a browser extension like{' '}
                 <a 
                   href="https://keys.band" 
                   target="_blank" 
@@ -992,8 +991,7 @@ export default function NostrLoginForm() {
                   className="font-medium underline hover:text-blue-800 dark:hover:text-blue-200"
                 >
                   Alby
-                </a>{' '}
-                for easy sign-in
+                </a>
               </p>
             </div>
           )}

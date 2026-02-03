@@ -80,9 +80,10 @@ const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(naviga
 const isAndroid = typeof navigator !== 'undefined' && /Android/.test(navigator.userAgent);
 
 // Progress Stepper Component
-function ProgressStepper({ currentStage, errorStage }) {
+// v64: Added 'waiting_for_approval' as a sub-state of connecting
+function ProgressStepper({ currentStage, errorStage, waitingForApproval }) {
   const stages = [
-    { id: 'connected', label: 'Connected to signer' },
+    { id: 'connected', label: waitingForApproval ? 'Waiting for approval' : 'Connected to signer' },
     { id: 'signing', label: 'Signing authentication' },
     { id: 'syncing', label: 'Loading your data' },
   ];
@@ -97,7 +98,7 @@ function ProgressStepper({ currentStage, errorStage }) {
     if (currentStage === 'error' && stageIndex >= order.indexOf(errorStage || 'signing')) return 'pending';
     
     if (stageIndex < currentIndex || currentStage === 'complete') return 'complete';
-    if (stageIndex === currentIndex) return 'current';
+    if (stageIndex === currentIndex) return waitingForApproval && stageId === 'connected' ? 'waiting' : 'current';
     return 'pending';
   };
   
@@ -123,6 +124,13 @@ function ProgressStepper({ currentStage, errorStage }) {
                 </svg>
               </div>
             )}
+            {status === 'waiting' && (
+              <div className="w-6 h-6 rounded-full border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-amber-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+            )}
             {status === 'pending' && (
               <div className="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 flex-shrink-0" />
             )}
@@ -138,6 +146,7 @@ function ProgressStepper({ currentStage, errorStage }) {
             <span className={`text-sm ${
               status === 'complete' ? 'text-green-600 dark:text-green-400' :
               status === 'current' ? 'text-purple-600 dark:text-purple-400 font-medium' :
+              status === 'waiting' ? 'text-amber-600 dark:text-amber-400 font-medium' :
               status === 'error' ? 'text-red-600 dark:text-red-400' :
               'text-gray-400 dark:text-gray-500'
             }`}>
@@ -179,9 +188,11 @@ export default function NostrConnectModal({
   
   const [awaitingApproval, setAwaitingApproval] = useState(false);
   const [authUrl, setAuthUrl] = useState(null);
+  const [approvalPollCount, setApprovalPollCount] = useState(0);
   
   // Timer refs
   const slowTimerRef = { current: null };
+  const approvalPollRef = { current: null };
 
   // Reset copied state after 2 seconds
   useEffect(() => {
@@ -337,23 +348,30 @@ export default function NostrConnectModal({
     e.preventDefault();
     if (!bunkerUrl.trim()) return;
     
-    console.log(`[NostrConnectModal] v51: Connecting with bunker URL (using ${USE_NDK ? 'NDK' : 'nostr-tools'})...`);
-    setStage('waiting');
+    console.log(`[NostrConnectModal] v64: Connecting with bunker URL (using ${USE_NDK ? 'NDK' : 'nostr-tools'})...`);
+    setStage('connected'); // v64: Go straight to 'connected' stage (showing progress stepper)
     setErrorMessage('');
     setAwaitingApproval(false);
     setAuthUrl(null);
+    setApprovalPollCount(0);
+    
+    // Clear any existing poll timer
+    if (approvalPollRef.current) {
+      clearInterval(approvalPollRef.current);
+      approvalPollRef.current = null;
+    }
     
     // Auth URL callback for nsec.app approval flow (some signers use this)
     const handleAuthUrl = (url) => {
-      console.log('[NostrConnectModal] v51: Received auth URL:', url);
+      console.log('[NostrConnectModal] v64: Received auth URL:', url);
       setAuthUrl(url);
+      // v64: Don't change stage, just set awaitingApproval flag to show different UI
       setAwaitingApproval(true);
-      setStage('awaiting_approval');
       
       // Open the auth URL in a popup
       const popup = window.open(url, 'nsec_auth', 'width=500,height=700,popup=yes,scrollbars=yes');
       if (!popup) {
-        console.warn('[NostrConnectModal] v51: Popup blocked, user needs to click link');
+        console.warn('[NostrConnectModal] v64: Popup blocked, user needs to click link');
       }
     };
     
@@ -361,13 +379,13 @@ export default function NostrConnectModal({
       let result;
       
       if (USE_NDK) {
-        // v51: Use NDK implementation
+        // v64: Use NDK implementation
         result = await NostrConnectServiceNDK.connect(bunkerUrl.trim(), {
           onAuthUrl: handleAuthUrl,
           onStatusChange: (status) => {
-            console.log('[NostrConnectModal] v51 NDK status:', status);
+            console.log('[NostrConnectModal] v64 NDK status:', status);
             if (status === 'awaiting_approval') {
-              setStage('awaiting_approval');
+              // v64: Stay on 'connected' stage but show approval UI
               setAwaitingApproval(true);
             }
           }
@@ -384,17 +402,16 @@ export default function NostrConnectModal({
       
       // Handle result - both implementations return similar structure
       if (result.needsApproval) {
-        console.log('[NostrConnectModal] v51: Signer requires approval, showing approval UI');
-        setStage('awaiting_approval');
+        console.log('[NostrConnectModal] v64: Signer requires approval, starting auto-poll...');
         setAwaitingApproval(true);
-        if (result.error) {
-          setErrorMessage(result.error);
-        }
+        // v64: Start auto-polling for approval
+        startApprovalPolling();
         return;
       }
       
       if (result.success && result.publicKey) {
-        console.log('[NostrConnectModal] v51: Connection successful');
+        console.log('[NostrConnectModal] v64: Connection successful');
+        stopApprovalPolling();
         setAwaitingApproval(false);
         setAuthUrl(null);
         await handleConnectionSuccess(result.publicKey);
@@ -410,39 +427,97 @@ export default function NostrConnectModal({
     }
   };
   
-  // Handle retry after nsec.app approval
-  // v51: Updated to work with both NDK and nostr-tools implementations
+  // v64: Start auto-polling for approval
+  const startApprovalPolling = () => {
+    console.log('[NostrConnectModal] v64: Starting approval polling...');
+    setApprovalPollCount(0);
+    
+    // Clear any existing timer
+    if (approvalPollRef.current) {
+      clearInterval(approvalPollRef.current);
+    }
+    
+    // Poll every 4 seconds for up to 2 minutes (30 attempts)
+    approvalPollRef.current = setInterval(async () => {
+      setApprovalPollCount(prev => {
+        const newCount = prev + 1;
+        console.log(`[NostrConnectModal] v64: Approval poll attempt ${newCount}/30`);
+        
+        if (newCount >= 30) {
+          // Stop after 2 minutes
+          console.log('[NostrConnectModal] v64: Polling timeout, stopping');
+          stopApprovalPolling();
+          return newCount;
+        }
+        
+        return newCount;
+      });
+      
+      // Try to reconnect
+      try {
+        let result;
+        if (USE_NDK) {
+          result = await NostrConnectServiceNDK.connect(bunkerUrl.trim(), {
+            onStatusChange: (status) => {
+              console.log('[NostrConnectModal] v64 poll status:', status);
+            }
+          });
+        } else {
+          result = await NostrConnectService.connectWithBunkerURL(bunkerUrl.trim(), 1, false);
+        }
+        
+        if (result.success && result.publicKey) {
+          console.log('[NostrConnectModal] v64: Poll successful - approval detected!');
+          stopApprovalPolling();
+          setAwaitingApproval(false);
+          setAuthUrl(null);
+          await handleConnectionSuccess(result.publicKey);
+        }
+        // If still needs approval, continue polling (no action needed)
+      } catch (error) {
+        console.log('[NostrConnectModal] v64: Poll attempt failed:', error.message);
+        // Continue polling on error
+      }
+    }, 4000);
+  };
+  
+  // v64: Stop approval polling
+  const stopApprovalPolling = () => {
+    if (approvalPollRef.current) {
+      console.log('[NostrConnectModal] v64: Stopping approval polling');
+      clearInterval(approvalPollRef.current);
+      approvalPollRef.current = null;
+    }
+  };
+  
+  // Handle retry after nsec.app approval (manual trigger)
+  // v64: Updated - this is now just a manual trigger of what polling does automatically
   const handleRetryAfterApproval = async () => {
-    console.log(`[NostrConnectModal] v51: Retrying after approval (using ${USE_NDK ? 'NDK' : 'nostr-tools'})...`);
-    setStage('waiting');
-    setAwaitingApproval(false);
-    setAuthUrl(null);
-    setErrorMessage('');
+    console.log(`[NostrConnectModal] v64: Manual retry after approval (using ${USE_NDK ? 'NDK' : 'nostr-tools'})...`);
     
     try {
       let result;
       
       if (USE_NDK) {
-        // v51: Retry with NDK
         result = await NostrConnectServiceNDK.connect(bunkerUrl.trim(), {
           onStatusChange: (status) => {
-            console.log('[NostrConnectModal] v51 NDK retry status:', status);
+            console.log('[NostrConnectModal] v64 NDK retry status:', status);
           }
         });
       } else {
-        // Legacy: Retry with nostr-tools
         result = await NostrConnectService.connectWithBunkerURL(bunkerUrl.trim(), 1, false);
       }
       
       if (result.success && result.publicKey) {
-        console.log('[NostrConnectModal] v51: Connection successful after approval');
+        console.log('[NostrConnectModal] v64: Connection successful after manual retry');
+        stopApprovalPolling();
+        setAwaitingApproval(false);
+        setAuthUrl(null);
         await handleConnectionSuccess(result.publicKey);
       } else if (result.needsApproval) {
-        // Still needs approval - maybe user didn't actually approve yet
-        console.log('[NostrConnectModal] v51: Still needs approval - asking user to try again');
-        setStage('awaiting_approval');
-        setAwaitingApproval(true);
-        setErrorMessage('Please make sure you approved the connection in your signer app, then try again.');
+        // Still needs approval
+        console.log('[NostrConnectModal] v64: Still needs approval');
+        setErrorMessage('Still waiting for approval. Please approve the connection in your signer app.');
       } else {
         setStage('error');
         setErrorMessage(result.error || 'Connection failed. Please try with a new bunker URL.');
@@ -477,11 +552,13 @@ export default function NostrConnectModal({
   };
 
   const handleCancel = () => {
-    console.log('[NostrConnectModal] v51: User cancelled');
+    console.log('[NostrConnectModal] v64: User cancelled');
     // Clean disconnect
     if (slowTimerRef.current) {
       clearTimeout(slowTimerRef.current);
     }
+    // v64: Stop approval polling
+    stopApprovalPolling();
     // Disconnect using appropriate service
     const service = getService();
     service.disconnect();
@@ -495,11 +572,13 @@ export default function NostrConnectModal({
     setErrorStage(null);
     setAwaitingApproval(false);
     setAuthUrl(null);
+    // v64: Stop approval polling
+    stopApprovalPolling();
   };
 
   // Determine what to render based on stage
+  // v64: isInConnectionFlow now includes states where we're waiting for approval
   const isInConnectionFlow = ['waiting', 'connected', 'signing', 'syncing', 'complete'].includes(stage);
-  const isAwaitingApproval = stage === 'awaiting_approval';
   const isInErrorState = stage === 'error';
 
   return (
@@ -510,11 +589,11 @@ export default function NostrConnectModal({
           <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
             {stage === 'complete' ? '✓ Connected!' : 
              isInErrorState ? '⚠️ Connection Failed' :
-             isAwaitingApproval ? '🔐 Approval Required' :
+             awaitingApproval ? '⏳ Waiting for Approval' :
              isInConnectionFlow ? '🔗 Connecting...' : 
              '🔗 Connect with Nostr Signer'}
           </h3>
-          {!isInConnectionFlow && !isInErrorState && !isAwaitingApproval && (
+          {!isInConnectionFlow && !isInErrorState && (
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               NIP-46 Nostr Connect
             </p>
@@ -691,7 +770,67 @@ export default function NostrConnectModal({
           {/* Connection Progress View - for mobile waiting OR any platform after connection established */}
           {isInConnectionFlow && (stage !== 'waiting' || isIOS || isAndroid) && (
             <div className="py-2">
-              <ProgressStepper currentStage={stage} errorStage={null} />
+              <ProgressStepper currentStage={stage} errorStage={null} waitingForApproval={awaitingApproval} />
+              
+              {/* v64: Waiting for approval message */}
+              {awaitingApproval && stage === 'connected' && (
+                <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <svg className="w-5 h-5 text-amber-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-1">
+                        Action required in signer app
+                      </p>
+                      <p className="text-sm text-amber-700 dark:text-amber-400 mb-2">
+                        Please open <strong>nsec.app</strong> and approve the connection request.
+                        {approvalPollCount > 0 && (
+                          <span className="text-xs opacity-75 ml-1">
+                            (checking... {approvalPollCount}/30)
+                          </span>
+                        )}
+                      </p>
+                      <ol className="text-xs text-amber-600 dark:text-amber-500 space-y-1 list-decimal list-inside mb-3">
+                        <li>Open nsec.app in another tab</li>
+                        <li>Look for a pending connection request</li>
+                        <li>Tap <strong>"Approve"</strong> to allow the connection</li>
+                      </ol>
+                      
+                      {/* Auth URL link if provided */}
+                      {authUrl && (
+                        <div className="mb-3">
+                          <a
+                            href={authUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            Open approval page →
+                          </a>
+                        </div>
+                      )}
+                      
+                      {/* Manual retry button */}
+                      <button
+                        onClick={handleRetryAfterApproval}
+                        className="w-full py-2 px-3 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-800/30 hover:bg-amber-200 dark:hover:bg-amber-800/50 rounded-lg transition-colors"
+                      >
+                        I've approved - check now
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Show any error message */}
+                  {errorMessage && (
+                    <p className="mt-3 text-sm text-amber-600 dark:text-amber-400 border-t border-amber-200 dark:border-amber-700 pt-2">
+                      {errorMessage}
+                    </p>
+                  )}
+                </div>
+              )}
               
               {/* Slow warning */}
               {showSlowWarning && stage === 'signing' && (
@@ -1198,81 +1337,7 @@ export default function NostrConnectModal({
             </>
           )}
 
-          {/* Awaiting nsec.app Approval View */}
-          {isAwaitingApproval && (
-            <div className="py-4 text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <svg className="w-8 h-8 text-blue-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              </div>
-              
-              <h4 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                Approve in nsec.app
-              </h4>
-              
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                {authUrl 
-                  ? 'A popup should have opened. Please approve the connection request in nsec.app, then tap the button below.'
-                  : 'Please open nsec.app and look for a connection request to approve. After approving, tap the button below.'}
-              </p>
-              
-              {/* v49: Instructions for nsec.app if no auth_url was provided */}
-              {!authUrl && (
-                <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-left">
-                  <p className="text-sm text-amber-700 dark:text-amber-400 font-medium mb-2">
-                    📱 In nsec.app:
-                  </p>
-                  <ol className="text-xs text-amber-600 dark:text-amber-500 space-y-1 list-decimal list-inside">
-                    <li>Open the nsec.app tab/window</li>
-                    <li>Look for a notification or "Pending" request</li>
-                    <li>Tap to approve the connection</li>
-                    <li>Return here and tap "Retry Connection"</li>
-                  </ol>
-                </div>
-              )}
-              
-              {/* Link to open auth URL manually if one was provided but popup was blocked */}
-              {authUrl && (
-                <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                    Popup didn't open? Click here:
-                  </p>
-                  <a
-                    href={authUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline break-all"
-                  >
-                    Open nsec.app approval page →
-                  </a>
-                </div>
-              )}
-              
-              <div className="flex gap-3">
-                <button
-                  onClick={handleRetryAfterApproval}
-                  className="flex-1 py-3 px-4 text-base font-semibold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors"
-                >
-                  Retry Connection
-                </button>
-              </div>
-              
-              {/* Show any error message */}
-              {errorMessage && (
-                <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
-                  {errorMessage}
-                </p>
-              )}
-              
-              <button
-                onClick={handleBackToOptions}
-                className="mt-3 w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-              >
-                ← Back to options
-              </button>
-            </div>
-          )}
+          {/* v64: Old separate "Awaiting Approval" view removed - approval is now shown inline in the connection progress view */}
         </div>
 
         {/* Footer - only show cancel button when in idle state */}

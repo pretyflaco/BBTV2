@@ -1,75 +1,26 @@
 /**
- * NostrConnectModal - Mobile-friendly modal for NIP-46 connection
+ * NostrConnectModal - NIP-46 Remote Signer Connection Modal
  * 
- * v55: QR Code first for desktop, toggle for mobile
- * - Desktop: Shows QR code immediately as primary method for scanning with mobile signers
- * - Desktop: Auto-starts waiting for connection when modal opens
- * - Desktop: Keeps "Open in Desktop Signer" button for Peridot and similar apps
- * - Mobile: Adds "Show QR Code" toggle to scan from another device
- * - Mobile: Keeps existing Open in Amber/Aegis buttons as primary
- * - Both: Bunker URL paste remains as fallback option
+ * Supports multiple connection methods:
+ * - QR Code scanning (nostrconnect://) - for Amber, other mobile signers
+ * - Bunker URL paste (bunker://) - for nsec.app, Portal
+ * - Direct app open - for Amber (Android), Aegis
  * 
- * v51: Added NDK implementation for more reliable NIP-46 connections
- * - Uses @nostr-dev-kit/ndk instead of nostr-tools when NEXT_PUBLIC_USE_NDK_NIP46=true
- * - NDK handles NIP-46 more robustly, especially with nsec.app on iOS Safari
- * - Supports both bunker:// URLs and NIP-05 identifiers (e.g., user@nsec.app)
- * - Feature flag allows side-by-side comparison during testing
- * 
- * v50: Patched nostr-tools to add 'since' filter to NIP-46 subscriptions
- * - PERMANENT FIX: Using patch-package to modify nostr-tools/nip46.js
- * - Added 'since: Math.floor(Date.now() / 1000) - 60' to subscription filter
- * - This prevents relay from replaying old cached NIP-46 events (the root cause)
- * - Same fix nsec.app backend uses for strfry relay compatibility
- * 
- * v49: Fixed iOS Safari "invalid secret" - OLD RELAY RESPONSES
- * - ROOT CAUSE: nostr-tools uses limit:0 with no 'since' filter
- * - Relay sends ALL historical events including old error responses
- * - When using shared pool, old subscriptions interfere with new ones
- * - FIX: NostrConnectService now creates FRESH pool for each connection
- * - FIX: Always show approval UI on first "invalid secret" (nsec.app needs approval)
- * - FIX: Only mark URL as expired after retry also fails
- * 
- * v48: Fixed auth_url race condition with nsec.app (but nsec.app doesn't use auth_url!)
- * 
- * v47: Fixed iOS Safari "invalid secret" issue
- * - Bunker URL secrets are SINGLE-USE - don't retry with same URL
- * - Clear error messaging when secret is expired/consumed
- * - After approval flow, user MUST generate new bunker URL
- * - Uses shared SimplePool per nostr-tools recommendations
- * 
- * v35: Added nsec.app auth_url approval flow support
- * - When connecting from a new device, nsec.app sends auth_url for approval
- * - Shows "Awaiting Approval" UI with link to approve in nsec.app
- * - After approval, user clicks "I've Approved - Continue" to complete connection
- * 
- * v34: Added nsec.app as recommended cross-platform option
- * - nsec.app works reliably on iOS, Android, and desktop browsers
- * - Shows "Use nsec.app" as primary option on iOS (since native signers have issues)
- * - Added instructions for how to use nsec.app with bunker:// URL
- * - Added helpful tip about nsec.app being recommended for iOS
- * 
- * v32: Simplified Aegis support - fire-and-forget approach.
- * - Uses nostrsigner:// scheme which Aegis registers on both iOS and Android
- * - No callbacks - just open Aegis and wait for relay connection
- * - Shows both "Open in Amber" and "Open in Aegis" buttons on Android
- * - Shows "Open in Aegis" on iOS
- * 
- * v29: Added progress stepper UI for blocking sign-in flow.
- * - Shows connection options (Open in Amber, Copy Link, QR, Bunker URL)
- * - After connection: shows progress stepper (connected → signing → syncing → complete)
- * - Handles retry from signing stage if still connected
- * - Clean cancel returns to login form
- * 
- * v27: Fixed for mobile - shows clickable link and copy button instead of
- * relying on QR scanning (can't scan QR on the same device!)
+ * Features:
+ * - Desktop: Shows QR code as primary method, auto-starts waiting for connection
+ * - Mobile: Toggle between QR display and direct app buttons
+ * - Progress stepper UI showing connection → signing → syncing → complete
+ * - Auto-polling for approval when signer requires confirmation
+ * - NDK implementation available via NEXT_PUBLIC_USE_NDK_NIP46=true flag
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import NostrConnectService from '../../lib/nostr/NostrConnectService';
 import NostrConnectServiceNDK from '../../lib/nostr/NostrConnectServiceNDK';
+import { logAuth, logAuthError, logAuthWarn } from '../../lib/version.js';
 
-// v51: Feature flag to use NDK implementation
+// Feature flag to use NDK implementation for bunker:// URLs
 const USE_NDK = process.env.NEXT_PUBLIC_USE_NDK_NIP46 === 'true';
 
 // Get the appropriate service based on feature flag
@@ -80,7 +31,6 @@ const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(naviga
 const isAndroid = typeof navigator !== 'undefined' && /Android/.test(navigator.userAgent);
 
 // Progress Stepper Component
-// v64: Added 'waiting_for_approval' as a sub-state of connecting
 function ProgressStepper({ currentStage, errorStage, waitingForApproval }) {
   const stages = [
     { id: 'connected', label: waitingForApproval ? 'Waiting for approval' : 'Connected to signer' },
@@ -203,11 +153,11 @@ export default function NostrConnectModal({
   }, [copied]);
 
   // Start waiting for connection when modal mounts with URI
-  // v55: On desktop, auto-start immediately since QR is shown
+  // On desktop, auto-start immediately since QR is shown
   useEffect(() => {
     if (uri && stage === 'idle' && !isIOS && !isAndroid) {
       // Desktop: Auto-start waiting for connection since QR is shown immediately
-      console.log('[NostrConnectModal] v55: Desktop - auto-starting connection wait for QR scan');
+      logAuth('NostrConnectModal', 'Desktop - auto-starting connection wait for QR scan');
       setStage('waiting');
       startWaitingForConnection();
     }
@@ -217,15 +167,15 @@ export default function NostrConnectModal({
     try {
       await navigator.clipboard.writeText(uri);
       setCopied(true);
-      console.log('[NostrConnectModal] v32: Copied URI to clipboard');
+      logAuth('NostrConnectModal', 'Copied URI to clipboard');
     } catch (err) {
-      console.error('[NostrConnectModal] v32: Failed to copy:', err);
+      logAuthError('NostrConnectModal', 'Failed to copy:', err);
       window.prompt('Copy this link:', uri);
     }
   };
 
   const handleOpenInSigner = () => {
-    console.log('[NostrConnectModal] v55: Opening in signer app (nostrconnect://)');
+    logAuth('NostrConnectModal', 'Opening in signer app (nostrconnect://)');
     // Open the nostrconnect:// URI - Amber handles this on Android, desktop signers like Peridot on desktop
     window.location.href = uri;
     
@@ -236,11 +186,11 @@ export default function NostrConnectModal({
     }
   };
 
-  // v32: Open in Aegis using nostrsigner:// scheme
+  // Open in Aegis using nostrsigner:// scheme
   // This is a fire-and-forget approach - we open Aegis and wait for relay connection
   // No callbacks needed since we're waiting on the relay anyway
   const handleOpenInAegis = () => {
-    console.log('[NostrConnectModal] v32: Opening in Aegis (nostrsigner://) and starting wait...');
+    logAuth('NostrConnectModal', 'Opening in Aegis (nostrsigner://) and starting wait...');
     
     // Build the Aegis URL using nostrsigner:// scheme
     // Format: nostrsigner://x-callback-url/auth/nip46?method=connect&nostrconnect=<encoded>
@@ -250,7 +200,7 @@ export default function NostrConnectModal({
     // Use nostrsigner:// which Aegis registers on both iOS and Android
     const aegisUrl = `nostrsigner://x-callback-url/auth/nip46?method=connect&nostrconnect=${nostrConnectEncoded}&x-source=blinkpos`;
     
-    console.log('[NostrConnectModal] v32: Aegis URL:', aegisUrl.substring(0, 100) + '...');
+    logAuth('NostrConnectModal', 'Aegis URL:', aegisUrl.substring(0, 100) + '...');
     
     setStage('waiting');
     
@@ -263,23 +213,23 @@ export default function NostrConnectModal({
   };
 
   const startWaitingForConnection = useCallback(async () => {
-    console.log('[NostrConnectModal] v32: Waiting for NIP-46 connection...');
+    logAuth('NostrConnectModal', 'Waiting for NIP-46 connection...');
     
     try {
       const result = await NostrConnectService.waitForConnection(uri);
       
       if (result.success && result.publicKey) {
-        console.log('[NostrConnectModal] v32: Connection successful, pubkey:', result.publicKey.substring(0, 16) + '...');
+        logAuth('NostrConnectModal', 'Connection successful, pubkey:', result.publicKey.substring(0, 16) + '...');
         setConnectedPubkey(result.publicKey);
         await handleConnectionSuccess(result.publicKey);
       } else {
-        console.error('[NostrConnectModal] v32: Connection failed:', result.error);
+        logAuthError('NostrConnectModal', 'Connection failed:', result.error);
         setStage('error');
         setErrorMessage(result.error || 'Connection failed');
         setErrorStage('connected');
       }
     } catch (error) {
-      console.error('[NostrConnectModal] v32: Exception during connection:', error);
+      logAuthError('NostrConnectModal', 'Exception during connection:', error);
       setStage('error');
       setErrorMessage(error.message || 'Connection failed');
       setErrorStage('connected');
@@ -287,7 +237,7 @@ export default function NostrConnectModal({
   }, [uri]);
 
   const handleConnectionSuccess = async (pubkey) => {
-    console.log('[NostrConnectModal] v32: Handling connection success...');
+    logAuth('NostrConnectModal', 'Handling connection success...');
     setStage('connected');
     setConnectedPubkey(pubkey);
     
@@ -308,7 +258,7 @@ export default function NostrConnectModal({
       // Call the sign-in function with progress callback
       const result = await signInWithNostrConnect(pubkey, {
         onProgress: (progressStage, message) => {
-          console.log('[NostrConnectModal] v32: Progress:', progressStage, message);
+          logAuth('NostrConnectModal', 'Progress:', progressStage, message);
           if (progressStage === 'signing') setStage('signing');
           else if (progressStage === 'syncing') setStage('syncing');
           else if (progressStage === 'complete') setStage('complete');
@@ -348,8 +298,8 @@ export default function NostrConnectModal({
     e.preventDefault();
     if (!bunkerUrl.trim()) return;
     
-    console.log(`[NostrConnectModal] v64: Connecting with bunker URL (using ${USE_NDK ? 'NDK' : 'nostr-tools'})...`);
-    setStage('connected'); // v64: Go straight to 'connected' stage (showing progress stepper)
+    logAuth('NostrConnectModal', `Connecting with bunker URL (using ${USE_NDK ? 'NDK' : 'nostr-tools'})...`);
+    setStage('connected'); // Go straight to 'connected' stage (showing progress stepper)
     setErrorMessage('');
     setAwaitingApproval(false);
     setAuthUrl(null);
@@ -363,15 +313,15 @@ export default function NostrConnectModal({
     
     // Auth URL callback for nsec.app approval flow (some signers use this)
     const handleAuthUrl = (url) => {
-      console.log('[NostrConnectModal] v64: Received auth URL:', url);
+      logAuth('NostrConnectModal', 'Received auth URL:', url);
       setAuthUrl(url);
-      // v64: Don't change stage, just set awaitingApproval flag to show different UI
+      // Don't change stage, just set awaitingApproval flag to show different UI
       setAwaitingApproval(true);
       
       // Open the auth URL in a popup
       const popup = window.open(url, 'nsec_auth', 'width=500,height=700,popup=yes,scrollbars=yes');
       if (!popup) {
-        console.warn('[NostrConnectModal] v64: Popup blocked, user needs to click link');
+        logAuthWarn('NostrConnectModal', 'Popup blocked, user needs to click link');
       }
     };
     
@@ -379,13 +329,13 @@ export default function NostrConnectModal({
       let result;
       
       if (USE_NDK) {
-        // v64: Use NDK implementation
+        // Use NDK implementation
         result = await NostrConnectServiceNDK.connect(bunkerUrl.trim(), {
           onAuthUrl: handleAuthUrl,
           onStatusChange: (status) => {
-            console.log('[NostrConnectModal] v64 NDK status:', status);
+            logAuth('NostrConnectModal', 'NDK status:', status);
             if (status === 'awaiting_approval') {
-              // v64: Stay on 'connected' stage but show approval UI
+              // Stay on 'connected' stage but show approval UI
               setAwaitingApproval(true);
             }
           }
@@ -402,15 +352,15 @@ export default function NostrConnectModal({
       
       // Handle result - both implementations return similar structure
       if (result.needsApproval) {
-        console.log('[NostrConnectModal] v64: Signer requires approval, starting auto-poll...');
+        logAuth('NostrConnectModal', 'Signer requires approval, starting auto-poll...');
         setAwaitingApproval(true);
-        // v64: Start auto-polling for approval
+        // Start auto-polling for approval
         startApprovalPolling();
         return;
       }
       
       if (result.success && result.publicKey) {
-        console.log('[NostrConnectModal] v64: Connection successful');
+        logAuth('NostrConnectModal', 'Connection successful');
         stopApprovalPolling();
         setAwaitingApproval(false);
         setAuthUrl(null);
@@ -427,9 +377,9 @@ export default function NostrConnectModal({
     }
   };
   
-  // v64: Start auto-polling for approval
+  // Start auto-polling for approval
   const startApprovalPolling = () => {
-    console.log('[NostrConnectModal] v64: Starting approval polling...');
+    logAuth('NostrConnectModal', 'Starting approval polling...');
     setApprovalPollCount(0);
     
     // Clear any existing timer
@@ -441,11 +391,11 @@ export default function NostrConnectModal({
     approvalPollRef.current = setInterval(async () => {
       setApprovalPollCount(prev => {
         const newCount = prev + 1;
-        console.log(`[NostrConnectModal] v64: Approval poll attempt ${newCount}/30`);
+        logAuth('NostrConnectModal', `Approval poll attempt ${newCount}/30`);
         
         if (newCount >= 30) {
           // Stop after 2 minutes
-          console.log('[NostrConnectModal] v64: Polling timeout, stopping');
+          logAuth('NostrConnectModal', 'Polling timeout, stopping');
           stopApprovalPolling();
           return newCount;
         }
@@ -459,7 +409,7 @@ export default function NostrConnectModal({
         if (USE_NDK) {
           result = await NostrConnectServiceNDK.connect(bunkerUrl.trim(), {
             onStatusChange: (status) => {
-              console.log('[NostrConnectModal] v64 poll status:', status);
+              logAuth('NostrConnectModal', 'Poll status:', status);
             }
           });
         } else {
@@ -467,7 +417,7 @@ export default function NostrConnectModal({
         }
         
         if (result.success && result.publicKey) {
-          console.log('[NostrConnectModal] v64: Poll successful - approval detected!');
+          logAuth('NostrConnectModal', 'Poll successful - approval detected!');
           stopApprovalPolling();
           setAwaitingApproval(false);
           setAuthUrl(null);
@@ -475,25 +425,25 @@ export default function NostrConnectModal({
         }
         // If still needs approval, continue polling (no action needed)
       } catch (error) {
-        console.log('[NostrConnectModal] v64: Poll attempt failed:', error.message);
+        logAuth('NostrConnectModal', 'Poll attempt failed:', error.message);
         // Continue polling on error
       }
     }, 4000);
   };
   
-  // v64: Stop approval polling
+  // Stop approval polling
   const stopApprovalPolling = () => {
     if (approvalPollRef.current) {
-      console.log('[NostrConnectModal] v64: Stopping approval polling');
+      logAuth('NostrConnectModal', 'Stopping approval polling');
       clearInterval(approvalPollRef.current);
       approvalPollRef.current = null;
     }
   };
   
   // Handle retry after nsec.app approval (manual trigger)
-  // v64: Updated - this is now just a manual trigger of what polling does automatically
+  // This is now just a manual trigger of what polling does automatically
   const handleRetryAfterApproval = async () => {
-    console.log(`[NostrConnectModal] v64: Manual retry after approval (using ${USE_NDK ? 'NDK' : 'nostr-tools'})...`);
+    logAuth('NostrConnectModal', `Manual retry after approval (using ${USE_NDK ? 'NDK' : 'nostr-tools'})...`);
     
     try {
       let result;
@@ -501,7 +451,7 @@ export default function NostrConnectModal({
       if (USE_NDK) {
         result = await NostrConnectServiceNDK.connect(bunkerUrl.trim(), {
           onStatusChange: (status) => {
-            console.log('[NostrConnectModal] v64 NDK retry status:', status);
+            logAuth('NostrConnectModal', 'NDK retry status:', status);
           }
         });
       } else {
@@ -509,14 +459,14 @@ export default function NostrConnectModal({
       }
       
       if (result.success && result.publicKey) {
-        console.log('[NostrConnectModal] v64: Connection successful after manual retry');
+        logAuth('NostrConnectModal', 'Connection successful after manual retry');
         stopApprovalPolling();
         setAwaitingApproval(false);
         setAuthUrl(null);
         await handleConnectionSuccess(result.publicKey);
       } else if (result.needsApproval) {
         // Still needs approval
-        console.log('[NostrConnectModal] v64: Still needs approval');
+        logAuth('NostrConnectModal', 'Still needs approval');
         setErrorMessage('Still waiting for approval. Please approve the connection in your signer app.');
       } else {
         setStage('error');
@@ -531,7 +481,7 @@ export default function NostrConnectModal({
   };
 
   const handleRetry = async () => {
-    console.log('[NostrConnectModal] v51: Retrying...');
+    logAuth('NostrConnectModal', 'Retrying...');
     setErrorMessage('');
     setShowSlowWarning(false);
     setErrorStage(null);
@@ -540,24 +490,24 @@ export default function NostrConnectModal({
     const service = getService();
     if (service.isConnected() && connectedPubkey) {
       // Retry just the NIP-98 part
-      console.log('[NostrConnectModal] v51: Still connected, retrying from signing stage');
+      logAuth('NostrConnectModal', 'Still connected, retrying from signing stage');
       setStage('signing');
       await handleConnectionSuccess(connectedPubkey);
     } else {
       // Need to reconnect from scratch
-      console.log('[NostrConnectModal] v51: Not connected, restarting from beginning');
+      logAuth('NostrConnectModal', 'Not connected, restarting from beginning');
       setStage('idle');
       setConnectedPubkey(null);
     }
   };
 
   const handleCancel = () => {
-    console.log('[NostrConnectModal] v64: User cancelled');
+    logAuth('NostrConnectModal', 'User cancelled');
     // Clean disconnect
     if (slowTimerRef.current) {
       clearTimeout(slowTimerRef.current);
     }
-    // v64: Stop approval polling
+    // Stop approval polling
     stopApprovalPolling();
     // Disconnect using appropriate service
     const service = getService();
@@ -572,12 +522,12 @@ export default function NostrConnectModal({
     setErrorStage(null);
     setAwaitingApproval(false);
     setAuthUrl(null);
-    // v64: Stop approval polling
+    // Stop approval polling
     stopApprovalPolling();
   };
 
   // Determine what to render based on stage
-  // v64: isInConnectionFlow now includes states where we're waiting for approval
+  // isInConnectionFlow now includes states where we're waiting for approval
   const isInConnectionFlow = ['waiting', 'connected', 'signing', 'syncing', 'complete'].includes(stage);
   const isInErrorState = stage === 'error';
 
@@ -772,7 +722,7 @@ export default function NostrConnectModal({
             <div className="py-2">
               <ProgressStepper currentStage={stage} errorStage={null} waitingForApproval={awaitingApproval} />
               
-              {/* v64: Waiting for approval message */}
+              {/* Waiting for approval message */}
               {awaitingApproval && stage === 'connected' && (
                 <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
                   <div className="flex items-start gap-3">
@@ -1337,7 +1287,7 @@ export default function NostrConnectModal({
             </>
           )}
 
-          {/* v64: Old separate "Awaiting Approval" view removed - approval is now shown inline in the connection progress view */}
+          {/* Old separate "Awaiting Approval" view removed - approval is now shown inline in the connection progress view */}
         </div>
 
         {/* Footer - only show cancel button when in idle state */}

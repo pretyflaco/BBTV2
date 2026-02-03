@@ -4,6 +4,7 @@
  * Supports:
  * - Browser extension (keys.band, Alby) - Desktop
  * - External signer (Amber) - Mobile
+ * - NIP-46 remote signer (nsec.app, Amber QR) - Cross-platform
  * - In-app key generation with password protection
  */
 
@@ -14,13 +15,9 @@ import NostrAuthService from '../../lib/nostr/NostrAuthService';
 import NostrConnectService from '../../lib/nostr/NostrConnectService';
 import NostrConnectServiceNDK from '../../lib/nostr/NostrConnectServiceNDK';
 import NostrConnectModal from './NostrConnectModal';
+import { AUTH_VERSION_FULL, logAuth, logAuthError } from '../../lib/version.js';
 
-// Build version - update this when deploying changes
-// This helps verify the correct build is running in the browser
-const BUILD_VERSION = 'v65-fix-amber-qr';
-const BUILD_DATE = '2025-06-03';
-
-// v51: Feature flag to use NDK implementation
+// Feature flag to use NDK implementation for bunker:// URLs
 const USE_NDK = process.env.NEXT_PUBLIC_USE_NDK_NIP46 === 'true';
 
 export default function NostrLoginForm() {
@@ -43,12 +40,12 @@ export default function NostrLoginForm() {
   const [localError, setLocalError] = useState(null);
   const [checkingReturn, setCheckingReturn] = useState(true);
   
-  // v24: Manual Step 2 state - when Step 1 (pubkey) completes, show manual button for Step 2
+  // Manual Step 2 state - when Step 1 (pubkey) completes, show manual button for Step 2
   const [awaitingStep2, setAwaitingStep2] = useState(false);
   const [step1Pubkey, setStep1Pubkey] = useState(null);
   
-  // v26/v29: NIP-46 Nostr Connect state
-  // v29: Simplified - modal now handles the full sign-in flow internally
+  // NIP-46 Nostr Connect state
+  // Modal handles the full sign-in flow internally
   const [showNostrConnectModal, setShowNostrConnectModal] = useState(false);
   const [nostrConnectURI, setNostrConnectURI] = useState('');
   
@@ -97,8 +94,7 @@ export default function NostrLoginForm() {
   // Debug: Update debug info display
   const updateDebugInfo = () => {
     const info = {
-      buildVersion: BUILD_VERSION,
-      buildDate: BUILD_DATE,
+      buildVersion: AUTH_VERSION_FULL,
       url: window.location.href,
       urlParams: window.location.search,
       challengeFlow: localStorage.getItem('blinkpos_challenge_flow'),
@@ -109,7 +105,7 @@ export default function NostrLoginForm() {
       userAgent: navigator.userAgent.substring(0, 100)
     };
     setDebugInfo(JSON.stringify(info, null, 2));
-    console.log('[DEBUG] Build:', BUILD_VERSION, '| Current state:', info);
+    logAuth('DEBUG', 'Build:', AUTH_VERSION_FULL, '| Current state:', info);
   };
 
   // Debug: Clear all auth state
@@ -185,10 +181,10 @@ export default function NostrLoginForm() {
     const checkSignerReturn = async () => {
       const result = await checkPendingSignerFlow();
       
-      // v24: Check if Step 1 completed and we need manual Step 2
+      // Check if Step 1 completed and we need manual Step 2
       if (result.needsManualStep2) {
-        console.log('[NostrLoginForm] v24: Step 1 complete, showing manual Step 2 button');
-        console.log('[NostrLoginForm] v24: pubkey:', result.pubkey?.substring(0, 16) + '...');
+        logAuth('NostrLoginForm', 'Step 1 complete, showing manual Step 2 button');
+        logAuth('NostrLoginForm', 'pubkey:', result.pubkey?.substring(0, 16) + '...');
         setAwaitingStep2(true);
         setStep1Pubkey(result.pubkey);
         setCheckingReturn(false);
@@ -198,7 +194,7 @@ export default function NostrLoginForm() {
       
       if (result.success) {
         // Sign-in completed successfully
-        console.log('Signed in via external signer');
+        logAuth('NostrLoginForm', 'Signed in via external signer');
         setAwaitingStep2(false);
         setStep1Pubkey(null);
       } else if (result.error && result.pending !== false) {
@@ -300,21 +296,21 @@ export default function NostrLoginForm() {
     setSigningIn(false);
   };
 
-  // v24: Handle user tap on "Continue to Amber" button for Step 2 (sign challenge)
+  // Handle user tap on "Continue to Amber" button for Step 2 (sign challenge)
   // This is a user-initiated navigation which is more reliable on Android than automatic redirects
   const handleContinueToAmber = async () => {
-    console.log('[NostrLoginForm] v24: handleContinueToAmber called - user-initiated Step 2');
+    logAuth('NostrLoginForm', 'handleContinueToAmber called - user-initiated Step 2');
     setSigningIn(true);
     setLocalError(null);
     
     try {
       // Call retrySignChallengeRedirect which will navigate to Amber for signing
       const result = await NostrAuthService.retrySignChallengeRedirect();
-      console.log('[NostrLoginForm] v24: retrySignChallengeRedirect result:', JSON.stringify(result));
+      logAuth('NostrLoginForm', 'retrySignChallengeRedirect result:', JSON.stringify(result));
       
       if (result.pending) {
         // Navigation initiated, user will be redirected to Amber
-        console.log('[NostrLoginForm] v24: Redirect to Amber initiated');
+        logAuth('NostrLoginForm', 'Redirect to Amber initiated');
         // Keep signing in state until redirect or timeout
         setTimeout(() => {
           setSigningIn(false);
@@ -323,31 +319,31 @@ export default function NostrLoginForm() {
       }
       
       if (!result.success) {
-        console.log('[NostrLoginForm] v24: Step 2 redirect failed:', result.error);
+        logAuth('NostrLoginForm', 'Step 2 redirect failed:', result.error);
         setLocalError(result.error);
         // If redirect failed, allow retry
         setAwaitingStep2(true);
       }
     } catch (error) {
-      console.error('[NostrLoginForm] v24: Exception in handleContinueToAmber:', error);
+      logAuthError('NostrLoginForm', 'Exception in handleContinueToAmber:', error);
       setLocalError(error.message || 'Failed to open Amber');
     }
     
     setSigningIn(false);
   };
 
-  // v24: Handle cancel/restart of the sign-in flow
+  // Handle cancel/restart of the sign-in flow
   const handleCancelStep2 = () => {
-    console.log('[NostrLoginForm] v24: User cancelled Step 2, clearing flow');
+    logAuth('NostrLoginForm', 'User cancelled Step 2, clearing flow');
     NostrAuthService.clearPendingChallengeFlow();
     setAwaitingStep2(false);
     setStep1Pubkey(null);
     setLocalError(null);
   };
 
-  // v26/v29: NIP-46 Nostr Connect handlers
+  // NIP-46 Nostr Connect handlers
   const handleNostrConnectSignIn = async () => {
-    console.log('[NostrLoginForm] v32: Starting Nostr Connect flow');
+    logAuth('NostrLoginForm', 'Starting Nostr Connect flow');
     setLocalError(null);
     
     try {
@@ -356,25 +352,25 @@ export default function NostrLoginForm() {
       setNostrConnectURI(uri);
       setShowNostrConnectModal(true);
       
-      console.log('[NostrLoginForm] v32: Generated URI, showing modal');
+      logAuth('NostrLoginForm', 'Generated URI, showing modal');
     } catch (error) {
-      console.error('[NostrLoginForm] v32: Failed to generate connection URI:', error);
+      logAuthError('NostrLoginForm', 'Failed to generate connection URI:', error);
       setLocalError('Failed to start Nostr Connect: ' + error.message);
     }
   };
 
-  // v29: Handle successful Nostr Connect sign-in
+  // Handle successful Nostr Connect sign-in
   // Called by NostrConnectModal after the FULL sign-in flow is complete
   const handleNostrConnectSuccess = useCallback((pubkey) => {
-    console.log('[NostrLoginForm] v32: Nostr Connect complete, pubkey:', pubkey?.substring(0, 16) + '...');
+    logAuth('NostrLoginForm', 'Nostr Connect complete, pubkey:', pubkey?.substring(0, 16) + '...');
     setShowNostrConnectModal(false);
     setNostrConnectURI('');
     // Navigation will happen automatically via auth state change
   }, []);
 
-  // v29: Handle modal cancel
+  // Handle modal cancel
   const handleNostrConnectClose = () => {
-    console.log('[NostrLoginForm] v32: Closing Nostr Connect modal');
+    logAuth('NostrLoginForm', 'Closing Nostr Connect modal');
     setShowNostrConnectModal(false);
     setNostrConnectURI('');
   };
@@ -789,8 +785,7 @@ export default function NostrLoginForm() {
             {/* Build Version - Prominent display */}
             <div className="mb-4 p-3 bg-blue-900/50 border border-blue-500 rounded-lg">
               <div className="text-xs text-blue-300 uppercase tracking-wide mb-1">Build Version</div>
-              <div className="text-lg font-mono font-bold text-blue-100">{BUILD_VERSION}</div>
-              <div className="text-xs text-blue-400 mt-1">Built: {BUILD_DATE}</div>
+              <div className="text-lg font-mono font-bold text-blue-100">{AUTH_VERSION_FULL}</div>
             </div>
             
             <div className="space-y-3">

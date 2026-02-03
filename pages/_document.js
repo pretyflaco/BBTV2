@@ -106,6 +106,8 @@ export default function Document() {
         <meta name="1password-ignore" content="all" />
         
         {/* Favicon and Apple Touch Icons */}
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-ios-192x192.png" />
         <link rel="apple-touch-icon" href="/icons/icon-ios-152x152.png" />
         <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-ios-192x192.png" />

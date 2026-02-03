@@ -507,9 +507,9 @@ export default function NostrConnectModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-2xl max-w-sm w-full shadow-xl overflow-hidden max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl max-w-sm w-full shadow-xl overflow-hidden max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="px-6 pt-6 pb-4 text-center border-b border-gray-100 dark:border-gray-800">
+        <div className="px-6 pt-6 pb-4 text-center border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
           <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
             {stage === 'complete' ? '✓ Connected!' : 
              isInErrorState ? '⚠️ Connection Failed' :
@@ -524,8 +524,8 @@ export default function NostrConnectModal({
           )}
         </div>
 
-        {/* Content */}
-        <div className="px-6 py-5">
+        {/* Content - scrollable */}
+        <div className="px-6 py-5 overflow-y-auto flex-1 min-h-0">
           
           {/* v58: Desktop waiting view - show tabs with QR code or Bunker URL */}
           {stage === 'waiting' && !isIOS && !isAndroid && (
@@ -976,56 +976,71 @@ export default function NostrConnectModal({
                     </p>
                   </div>
                   
-                  {/* nsec.app button - opens in new tab */}
-                  <a
-                    href="https://use.nsec.app"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full py-3 px-4 text-base font-semibold text-white bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                  >
-                    <span>🔐</span>
-                    <span>Open nsec.app</span>
-                  </a>
-
-                  {/* Copy Link Button */}
+                  {/* Copy Link Button - Primary action for client-initiated flow */}
                   <button
-                    onClick={handleCopyLink}
-                    className={`w-full py-3 px-4 text-base font-medium rounded-xl transition-all flex items-center justify-center gap-2 ${
+                    onClick={() => {
+                      handleCopyLink();
+                      // Start waiting for connection when link is copied
+                      if (stage === 'idle') {
+                        setStage('waiting');
+                        startWaitingForConnection();
+                      }
+                    }}
+                    className={`w-full py-3 px-4 text-base font-semibold rounded-xl transition-all flex items-center justify-center gap-2 ${
                       copied 
                         ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-2 border-green-500'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border-2 border-transparent'
+                        : 'bg-gradient-to-r from-purple-600 to-violet-700 hover:from-purple-700 hover:to-violet-800 text-white shadow-md hover:shadow-lg'
                     }`}
                   >
                     {copied ? (
                       <>
                         <span>✓</span>
-                        <span>Copied! Paste in signer app</span>
+                        <span>Copied! Paste in nsec.app</span>
                       </>
                     ) : (
                       <>
                         <span>📋</span>
-                        <span>Copy Link</span>
+                        <span>Copy Connection Link</span>
                       </>
                     )}
                   </button>
 
-                  {/* Instructions */}
+                  {/* Waiting indicator - show when link copied or QR shown */}
+                  {(copied || showMobileQR || stage === 'waiting') && (
+                    <div className="flex items-center justify-center gap-2 text-purple-600 dark:text-purple-400 py-2">
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      <span className="text-sm font-medium">Waiting for connection...</span>
+                    </div>
+                  )}
+
+                  {/* Instructions - updated for client-initiated flow */}
                   <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
                     <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       How to connect:
                     </p>
                     <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-1.5 list-decimal list-inside">
-                      <li>Tap <strong>"Open nsec.app"</strong> and sign in or create an account</li>
-                      <li>In nsec.app: tap <strong>"Connect App"</strong> → <strong>"Advanced options"</strong></li>
-                      <li>Copy the <strong>bunker URL</strong></li>
-                      <li>Return here and paste it in <strong>"Use bunker URL"</strong> below</li>
+                      <li>Tap <strong>"Copy Connection Link"</strong> above</li>
+                      <li>Open <a href="https://nsec.app" target="_blank" rel="noopener noreferrer" className="text-purple-600 dark:text-purple-400 underline">nsec.app</a> and sign in</li>
+                      <li>Tap <strong>"Connect App"</strong> → <strong>"Paste from clipboard"</strong></li>
+                      <li>Approve the connection request</li>
                     </ol>
                   </div>
 
                   {/* v55: Show QR Code toggle for mobile */}
                   <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
                     <button
-                      onClick={() => setShowMobileQR(!showMobileQR)}
+                      onClick={() => {
+                        const newShowQR = !showMobileQR;
+                        setShowMobileQR(newShowQR);
+                        // Start waiting for connection when QR is shown
+                        if (newShowQR && stage === 'idle') {
+                          setStage('waiting');
+                          startWaitingForConnection();
+                        }
+                      }}
                       className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors flex items-center justify-center gap-1"
                     >
                       <span>{showMobileQR ? '▼' : '▶'}</span>
@@ -1056,7 +1071,7 @@ export default function NostrConnectModal({
                         onClick={() => setShowBunkerInput(true)}
                         className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
                       >
-                        Paste bunker URL from nsec.app
+                        Or paste bunker URL instead (advanced)
                       </button>
                     ) : (
                       <form onSubmit={handleBunkerSubmit} className="space-y-3">
@@ -1149,7 +1164,15 @@ export default function NostrConnectModal({
                   {/* v55: Show QR Code toggle for mobile */}
                   <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
                     <button
-                      onClick={() => setShowMobileQR(!showMobileQR)}
+                      onClick={() => {
+                        const newShowQR = !showMobileQR;
+                        setShowMobileQR(newShowQR);
+                        // Start waiting for connection when QR is shown
+                        if (newShowQR && stage === 'idle') {
+                          setStage('waiting');
+                          startWaitingForConnection();
+                        }
+                      }}
                       className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors flex items-center justify-center gap-1"
                     >
                       <span>{showMobileQR ? '▼' : '▶'}</span>
@@ -1169,6 +1192,14 @@ export default function NostrConnectModal({
                         <p className="mt-3 text-sm text-gray-500 dark:text-gray-400 text-center">
                           Scan this QR from another device
                         </p>
+                        {/* Waiting indicator */}
+                        <div className="mt-3 flex items-center justify-center gap-2 text-purple-600 dark:text-purple-400">
+                          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          <span className="text-sm font-medium">Waiting for connection...</span>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1229,9 +1260,9 @@ export default function NostrConnectModal({
           {/* Old separate "Awaiting Approval" view removed - approval is now shown inline in the connection progress view */}
         </div>
 
-        {/* Footer - only show cancel button when in idle state */}
+        {/* Footer - sticky at bottom, only show cancel button when in idle state */}
         {stage === 'idle' && (
-          <div className="px-6 pb-6">
+          <div className="px-6 pb-6 pt-2 border-t border-gray-100 dark:border-gray-800 flex-shrink-0 bg-white dark:bg-gray-900">
             <button
               onClick={handleCancel}
               className="w-full py-3 px-4 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -1241,9 +1272,9 @@ export default function NostrConnectModal({
           </div>
         )}
         
-        {/* Footer for connection flow - subtle cancel */}
+        {/* Footer for connection flow - sticky at bottom, subtle cancel */}
         {isInConnectionFlow && stage !== 'complete' && (
-          <div className="px-6 pb-6 pt-2">
+          <div className="px-6 pb-6 pt-2 border-t border-gray-100 dark:border-gray-800 flex-shrink-0 bg-white dark:bg-gray-900">
             <button
               onClick={handleCancel}
               className="w-full text-center text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"

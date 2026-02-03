@@ -9,13 +9,13 @@ import Dashboard from '../components/Dashboard';
  * 
  * Authentication States:
  * 1. Loading: Show spinner while checking auth
- * 2. Not authenticated: Redirect to /setuppwa (Public POS entry)
+ * 2. Not authenticated: Redirect to /signin
  * 3. Nostr auth but no wallet (Blink or NWC): Show WalletSetup
  * 4. Fully authenticated with wallet: Show Dashboard
  * 
  * User Journey:
- * - New users land here and get redirected to /setuppwa
- * - Users who want to sign in go to /signin from /setuppwa or /{username}
+ * - Unauthenticated users (including after logout) are redirected to /signin
+ * - From /signin users can choose to use Public POS (/setuppwa) or sign in
  * - Authenticated users see Dashboard or WalletSetup
  */
 export default function Home() {
@@ -50,12 +50,12 @@ export default function Home() {
     }
   }, [publicKey]);
 
-  // Redirect unauthenticated users to /setuppwa
+  // Redirect unauthenticated users to /signin
   useEffect(() => {
     if (!loading && !isAuthenticated) {
-      console.log('[Home] Not authenticated - redirecting to /setuppwa');
+      console.log('[Home] Not authenticated - redirecting to /signin');
       setRedirecting(true);
-      router.replace('/setuppwa');
+      router.replace('/signin');
     }
   }, [loading, isAuthenticated, router]);
 

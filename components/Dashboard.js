@@ -427,9 +427,7 @@ export default function Dashboard() {
         setVoucherWalletBalance(bal?.balance || 0)
       }
     }
-    console.log({
-      voucherWalletBalance, userWallets, currency
-    })
+   
   }, [voucherWalletBalance, userWallets, currency]);
 
   // Tip Profile state

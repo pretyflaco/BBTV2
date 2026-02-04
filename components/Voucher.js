@@ -9,7 +9,7 @@ import { formatNumber } from '../lib/number-format';
 import { DEFAULT_EXPIRY } from './ExpirySelector';
 import Numpad from './Numpad';
 
-const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, displayCurrency,setCurrency, currency="SATS", numberFormat = 'auto', bitcoinFormat = 'sats', currencies, darkMode, theme = THEMES.DARK, cycleTheme, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3] }, ref) => {
+const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, displayCurrency, setCurrency, currency = "SATS", numberFormat = 'auto', bitcoinFormat = 'sats', currencies, darkMode, theme = THEMES.DARK, cycleTheme, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3] }, ref) => {
   const [amount, setAmount] = useState('');
   const [voucher, setVoucher] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -54,7 +54,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
   const isBlinkClassic = theme === 'blink-classic-dark' || theme === 'blink-classic-light';
   const isBlinkClassicDark = theme === 'blink-classic-dark';
   const isBlinkClassicLight = theme === 'blink-classic-light';
-  
+
   // Get commission option button classes based on theme
   const getCommissionButtonClasses = (isSelected) => {
     if (isBlinkClassicDark) {
@@ -72,7 +72,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
       ? 'border border-purple-400 ring-2 ring-purple-400 bg-purple-50 dark:bg-purple-900 text-purple-700 dark:text-purple-300'
       : 'border border-purple-500 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300';
   };
-  
+
   // Get cancel button classes (red in standard, themed in BC)
   const getCancelButtonClasses = (isSelected) => {
     if (isBlinkClassicDark) {
@@ -90,7 +90,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
       ? 'border border-red-400 ring-2 ring-red-400 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-300'
       : 'border border-red-500 hover:border-red-600 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300';
   };
-  
+
   // Get no commission/skip button classes (yellow in standard, themed in BC)
   const getNoCommissionButtonClasses = (isSelected) => {
     if (isBlinkClassicDark) {
@@ -108,14 +108,14 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
       ? 'border border-yellow-400 ring-2 ring-yellow-400 bg-yellow-50 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300'
       : 'border border-yellow-500 dark:border-yellow-400 hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300';
   };
-  
+
   // Get background for commission dialog overlay
   const getCommissionDialogBgClasses = () => {
     if (isBlinkClassicDark) return 'bg-black';
     if (isBlinkClassicLight) return 'bg-white';
     return 'bg-white dark:bg-black';
   };
-  
+
   // Get text color classes
   const getCommissionDialogTextClasses = () => {
     if (isBlinkClassicDark) return 'text-white';
@@ -127,7 +127,6 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
   useEffect(() => {
     if (onVoucherStateChange) {
       // Hide header when voucher QR is showing OR commission dialog is showing
-      console.log("Sample test")
       onVoucherStateChange((!!voucher && !redeemed) || showCommissionDialog);
     }
   }, [voucher, redeemed, showCommissionDialog, onVoucherStateChange]);
@@ -163,12 +162,12 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
     try {
       const response = await fetch(`/api/voucher/status/${chargeId}`);
       const data = await response.json();
-      
+
       if (data.claimed) {
         console.log('✅ Voucher has been redeemed!');
         setRedeemed(true);
         playSuccessSound();
-        
+
         // Stop polling
         if (pollingIntervalRef.current) {
           clearInterval(pollingIntervalRef.current);
@@ -184,15 +183,15 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
   useEffect(() => {
     if (voucher && voucher.id && !redeemed) {
       console.log('🔄 Starting voucher status polling for:', voucher.id);
-      
+
       // Poll immediately
       pollVoucherStatus(voucher.id);
-      
+
       // Then poll every 2 seconds
       pollingIntervalRef.current = setInterval(() => {
         pollVoucherStatus(voucher.id);
       }, 2000);
-      
+
       return () => {
         if (pollingIntervalRef.current) {
           clearInterval(pollingIntervalRef.current);
@@ -216,22 +215,21 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
 
   // Handle commission selection and create voucher after state update
   useEffect(() => {
-    //  console.log("voucherWallet is :", voucherWallet);
-    console.log("userWallets is:", userWallets);
+
     if (pendingCommissionSelection !== null) {
       const newCommissionPercent = pendingCommissionSelection;
-      
+
       // Trigger transition animation when confirming commission selection
       if (onInternalTransition) onInternalTransition();
-      
+
       setSelectedCommissionPercent(newCommissionPercent);
       setShowCommissionDialog(false);
       setPendingCommissionSelection(null);
-      
+
       // Create voucher with the specific commission percentage
       createVoucherWithCommission(newCommissionPercent);
     }
-  }, [pendingCommissionSelection, userWallets]);
+  }, [pendingCommissionSelection]);
 
   // Reset commission option index when dialog opens
   useEffect(() => {
@@ -250,14 +248,14 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
   // Considers BOTH numeric digits AND total display length to prevent overflow
   const getDynamicFontSize = (displayText) => {
     const text = String(displayText);
-    
+
     // Extract only numeric characters (remove currency symbols, spaces, "sats", commas, etc.)
     const numericOnly = text.replace(/[^0-9.]/g, '');
     const numericLength = numericOnly.length;
-    
+
     // Total display length (includes symbols, spaces, commas)
     const totalLength = text.length;
-    
+
     // Calculate size based on numeric length (original thresholds)
     let sizeFromNumeric;
     if (numericLength <= 6) sizeFromNumeric = 7;
@@ -267,7 +265,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
     else if (numericLength <= 15) sizeFromNumeric = 3;
     else if (numericLength <= 16) sizeFromNumeric = 2;
     else sizeFromNumeric = 1;
-    
+
     // Calculate size based on total display length (for long currency symbols/names)
     let sizeFromTotal;
     if (totalLength <= 10) sizeFromTotal = 7;
@@ -277,10 +275,10 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
     else if (totalLength <= 26) sizeFromTotal = 3;
     else if (totalLength <= 30) sizeFromTotal = 2;
     else sizeFromTotal = 1;
-    
+
     // Use the SMALLER size to prevent overflow
     const finalSize = Math.min(sizeFromNumeric, sizeFromTotal);
-    
+
     // Map size number to Tailwind classes
     const sizeClasses = {
       7: 'text-6xl md:text-7xl',
@@ -291,7 +289,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
       2: 'text-xl md:text-2xl',
       1: 'text-lg md:text-xl'
     };
-    
+
     return sizeClasses[finalSize] || sizeClasses[1];
   };
 
@@ -304,7 +302,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
   const renderStyledAmount = (value, currency, className = '') => {
     const formatted = formatDisplayAmount(value, currency);
     const parts = parseAmountParts(formatted, currency, bitcoinFormat);
-    
+
     if (parts.isBip177) {
       // Render BIP-177 with smaller, lighter Bitcoin symbol moved up 10%
       return (
@@ -314,7 +312,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
         </span>
       );
     }
-    
+
     // For all other currencies, render as-is
     return <span className={className}>{formatted}</span>;
   };
@@ -335,7 +333,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
 
   const fetchExchangeRate = async () => {
     if (isBitcoinCurrency(displayCurrency)) return;
-    
+
     setLoadingRate(true);
     try {
       const response = await fetch('/api/rates/exchange-rate', {
@@ -348,9 +346,9 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
           useBlinkpos: true // Use BlinkPOS credentials for exchange rate
         }),
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         setExchangeRate({
           satPriceInCurrency: data.satPriceInCurrency,
@@ -390,7 +388,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
     // Convert major currency units to minor units (e.g., KES to cents), then to sats
     const amountInMinorUnits = amount * 100; // Convert to cents/minor units
     const satsAmount = Math.round(amountInMinorUnits / exchangeRate.satPriceInCurrency);
-    
+
     return satsAmount;
   };
 
@@ -407,25 +405,25 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
 
   const handleDigitPress = (digit) => {
     playKeystrokeSound();
-    
+
     const MAX_SATS = 2100000000000000;
-    
+
     if (digit !== '.') {
       const newAmount = amount + digit;
       const numericValue = parseFloat(newAmount.replace(/[^0-9.]/g, ''));
-      
+
       // For BTC currency (sats), validate against max sats
       if (isBitcoinCurrency(displayCurrency) && numericValue > MAX_SATS) {
         return;
       }
-      
+
       // Cap at 16 digits
       const currentNumericDigits = amount.replace(/[^0-9]/g, '').length;
       if (currentNumericDigits >= 16) {
         return;
       }
     }
-    
+
     // Special handling for '0' as first digit
     if (amount === '' && digit === '0') {
       if (isBitcoinCurrency(displayCurrency)) {
@@ -435,7 +433,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
       }
       return;
     }
-    
+
     // Special handling for '.' as first digit
     if (amount === '' && digit === '.') {
       const currency = getCurrentCurrency();
@@ -446,7 +444,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
       }
       return;
     }
-    
+
     if (amount === '0' && digit !== '.') {
       setAmount(digit);
     } else if (digit === '.' && amount.includes('.')) {
@@ -464,7 +462,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
       const currency = getCurrentCurrency();
       const maxDecimals = currency ? currency.fractionDigits : 2;
       const currentDecimals = amount.split('.')[1].length;
-      
+
       if (currentDecimals >= maxDecimals) {
         return;
       }
@@ -481,17 +479,17 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
 
   const handleClear = () => {
     playKeystrokeSound();
-    
+
     if ((voucher || redeemed) && onInternalTransition) {
       onInternalTransition();
     }
-    
+
     // Stop polling
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
-    
+
     setAmount('');
     setVoucher(null);
     setError('');
@@ -525,10 +523,10 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
       return numValue > 0;
     }
 
-    const minimumAmount = currency.fractionDigits > 0 
+    const minimumAmount = currency.fractionDigits > 0
       ? 1 / Math.pow(10, currency.fractionDigits)
       : 1;
-    
+
     if (numValue < minimumAmount) {
       return false;
     }
@@ -552,10 +550,10 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
   const isBalanceExceeded = useCallback(() => {
     if (walletBalance === null) return false;
     if (!amount || amount === '' || amount === '0') return false;
-    
+
     const numericAmount = parseFloat(amount);
     if (isNaN(numericAmount) || numericAmount <= 0) return false;
-    
+
     let amountInSats;
     if (isBitcoinCurrency(displayCurrency)) {
       amountInSats = Math.round(numericAmount);
@@ -567,7 +565,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
     } else {
       return false; // Can't determine, allow creation
     }
-    //  console.log("show value here for error handling")
+
     return amountInSats > walletBalance;
   }, [amount, walletBalance, displayCurrency, exchangeRate, currencies]);
 
@@ -580,7 +578,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
       console.log('📝 Words length:', words.length);
       const encoded = bech32.encode('lnurl', words, 2000);
       console.log('✅ Encoded (lowercase):', encoded);
-      
+
       // Verify by decoding
       try {
         const decoded = bech32.decode(encoded, 2000);
@@ -591,7 +589,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
       } catch (verifyError) {
         console.error('⚠️ Verification failed:', verifyError);
       }
-      
+
       return encoded.toUpperCase();
     } catch (error) {
       console.error('Failed to encode LNURL:', error);
@@ -622,7 +620,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
       if (!amount || amount === '' || amount === '0') return 0;
       const numericAmount = parseFloat(amount);
       if (isNaN(numericAmount) || numericAmount <= 0) return 0;
-      
+
       if (isBitcoinCurrency(displayCurrency)) {
         return Math.round(numericAmount);
       } else if (exchangeRate?.satPriceInCurrency) {
@@ -640,12 +638,12 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
     isCommissionDialogOpen: () => showCommissionDialog,
     handleCommissionDialogKey: (key) => {
       if (!showCommissionDialog) return false;
-      
+
       const presetCount = commissionPresets.length;
       const totalOptions = presetCount + 2;
       const cancelIndex = presetCount;
       const noCommissionIndex = presetCount + 1;
-      
+
       // Build column indices for proper up/down navigation
       // Column 0: even preset indices + Cancel
       // Column 1: odd preset indices + No Commission
@@ -657,13 +655,13 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
       }
       col0Indices.push(cancelIndex);
       col1Indices.push(noCommissionIndex);
-      
+
       // Determine which column current index is in
       const getColumn = (idx) => {
         if (col0Indices.includes(idx)) return 0;
         return 1;
       };
-      
+
       if (key === 'ArrowRight') {
         setCommissionOptionIndex(prev => (prev + 1) % totalOptions);
         return true;
@@ -714,7 +712,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
   const createVoucherInternal = async (skipCommissionDialog = false, forceCommissionPercent = null) => {
     // Ensure skipCommissionDialog is a boolean
     const shouldSkipCommissionDialog = typeof skipCommissionDialog === 'boolean' ? skipCommissionDialog : false;
-    
+
     // Use forced commission percent if provided, otherwise use state
     const effectiveCommissionPercent = forceCommissionPercent !== null ? forceCommissionPercent : selectedCommissionPercent;
 
@@ -746,13 +744,13 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
 
     try {
       const numericAmount = parseFloat(amount);
-      
+
       // Calculate commission-adjusted amount
       // Commission is deducted from the voucher value
       // E.g., $100 voucher with 2% commission = voucher encodes $98 worth of sats
       const commissionAmount = effectiveCommissionPercent > 0 ? calculateCommissionAmount(numericAmount, effectiveCommissionPercent) : 0;
       const netAmount = numericAmount - commissionAmount;
-      
+
       // Convert to sats if needed (use netAmount after commission deduction)
       let amountInSats;
       if (isBitcoinCurrency(displayCurrency)) {
@@ -762,21 +760,18 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
           throw new Error(`Exchange rate not available for ${displayCurrency}`);
         }
         amountInSats = convertToSatoshis(netAmount, displayCurrency);
-        
+
         if (amountInSats < 1) {
           throw new Error('Amount too small. Converts to less than 1 satoshi.');
         }
       }
-      console.log("currency is:", currency);
-      console.log('displayCurrency is:', displayCurrency);
-      console.log("voucherWallet is: ", voucherWallet);
-      console.log("userWallets is:", userWallets);
+    
       let walletId = voucherWallet.walletId
-      if (currency == "USD"){
+      if (currency == "USD") {
         console.log("userWallets[1].id is:", userWallets[1].id);
         walletId = userWallets[0].id;
       }
-  
+
       console.log('🔨 Creating voucher:', {
         displayAmount: numericAmount,
         displayCurrency: currency,
@@ -797,7 +792,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
         body: JSON.stringify({
           amount: amountInSats,
           apiKey: voucherWallet.apiKey,
-          walletId: walletId, // voucherWallet.walletId,
+          walletId: walletId, 
           expiryId: selectedExpiry,
           // Include commission info for memo and printout
           commissionPercent: effectiveCommissionPercent,
@@ -816,16 +811,14 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
       if (data.success && data.voucher) {
         // Build LNURL
         const protocol = window.location.protocol;
-        console.log("protocol is:", protocol);
         const host = window.location.host;
-        console.log("host is:", host);
         const lnurlUrl = `${protocol}//${host}/api/voucher/lnurl/${data.voucher.id}/${amountInSats}`;
-        
+
         console.log('🔗 LNURL URL:', lnurlUrl);
-        
+
         // Encode as bech32 LNURL
         const lnurl = encodeLnurl(lnurlUrl);
-        
+
         console.log('🔐 Encoded LNURL:', lnurl);
 
         setVoucher({
@@ -874,28 +867,28 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
         reject(new Error('QR ref not found'));
         return;
       }
-      
+
       const svg = qrRef.current.querySelector('svg');
       if (!svg) {
         reject(new Error('SVG element not found'));
         return;
       }
-      
+
       // Clone SVG and set dimensions
       const clonedSvg = svg.cloneNode(true);
       clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-      
+
       // Get dimensions
       const width = 256;
       const height = 256;
       clonedSvg.setAttribute('width', width);
       clonedSvg.setAttribute('height', height);
-      
+
       // Serialize SVG to string
       const svgData = new XMLSerializer().serializeToString(clonedSvg);
       const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
       const svgUrl = URL.createObjectURL(svgBlob);
-      
+
       // Create image and canvas to convert to PNG
       const img = new Image();
       img.onload = () => {
@@ -903,27 +896,27 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
-        
+
         // Draw white background
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, width, height);
-        
+
         // Draw SVG
         ctx.drawImage(img, 0, 0, width, height);
-        
+
         // Get PNG data URL
         const pngDataUrl = canvas.toDataURL('image/png');
         URL.revokeObjectURL(svgUrl);
-        
+
         console.log('✅ QR code converted to PNG, length:', pngDataUrl.length);
         resolve(pngDataUrl);
       };
-      
+
       img.onerror = (err) => {
         URL.revokeObjectURL(svgUrl);
         reject(new Error('Failed to load SVG image'));
       };
-      
+
       img.src = svgUrl;
     });
   };
@@ -964,34 +957,34 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
   // Generate and download PDF
   const generatePdf = async () => {
     if (!voucher) return;
-    
+
     setGeneratingPdf(true);
     setError('');
-    
+
     try {
       console.log('📄 Starting PDF generation...');
-      
+
       // Get QR code and logo as PNG data URLs
       const [qrDataUrl, logoDataUrl] = await Promise.all([
         getQrDataUrl(),
         getLogoDataUrl()
       ]);
-      
+
       if (!qrDataUrl) {
         throw new Error('Could not capture QR code');
       }
-      
+
       console.log('📷 QR captured, logo:', logoDataUrl ? 'yes' : 'no');
-      
+
       // Build fiat amount string (show for fiat currencies, not for BTC/BTC-BIP177)
       let fiatAmount = null;
       if (voucher.displayCurrency && !isBitcoinCurrency(voucher.displayCurrency)) {
         fiatAmount = formatDisplayAmount(voucher.displayAmount, voucher.displayCurrency);
       }
-      
+
       // Generate voucher secret for display
       const voucherSecret = generateVoucherSecret(voucher.id);
-      
+
       // Call PDF generation API
       const response = await fetch('/api/voucher/pdf', {
         method: 'POST',
@@ -1013,14 +1006,14 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
           format: printFormat
         }),
       });
-      
+
       const data = await response.json();
       console.log('📦 API response:', { success: data.success, error: data.error, pdfLength: data.pdf?.length });
-      
+
       if (!response.ok || !data.success) {
         throw new Error(data.error || data.message || 'Failed to generate PDF');
       }
-      
+
       // Convert base64 to blob and download
       const byteCharacters = atob(data.pdf);
       const byteNumbers = new Array(byteCharacters.length);
@@ -1029,7 +1022,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
       }
       const byteArray = new Uint8Array(byteNumbers);
       const blob = new Blob([byteArray], { type: 'application/pdf' });
-      
+
       // Create download link
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -1039,10 +1032,10 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
+
       setShowPrintModal(false);
       console.log('✅ PDF downloaded successfully');
-      
+
     } catch (err) {
       console.error('PDF generation error:', err);
       setError(err.message || 'Failed to generate PDF');
@@ -1054,10 +1047,10 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
   // Print voucher using ESC/POS thermal printing system
   const printVoucher = async () => {
     if (!voucher) return;
-    
+
     setPrinting(true);
     setError('');
-    
+
     try {
       // Build voucher data for thermal print
       const voucherData = {
@@ -1071,19 +1064,19 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
         expiresAt: voucher.expiresAt || null,
         issuedBy: voucherWallet?.username || null,
       };
-      
+
       // Determine paper width from format
       const paperWidth = printFormat === 'thermal-58' ? 58 : 80;
-      
+
       console.log('🖨️ Printing via thermal system:', { method: activePrintMethod, paperWidth });
-      
+
       // Use thermal print system
       const result = await thermalPrint(voucherData, {
         paperWidth,
         autoCut: false,
         useNativeQR: true,
       });
-      
+
       if (result.success) {
         console.log('✅ Thermal print successful:', result);
         setShowPrintModal(false);
@@ -1102,23 +1095,23 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
   // Legacy companion app print (fallback if needed)
   const printVoucherLegacy = () => {
     if (!voucher) return;
-    
+
     // Build the display amounts (show for fiat currencies, not for BTC/BTC-BIP177)
     let voucherPrice = '';
     if (voucher.displayCurrency && !isBitcoinCurrency(voucher.displayCurrency)) {
       voucherPrice = formatDisplayAmount(voucher.displayAmount, voucher.displayCurrency);
     }
-    
+
     const voucherAmount = `${voucher.amount} sats`;
     const voucherSecret = voucher.id?.replace(/-/g, '').substring(0, 12) || '';
     const identifierCode = voucher.id?.substring(0, 8)?.toUpperCase() || '';
     const commissionPercent = voucher.commissionPercent || 0;
     const expiresAt = voucher.expiresAt || '';
     const issuedBy = voucherWallet?.username || '';
-    
+
     // Build companion app deep link URL (same format as Blink voucher app)
     let deepLinkUrl = `blink-pos-companion://print?app=voucher&lnurl=${encodeURIComponent(voucher.lnurl)}&voucherPrice=${encodeURIComponent(voucherPrice)}&voucherAmount=${encodeURIComponent(voucherAmount)}&voucherSecret=${encodeURIComponent(voucherSecret)}&commissionPercentage=${encodeURIComponent(commissionPercent)}&identifierCode=${encodeURIComponent(identifierCode)}`;
-    
+
     // Add optional fields
     if (expiresAt) {
       deepLinkUrl += `&expiresAt=${encodeURIComponent(expiresAt)}`;
@@ -1126,35 +1119,35 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
     if (issuedBy) {
       deepLinkUrl += `&issuedBy=${encodeURIComponent(issuedBy)}`;
     }
-    
+
     console.log('🖨️ Printing via legacy companion app:', deepLinkUrl);
-    
+
     // Use window.location.href to trigger the deep link (same as Blink voucher app)
     window.location.href = deepLinkUrl;
-    
+
     setShowPrintModal(false);
   };
-  
+
   // Browser print fallback (for desktop or when companion app is not available)
   const browserPrint = async () => {
     if (!voucher) return;
-    
+
     setPrinting(true);
     setError('');
-    
+
     try {
       // Build the display amounts (show for fiat currencies, not for BTC/BTC-BIP177)
       let voucherPrice = '';
       if (voucher.displayCurrency && !isBitcoinCurrency(voucher.displayCurrency)) {
         voucherPrice = formatDisplayAmount(voucher.displayAmount, voucher.displayCurrency);
       }
-      
+
       const voucherAmount = `${voucher.amount} sats`;
       const voucherSecret = voucher.id?.replace(/-/g, '').substring(0, 12) || '';
       const identifierCode = voucher.id?.substring(0, 8)?.toUpperCase() || '';
       const commissionPercent = voucher.commissionPercent || 0;
       const qrDataUrl = await getQrDataUrl();
-      
+
       // Create a printable iframe (better than popup for some browsers)
       const printFrame = document.createElement('iframe');
       printFrame.style.position = 'fixed';
@@ -1163,7 +1156,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
       printFrame.style.width = '0';
       printFrame.style.height = '0';
       document.body.appendChild(printFrame);
-      
+
       const printDoc = printFrame.contentDocument || printFrame.contentWindow.document;
       printDoc.write(`
         <!DOCTYPE html>
@@ -1213,7 +1206,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
         </html>
       `);
       printDoc.close();
-      
+
       // Wait for content to load then print
       setTimeout(() => {
         printFrame.contentWindow.print();
@@ -1222,7 +1215,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
           document.body.removeChild(printFrame);
         }, 1000);
       }, 250);
-      
+
       setShowPrintModal(false);
     } catch (err) {
       console.error('Print error:', err);
@@ -1234,7 +1227,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
 
   if (loading) {
     return (
-      <div className="h-full flex flex-col bg-white dark:bg-black" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+      <div className="h-full flex flex-col bg-white dark:bg-black" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
         {/* Error Message Space */}
         <div className="mx-3 mt-1 min-h-[44px]"></div>
 
@@ -1263,22 +1256,22 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
   // Success screen when voucher is redeemed - Full screen overlay
   if (redeemed && voucher) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col bg-purple-600 dark:bg-purple-800 transition-colors duration-500" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+      <div className="fixed inset-0 z-50 flex flex-col bg-purple-600 dark:bg-purple-800 transition-colors duration-500" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
         {/* Success Animation - Full screen purple */}
         <div className="flex-1 flex flex-col items-center justify-center">
           {/* Animated Checkmark */}
           <div className="relative mb-8">
             <div className="w-32 h-32 rounded-full bg-white dark:bg-white flex items-center justify-center shadow-2xl animate-pulse">
-              <svg 
-                className="w-20 h-20 text-purple-600 dark:text-purple-700" 
-                fill="none" 
-                stroke="currentColor" 
+              <svg
+                className="w-20 h-20 text-purple-600 dark:text-purple-700"
+                fill="none"
+                stroke="currentColor"
                 viewBox="0 0 24 24"
               >
-                <path 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  strokeWidth="3" 
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="3"
                   d="M5 13l4 4L19 7"
                   className="animate-[draw_0.5s_ease-out_forwards]"
                   style={{
@@ -1291,7 +1284,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
             {/* Animated rings */}
             <div className="absolute inset-0 w-32 h-32 rounded-full border-4 border-white opacity-50 animate-ping"></div>
           </div>
-          
+
           {/* Success Text */}
           <div className="text-center text-white">
             <h2 className="text-3xl font-bold mb-2">Voucher Redeemed!</h2>
@@ -1314,7 +1307,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
           <button
             onClick={handleClear}
             className="w-full h-14 bg-white dark:bg-white hover:bg-gray-100 dark:hover:bg-gray-100 text-purple-600 dark:text-purple-700 rounded-lg text-xl font-semibold transition-colors shadow-lg"
-            style={{fontFamily: "'Source Sans Pro', sans-serif"}}
+            style={{ fontFamily: "'Source Sans Pro', sans-serif" }}
           >
             Done
           </button>
@@ -1326,29 +1319,29 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
   if (voucher) {
     return (
       <>
-        <div className="h-full flex flex-col bg-white dark:bg-black overflow-hidden" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+        <div className="h-full flex flex-col bg-white dark:bg-black overflow-hidden" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
           {/* Header - Match main header structure exactly */}
           <div className={`${theme === THEMES.BLINK_CLASSIC_DARK ? 'bg-black border-blink-classic-border' : 'bg-white dark:bg-blink-dark border-gray-200 dark:border-gray-700'} border-b shadow-sm dark:shadow-black flex-shrink-0`}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="flex items-center justify-between py-4">
                 {/* Blink Logo - Left (tap to cycle theme) */}
-                <button 
+                <button
                   onClick={cycleTheme}
                   className="flex items-center focus:outline-none"
                   aria-label="Cycle theme"
                 >
-                  <img 
-                    src="/logos/blink-icon-light.svg" 
-                    alt="Blink" 
+                  <img
+                    src="/logos/blink-icon-light.svg"
+                    alt="Blink"
                     className={`h-12 w-12 ${darkMode ? 'hidden' : 'block'}`}
                   />
-                  <img 
-                    src="/logos/blink-icon-dark.svg" 
-                    alt="Blink" 
+                  <img
+                    src="/logos/blink-icon-dark.svg"
+                    alt="Blink"
                     className={`h-12 w-12 ${darkMode ? 'block' : 'hidden'}`}
                   />
                 </button>
-                
+
                 {/* Print Icon - Center */}
                 <div className="absolute left-1/2 transform -translate-x-1/2">
                   <button
@@ -1362,7 +1355,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
                     </svg>
                   </button>
                 </div>
-                
+
                 {/* Spacer for layout balance */}
                 <div className="w-12"></div>
               </div>
@@ -1391,8 +1384,8 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
             <div className="flex-1 flex flex-col items-center justify-center space-y-4 px-6">
               {/* QR Code */}
               <div ref={qrRef} className="bg-white dark:bg-white p-4 rounded-lg shadow-lg border-2 border-gray-200 dark:border-gray-600">
-                <QRCode 
-                  value={voucher.lnurl} 
+                <QRCode
+                  value={voucher.lnurl}
                   size={256}
                   bgColor="#ffffff"
                   fgColor="#000000"
@@ -1431,7 +1424,7 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
               <button
                 onClick={handleClear}
                 className="w-full h-12 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-lg font-normal transition-colors shadow-md"
-                style={{fontFamily: "'Source Sans Pro', sans-serif"}}
+                style={{ fontFamily: "'Source Sans Pro', sans-serif" }}
               >
                 Cancel
               </button>
@@ -1441,244 +1434,237 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
 
         {/* Print Modal - Outside main container */}
         {showPrintModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-sm w-full p-6 max-h-[90vh] overflow-y-auto">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-                  Print Voucher
-                </h3>
-                
-                {/* Print Method Selection (for thermal formats) */}
-                {(printFormat === 'thermal-80' || printFormat === 'thermal-58') && (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Print Method
-                    </label>
-                    <div className="space-y-2">
-                      {printMethods.filter(m => m.available && m.type !== 'pdf').map((method) => (
-                        <button
-                          key={method.type}
-                          onClick={() => setActivePrintMethod(method.type)}
-                          className={`w-full p-3 rounded-lg border-2 transition-colors text-left ${
-                            activePrintMethod === method.type
-                              ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30'
-                              : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className={`font-medium ${activePrintMethod === method.type ? 'text-purple-700 dark:text-purple-300' : 'text-gray-700 dark:text-gray-300'}`}>
-                                {method.name}
-                              </div>
-                              <div className="text-xs opacity-70 text-gray-600 dark:text-gray-400">
-                                {method.type === 'localprint' && 'Local printer via print server'}
-                                {method.type === 'companion' && 'Bluetooth via mobile app'}
-                                {method.type === 'webserial' && 'Direct USB connection'}
-                                {method.type === 'websocket' && 'Network printer'}
-                              </div>
-                            </div>
-                            {method.recommended && (
-                              <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-1 rounded">
-                                Recommended
-                              </span>
-                            )}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                    {printRecommendations?.tips?.length > 0 && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                        {printRecommendations.tips[0]}
-                      </p>
-                    )}
-                    
-                    {/* Companion App Download Link */}
-                    {activePrintMethod === 'companion' && (
-                      <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
-                        <p className="text-sm text-blue-800 dark:text-blue-200 font-medium mb-1">
-                          Need the companion app?
-                        </p>
-                        <p className="text-xs text-blue-600 dark:text-blue-300 mb-2">
-                          Works with Bitcoinize POS and Bluetooth thermal printers (Netum, PT-230, MP583, etc.)
-                        </p>
-                        <a 
-                          href="https://github.com/pretyflaco/pos-print-companion/releases/latest"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition-colors"
-                        >
-                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                          </svg>
-                          Download APK
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                {/* Format Selection */}
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                    Paper Format
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-sm w-full p-6 max-h-[90vh] overflow-y-auto">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+                Print Voucher
+              </h3>
+
+              {/* Print Method Selection (for thermal formats) */}
+              {(printFormat === 'thermal-80' || printFormat === 'thermal-58') && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Print Method
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => setPrintFormat('a4')}
-                      className={`p-3 rounded-lg border-2 transition-colors ${
-                        printFormat === 'a4'
-                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
-                          : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400'
-                      }`}
-                    >
-                      <div className="font-medium">A4</div>
-                      <div className="text-xs opacity-70">210×297mm</div>
-                    </button>
-                    <button
-                      onClick={() => setPrintFormat('letter')}
-                      className={`p-3 rounded-lg border-2 transition-colors ${
-                        printFormat === 'letter'
-                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
-                          : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400'
-                      }`}
-                    >
-                      <div className="font-medium">Letter</div>
-                      <div className="text-xs opacity-70">8.5×11 in</div>
-                    </button>
-                    <button
-                      onClick={() => setPrintFormat('thermal-80')}
-                      className={`p-3 rounded-lg border-2 transition-colors ${
-                        printFormat === 'thermal-80'
-                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
-                          : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400'
-                      }`}
-                    >
-                      <div className="font-medium">Thermal 80mm</div>
-                      <div className="text-xs opacity-70">Receipt printer</div>
-                    </button>
-                    <button
-                      onClick={() => setPrintFormat('thermal-58')}
-                      className={`p-3 rounded-lg border-2 transition-colors ${
-                        printFormat === 'thermal-58'
-                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
-                          : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400'
-                      }`}
-                    >
-                      <div className="font-medium">Thermal 58mm</div>
-                      <div className="text-xs opacity-70">Mini printer</div>
-                    </button>
+                  <div className="space-y-2">
+                    {printMethods.filter(m => m.available && m.type !== 'pdf').map((method) => (
+                      <button
+                        key={method.type}
+                        onClick={() => setActivePrintMethod(method.type)}
+                        className={`w-full p-3 rounded-lg border-2 transition-colors text-left ${activePrintMethod === method.type
+                            ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30'
+                            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
+                          }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className={`font-medium ${activePrintMethod === method.type ? 'text-purple-700 dark:text-purple-300' : 'text-gray-700 dark:text-gray-300'}`}>
+                              {method.name}
+                            </div>
+                            <div className="text-xs opacity-70 text-gray-600 dark:text-gray-400">
+                              {method.type === 'localprint' && 'Local printer via print server'}
+                              {method.type === 'companion' && 'Bluetooth via mobile app'}
+                              {method.type === 'webserial' && 'Direct USB connection'}
+                              {method.type === 'websocket' && 'Network printer'}
+                            </div>
+                          </div>
+                          {method.recommended && (
+                            <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-1 rounded">
+                              Recommended
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
                   </div>
-                </div>
-                
-                {/* Error Display */}
-                {(error || thermalPrintError) && (
-                  <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg">
-                    <p className="text-sm text-red-700 dark:text-red-300">{error || thermalPrintError}</p>
-                  </div>
-                )}
-                
-                {/* Action Buttons */}
-                <div className="flex flex-col gap-3">
-                  {/* Thermal Print Button - For thermal formats */}
-                  {(printFormat === 'thermal-80' || printFormat === 'thermal-58') && (
-                    <button
-                      onClick={printVoucher}
-                      disabled={printing || isThermalPrinting}
-                      className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {(printing || isThermalPrinting) ? (
-                        <>
-                          <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
-                          Printing...
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                          </svg>
-                          Print Thermal
-                        </>
-                      )}
-                    </button>
+                  {printRecommendations?.tips?.length > 0 && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                      {printRecommendations.tips[0]}
+                    </p>
                   )}
-                  
-                  {/* Download PDF Button */}
+
+                  {/* Companion App Download Link */}
+                  {activePrintMethod === 'companion' && (
+                    <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
+                      <p className="text-sm text-blue-800 dark:text-blue-200 font-medium mb-1">
+                        Need the companion app?
+                      </p>
+                      <p className="text-xs text-blue-600 dark:text-blue-300 mb-2">
+                        Works with Bitcoinize POS and Bluetooth thermal printers (Netum, PT-230, MP583, etc.)
+                      </p>
+                      <a
+                        href="https://github.com/pretyflaco/pos-print-companion/releases/latest"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                        </svg>
+                        Download APK
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Format Selection */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  Paper Format
+                </label>
+                <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={generatePdf}
-                    disabled={generatingPdf}
-                    className={`w-full px-4 py-3 border-2 border-purple-600 text-purple-600 dark:text-purple-400 dark:border-purple-400 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
-                      (printFormat === 'a4' || printFormat === 'letter') ? 'bg-purple-600 text-white hover:bg-purple-700 border-purple-600' : ''
-                    }`}
+                    onClick={() => setPrintFormat('a4')}
+                    className={`p-3 rounded-lg border-2 transition-colors ${printFormat === 'a4'
+                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                        : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400'
+                      }`}
                   >
-                    {generatingPdf ? (
+                    <div className="font-medium">A4</div>
+                    <div className="text-xs opacity-70">210×297mm</div>
+                  </button>
+                  <button
+                    onClick={() => setPrintFormat('letter')}
+                    className={`p-3 rounded-lg border-2 transition-colors ${printFormat === 'letter'
+                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                        : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400'
+                      }`}
+                  >
+                    <div className="font-medium">Letter</div>
+                    <div className="text-xs opacity-70">8.5×11 in</div>
+                  </button>
+                  <button
+                    onClick={() => setPrintFormat('thermal-80')}
+                    className={`p-3 rounded-lg border-2 transition-colors ${printFormat === 'thermal-80'
+                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                        : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400'
+                      }`}
+                  >
+                    <div className="font-medium">Thermal 80mm</div>
+                    <div className="text-xs opacity-70">Receipt printer</div>
+                  </button>
+                  <button
+                    onClick={() => setPrintFormat('thermal-58')}
+                    className={`p-3 rounded-lg border-2 transition-colors ${printFormat === 'thermal-58'
+                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                        : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400'
+                      }`}
+                  >
+                    <div className="font-medium">Thermal 58mm</div>
+                    <div className="text-xs opacity-70">Mini printer</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Error Display */}
+              {(error || thermalPrintError) && (
+                <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg">
+                  <p className="text-sm text-red-700 dark:text-red-300">{error || thermalPrintError}</p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex flex-col gap-3">
+                {/* Thermal Print Button - For thermal formats */}
+                {(printFormat === 'thermal-80' || printFormat === 'thermal-58') && (
+                  <button
+                    onClick={printVoucher}
+                    disabled={printing || isThermalPrinting}
+                    className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {(printing || isThermalPrinting) ? (
                       <>
-                        <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full"></div>
-                        Generating...
+                        <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+                        Printing...
                       </>
                     ) : (
                       <>
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        Download PDF
-                      </>
-                    )}
-                  </button>
-                  
-                  {/* Browser Print Button - Fallback for desktop */}
-                  <button
-                    onClick={browserPrint}
-                    disabled={printing}
-                    className="w-full px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {printing ? (
-                      <>
-                        <div className="animate-spin w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full"></div>
-                        Preparing...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                         </svg>
-                        Browser Print
+                        Print Thermal
                       </>
                     )}
                   </button>
-                  
-                  {/* Cancel Button */}
-                  <button
-                    onClick={() => setShowPrintModal(false)}
-                    className="w-full px-4 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
+                )}
+
+                {/* Download PDF Button */}
+                <button
+                  onClick={generatePdf}
+                  disabled={generatingPdf}
+                  className={`w-full px-4 py-3 border-2 border-purple-600 text-purple-600 dark:text-purple-400 dark:border-purple-400 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${(printFormat === 'a4' || printFormat === 'letter') ? 'bg-purple-600 text-white hover:bg-purple-700 border-purple-600' : ''
+                    }`}
+                >
+                  {generatingPdf ? (
+                    <>
+                      <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full"></div>
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Download PDF
+                    </>
+                  )}
+                </button>
+
+                {/* Browser Print Button - Fallback for desktop */}
+                <button
+                  onClick={browserPrint}
+                  disabled={printing}
+                  className="w-full px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {printing ? (
+                    <>
+                      <div className="animate-spin w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full"></div>
+                      Preparing...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                      </svg>
+                      Browser Print
+                    </>
+                  )}
+                </button>
+
+                {/* Cancel Button */}
+                <button
+                  onClick={() => setShowPrintModal(false)}
+                  className="w-full px-4 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
-          )}
+          </div>
+        )}
       </>
     );
   }
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-black relative" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
+    <div className="h-full flex flex-col bg-white dark:bg-black relative" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
       {/* Compact Amount Display - Match POS spacing */}
       <div className="px-4">
         <div className="text-center">
           <div className="text-center">
-            <div className={`font-semibold text-purple-600 dark:text-purple-400 min-h-[72px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${
-              getDynamicFontSize(formatDisplayAmount(amount || 0, displayCurrency))
-            }`} style={{fontFamily: "'Source Sans Pro', sans-serif", wordBreak: 'keep-all', overflowWrap: 'normal'}}>
+            <div className={`font-semibold text-purple-600 dark:text-purple-400 min-h-[72px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${getDynamicFontSize(formatDisplayAmount(amount || 0, displayCurrency))
+              }`} style={{ fontFamily: "'Source Sans Pro', sans-serif", wordBreak: 'keep-all', overflowWrap: 'normal' }}>
               <div className="max-w-full">
-                 {/* {amount === '0' || amount === '0.' 
+                {/* {amount === '0' || amount === '0.' 
                   ? (isBitcoinCurrency(displayCurrency) || getCurrencyById(displayCurrency, currencies)?.fractionDigits === 0 
                       ? '0' 
                       : getCurrencyById(displayCurrency, currencies)?.symbol + '0.')
                   : renderStyledAmount(amount || 0, displayCurrency)
                 }  */}
-                
-                {amount ||"0"} {" "}
-                {currency?.toLowerCase()||"sats"}
+
+                {amount || "0"} {" "}
+                {currency?.toLowerCase() || "sats"}
               </div>
             </div>
           </div>
@@ -1707,9 +1693,9 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
         {/* Spacer for consistent layout */}
         <div className="h-16 mb-2"></div>
         <Numpad
-        onToggle={()=>{
-          setCurrency(currency=="SATS" ? "USD":"SATS");
-        }}
+          onToggle={() => {
+            setCurrency(currency == "SATS" ? "USD" : "SATS");
+          }}
           theme={theme}
           onDigitPress={handleDigitPress}
           onClear={handleClear}
@@ -1729,53 +1715,53 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
         const totalOptions = commissionPresets.length + 2;
         const cancelIndex = totalOptions - 2;
         const noCommissionIndex = totalOptions - 1;
-        
+
         return (
-        <div className={`absolute inset-0 ${getCommissionDialogBgClasses()} z-30 pt-24`}>
-          <div className="grid grid-cols-4 gap-3 max-w-sm md:max-w-md mx-auto" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-            <h3 className={`col-span-4 text-xl md:text-2xl font-bold mb-2 text-center ${getCommissionDialogTextClasses()}`}>Commission Options</h3>
-            
-            {/* Commission preset buttons in grid - render all presets */}
-            {commissionPresets.map((percent, index) => (
+          <div className={`absolute inset-0 ${getCommissionDialogBgClasses()} z-30 pt-24`}>
+            <div className="grid grid-cols-4 gap-3 max-w-sm md:max-w-md mx-auto" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>
+              <h3 className={`col-span-4 text-xl md:text-2xl font-bold mb-2 text-center ${getCommissionDialogTextClasses()}`}>Commission Options</h3>
+
+              {/* Commission preset buttons in grid - render all presets */}
+              {commissionPresets.map((percent, index) => (
+                <button
+                  key={percent}
+                  onClick={() => {
+                    setPendingCommissionSelection(percent);
+                  }}
+                  className={`col-span-2 h-16 md:h-20 ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} text-lg md:text-xl font-normal transition-colors ${isBlinkClassic ? '' : 'shadow-md'} ${getCommissionButtonClasses(commissionOptionIndex === index)}`}
+                >
+                  {percent}%
+                  <div className={`text-sm md:text-base ${isBlinkClassic ? 'opacity-70' : ''}`}>
+                    -{formatDisplayAmount(calculateCommissionAmount(parseFloat(amount) || 0, percent), displayCurrency)}
+                  </div>
+                </button>
+              ))}
+
+              {/* Empty placeholder after odd number of presets to complete the row */}
+              {commissionPresets.length % 2 === 1 && (
+                <div className="col-span-2"></div>
+              )}
+
+              {/* Cancel and No Commission buttons - always on the same row */}
               <button
-                key={percent}
                 onClick={() => {
-                  setPendingCommissionSelection(percent);
+                  if (onInternalTransition) onInternalTransition();
+                  setShowCommissionDialog(false);
                 }}
-                className={`col-span-2 h-16 md:h-20 ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} text-lg md:text-xl font-normal transition-colors ${isBlinkClassic ? '' : 'shadow-md'} ${getCommissionButtonClasses(commissionOptionIndex === index)}`}
+                className={`col-span-2 h-16 md:h-20 ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} text-lg md:text-xl font-normal transition-colors ${isBlinkClassic ? '' : 'shadow-md'} ${getCancelButtonClasses(commissionOptionIndex === cancelIndex)}`}
               >
-                {percent}%
-                <div className={`text-sm md:text-base ${isBlinkClassic ? 'opacity-70' : ''}`}>
-                  -{formatDisplayAmount(calculateCommissionAmount(parseFloat(amount) || 0, percent), displayCurrency)}
-                </div>
+                Cancel
               </button>
-            ))}
-            
-            {/* Empty placeholder after odd number of presets to complete the row */}
-            {commissionPresets.length % 2 === 1 && (
-              <div className="col-span-2"></div>
-            )}
-            
-            {/* Cancel and No Commission buttons - always on the same row */}
-            <button
-              onClick={() => {
-                if (onInternalTransition) onInternalTransition();
-                setShowCommissionDialog(false);
-              }}
-              className={`col-span-2 h-16 md:h-20 ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} text-lg md:text-xl font-normal transition-colors ${isBlinkClassic ? '' : 'shadow-md'} ${getCancelButtonClasses(commissionOptionIndex === cancelIndex)}`}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => {
-                setPendingCommissionSelection(0);
-              }}
-              className={`col-span-2 h-16 md:h-20 ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} text-lg md:text-xl font-normal transition-colors ${isBlinkClassic ? '' : 'shadow-md'} ${getNoCommissionButtonClasses(commissionOptionIndex === noCommissionIndex)}`}
-            >
-              No Commission
-            </button>
+              <button
+                onClick={() => {
+                  setPendingCommissionSelection(0);
+                }}
+                className={`col-span-2 h-16 md:h-20 ${isBlinkClassic ? 'rounded-xl' : 'rounded-lg'} text-lg md:text-xl font-normal transition-colors ${isBlinkClassic ? '' : 'shadow-md'} ${getNoCommissionButtonClasses(commissionOptionIndex === noCommissionIndex)}`}
+              >
+                No Commission
+              </button>
+            </div>
           </div>
-        </div>
         );
       })()}
     </div>

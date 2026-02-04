@@ -5,7 +5,7 @@ import { useCurrencies } from '../lib/hooks/useCurrencies';
 import { useTheme } from '../lib/hooks/useTheme';
 import { useNFC } from './NFCPayment';
 import { isBitcoinCurrency } from '../lib/currency-utils';
-import { getApiUrl } from '../lib/config/api';
+import { getApiUrl, getLnAddressDomain, getPayUrl, getAllValidDomains } from '../lib/config/api';
 import PaymentAnimation from './PaymentAnimation';
 import POS from './POS';
 import Voucher from './Voucher';
@@ -917,10 +917,15 @@ export default function Dashboard() {
       return;
     }
 
-    // Clean username input - strip @blink.sv if user enters full Lightning Address
+    // Clean username input - strip @domain.sv if user enters full Lightning Address
     let cleanedUsername = username.trim();
-    if (cleanedUsername.includes('@blink.sv')) {
-      cleanedUsername = cleanedUsername.replace('@blink.sv', '').trim();
+    // Remove any Blink domain suffix (production or staging)
+    const allDomains = getAllValidDomains();
+    for (const domain of allDomains) {
+      if (cleanedUsername.toLowerCase().includes(`@${domain}`)) {
+        cleanedUsername = cleanedUsername.replace(new RegExp(`@${domain}`, 'i'), '').trim();
+        break;
+      }
     }
     if (cleanedUsername.includes('@')) {
       cleanedUsername = cleanedUsername.split('@')[0].trim();
@@ -1762,10 +1767,15 @@ export default function Dashboard() {
     }
 
     // Otherwise, validate as Blink username
-    // Clean username input - strip @blink.sv if user enters full Lightning Address
+    // Clean username input - strip @domain if user enters full Lightning Address
     let cleanedUsername = input;
-    if (cleanedUsername.includes('@blink.sv')) {
-      cleanedUsername = cleanedUsername.replace('@blink.sv', '').trim();
+    // Remove any Blink domain suffix (production or staging)
+    const allDomainsForRecipient = getAllValidDomains();
+    for (const domain of allDomainsForRecipient) {
+      if (cleanedUsername.toLowerCase().includes(`@${domain}`)) {
+        cleanedUsername = cleanedUsername.replace(new RegExp(`@${domain}`, 'i'), '').trim();
+        break;
+      }
     }
     if (cleanedUsername.includes('@')) {
       cleanedUsername = cleanedUsername.split('@')[0].trim();
@@ -1854,9 +1864,17 @@ export default function Dashboard() {
     
     // Use the address from validation for npub.cash, or cleaned username for Blink
     const recipientType = recipientValidation.type || 'blink';
-    const recipientAddress = recipientType === 'npub_cash' 
+    let recipientAddress = recipientType === 'npub_cash' 
       ? recipientValidation.address 
-      : newRecipientInput.trim().toLowerCase().replace('@blink.sv', '');
+      : newRecipientInput.trim().toLowerCase();
+    
+    // Remove any Blink domain suffix for Blink users
+    if (recipientType !== 'npub_cash') {
+      const domainsToRemove = getAllValidDomains();
+      for (const domain of domainsToRemove) {
+        recipientAddress = recipientAddress.replace(new RegExp(`@${domain}`, 'i'), '');
+      }
+    }
     
     // Check if already added
     if (newSplitProfileRecipients.some(r => r.username === recipientAddress)) {
@@ -3747,26 +3765,28 @@ export default function Dashboard() {
         // Generate LNURL for the paycode
         const username = activeBlinkAccount.username;
         const hasFixedAmount = paycodeAmount && parseInt(paycodeAmount) > 0;
+        const payUrlBase = getPayUrl();
+        const lnAddressDomain = getLnAddressDomain();
         
         // Use our custom LNURL-pay endpoint for fixed amounts (sets min=max)
         // Use Blink's endpoint for variable amounts
         const lnurlPayEndpoint = hasFixedAmount
           ? `https://track.twentyone.ist/api/paycode/lnurlp/${username}?amount=${paycodeAmount}`
-          : `https://pay.blink.sv/.well-known/lnurlp/${username}`;
+          : `${payUrlBase}/.well-known/lnurlp/${username}`;
         
         // Encode to LNURL using bech32
         const words = bech32.toWords(Buffer.from(lnurlPayEndpoint, 'utf8'));
         const lnurl = bech32.encode('lnurl', words, 1500);
         
         // Web fallback URL - for wallets that don't support LNURL, camera apps open this page
-        const webURL = `https://pay.blink.sv/${username}`;
+        const webURL = `${payUrlBase}/${username}`;
         
         // INTERIM FIX: Use raw LNURL for Blink mobile compatibility
         // Blink mobile has a bug where it doesn't properly handle URLs with ?lightning= param
         // See: https://github.com/blinkbitcoin/blink-mobile/issues/3583
         // Once fixed, we can restore the web fallback: (webURL + '?lightning=' + lnurl).toUpperCase()
         const paycodeURL = lnurl.toUpperCase();
-        const lightningAddress = `${username}@blink.sv`;
+        const lightningAddress = `${username}@${lnAddressDomain}`;
 
         // Generate PDF function
         const generatePaycodePdf = async () => {
@@ -4589,10 +4609,10 @@ export default function Dashboard() {
                           <p className={`text-sm ${getSecondaryTextClasses()}`}>
                             {hasCustomWeights 
                               ? profile.recipients.map(r => {
-                                  const name = r.type === 'npub_cash' ? r.username : `${r.username}@blink.sv`;
+                                  const name = r.type === 'npub_cash' ? r.username : `${r.username}@${getLnAddressDomain()}`;
                                   return `${name} (${Math.round(r.share || evenShare)}%)`;
                                 }).join(', ')
-                              : profile.recipients.map(r => r.type === 'npub_cash' ? r.username : `${r.username}@blink.sv`).join(', ')
+                              : profile.recipients.map(r => r.type === 'npub_cash' ? r.username : `${r.username}@${getLnAddressDomain()}`).join(', ')
                             }
                           </p>
                         </div>
@@ -4743,7 +4763,7 @@ export default function Dashboard() {
                       {newSplitProfileRecipients.map((recipient, index) => (
                         <div key={recipient.username} className="flex items-center justify-between px-3 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
                           <span className="text-sm text-green-700 dark:text-green-400 flex-1">
-                            {recipient.type === 'npub_cash' ? recipient.username : `${recipient.username}@blink.sv`}
+                            {recipient.type === 'npub_cash' ? recipient.username : `${recipient.username}@${getLnAddressDomain()}`}
                           </span>
                           {useCustomWeights && (
                             <div className="flex items-center mx-2">
@@ -4923,7 +4943,7 @@ export default function Dashboard() {
                       onClick={addRecipientToProfile}
                       className="mt-2 w-full py-2 text-sm font-medium bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
                     >
-                      Add {recipientValidation.type === 'npub_cash' ? recipientValidation.address : `${newRecipientInput}@blink.sv`}
+                      Add {recipientValidation.type === 'npub_cash' ? recipientValidation.address : `${newRecipientInput}@${getLnAddressDomain()}`}
                     </button>
                   )}
                   {newSplitProfileRecipients.length === 0 && (
@@ -5671,7 +5691,7 @@ export default function Dashboard() {
                       setAddAccountError(null);
                       try {
                         const result = await addBlinkLnAddressWallet({
-                          label: newAccountLabel.trim() || `${lnAddressValidated.username}@blink.sv`,
+                          label: newAccountLabel.trim() || `${lnAddressValidated.username}@${getLnAddressDomain()}`,
                           username: lnAddressValidated.username,
                           walletId: lnAddressValidated.walletId,
                           walletCurrency: lnAddressValidated.walletCurrency,

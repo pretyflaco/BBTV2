@@ -3,7 +3,7 @@ import { useCurrencies } from '../lib/hooks/useCurrencies';
 import { useTheme, THEMES } from '../lib/hooks/useTheme';
 import { useNFC } from './NFCPayment';
 import { isBitcoinCurrency } from '../lib/currency-utils';
-import { getApiUrl, getEnvironment, isStaging } from '../lib/config/api';
+import { getApiUrl, getEnvironment, isStaging, getLnAddressDomain, getPayUrl } from '../lib/config/api';
 import StagingBanner from './StagingBanner';
 import POS from './POS';
 import ItemCart from './ItemCart';
@@ -1332,23 +1332,25 @@ export default function PublicPOSDashboard({ username }) {
       {showPaycode && (() => {
         // Generate LNURL for the paycode
         const hasFixedAmount = paycodeAmount && parseInt(paycodeAmount) > 0;
+        const payUrlBase = getPayUrl();
+        const lnAddressDomain = getLnAddressDomain();
         
         // Use our custom LNURL-pay endpoint for fixed amounts (sets min=max)
         // Use Blink's endpoint for variable amounts
         const lnurlPayEndpoint = hasFixedAmount
           ? `https://track.twentyone.ist/api/paycode/lnurlp/${username}?amount=${paycodeAmount}`
-          : `https://pay.blink.sv/.well-known/lnurlp/${username}`;
+          : `${payUrlBase}/.well-known/lnurlp/${username}`;
         
         // Encode to LNURL using bech32
         const words = bech32.toWords(Buffer.from(lnurlPayEndpoint, 'utf8'));
         const lnurl = bech32.encode('lnurl', words, 1500);
         
         // Web fallback URL - for wallets that don't support LNURL, camera apps open this page
-        const webURL = `https://pay.blink.sv/${username}`;
+        const webURL = `${payUrlBase}/${username}`;
         
         // Use raw LNURL for Blink mobile compatibility
         const paycodeURL = lnurl.toUpperCase();
-        const lightningAddress = `${username}@blink.sv`;
+        const lightningAddress = `${username}@${lnAddressDomain}`;
 
         // Generate PDF function
         const generatePaycodePdf = async () => {

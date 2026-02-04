@@ -12,57 +12,39 @@ import PublicPOSDashboard from '../components/PublicPOSDashboard';
  * - Same design as authenticated POS (dark/light modes, numpad, etc.)
  * - Only Cart and POS views (no transaction history)
  * - Limited menu (Display Currency, Paycodes, Sound Effects)
- * - 150% zoom on desktop
+ * 
+ * Environment Handling:
+ * - SSR only does basic format validation (no API calls)
+ * - Client-side validates username against the correct API (production or staging)
+ * - This allows staging-only users (like "wurst") to work when staging is enabled
  */
 
-// Validate username on server side
+// SSR: Only validate username format, not existence
+// Username validation against Blink API happens client-side
+// This is necessary because:
+// 1. SSR can't access localStorage to know if staging is enabled
+// 2. A user might exist on staging but not mainnet (or vice versa)
+// 3. Client-side can check the correct environment and show appropriate errors
 export async function getServerSideProps(context) {
   const { blinkusername } = context.params;
   
-  // Basic username validation (alphanumeric, 3-30 chars)
-  const usernameRegex = /^[a-zA-Z0-9_]{3,30}$/;
+  // Basic username validation (alphanumeric + underscore, 3-50 chars)
+  // Blink allows up to 50 characters for usernames
+  const usernameRegex = /^[a-zA-Z0-9_]{3,50}$/;
   if (!usernameRegex.test(blinkusername)) {
     return { notFound: true };
   }
 
-  // Check if user exists by querying Blink API
-  try {
-    const response = await fetch('https://api.blink.sv/graphql', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: `
-          query AccountDefaultWallet($username: Username!) {
-            accountDefaultWallet(username: $username) {
-              id
-              walletCurrency
-            }
-          }
-        `,
-        variables: { username: blinkusername }
-      })
-    });
-
-    const data = await response.json();
-    
-    if (data.errors || !data.data?.accountDefaultWallet?.id) {
-      console.log(`[PublicPOS] User not found: ${blinkusername}`);
-      return { notFound: true };
+  // Pass username to client - validation happens there
+  return {
+    props: {
+      username: blinkusername,
+      // walletCurrency will be determined client-side after validation
     }
-
-    return {
-      props: {
-        username: blinkusername,
-        walletCurrency: data.data.accountDefaultWallet.walletCurrency || 'BTC'
-      }
-    };
-  } catch (error) {
-    console.error('[PublicPOS] Error validating username:', error);
-    return { notFound: true };
-  }
+  };
 }
 
-export default function PublicPOS({ username, walletCurrency }) {
+export default function PublicPOS({ username }) {
   return (
     <>
       <Head>
@@ -77,7 +59,6 @@ export default function PublicPOS({ username, walletCurrency }) {
 
       <PublicPOSDashboard 
         username={username} 
-        walletCurrency={walletCurrency} 
       />
     </>
   );

@@ -10,6 +10,7 @@ import { useProfile } from '../../lib/hooks/useProfile';
 import { useNostrAuth } from '../../lib/hooks/useNostrAuth';
 import { useCombinedAuth } from '../../lib/hooks/useCombinedAuth';
 import { useTheme } from '../../lib/hooks/useTheme';
+import { getApiUrl } from '../../lib/config/api';
 
 export default function BlinkAccountSetup({ onComplete, onSkip }) {
   const { addBlinkAccount, loading, refreshProfile } = useProfile();
@@ -47,7 +48,7 @@ export default function BlinkAccountSetup({ onComplete, onSkip }) {
 
   const validateApiKey = async (key) => {
     try {
-      const response = await fetch('https://api.blink.sv/graphql', {
+      const response = await fetch(getApiUrl(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

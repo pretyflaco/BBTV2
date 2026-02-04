@@ -12,6 +12,7 @@ import BlinkAPI from '../../../lib/blink-api';
 import { getInvoiceFromLightningAddress } from '../../../lib/lnurl';
 const { getHybridStore } = require('../../../lib/storage/hybrid-store');
 const { formatCurrencyServer, isBitcoinCurrency } = require('../../../lib/currency-formatter-server');
+const { getApiUrl } = require('../../../lib/config/api');
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -185,7 +186,7 @@ export default async function handler(req, res) {
       }
     `;
 
-    const walletLookupResponse = await fetch('https://api.blink.sv/graphql', {
+    const walletLookupResponse = await fetch(getApiUrl(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -227,7 +228,7 @@ export default async function handler(req, res) {
       }
     `;
 
-    const invoiceResponse = await fetch('https://api.blink.sv/graphql', {
+    const invoiceResponse = await fetch(getApiUrl(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

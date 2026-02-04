@@ -6,6 +6,7 @@ import { useNFC } from './NFCPayment';
 import Numpad from './Numpad';
 import { THEMES } from '../lib/hooks/useTheme';
 import { unlockAudioContext, playSound } from '../lib/audio-utils';
+import { getEnvironment } from '../lib/config/api';
 
 const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, theme = THEMES.DARK, cycleTheme, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation, isPublicPOS = false, publicUsername = null }, ref) => {
   const [amount, setAmount] = useState('');
@@ -990,7 +991,9 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
 
       // PUBLIC POS MODE: Create invoice directly to user's wallet
       if (isPublicPOS && publicUsername) {
-        console.log('🌐 Creating public invoice for:', publicUsername, 'Amount:', finalTotalInSats);
+        // Get current environment (staging or production) from client-side localStorage
+        const currentEnvironment = getEnvironment();
+        console.log('🌐 Creating public invoice for:', publicUsername, 'Amount:', finalTotalInSats, 'Environment:', currentEnvironment);
         
         const response = await fetch('/api/blink/public-invoice', {
           method: 'POST',
@@ -1001,7 +1004,8 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
             username: publicUsername,
             amount: finalTotalInSats,
             memo: memo || `Payment to ${publicUsername}`,
-            walletCurrency: 'BTC'
+            walletCurrency: 'BTC',
+            environment: currentEnvironment // Pass environment to API
           }),
         });
 
@@ -1281,9 +1285,9 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
           </div>
 
           {/* QR Code and Invoice - Centered */}
-          <div className="flex-1 flex flex-col items-center justify-center space-y-4 px-6">
+          <div className="flex-1 flex flex-col items-center justify-center space-y-4 px-6" data-testid="invoice-container">
             {/* QR Code */}
-            <div className="bg-white dark:bg-white p-4 rounded-lg shadow-lg border-2 border-gray-200 dark:border-gray-600">
+            <div className="bg-white dark:bg-white p-4 rounded-lg shadow-lg border-2 border-gray-200 dark:border-gray-600" data-testid="invoice-qr">
               <QRCode 
                 value={invoice.paymentRequest} 
                 size={256}
@@ -1305,11 +1309,13 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
                   autoComplete="off"
                   data-1p-ignore
                   data-lpignore="true"
+                  data-testid="invoice-string"
                   className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-l-md bg-gray-50 dark:bg-blink-dark text-sm font-mono text-black dark:text-gray-100"
                 />
                 <button
                   onClick={() => copyToClipboard(invoice.paymentRequest)}
                   className="px-4 py-2 bg-blue-500 dark:bg-blue-600 text-white rounded-r-md hover:bg-blue-600 dark:hover:bg-blue-700 transition-colors"
+                  data-testid="copy-invoice"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -1340,7 +1346,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
       <div className="px-4">
         <div className="text-center">
           <div className="text-center">
-            <div className={`font-inter-tight font-semibold text-gray-800 dark:text-gray-100 min-h-[72px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${
+            <div data-testid="amount-display" className={`font-inter-tight font-semibold text-gray-800 dark:text-gray-100 min-h-[72px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${
               showTipDialog 
                 ? getDynamicFontSize(formatDisplayAmount(total + (parseFloat(amount) || 0), displayCurrency))
                 : total > 0 

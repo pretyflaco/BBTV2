@@ -28,6 +28,7 @@ import NWCClient from '../../../lib/nwc/NWCClient';
 const AuthManager = require('../../../lib/auth');
 const { getHybridStore } = require('../../../lib/storage/hybrid-store');
 const { formatCurrencyServer, isBitcoinCurrency } = require('../../../lib/currency-formatter-server');
+const { getApiUrl } = require('../../../lib/config/api');
 
 /**
  * Generate enhanced memo with tip split information
@@ -285,7 +286,7 @@ async function forwardToLnAddress(paymentHash, amount, forwardingData, hybridSto
     }
   `;
 
-  const walletLookupResponse = await fetch('https://api.blink.sv/graphql', {
+  const walletLookupResponse = await fetch(getApiUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -315,7 +316,7 @@ async function forwardToLnAddress(paymentHash, amount, forwardingData, hybridSto
     }
   `;
 
-  const invoiceResponse = await fetch('https://api.blink.sv/graphql', {
+  const invoiceResponse = await fetch(getApiUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

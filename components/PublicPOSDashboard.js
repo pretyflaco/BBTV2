@@ -3,6 +3,8 @@ import { useCurrencies } from '../lib/hooks/useCurrencies';
 import { useTheme, THEMES } from '../lib/hooks/useTheme';
 import { useNFC } from './NFCPayment';
 import { isBitcoinCurrency } from '../lib/currency-utils';
+import { getApiUrl, getEnvironment, isStaging, getLnAddressDomain, getPayUrl } from '../lib/config/api';
+import StagingBanner from './StagingBanner';
 import POS from './POS';
 import ItemCart from './ItemCart';
 import QRCode from 'react-qr-code';
@@ -34,9 +36,14 @@ const SPINNER_COLORS = [
   'border-pink-500',
 ];
 
-export default function PublicPOSDashboard({ username, walletCurrency }) {
+export default function PublicPOSDashboard({ username }) {
   const { currencies, loading: currenciesLoading, getAllCurrencies, popularCurrencyIds, addToPopular, removeFromPopular, isPopularCurrency } = useCurrencies();
   const { theme, cycleTheme, darkMode } = useTheme();
+  
+  // Username validation state - validates against current environment (production or staging)
+  const [validationError, setValidationError] = useState(null);
+  const [validating, setValidating] = useState(true); // Start true - validate on mount
+  const [validatedWalletCurrency, setValidatedWalletCurrency] = useState('BTC');
   
   // Helper functions for consistent theme styling across all menus/submenus
   const isBlinkClassic = theme === 'blink-classic-dark' || theme === 'blink-classic-light';
@@ -199,6 +206,73 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
     }
   }, [showCurrencySettings]);
   
+  // Username validation - validates against current environment (production or staging)
+  // SSR only checks username format, actual Blink API validation happens here
+  // This allows staging-only users to work when staging is enabled
+  useEffect(() => {
+    const validateUser = async () => {
+      setValidating(true);
+      setValidationError(null);
+      
+      const currentEnv = getEnvironment();
+      const apiUrl = getApiUrl();
+      
+      console.log(`[PublicPOS] Validating user '${username}' on ${currentEnv} (${apiUrl})`);
+      
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: `
+              query AccountDefaultWallet($username: Username!) {
+                accountDefaultWallet(username: $username) {
+                  id
+                  walletCurrency
+                }
+              }
+            `,
+            variables: { username }
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.errors || !data.data?.accountDefaultWallet?.id) {
+          console.log(`[PublicPOS] User '${username}' not found on ${currentEnv}`);
+          
+          const envLabel = currentEnv === 'staging' ? 'staging/signet' : 'production/mainnet';
+          const otherEnv = currentEnv === 'staging' ? 'production' : 'staging';
+          
+          setValidationError({
+            message: `User '${username}' does not exist on ${envLabel}.`,
+            suggestion: currentEnv === 'staging' 
+              ? `This username may exist on mainnet but not staging. Switch to production mode or use a staging username.`
+              : `This username doesn't exist. Check spelling or try a different username.`,
+            environment: currentEnv,
+            canSwitchEnv: true
+          });
+        } else {
+          console.log(`[PublicPOS] User '${username}' validated on ${currentEnv}:`, data.data.accountDefaultWallet);
+          setValidatedWalletCurrency(data.data.accountDefaultWallet.walletCurrency || 'BTC');
+          setValidationError(null);
+        }
+      } catch (error) {
+        console.error('[PublicPOS] Error validating user:', error);
+        setValidationError({
+          message: `Failed to validate user '${username}'.`,
+          suggestion: 'Please check your internet connection and try again.',
+          environment: currentEnv,
+          canSwitchEnv: false
+        });
+      } finally {
+        setValidating(false);
+      }
+    };
+    
+    validateUser();
+  }, [username]);
+  
   // Poll for payment status when showing invoice
   useEffect(() => {
     if (!currentInvoice?.paymentRequest || !showingInvoice) return;
@@ -214,7 +288,7 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
       
       try {
         // Query Blink API directly for payment status (public query)
-        const response = await fetch('https://api.blink.sv/graphql', {
+        const response = await fetch(getApiUrl(), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -511,6 +585,68 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
 
   return (
     <div className={`bg-white dark:bg-black ${isFixedView ? 'h-screen overflow-hidden fixed inset-0' : 'min-h-screen'}`}>
+      
+      {/* Staging Banner */}
+      <StagingBanner />
+      
+      {/* Username Validation Error */}
+      {validationError && (
+        <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4">
+          <div className={`max-w-md w-full p-6 rounded-xl ${darkMode ? 'bg-gray-900' : 'bg-white'} shadow-2xl`}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-red-500">User Not Found</h2>
+                <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {validationError.environment === 'staging' ? 'Staging/Signet' : 'Production/Mainnet'}
+                </p>
+              </div>
+            </div>
+            
+            <p className={`text-sm leading-relaxed ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+              {validationError.message}
+            </p>
+            <p className={`text-sm mt-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+              {validationError.suggestion}
+            </p>
+            
+            <div className="mt-6 flex gap-3">
+              {validationError.canSwitchEnv && (
+                <a
+                  href="/signin"
+                  className="flex-1 px-4 py-2 text-center rounded-lg bg-blink-accent hover:bg-blue-600 text-white text-sm font-medium transition-colors"
+                >
+                  Switch Environment
+                </a>
+              )}
+              <a
+                href="/setuppwa"
+                className={`flex-1 px-4 py-2 text-center rounded-lg text-sm font-medium transition-colors ${
+                  darkMode 
+                    ? 'bg-gray-800 hover:bg-gray-700 text-white' 
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
+                }`}
+              >
+                Change User
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Validation Loading */}
+      {validating && (
+        <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className={`animate-spin rounded-full h-12 w-12 border-4 ${isStaging() ? 'border-orange-500' : 'border-blink-accent'} border-t-transparent`}></div>
+            <p className="text-white text-sm">Validating user...</p>
+          </div>
+        </div>
+      )}
       
       {/* Header - Hidden when showing invoice */}
       {!showingInvoice && (
@@ -1196,23 +1332,25 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
       {showPaycode && (() => {
         // Generate LNURL for the paycode
         const hasFixedAmount = paycodeAmount && parseInt(paycodeAmount) > 0;
+        const payUrlBase = getPayUrl();
+        const lnAddressDomain = getLnAddressDomain();
         
         // Use our custom LNURL-pay endpoint for fixed amounts (sets min=max)
         // Use Blink's endpoint for variable amounts
         const lnurlPayEndpoint = hasFixedAmount
           ? `https://track.twentyone.ist/api/paycode/lnurlp/${username}?amount=${paycodeAmount}`
-          : `https://pay.blink.sv/.well-known/lnurlp/${username}`;
+          : `${payUrlBase}/.well-known/lnurlp/${username}`;
         
         // Encode to LNURL using bech32
         const words = bech32.toWords(Buffer.from(lnurlPayEndpoint, 'utf8'));
         const lnurl = bech32.encode('lnurl', words, 1500);
         
         // Web fallback URL - for wallets that don't support LNURL, camera apps open this page
-        const webURL = `https://pay.blink.sv/${username}`;
+        const webURL = `${payUrlBase}/${username}`;
         
         // Use raw LNURL for Blink mobile compatibility
         const paycodeURL = lnurl.toUpperCase();
-        const lightningAddress = `${username}@blink.sv`;
+        const lightningAddress = `${username}@${lnAddressDomain}`;
 
         // Generate PDF function
         const generatePaycodePdf = async () => {

@@ -8,6 +8,8 @@
  * Used for connecting wallets via Lightning Address instead of API key.
  */
 
+const { getApiUrl, getAllValidDomains, getLnAddressDomain } = require('../../../lib/config/api');
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -21,7 +23,7 @@ export default async function handler(req, res) {
     }
 
     // Parse the lightning address to get username
-    // Accepts formats: "username", "username@blink.sv", "username@pay.blink.sv"
+    // Accepts formats: "username", "username@blink.sv", "username@pay.blink.sv", "username@pay.staging.blink.sv"
     let username = lnAddress.trim().toLowerCase();
     
     // Strip domain if present
@@ -30,8 +32,8 @@ export default async function handler(req, res) {
       username = parts[0];
       const domain = parts[1];
       
-      // Validate it's a Blink domain
-      const validDomains = ['blink.sv', 'pay.blink.sv', 'galoy.io'];
+      // Validate it's a Blink domain (production or staging)
+      const validDomains = getAllValidDomains();
       if (!validDomains.includes(domain)) {
         return res.status(400).json({ 
           error: 'Invalid domain. Please use a Blink lightning address (e.g., username@blink.sv)' 
@@ -59,7 +61,7 @@ export default async function handler(req, res) {
       }
     `;
 
-    const btcResponse = await fetch('https://api.blink.sv/graphql', {
+    const btcResponse = await fetch(getApiUrl(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -110,7 +112,7 @@ export default async function handler(req, res) {
         }
       `;
 
-      const anyResponse = await fetch('https://api.blink.sv/graphql', {
+      const anyResponse = await fetch(getApiUrl(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -138,7 +140,7 @@ export default async function handler(req, res) {
         username,
         walletId: anyWallet.id,
         walletCurrency: anyWallet.walletCurrency || 'USD',
-        lightningAddress: `${username}@blink.sv`,
+        lightningAddress: `${username}@${getLnAddressDomain()}`,
         warning: 'This account does not have a BTC wallet. Payments may fail.'
       });
     }
@@ -150,7 +152,7 @@ export default async function handler(req, res) {
       username,
       walletId: btcWallet.id,
       walletCurrency: 'BTC',
-      lightningAddress: `${username}@blink.sv`
+      lightningAddress: `${username}@${getLnAddressDomain()}`
     });
 
   } catch (error) {

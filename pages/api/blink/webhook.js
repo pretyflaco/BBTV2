@@ -166,9 +166,12 @@ export default async function handler(req, res) {
       forwardingData.npubCashLightningAddress = forwardingData.metadata.npubCashLightningAddress || null;
       forwardingData.displayCurrency = forwardingData.metadata.displayCurrency || 'BTC';
       forwardingData.tipAmountDisplay = forwardingData.metadata.tipAmountDisplay || null;
+      // Environment for staging/production API calls
+      forwardingData.environment = forwardingData.metadata.environment || 'production';
     }
 
     console.log('📄 [Webhook] Forwarding data found:', {
+      environment: forwardingData.environment,
       nwcActive: forwardingData.nwcActive,
       hasNwcConnectionUri: !!forwardingData.nwcConnectionUri,
       blinkLnAddress: forwardingData.blinkLnAddress,

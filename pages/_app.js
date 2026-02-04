@@ -4,6 +4,7 @@ import { NostrAuthProvider } from '../lib/hooks/useNostrAuth';
 import { ProfileProvider } from '../lib/hooks/useProfile';
 import { useEffect } from 'react';
 import Head from 'next/head';
+import { initRemoteLogger } from '../lib/debug/remoteLogger';
 
 /**
  * BlinkPOS App - Supports dual authentication methods:
@@ -27,6 +28,22 @@ function MyApp({ Component, pageProps }) {
   useEffect(() => {
     // Only run on client side to prevent hydration mismatch
     if (typeof window === 'undefined') return;
+
+    // Initialize remote logging for mobile devices to debug NIP-46 WebSocket issues
+    // This sends console logs to /api/debug/remote-log for real-time viewing on desktop
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isAndroid = /Android/.test(navigator.userAgent);
+    const isMobile = isIOS || isAndroid;
+    
+    // Enable for all mobile devices during debugging
+    if (isMobile) {
+      try {
+        const result = initRemoteLogger();
+        console.log('[App] v39: Remote logging enabled, device:', result?.deviceId);
+      } catch (e) {
+        // Silent fail if remote logger has issues
+      }
+    }
 
     // Global error handler for WebSocket/relay connection errors
     // These are expected when internet drops and shouldn't crash the app

@@ -594,8 +594,10 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
       throw new Error(`Exchange rate not available for ${currency}`);
     }
 
-    // Convert major currency units to minor units (e.g., KES to cents), then to sats
-    const amountInMinorUnits = amount * 100; // Convert to cents/minor units
+    // Use currency's fractionDigits (0 for KRW/JPY, 2 for USD/EUR, etc.)
+    const currencyInfo = getCurrencyById(currency, currencies);
+    const fractionDigits = currencyInfo?.fractionDigits ?? 2;
+    const amountInMinorUnits = amount * Math.pow(10, fractionDigits);
     const satsAmount = Math.round(amountInMinorUnits / exchangeRate.satPriceInCurrency);
     
     return satsAmount;
@@ -1338,13 +1340,13 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
       <div className="px-4">
         <div className="text-center">
           <div className="text-center">
-            <div className={`font-semibold text-gray-800 dark:text-gray-100 min-h-[72px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${
+            <div className={`font-inter-tight font-semibold text-gray-800 dark:text-gray-100 min-h-[72px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${
               showTipDialog 
                 ? getDynamicFontSize(formatDisplayAmount(total + (parseFloat(amount) || 0), displayCurrency))
                 : total > 0 
                   ? getDynamicFontSize(formatDisplayAmount(total, displayCurrency) + (amount ? ' + ' + amount : ''))
                   : getDynamicFontSize((amount === '0' || amount === '0.') ? (isBitcoinCurrency(displayCurrency) || getCurrencyById(displayCurrency, currencies)?.fractionDigits === 0 ? '0' : getCurrencyById(displayCurrency, currencies)?.symbol + '0.') : (amount ? formatDisplayAmount(amount, displayCurrency) : formatDisplayAmount(0, displayCurrency)))
-            }`} style={{fontFamily: "'Source Sans Pro', sans-serif", wordBreak: 'keep-all', overflowWrap: 'normal'}}>
+            }`} style={{wordBreak: 'keep-all', overflowWrap: 'normal'}}>
               {showTipDialog ? (
                 // When tip dialog is showing, show the combined total in white/black (not orange)
                 <div className="max-w-full">

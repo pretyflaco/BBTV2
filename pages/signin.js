@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
+import Script from 'next/script';
 import NostrLoginForm from '../components/auth/NostrLoginForm';
 import { useCombinedAuth } from '../lib/hooks/useCombinedAuth';
+import { installWebSocketDebugger } from '../lib/debug/wsDebugger';
 
 /**
  * Sign In Page - Dedicated Nostr authentication
@@ -48,6 +50,54 @@ export default function SignIn() {
         <link rel="apple-touch-icon" href="/icons/icon-ios-192x192.png" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
       </Head>
+
+      {/* Inline remote logger - runs immediately before React hydration */}
+      <Script id="remote-logger-init" strategy="beforeInteractive">
+        {`
+          (function() {
+            // Only run on mobile
+            var ua = navigator.userAgent;
+            var isMobile = /iPad|iPhone|iPod|Android/.test(ua);
+            if (!isMobile) return;
+            
+            // Generate device ID
+            var platform = 'unknown';
+            if (/iPad|iPhone|iPod/.test(ua)) {
+              if (/CriOS/.test(ua)) platform = 'ios-chrome';
+              else if (/FxiOS/.test(ua)) platform = 'ios-firefox';
+              else platform = 'ios-safari';
+            } else if (/Android/.test(ua)) {
+              platform = 'android-chrome';
+            }
+            var deviceId = platform + '-' + Math.random().toString(36).substr(2, 6);
+            
+            // Send immediate beacon
+            try {
+              var data = JSON.stringify({
+                logs: ['[IMMEDIATE] RemoteLogger INIT - device: ' + deviceId + ', UA: ' + ua.substring(0,80)],
+                deviceId: deviceId,
+                userAgent: ua
+              });
+              
+              // Try sendBeacon first (most reliable on iOS)
+              if (navigator.sendBeacon) {
+                navigator.sendBeacon('/api/debug/remote-log', new Blob([data], {type: 'application/json'}));
+              }
+              
+              // Also try fetch as backup
+              fetch('/api/debug/remote-log', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: data,
+                keepalive: true
+              }).catch(function(){});
+              
+            } catch(e) {
+              // Silent fail
+            }
+          })();
+        `}
+      </Script>
 
       <div className="min-h-screen bg-gray-50 dark:bg-black">
         {/* Nostr Login Form */}

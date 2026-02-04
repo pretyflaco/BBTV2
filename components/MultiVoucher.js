@@ -221,7 +221,10 @@ const MultiVoucher = forwardRef(({
       throw new Error(`Exchange rate not available for ${currency}`);
     }
 
-    const amountInMinorUnits = amount * 100;
+    // Use currency's fractionDigits (0 for KRW/JPY, 2 for USD/EUR, etc.)
+    const currencyInfo = getCurrencyById(currency, currencies);
+    const fractionDigits = currencyInfo?.fractionDigits ?? 2;
+    const amountInMinorUnits = amount * Math.pow(10, fractionDigits);
     const satsAmount = Math.round(amountInMinorUnits / exchangeRate.satPriceInCurrency);
     
     return satsAmount;
@@ -861,9 +864,9 @@ const MultiVoucher = forwardRef(({
       {/* Amount Display - Same size as Single Voucher */}
       <div className="px-4">
         <div className="text-center">
-          <div className={`font-semibold text-purple-600 dark:text-purple-400 min-h-[72px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${
+          <div className={`font-inter-tight font-semibold text-purple-600 dark:text-purple-400 min-h-[72px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${
             getDynamicFontSize(formatDisplayAmount(amount || 0, displayCurrency))
-          }`} style={{fontFamily: "'Source Sans Pro', sans-serif", wordBreak: 'keep-all', overflowWrap: 'normal'}}>
+          }`} style={{wordBreak: 'keep-all', overflowWrap: 'normal'}}>
             <div className="max-w-full">
               {amount === '0' || amount === '0.' 
                 ? (isBitcoinCurrency(displayCurrency) || getCurrentCurrency()?.fractionDigits === 0 

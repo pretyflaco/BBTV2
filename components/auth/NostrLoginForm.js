@@ -4,13 +4,21 @@
  * Supports:
  * - Browser extension (keys.band, Alby) - Desktop
  * - External signer (Amber) - Mobile
+ * - NIP-46 remote signer (nsec.app, Amber QR) - Cross-platform
  * - In-app key generation with password protection
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNostrAuth } from '../../lib/hooks/useNostrAuth';
 import { useTheme } from '../../lib/hooks/useTheme';
 import NostrAuthService from '../../lib/nostr/NostrAuthService';
+import NostrConnectService from '../../lib/nostr/NostrConnectService';
+import NostrConnectServiceNDK from '../../lib/nostr/NostrConnectServiceNDK';
+import NostrConnectModal from './NostrConnectModal';
+import { AUTH_VERSION_FULL, logAuth, logAuthError } from '../../lib/version.js';
+
+// Feature flag to use NDK implementation for bunker:// URLs
+const USE_NDK = process.env.NEXT_PUBLIC_USE_NDK_NIP46 === 'true';
 
 export default function NostrLoginForm() {
   const { darkMode } = useTheme();
@@ -22,6 +30,7 @@ export default function NostrLoginForm() {
     availableMethods,
     signInWithExtension,
     signInWithExternalSigner,
+    signInWithNostrConnect,
     checkPendingSignerFlow,
     createAccountWithPassword,
     signInWithPassword
@@ -30,6 +39,26 @@ export default function NostrLoginForm() {
   const [signingIn, setSigningIn] = useState(false);
   const [localError, setLocalError] = useState(null);
   const [checkingReturn, setCheckingReturn] = useState(true);
+  
+  // Manual Step 2 state - when Step 1 (pubkey) completes, show manual button for Step 2
+  const [awaitingStep2, setAwaitingStep2] = useState(false);
+  const [step1Pubkey, setStep1Pubkey] = useState(null);
+  
+  // NIP-46 Nostr Connect state
+  // Modal handles the full sign-in flow internally
+  const [showNostrConnectModal, setShowNostrConnectModal] = useState(false);
+  const [nostrConnectURI, setNostrConnectURI] = useState('');
+  
+  // Ref to prevent multiple rapid sign-in attempts (refs don't trigger re-renders)
+  const signingInRef = useRef(false);
+  
+  // Debug mode state (tap logo 5 times to activate)
+  const [logoTapCount, setLogoTapCount] = useState(0);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [debugInfo, setDebugInfo] = useState('');
+  const [runningDiagnostics, setRunningDiagnostics] = useState(false);
+  const [diagnosticResults, setDiagnosticResults] = useState(null);
+  const [diagnosticLogs, setDiagnosticLogs] = useState([]);
   
   // In-app key generation state
   const [authMode, setAuthMode] = useState('main'); // 'main', 'create', 'password'
@@ -46,16 +75,133 @@ export default function NostrLoginForm() {
     setHasStoredAccount(NostrAuthService.hasStoredEncryptedNsec());
   }, []);
 
+  // Debug: Handle logo tap for debug mode
+  const handleLogoTap = () => {
+    const newCount = logoTapCount + 1;
+    setLogoTapCount(newCount);
+    console.log(`[DEBUG] Logo tap ${newCount}/5`);
+    
+    if (newCount >= 5) {
+      setShowDebugPanel(true);
+      setLogoTapCount(0);
+      updateDebugInfo();
+    }
+    
+    // Reset tap count after 2 seconds of inactivity
+    setTimeout(() => setLogoTapCount(0), 2000);
+  };
+
+  // Debug: Update debug info display
+  const updateDebugInfo = () => {
+    const info = {
+      buildVersion: AUTH_VERSION_FULL,
+      url: window.location.href,
+      urlParams: window.location.search,
+      challengeFlow: localStorage.getItem('blinkpos_challenge_flow'),
+      signinFlow: localStorage.getItem('blinkpos_signin_flow'),
+      pubkey: localStorage.getItem('blinkpos_pubkey'),
+      method: localStorage.getItem('blinkpos_signin_method'),
+      isPWA: window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone,
+      userAgent: navigator.userAgent.substring(0, 100)
+    };
+    setDebugInfo(JSON.stringify(info, null, 2));
+    logAuth('DEBUG', 'Build:', AUTH_VERSION_FULL, '| Current state:', info);
+  };
+
+  // Debug: Clear all auth state
+  const handleDebugClearAuth = () => {
+    console.log('[DEBUG] Clearing all auth state...');
+    localStorage.removeItem('blinkpos_challenge_flow');
+    localStorage.removeItem('blinkpos_signin_flow');
+    localStorage.removeItem('blinkpos_pubkey');
+    localStorage.removeItem('blinkpos_signin_method');
+    // Clear URL params
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.search = '';
+    window.history.replaceState({}, '', cleanUrl.toString());
+    // Update debug info
+    updateDebugInfo();
+    setLocalError(null);
+    alert('Auth state cleared! You can try signing in again.');
+  };
+
+  // Debug: Clear everything including encrypted nsec
+  const handleDebugClearAll = () => {
+    console.log('[DEBUG] Clearing ALL data including account...');
+    localStorage.removeItem('blinkpos_challenge_flow');
+    localStorage.removeItem('blinkpos_signin_flow');
+    localStorage.removeItem('blinkpos_pubkey');
+    localStorage.removeItem('blinkpos_signin_method');
+    localStorage.removeItem('blinkpos_encrypted_nsec');
+    localStorage.removeItem('blinkpos_profiles');
+    // Clear URL params
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.search = '';
+    window.history.replaceState({}, '', cleanUrl.toString());
+    setHasStoredAccount(false);
+    updateDebugInfo();
+    setLocalError(null);
+    alert('All data cleared! Page will reload.');
+    window.location.reload();
+  };
+
+  // Debug: Run NIP-44 crypto diagnostics
+  const handleRunNIP44Diagnostics = async () => {
+    setRunningDiagnostics(true);
+    setDiagnosticLogs([]);
+    setDiagnosticResults(null);
+    
+    try {
+      // Dynamic import to avoid loading diagnostic code in production
+      const { runNIP44Diagnostics, sendDiagnosticsToServer } = await import('../../lib/debug/nip44DiagnosticTest');
+      
+      const logs = [];
+      const logCallback = (msg) => {
+        logs.push(msg);
+        setDiagnosticLogs([...logs]);
+      };
+      
+      const results = await runNIP44Diagnostics(logCallback);
+      setDiagnosticResults(results);
+      
+      // Send to server for remote debugging
+      await sendDiagnosticsToServer(results);
+      
+      console.log('[DEBUG] NIP-44 Diagnostics complete:', results);
+    } catch (error) {
+      console.error('[DEBUG] NIP-44 Diagnostics failed:', error);
+      setDiagnosticResults({ overall: 'ERROR', error: error.message });
+    } finally {
+      setRunningDiagnostics(false);
+    }
+  };
+
   // Check for pending signer flow on mount and focus (user returning from Amber)
   useEffect(() => {
     const checkSignerReturn = async () => {
       const result = await checkPendingSignerFlow();
+      
+      // Check if Step 1 completed and we need manual Step 2
+      if (result.needsManualStep2) {
+        logAuth('NostrLoginForm', 'Step 1 complete, showing manual Step 2 button');
+        logAuth('NostrLoginForm', 'pubkey:', result.pubkey?.substring(0, 16) + '...');
+        setAwaitingStep2(true);
+        setStep1Pubkey(result.pubkey);
+        setCheckingReturn(false);
+        setLocalError(null);
+        return;
+      }
+      
       if (result.success) {
         // Sign-in completed successfully
-        console.log('Signed in via external signer');
+        logAuth('NostrLoginForm', 'Signed in via external signer');
+        setAwaitingStep2(false);
+        setStep1Pubkey(null);
       } else if (result.error && result.pending !== false) {
         // Show error only if there was a pending flow that failed
         setLocalError(result.error);
+        setAwaitingStep2(false);
+        setStep1Pubkey(null);
       }
       setCheckingReturn(false);
     };
@@ -99,7 +245,18 @@ export default function NostrLoginForm() {
   };
 
   const handleExternalSignerSignIn = async () => {
-    console.log('[NostrLoginForm] handleExternalSignerSignIn called');
+    console.log('[NostrLoginForm] handleExternalSignerSignIn called, signingInRef:', signingInRef.current);
+    
+    // CRITICAL: Prevent multiple rapid clicks from overwriting challenge flow
+    // This fixes the bug where 12+ rapid clicks would each fetch a new challenge,
+    // causing the final return from Amber to have mismatched challenge data
+    if (signingInRef.current) {
+      console.log('[NostrLoginForm] Sign-in already in progress (ref), ignoring click');
+      return;
+    }
+    
+    // Set ref immediately to block any subsequent calls
+    signingInRef.current = true;
     setSigningIn(true);
     setLocalError(null);
 
@@ -111,10 +268,16 @@ export default function NostrLoginForm() {
       if (result.pending) {
         // User will be redirected to external signer
         // When they return, the page reloads fresh with new state.
-        // Reset signing state after timeout if navigation fails silently
-        console.log('[NostrLoginForm] Redirect pending, waiting...');
+        // Keep signingInRef true - it will be reset on page reload
+        console.log('[NostrLoginForm] Redirect pending, keeping signingInRef locked');
         setTimeout(() => {
+          // Only reset UI state after timeout, but keep ref locked to prevent re-clicks
           setSigningIn(false);
+          // Reset ref after longer timeout in case redirect failed
+          setTimeout(() => {
+            signingInRef.current = false;
+            console.log('[NostrLoginForm] signingInRef reset after timeout');
+          }, 5000);
         }, 3000);
         return;
       }
@@ -128,9 +291,92 @@ export default function NostrLoginForm() {
       setLocalError(error.message || 'Sign-in failed');
     }
     
-    // Always reset signing state when not pending
+    // Reset both ref and state when not pending
+    signingInRef.current = false;
     setSigningIn(false);
   };
+
+  // Handle user tap on "Continue to Amber" button for Step 2 (sign challenge)
+  // This is a user-initiated navigation which is more reliable on Android than automatic redirects
+  const handleContinueToAmber = async () => {
+    logAuth('NostrLoginForm', 'handleContinueToAmber called - user-initiated Step 2');
+    setSigningIn(true);
+    setLocalError(null);
+    
+    try {
+      // Call retrySignChallengeRedirect which will navigate to Amber for signing
+      const result = await NostrAuthService.retrySignChallengeRedirect();
+      logAuth('NostrLoginForm', 'retrySignChallengeRedirect result:', JSON.stringify(result));
+      
+      if (result.pending) {
+        // Navigation initiated, user will be redirected to Amber
+        logAuth('NostrLoginForm', 'Redirect to Amber initiated');
+        // Keep signing in state until redirect or timeout
+        setTimeout(() => {
+          setSigningIn(false);
+        }, 3000);
+        return;
+      }
+      
+      if (!result.success) {
+        logAuth('NostrLoginForm', 'Step 2 redirect failed:', result.error);
+        setLocalError(result.error);
+        // If redirect failed, allow retry
+        setAwaitingStep2(true);
+      }
+    } catch (error) {
+      logAuthError('NostrLoginForm', 'Exception in handleContinueToAmber:', error);
+      setLocalError(error.message || 'Failed to open Amber');
+    }
+    
+    setSigningIn(false);
+  };
+
+  // Handle cancel/restart of the sign-in flow
+  const handleCancelStep2 = () => {
+    logAuth('NostrLoginForm', 'User cancelled Step 2, clearing flow');
+    NostrAuthService.clearPendingChallengeFlow();
+    setAwaitingStep2(false);
+    setStep1Pubkey(null);
+    setLocalError(null);
+  };
+
+  // NIP-46 Nostr Connect handlers
+  const handleNostrConnectSignIn = async () => {
+    logAuth('NostrLoginForm', 'Starting Nostr Connect flow');
+    setLocalError(null);
+    
+    try {
+      // Generate the nostrconnect:// URI
+      const uri = NostrConnectService.generateConnectionURI();
+      setNostrConnectURI(uri);
+      setShowNostrConnectModal(true);
+      
+      logAuth('NostrLoginForm', 'Generated URI, showing modal');
+    } catch (error) {
+      logAuthError('NostrLoginForm', 'Failed to generate connection URI:', error);
+      setLocalError('Failed to start Nostr Connect: ' + error.message);
+    }
+  };
+
+  // Handle successful Nostr Connect sign-in
+  // Called by NostrConnectModal after the FULL sign-in flow is complete
+  const handleNostrConnectSuccess = useCallback((pubkey) => {
+    logAuth('NostrLoginForm', 'Nostr Connect complete, pubkey:', pubkey?.substring(0, 16) + '...');
+    setShowNostrConnectModal(false);
+    setNostrConnectURI('');
+    // Navigation will happen automatically via auth state change
+  }, []);
+
+  // Handle modal cancel
+  const handleNostrConnectClose = () => {
+    logAuth('NostrLoginForm', 'Closing Nostr Connect modal');
+    setShowNostrConnectModal(false);
+    setNostrConnectURI('');
+  };
+
+  // v29: The modal now handles the full connection flow internally,
+  // so we don't need a useEffect here anymore to auto-start the connection.
 
   // Handle create new account with password
   const handleCreateAccount = async (e) => {
@@ -215,6 +461,100 @@ export default function NostrLoginForm() {
           <p className="mt-4 text-gray-600 dark:text-gray-400">
             {checkingReturn ? 'Completing sign-in...' : 'Checking authentication...'}
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // v24: Manual Step 2 View - Show when pubkey obtained, waiting for user to tap to continue signing
+  if (awaitingStep2) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-black">
+        <div className="max-w-md w-full space-y-8 p-8">
+          {/* Header */}
+          <div className="text-center">
+            <div className="flex justify-center mb-6">
+              <div className="w-20 h-20 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full flex items-center justify-center">
+                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+              Identity Confirmed!
+            </h2>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              Step 1 of 2 complete
+            </p>
+            {step1Pubkey && (
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-500 font-mono">
+                {step1Pubkey.substring(0, 8)}...{step1Pubkey.substring(step1Pubkey.length - 8)}
+              </p>
+            )}
+          </div>
+
+          {/* Explanation */}
+          <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              <strong>Almost there!</strong> Amber has confirmed your identity. 
+              Now tap the button below to sign in securely.
+            </p>
+          </div>
+
+          {/* Continue Button */}
+          <button
+            onClick={handleContinueToAmber}
+            disabled={signingIn}
+            className="group relative w-full flex justify-center items-center py-5 px-6 border-2 border-amber-500 text-xl font-bold rounded-xl text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
+          >
+            {signingIn ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-6 w-6 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Opening Amber...
+              </>
+            ) : (
+              <>
+                <svg className="w-7 h-7 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                Continue to Amber
+                <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              </>
+            )}
+          </button>
+
+          {/* Error Display */}
+          {displayError && (
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <p className="text-sm text-red-600 dark:text-red-400">
+                {displayError}
+              </p>
+              <p className="text-xs text-red-500 dark:text-red-400 mt-2">
+                Tap the button above to try again
+              </p>
+            </div>
+          )}
+
+          {/* Cancel/Start Over */}
+          <button
+            onClick={handleCancelStep2}
+            disabled={signingIn}
+            className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 disabled:opacity-50"
+          >
+            Cancel and start over
+          </button>
+
+          {/* Help text */}
+          <div className="text-center">
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              Having trouble? Make sure Amber is installed and try tapping the button above.
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -414,8 +754,8 @@ export default function NostrLoginForm() {
   
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-black">
-      {/* Fixed header with logo like dashboard */}
-      <div className="px-4 py-4">
+      {/* Fixed header with logo like dashboard - TAP 5 TIMES FOR DEBUG */}
+      <div className="px-4 py-4" onClick={handleLogoTap}>
         <img 
           src="/logos/blink-icon-light.svg" 
           alt="Blink" 
@@ -427,6 +767,114 @@ export default function NostrLoginForm() {
           className="h-12 w-12 hidden dark:block"
         />
       </div>
+      
+      {/* Debug Panel - shown after 5 logo taps */}
+      {showDebugPanel && (
+        <div className="fixed inset-0 bg-black/80 z-50 p-4 overflow-auto">
+          <div className="bg-gray-900 rounded-xl p-4 max-w-lg mx-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-white">🔧 Debug Panel</h3>
+              <button 
+                onClick={() => setShowDebugPanel(false)}
+                className="text-gray-400 hover:text-white text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            
+            {/* Build Version - Prominent display */}
+            <div className="mb-4 p-3 bg-blue-900/50 border border-blue-500 rounded-lg">
+              <div className="text-xs text-blue-300 uppercase tracking-wide mb-1">Build Version</div>
+              <div className="text-lg font-mono font-bold text-blue-100">{AUTH_VERSION_FULL}</div>
+            </div>
+            
+            <div className="space-y-3">
+              {/* NIP-44 Diagnostics Button - Primary action for iOS debugging */}
+              <button
+                onClick={handleRunNIP44Diagnostics}
+                disabled={runningDiagnostics}
+                className="w-full py-3 px-4 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 text-white rounded-lg font-medium flex items-center justify-center gap-2"
+              >
+                {runningDiagnostics ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Running NIP-44 Tests...
+                  </>
+                ) : (
+                  <>🧪 Run NIP-44 Crypto Diagnostics</>
+                )}
+              </button>
+              
+              {/* Diagnostic Results Summary */}
+              {diagnosticResults && (
+                <div className={`p-3 rounded-lg border ${
+                  diagnosticResults.overall === 'PASS' 
+                    ? 'bg-green-900/50 border-green-500' 
+                    : diagnosticResults.overall === 'ERROR'
+                    ? 'bg-red-900/50 border-red-500'
+                    : 'bg-yellow-900/50 border-yellow-500'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white">
+                      {diagnosticResults.overall === 'PASS' ? '✅ All Tests Passed' : 
+                       diagnosticResults.overall === 'ERROR' ? '❌ Error Running Tests' :
+                       '⚠️ Some Tests Failed'}
+                    </span>
+                    <span className="text-sm text-gray-300">
+                      {diagnosticResults.summary || diagnosticResults.error}
+                    </span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Diagnostic Logs */}
+              {diagnosticLogs.length > 0 && (
+                <div className="mt-2">
+                  <h4 className="text-sm font-medium text-gray-400 mb-2">Test Output:</h4>
+                  <pre className="bg-black p-3 rounded text-xs text-green-400 overflow-auto max-h-48 whitespace-pre-wrap font-mono">
+                    {diagnosticLogs.join('\n')}
+                  </pre>
+                </div>
+              )}
+              
+              <div className="border-t border-gray-700 my-3 pt-3">
+                <h4 className="text-sm font-medium text-gray-400 mb-2">Other Actions:</h4>
+              </div>
+              
+              <button
+                onClick={handleDebugClearAuth}
+                className="w-full py-3 px-4 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium"
+              >
+                🔄 Clear Auth State (Keep Account)
+              </button>
+              
+              <button
+                onClick={handleDebugClearAll}
+                className="w-full py-3 px-4 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium"
+              >
+                🗑️ Clear ALL Data & Reload
+              </button>
+              
+              <button
+                onClick={updateDebugInfo}
+                className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
+              >
+                🔍 Refresh Debug Info
+              </button>
+              
+              <div className="mt-4">
+                <h4 className="text-sm font-medium text-gray-400 mb-2">Current State:</h4>
+                <pre className="bg-black p-3 rounded text-xs text-green-400 overflow-auto max-h-64 whitespace-pre-wrap">
+                  {debugInfo || 'Tap "Refresh Debug Info"'}
+                </pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       
       <div className="flex items-center justify-center min-h-[calc(100vh-80px)]">
         <div className="max-w-md w-full space-y-8 p-8">
@@ -477,6 +925,20 @@ export default function NostrLoginForm() {
             </>
           )}
 
+          {/* v56: Nostr Connect - Available for ALL platforms */}
+          {/* Desktop: Shows QR code to scan with mobile signer (nsec.app, Amber, etc.) */}
+          {/* Mobile: Opens signer app directly via NIP-46 relay connection */}
+          <button
+            onClick={handleNostrConnectSignIn}
+            disabled={signingIn}
+            className="group relative w-full flex justify-center items-center py-4 px-6 border border-transparent text-lg font-medium rounded-xl text-white bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
+          >
+            <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+            {isMobile ? 'Connect with Nostr Connect' : 'Connect with Remote Signer'}
+          </button>
+
           {/* Extension Sign-In (Desktop) */}
           {hasExtension && (
             <button
@@ -507,7 +969,7 @@ export default function NostrLoginForm() {
           {!hasExtension && !isMobile && !hasStoredAccount && (
             <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
               <p className="text-sm text-blue-700 dark:text-blue-300">
-                💡 Install a Nostr extension like{' '}
+                💡 Use "Connect with Remote Signer" above to scan a QR code with your mobile signer app, or install a browser extension like{' '}
                 <a 
                   href="https://keys.band" 
                   target="_blank" 
@@ -524,48 +986,49 @@ export default function NostrLoginForm() {
                   className="font-medium underline hover:text-blue-800 dark:hover:text-blue-200"
                 >
                   Alby
-                </a>{' '}
-                for easy sign-in
+                </a>
               </p>
             </div>
           )}
 
-          {/* Divider before mobile signer - only show on Android */}
-          {isAndroid && (hasExtension || hasStoredAccount) && (
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300 dark:border-gray-700"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-gray-50 dark:bg-black text-gray-500">or</span>
-              </div>
-            </div>
-          )}
-
-          {/* External Signer (Amber) - only show on Android devices */}
+          {/* v30: NIP-55 Offline signing - collapsible advanced option for Android */}
           {isAndroid && (
-            <button
-              onClick={handleExternalSignerSignIn}
-              disabled={signingIn}
-              className="group relative w-full flex justify-center items-center py-4 px-6 border-2 border-amber-500 text-lg font-medium rounded-xl text-amber-600 dark:text-amber-400 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {signingIn ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Opening Signer...
-                </>
-              ) : (
-                <>
-                  <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                  </svg>
-                  Sign in with Amber
-                </>
-              )}
-            </button>
+            <details className="mt-2">
+              <summary className="cursor-pointer text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 list-none flex items-center justify-center gap-1 py-2">
+                <svg className="w-4 h-4 transition-transform details-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                </svg>
+                <span>Offline signing (NIP-55)</span>
+              </summary>
+              <div className="mt-2 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 text-center">
+                  Use NIP-55 URL scheme signing if you don't have internet access.
+                  Requires Amber signer app.
+                </p>
+                <button
+                  onClick={handleExternalSignerSignIn}
+                  disabled={signingIn}
+                  className="group relative w-full flex justify-center items-center py-3 px-4 border border-amber-400 dark:border-amber-500 text-base font-medium rounded-lg text-amber-600 dark:text-amber-400 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {signingIn ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Opening Signer...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                      Sign in with NIP-55
+                    </>
+                  )}
+                </button>
+              </div>
+            </details>
           )}
 
           {/* Create New Account Button */}
@@ -584,7 +1047,16 @@ export default function NostrLoginForm() {
           {isIOS && !hasExtension && (
             <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
               <p className="text-sm text-blue-700 dark:text-blue-300">
-                📱 On iOS, install the{' '}
+                📱 Nostr Connect works best with{' '}
+                <a 
+                  href="https://nsec.app" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="font-medium underline hover:text-blue-800 dark:hover:text-blue-200"
+                >
+                  nsec.app
+                </a>
+                {' '}(web-based signer). For browser extension, install{' '}
                 <a 
                   href="https://apps.apple.com/cy/app/nostash/id6744309333" 
                   target="_blank" 
@@ -593,7 +1065,7 @@ export default function NostrLoginForm() {
                 >
                   Nostash
                 </a>
-                {' '}Safari extension to sign in with your Nostr key.
+                {' '}for Safari.
               </p>
             </div>
           )}
@@ -606,14 +1078,24 @@ export default function NostrLoginForm() {
                 href="https://github.com/greenart7c3/Amber" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="text-amber-600 dark:text-amber-400 underline"
+                className="text-purple-600 dark:text-purple-400 underline"
               >
                 Amber
               </a>
-              {' '}for secure key management
+              {' '}signer app
             </p>
           )}
         </div>
+
+        {/* v32: Nostr Connect Modal - handles full sign-in flow with progress UI */}
+        {showNostrConnectModal && (
+          <NostrConnectModal
+            uri={nostrConnectURI}
+            onSuccess={handleNostrConnectSuccess}
+            onCancel={handleNostrConnectClose}
+            signInWithNostrConnect={signInWithNostrConnect}
+          />
+        )}
 
         {/* Error Display */}
         {displayError && (

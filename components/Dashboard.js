@@ -34,6 +34,33 @@ const SPINNER_COLORS = [
   'border-pink-500',    // Variety
 ];
 
+// Voucher Wallet storage key (user-scoped for security)
+const VOUCHER_WALLET_OLD_KEY = 'blinkpos-voucher-wallet'; // Old global key (for cleanup)
+const VOUCHER_WALLET_PREFIX = 'blinkpos-voucher-wallet';
+
+/**
+ * Get user-scoped storage key for voucher wallet
+ * @param {string} userPubkey - User's public key
+ * @returns {string|null} Storage key or null if no user
+ */
+const getVoucherWalletKey = (userPubkey) => 
+  userPubkey ? `${VOUCHER_WALLET_PREFIX}_${userPubkey}` : null;
+
+/**
+ * Clean up old global voucher wallet storage key
+ * This prevents cross-user data leakage from old versions
+ */
+const cleanupOldGlobalVoucherWalletStorage = () => {
+  try {
+    if (localStorage.getItem(VOUCHER_WALLET_OLD_KEY)) {
+      console.log('[Dashboard] Removing old global voucher wallet storage (security fix)');
+      localStorage.removeItem(VOUCHER_WALLET_OLD_KEY);
+    }
+  } catch (err) {
+    console.error('[Dashboard] Failed to cleanup old voucher wallet storage:', err);
+  }
+};
+
 // Predefined Tip Profiles for different regions
 const TIP_PROFILES = [
   { id: 'na', name: 'North America (US/CA)', tipOptions: [18, 20, 25] },
@@ -395,14 +422,9 @@ export default function Dashboard() {
   const [confirmDeleteWallet, setConfirmDeleteWallet] = useState(null); // { type: 'blink'|'nwc', id: string }
 
   // Voucher Wallet state (separate from regular wallet - for voucher feature)
+  // NOTE: Initial state is null - we load ONLY after authentication to ensure user-scoped storage
   const [showVoucherWalletSettings, setShowVoucherWalletSettings] = useState(false);
-  const [voucherWallet, setVoucherWallet] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('blinkpos-voucher-wallet');
-      return saved ? JSON.parse(saved) : null;
-    }
-    return null;
-  });
+  const [voucherWallet, setVoucherWallet] = useState(null);
   const [voucherWalletApiKey, setVoucherWalletApiKey] = useState('');
   const [voucherWalletLabel, setVoucherWalletLabel] = useState('');
   const [voucherWalletLoading, setVoucherWalletLoading] = useState(false);
@@ -742,20 +764,29 @@ export default function Dashboard() {
         // Initialize transaction labels from server
         await initTransactionLabels();
         console.log('[Dashboard] Transaction labels synced from server');
-
-        // Sync voucher wallet from server
+        
+        // Clean up old global voucher wallet key (security fix for cross-profile leakage)
+        cleanupOldGlobalVoucherWalletStorage();
+        
+        // Sync voucher wallet from server (using user-scoped localStorage key)
+        const voucherWalletStorageKey = getVoucherWalletKey(publicKey);
         if (data.voucherWallet && data.voucherWallet.apiKey) {
           console.log('[Dashboard] Loaded voucher wallet from server:', data.voucherWallet.label);
           console.log("data.voucherWallet is:", data.voucherWallet);
           setVoucherWallet(data.voucherWallet);
-          localStorage.setItem('blinkpos-voucher-wallet', JSON.stringify(data.voucherWallet));
+          if (voucherWalletStorageKey) {
+            localStorage.setItem(voucherWalletStorageKey, JSON.stringify(data.voucherWallet));
+          }
         } else if (!data.voucherWallet) {
-          // Check if we have local voucher wallet to sync to server
-          const localVoucherWallet = localStorage.getItem('blinkpos-voucher-wallet');
-          if (localVoucherWallet) {
-            const parsed = JSON.parse(localVoucherWallet);
-            console.log('[Dashboard] Syncing local voucher wallet to server');
-            syncVoucherWalletToServer(parsed);
+          // Check if we have local voucher wallet (user-scoped) to sync to server
+          if (voucherWalletStorageKey) {
+            const localVoucherWallet = localStorage.getItem(voucherWalletStorageKey);
+            if (localVoucherWallet) {
+              const parsed = JSON.parse(localVoucherWallet);
+              console.log('[Dashboard] Syncing local voucher wallet to server');
+              syncVoucherWalletToServer(parsed);
+              setVoucherWallet(parsed);
+            }
           }
         }
 
@@ -788,6 +819,24 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error('[Dashboard] Failed to sync voucher wallet:', err);
+    }
+  }, [publicKey]);
+
+  // Track previous user to detect user changes
+  const prevUserRef = useRef(publicKey);
+
+  // Clear voucher wallet state when user changes (logout/switch user)
+  // This prevents cross-user data leakage
+  useEffect(() => {
+    const prevUser = prevUserRef.current;
+    
+    // User has changed (including logout where publicKey becomes null/undefined)
+    if (prevUser !== publicKey) {
+      console.log('[Dashboard] User changed, clearing voucher wallet state');
+      setVoucherWallet(null);
+      setVoucherWalletBalance(null);
+      setVoucherWalletUsdBalance(null);
+      prevUserRef.current = publicKey;
     }
   }, [publicKey]);
 
@@ -826,10 +875,13 @@ export default function Dashboard() {
           // Update wallet data with username
           const updatedWallet = { ...voucherWallet, username };
           setVoucherWallet(updatedWallet);
-
-          // Save to localStorage
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('blinkpos-voucher-wallet', JSON.stringify(updatedWallet));
+          
+          // Save to localStorage (user-scoped)
+          if (typeof window !== 'undefined' && publicKey) {
+            const storageKey = getVoucherWalletKey(publicKey);
+            if (storageKey) {
+              localStorage.setItem(storageKey, JSON.stringify(updatedWallet));
+            }
           }
 
           // Sync to server
@@ -6404,8 +6456,11 @@ export default function Dashboard() {
                       </div>
                       <button
                         onClick={() => {
-                          if (typeof window !== 'undefined') {
-                            localStorage.removeItem('blinkpos-voucher-wallet');
+                          if (typeof window !== 'undefined' && publicKey) {
+                            const storageKey = getVoucherWalletKey(publicKey);
+                            if (storageKey) {
+                              localStorage.removeItem(storageKey);
+                            }
                           }
                           setVoucherWallet(null);
                           // Sync deletion to server
@@ -6511,9 +6566,12 @@ export default function Dashboard() {
                           scopes: scopes,
                           createdAt: Date.now()
                         };
-
-                        if (typeof window !== 'undefined') {
-                          localStorage.setItem('blinkpos-voucher-wallet', JSON.stringify(walletData));
+                        
+                        if (typeof window !== 'undefined' && publicKey) {
+                          const storageKey = getVoucherWalletKey(publicKey);
+                          if (storageKey) {
+                            localStorage.setItem(storageKey, JSON.stringify(walletData));
+                          }
                         }
                         setVoucherWallet(walletData);
 

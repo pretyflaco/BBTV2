@@ -9,6 +9,8 @@ WORKDIR /app
 
 # Install dependencies based on the preferred package manager
 COPY package.json package-lock.json* ./
+# Copy patches directory for patch-package postinstall
+COPY patches ./patches
 RUN npm ci
 
 # Rebuild the source code only when needed
@@ -21,6 +23,14 @@ COPY . .
 # Learn more here: https://nextjs.org/telemetry
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED 1
+
+# v52: NEXT_PUBLIC_* variables must be set at build time for Next.js
+# They get inlined into the JavaScript bundle during build
+ENV NEXT_PUBLIC_USE_NDK_NIP46=true
+
+# Limit Node.js memory to avoid OOM on low-memory servers
+# Disable webpack cache to save disk space during build
+ENV NODE_OPTIONS="--max-old-space-size=512"
 
 RUN npm run build
 

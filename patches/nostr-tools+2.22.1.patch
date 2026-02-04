@@ -1,0 +1,14 @@
+diff --git a/node_modules/nostr-tools/lib/esm/nip46.js b/node_modules/nostr-tools/lib/esm/nip46.js
+index 95339f3..edde8f6 100644
+--- a/node_modules/nostr-tools/lib/esm/nip46.js
++++ b/node_modules/nostr-tools/lib/esm/nip46.js
+@@ -1284,7 +1284,8 @@ var BunkerSigner = class {
+         kinds: [NostrConnect],
+         authors: [this.bp.pubkey],
+         "#p": [getPublicKey(this.secretKey)],
+-        limit: 0
++        limit: 0,
++        since: Math.floor(Date.now() / 1000) - 60
+       },
+       {
+         onevent: async (event) => {

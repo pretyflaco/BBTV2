@@ -8,6 +8,12 @@
   box-sizing: border-box;
 }
 
+/* Inter Tight font for payment amount displays */
+.font-inter-tight,
+.font-inter-tight * {
+  font-family: 'Inter Tight', sans-serif !important;
+}
+
 /* Mobile responsiveness fixes */
 html, body {
   overflow-x: hidden;

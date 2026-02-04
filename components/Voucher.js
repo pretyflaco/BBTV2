@@ -8,6 +8,7 @@ import { useThermalPrint } from '../lib/escpos/hooks/useThermalPrint';
 import Numpad from './Numpad';
 import { THEMES } from '../lib/hooks/useTheme';
 import { unlockAudioContext, playSound } from '../lib/audio-utils';
+import { getEnvironment } from '../lib/config/api';
 
 const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, darkMode, theme = THEMES.DARK, cycleTheme, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3] }, ref) => {
   const [amount, setAmount] = useState('');
@@ -791,7 +792,9 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
           // Include commission info for memo and printout
           commissionPercent: effectiveCommissionPercent,
           displayAmount: numericAmount,
-          displayCurrency: displayCurrency
+          displayCurrency: displayCurrency,
+          // Environment for staging/production support
+          environment: getEnvironment()
         }),
       });
 

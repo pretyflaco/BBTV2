@@ -32,12 +32,13 @@ export default async function handler(req, res) {
   let claimSucceeded = false;
 
   try {
-    const { paymentHash: reqPaymentHash, totalAmount, memo = '', deferTips = false } = req.body;
+    const { paymentHash: reqPaymentHash, totalAmount, memo = '', deferTips = false, environment: reqEnvironment } = req.body;
     paymentHash = reqPaymentHash;
     
     console.log('🎯 NWC TIP FORWARDING REQUEST:', {
       paymentHash: paymentHash?.substring(0, 16) + '...',
       totalAmount,
+      environment: reqEnvironment,
       timestamp: new Date().toISOString(),
       memo: memo?.substring(0, 50) + '...'
     });
@@ -111,8 +112,8 @@ export default async function handler(req, res) {
     });
 
     // Get BlinkPOS credentials from environment based on staging/production
-    // Get environment from tip data (stored when invoice was created)
-    const environment = tipData.environment || 'production';
+    // Get environment from tip data (stored when invoice was created) or from request body
+    const environment = tipData.environment || reqEnvironment || 'production';
     const isStaging = environment === 'staging';
     const blinkposApiKey = isStaging 
       ? process.env.BLINKPOS_STAGING_API_KEY 

@@ -6,6 +6,7 @@ import { useNFC } from './NFCPayment';
 import Numpad from './Numpad';
 import { THEMES } from '../lib/hooks/useTheme';
 import { unlockAudioContext, playSound } from '../lib/audio-utils';
+import { getEnvironment } from '../lib/config/api';
 
 const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, theme = THEMES.DARK, cycleTheme, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation, isPublicPOS = false, publicUsername = null }, ref) => {
   const [amount, setAmount] = useState('');
@@ -990,7 +991,9 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
 
       // PUBLIC POS MODE: Create invoice directly to user's wallet
       if (isPublicPOS && publicUsername) {
-        console.log('🌐 Creating public invoice for:', publicUsername, 'Amount:', finalTotalInSats);
+        // Get current environment (staging or production) from client-side localStorage
+        const currentEnvironment = getEnvironment();
+        console.log('🌐 Creating public invoice for:', publicUsername, 'Amount:', finalTotalInSats, 'Environment:', currentEnvironment);
         
         const response = await fetch('/api/blink/public-invoice', {
           method: 'POST',
@@ -1001,7 +1004,8 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
             username: publicUsername,
             amount: finalTotalInSats,
             memo: memo || `Payment to ${publicUsername}`,
-            walletCurrency: 'BTC'
+            walletCurrency: 'BTC',
+            environment: currentEnvironment // Pass environment to API
           }),
         });
 

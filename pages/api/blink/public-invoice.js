@@ -5,9 +5,18 @@
  * No authentication required - invoices go directly to the recipient.
  * 
  * Used by the Public POS at track.twentyone.ist/[blinkusername]
+ * 
+ * Supports environment switching (production/staging) via environment parameter.
+ * Staging uses signet (not real sats) for testing.
  */
 
 const BlinkAPI = require('../../../lib/blink-api');
+
+// API URLs for each environment
+const API_URLS = {
+  production: 'https://api.blink.sv/graphql',
+  staging: 'https://api.staging.blink.sv/graphql'
+};
 
 // Rate limiting: simple in-memory store (per-IP)
 const rateLimitStore = new Map();
@@ -65,8 +74,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { username, amount, memo, walletCurrency } = req.body;
+    const { username, amount, memo, walletCurrency, environment } = req.body;
 
+    // Validate and sanitize environment parameter
+    // Only allow 'production' or 'staging', default to 'production'
+    const validEnvironment = (environment === 'staging') ? 'staging' : 'production';
+    const apiUrl = API_URLS[validEnvironment];
+    
     // Validate required fields
     if (!username) {
       return res.status(400).json({ error: 'Username is required' });
@@ -90,6 +104,8 @@ export default async function handler(req, res) {
       amount: satsAmount,
       memo: memo?.substring(0, 50),
       walletCurrency,
+      environment: validEnvironment,
+      apiUrl,
       ip: clientIp.substring(0, 10) + '...'
     });
 
@@ -97,11 +113,11 @@ export default async function handler(req, res) {
     let walletInfo;
     try {
       if (walletCurrency === 'BTC') {
-        // Explicitly request BTC wallet
-        walletInfo = await BlinkAPI.getBtcWalletByUsername(username);
+        // Explicitly request BTC wallet, pass apiUrl for environment
+        walletInfo = await BlinkAPI.getBtcWalletByUsername(username, apiUrl);
       } else {
-        // Get user's default wallet
-        walletInfo = await BlinkAPI.getWalletByUsername(username);
+        // Get user's default wallet, pass apiUrl for environment
+        walletInfo = await BlinkAPI.getWalletByUsername(username, apiUrl);
       }
     } catch (walletError) {
       console.error('❌ Wallet lookup failed:', walletError.message);
@@ -127,11 +143,13 @@ export default async function handler(req, res) {
     
     let invoice;
     try {
+      // Pass apiUrl for environment-aware invoice creation
       invoice = await BlinkAPI.createInvoiceOnBehalfOfRecipient(
         walletInfo.id,
         satsAmount,
         invoiceMemo,
-        15 // 15 minutes expiry
+        15, // 15 minutes expiry
+        apiUrl // Environment-specific API URL
       );
     } catch (invoiceError) {
       console.error('❌ Invoice creation failed:', invoiceError.message);
@@ -149,7 +167,9 @@ export default async function handler(req, res) {
     console.log('✅ Public invoice created:', {
       username,
       paymentHash: invoice.paymentHash?.substring(0, 16) + '...',
-      satoshis: invoice.satoshis
+      satoshis: invoice.satoshis,
+      environment: validEnvironment,
+      invoicePrefix: invoice.paymentRequest?.substring(0, 6) // lnbc or lntbs
     });
 
     // Return invoice details
@@ -162,7 +182,8 @@ export default async function handler(req, res) {
         username,
         walletCurrency: walletInfo.currency,
         memo: invoiceMemo,
-        expiresIn: 15 * 60 // 15 minutes in seconds
+        expiresIn: 15 * 60, // 15 minutes in seconds
+        environment: validEnvironment // Include environment in response
       }
     });
 

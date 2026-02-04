@@ -15,11 +15,19 @@
  * - Auto-completes when hasServerSession becomes true
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import ProgressStepper from './ProgressStepper';
 
 // Session establishment timeout (10 seconds)
 const SESSION_TIMEOUT = 10000;
+
+// Minimum display times for each step (in ms) for good UX
+// This ensures users can see each step complete even if the actual process is fast
+const MIN_STEP_DISPLAY_TIME = {
+  connected: 800,   // Show "Connected to extension" for at least 800ms
+  signing: 1000,    // Show "Signing authentication" for at least 1000ms
+  syncing: 800,     // Show "Loading your data" for at least 800ms
+};
 
 /**
  * @param {Object} props
@@ -39,6 +47,10 @@ export default function SessionEstablishmentModal({
   const [errorMessage, setErrorMessage] = useState('');
   const timeoutRef = useRef(null);
   const startTimeRef = useRef(Date.now());
+  // Track when each stage started for minimum display time enforcement
+  const stageStartTimeRef = useRef(Date.now());
+  // Track if session is ready but we're still showing steps
+  const sessionReadyRef = useRef(false);
 
   // Define stages based on sign-in method
   const stages = [
@@ -52,18 +64,30 @@ export default function SessionEstablishmentModal({
     { id: 'syncing', label: 'Loading your data' },
   ];
 
-  // Progress through stages over time to give visual feedback
+  // Helper to advance to next stage with minimum display time enforcement
+  const advanceToStage = useCallback((nextStage) => {
+    stageStartTimeRef.current = Date.now();
+    setStage(nextStage);
+  }, []);
+
+  // Progress through stages with minimum display times for good UX
+  // This ensures users can see each step complete even when the actual process is fast
   useEffect(() => {
     if (stage === 'connected') {
-      // Move to signing after a brief moment
+      // Move to signing after minimum display time
       const timer = setTimeout(() => {
-        if (!hasServerSession) {
-          setStage('signing');
-        }
-      }, 500);
+        advanceToStage('signing');
+      }, MIN_STEP_DISPLAY_TIME.connected);
       return () => clearTimeout(timer);
     }
-  }, [stage, hasServerSession]);
+  }, [stage, advanceToStage]);
+
+  // Track when session becomes ready
+  useEffect(() => {
+    if (hasServerSession) {
+      sessionReadyRef.current = true;
+    }
+  }, [hasServerSession]);
 
   // Set up timeout
   useEffect(() => {
@@ -84,27 +108,50 @@ export default function SessionEstablishmentModal({
     };
   }, [hasServerSession]);
 
-  // Watch for session establishment
+  // Watch for session establishment and advance through stages with minimum display times
   useEffect(() => {
-    if (hasServerSession && stage !== 'complete') {
-      console.log('[SessionEstablishmentModal] Session established!');
-      // Clear timeout
+    // Only proceed if session is ready and we're in signing stage
+    if (sessionReadyRef.current && stage === 'signing') {
+      const elapsed = Date.now() - stageStartTimeRef.current;
+      const remaining = Math.max(0, MIN_STEP_DISPLAY_TIME.signing - elapsed);
+      
+      // Wait for minimum display time before moving to syncing
+      const timer = setTimeout(() => {
+        console.log('[SessionEstablishmentModal] Session ready, advancing to syncing stage');
+        advanceToStage('syncing');
+      }, remaining);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [stage, advanceToStage]);
+
+  // Handle syncing -> complete transition with minimum display time
+  useEffect(() => {
+    if (stage === 'syncing') {
+      // Clear the main timeout since we're almost done
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
-      // Show syncing briefly, then complete
-      setStage('syncing');
-      setTimeout(() => {
+      
+      const elapsed = Date.now() - stageStartTimeRef.current;
+      const remaining = Math.max(0, MIN_STEP_DISPLAY_TIME.syncing - elapsed);
+      
+      const timer = setTimeout(() => {
+        console.log('[SessionEstablishmentModal] Session established! Completing...');
         setStage('complete');
-      }, 500);
+      }, remaining);
+      
+      return () => clearTimeout(timer);
     }
-  }, [hasServerSession, stage]);
+  }, [stage]);
 
   const handleRetry = () => {
     console.log('[SessionEstablishmentModal] Retry clicked');
     setStage('connected');
     setErrorMessage('');
     startTimeRef.current = Date.now();
+    stageStartTimeRef.current = Date.now();
+    sessionReadyRef.current = false;
     onRetry?.();
   };
 

@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { getApiUrl } from '../lib/config/api';
 
 /**
  * Batch Payments Component
@@ -113,7 +114,7 @@ export default function BatchPayments({
           }
         `;
 
-        const response = await fetch('https://api.blink.sv/graphql', {
+        const response = await fetch(getApiUrl(), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

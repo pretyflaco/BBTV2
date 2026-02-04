@@ -5,6 +5,7 @@ import { useCurrencies } from '../lib/hooks/useCurrencies';
 import { useTheme } from '../lib/hooks/useTheme';
 import { useNFC } from './NFCPayment';
 import { isBitcoinCurrency } from '../lib/currency-utils';
+import { getApiUrl } from '../lib/config/api';
 import PaymentAnimation from './PaymentAnimation';
 import POS from './POS';
 import Voucher from './Voucher';
@@ -834,7 +835,7 @@ export default function Dashboard() {
       console.log('[Dashboard] Migrating voucher wallet: fetching username...');
       
       try {
-        const response = await fetch('https://api.blink.sv/graphql', {
+        const response = await fetch(getApiUrl(), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -938,7 +939,7 @@ export default function Dashboard() {
     };
 
     try {
-      const response = await fetch('https://api.blink.sv/graphql', {
+      const response = await fetch(getApiUrl(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1783,7 +1784,7 @@ export default function Dashboard() {
     };
 
     try {
-      const response = await fetch('https://api.blink.sv/graphql', {
+      const response = await fetch(getApiUrl(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -5523,7 +5524,7 @@ export default function Dashboard() {
                       setAddAccountLoading(true);
                       setAddAccountError(null);
                       try {
-                        const response = await fetch('https://api.blink.sv/graphql', {
+                        const response = await fetch(getApiUrl(), {
                           method: 'POST',
                           headers: {
                             'Content-Type': 'application/json',
@@ -6533,7 +6534,7 @@ export default function Dashboard() {
                       try {
                         // Step 1: Check scopes using authorization query
                         setVoucherWalletValidating(true);
-                        const scopeResponse = await fetch('https://api.blink.sv/graphql', {
+                        const scopeResponse = await fetch(getApiUrl(), {
                           method: 'POST',
                           headers: {
                             'Content-Type': 'application/json',
@@ -6565,7 +6566,7 @@ export default function Dashboard() {
                         }
                         
                         // Step 3: Get user info and wallet ID
-                        const userResponse = await fetch('https://api.blink.sv/graphql', {
+                        const userResponse = await fetch(getApiUrl(), {
                           method: 'POST',
                           headers: {
                             'Content-Type': 'application/json',

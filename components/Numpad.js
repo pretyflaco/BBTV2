@@ -145,13 +145,14 @@ export default function Numpad({
   const containerClasses = getContainerClasses();
 
   return (
-    <div className={containerClasses}>
+    <div className={containerClasses} data-testid="numpad">
       <div className="grid grid-cols-4 gap-3 max-w-sm md:max-w-md mx-auto" data-1p-ignore data-lpignore="true">
         {/* Row 1: 7, 8, 9, + */}
         <button
           onClick={() => onDigitPress('7')}
           className={getButtonClasses('digit')}
           style={fontStyle}
+          data-testid="numpad-7"
         >
           7
         </button>
@@ -159,6 +160,7 @@ export default function Numpad({
           onClick={() => onDigitPress('8')}
           className={getButtonClasses('digit')}
           style={fontStyle}
+          data-testid="numpad-8"
         >
           8
         </button>
@@ -166,6 +168,7 @@ export default function Numpad({
           onClick={() => onDigitPress('9')}
           className={getButtonClasses('digit')}
           style={fontStyle}
+          data-testid="numpad-9"
         >
           9
         </button>
@@ -175,6 +178,7 @@ export default function Numpad({
             disabled={plusDisabled}
             className={getButtonClasses('plus')}
             style={fontStyle}
+            data-testid="numpad-plus"
           >
             +
           </button>
@@ -187,6 +191,7 @@ export default function Numpad({
           onClick={() => onDigitPress('4')}
           className={getButtonClasses('digit')}
           style={fontStyle}
+          data-testid="numpad-4"
         >
           4
         </button>
@@ -194,6 +199,7 @@ export default function Numpad({
           onClick={() => onDigitPress('5')}
           className={getButtonClasses('digit')}
           style={fontStyle}
+          data-testid="numpad-5"
         >
           5
         </button>
@@ -201,6 +207,7 @@ export default function Numpad({
           onClick={() => onDigitPress('6')}
           className={getButtonClasses('digit')}
           style={fontStyle}
+          data-testid="numpad-6"
         >
           6
         </button>
@@ -209,6 +216,7 @@ export default function Numpad({
           disabled={okDisabled}
           className={getButtonClasses('ok')}
           style={fontStyle}
+          data-testid="generate-invoice"
         >
           {okLabel}
         </button>
@@ -218,6 +226,7 @@ export default function Numpad({
           onClick={() => onDigitPress('1')}
           className={getButtonClasses('digit')}
           style={fontStyle}
+          data-testid="numpad-1"
         >
           1
         </button>
@@ -225,6 +234,7 @@ export default function Numpad({
           onClick={() => onDigitPress('2')}
           className={getButtonClasses('digit')}
           style={fontStyle}
+          data-testid="numpad-2"
         >
           2
         </button>
@@ -232,6 +242,7 @@ export default function Numpad({
           onClick={() => onDigitPress('3')}
           className={getButtonClasses('digit')}
           style={fontStyle}
+          data-testid="numpad-3"
         >
           3
         </button>
@@ -241,6 +252,7 @@ export default function Numpad({
           onClick={onClear}
           className={getButtonClasses('clear')}
           style={fontStyle}
+          data-testid="clear-button"
         >
           C
         </button>
@@ -248,6 +260,7 @@ export default function Numpad({
           onClick={() => onDigitPress('0')}
           className={getButtonClasses('digit')}
           style={fontStyle}
+          data-testid="numpad-0"
         >
           0
         </button>
@@ -256,6 +269,7 @@ export default function Numpad({
           disabled={decimalDisabled}
           className={getButtonClasses('decimal')}
           style={fontStyle}
+          data-testid="numpad-decimal"
         >
           .
         </button>
@@ -263,6 +277,7 @@ export default function Numpad({
           onClick={onBackspace}
           className={getButtonClasses('backspace')}
           style={fontStyle}
+          data-testid="numpad-backspace"
         >
           <BackspaceIcon />
         </button>

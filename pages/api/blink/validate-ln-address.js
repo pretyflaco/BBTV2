@@ -8,6 +8,8 @@
  * Used for connecting wallets via Lightning Address instead of API key.
  */
 
+const { getApiUrl } = require('../../../lib/config/api');
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -59,7 +61,7 @@ export default async function handler(req, res) {
       }
     `;
 
-    const btcResponse = await fetch('https://api.blink.sv/graphql', {
+    const btcResponse = await fetch(getApiUrl(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -110,7 +112,7 @@ export default async function handler(req, res) {
         }
       `;
 
-      const anyResponse = await fetch('https://api.blink.sv/graphql', {
+      const anyResponse = await fetch(getApiUrl(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

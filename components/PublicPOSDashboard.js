@@ -3,6 +3,7 @@ import { useCurrencies } from '../lib/hooks/useCurrencies';
 import { useTheme, THEMES } from '../lib/hooks/useTheme';
 import { useNFC } from './NFCPayment';
 import { isBitcoinCurrency } from '../lib/currency-utils';
+import { getApiUrl } from '../lib/config/api';
 import POS from './POS';
 import ItemCart from './ItemCart';
 import QRCode from 'react-qr-code';
@@ -214,7 +215,7 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
       
       try {
         // Query Blink API directly for payment status (public query)
-        const response = await fetch('https://api.blink.sv/graphql', {
+        const response = await fetch(getApiUrl(), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

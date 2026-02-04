@@ -99,31 +99,46 @@ export default async function handler(req, res) {
       }
     } else {
       // Use Blink API (default provider)
-      let effectiveApiKey = apiKey;
-      
-      // For NWC-only users (no user API key), use BlinkPOS credentials
-      if (!effectiveApiKey && useBlinkpos) {
-        effectiveApiKey = process.env.BLINKPOS_API_KEY;
-        if (!effectiveApiKey) {
-          return res.status(500).json({ error: 'BlinkPOS credentials not configured' });
-        }
-      }
-
-      if (!effectiveApiKey) {
-        return res.status(400).json({ error: 'API key is required (or set useBlinkpos=true)' });
-      }
-
+      // First try to use public unauthenticated endpoint (mainnet)
+      // This works for all standard currencies and doesn't require an API key
       try {
-        const blinkAPI = new BlinkAPI(effectiveApiKey);
-        rateData = await blinkAPI.getExchangeRate(currency);
-        rateData.provider = 'blink';
-      } catch (error) {
-        console.error('Blink API error:', error);
-        return res.status(502).json({ 
-          error: `Failed to fetch rate for ${currency}: ${error.message}`,
-          success: false,
-          provider: 'blink'
-        });
+        rateData = await BlinkAPI.getExchangeRatePublic(currency);
+        rateData.provider = 'blink_public';
+      } catch (publicError) {
+        console.warn('Public exchange rate failed, trying with API key:', publicError.message);
+        
+        // Fallback to authenticated endpoint if public fails
+        let effectiveApiKey = apiKey;
+        
+        // For NWC-only users (no user API key), use BlinkPOS credentials
+        if (!effectiveApiKey && useBlinkpos) {
+          effectiveApiKey = process.env.BLINKPOS_API_KEY;
+          if (!effectiveApiKey) {
+            return res.status(500).json({ error: 'BlinkPOS credentials not configured' });
+          }
+        }
+
+        if (!effectiveApiKey) {
+          // If no API key and public endpoint failed, return the public error
+          return res.status(502).json({ 
+            error: `Failed to fetch rate for ${currency}: ${publicError.message}`,
+            success: false,
+            provider: 'blink_public'
+          });
+        }
+
+        try {
+          const blinkAPI = new BlinkAPI(effectiveApiKey);
+          rateData = await blinkAPI.getExchangeRate(currency);
+          rateData.provider = 'blink';
+        } catch (error) {
+          console.error('Blink API error:', error);
+          return res.status(502).json({ 
+            error: `Failed to fetch rate for ${currency}: ${error.message}`,
+            success: false,
+            provider: 'blink'
+          });
+        }
       }
     }
 

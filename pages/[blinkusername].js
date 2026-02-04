@@ -1,6 +1,15 @@
 import Head from 'next/head';
 import PublicPOSDashboard from '../components/PublicPOSDashboard';
 
+// Note: getApiUrl cannot be used in getServerSideProps since it relies on client-side localStorage
+// For SSR, we check the BLINK_ENVIRONMENT env var directly
+const getServerApiUrl = () => {
+  const env = process.env.BLINK_ENVIRONMENT || 'production';
+  return env === 'staging' 
+    ? 'https://api.staging.blink.sv/graphql'
+    : 'https://api.blink.sv/graphql';
+};
+
 /**
  * Public POS Page - Pay any Blink user directly
  * 
@@ -27,7 +36,7 @@ export async function getServerSideProps(context) {
 
   // Check if user exists by querying Blink API
   try {
-    const response = await fetch('https://api.blink.sv/graphql', {
+    const response = await fetch(getServerApiUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

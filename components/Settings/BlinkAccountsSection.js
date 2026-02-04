@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { useCombinedAuth } from '../../lib/hooks/useCombinedAuth';
 import { useTheme } from '../../lib/hooks/useTheme';
 import { isNpubCashAddress, probeNpubCashAddress } from '../../lib/lnurl';
+import { getApiUrl } from '../../lib/config/api';
 
 export default function BlinkAccountsSection() {
   const { 
@@ -181,7 +182,7 @@ export default function BlinkAccountsSection() {
     setError(null);
 
     try {
-      const response = await fetch('https://api.blink.sv/graphql', {
+      const response = await fetch(getApiUrl(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

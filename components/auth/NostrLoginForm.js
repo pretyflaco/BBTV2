@@ -16,6 +16,7 @@ import NostrConnectService from '../../lib/nostr/NostrConnectService';
 import NostrConnectServiceNDK from '../../lib/nostr/NostrConnectServiceNDK';
 import NostrConnectModal from './NostrConnectModal';
 import { AUTH_VERSION_FULL, logAuth, logAuthError } from '../../lib/version.js';
+import { getEnvironment, setEnvironment, isStaging, getEnvironmentConfig } from '../../lib/config/api';
 
 // Feature flag to use NDK implementation for bunker:// URLs
 const USE_NDK = process.env.NEXT_PUBLIC_USE_NDK_NIP46 === 'true';
@@ -755,7 +756,7 @@ export default function NostrLoginForm() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-black">
       {/* Fixed header with logo like dashboard - TAP 5 TIMES FOR DEBUG */}
-      <div className="px-4 py-4" onClick={handleLogoTap}>
+      <div className="px-4 py-4" onClick={handleLogoTap} data-testid="app-logo">
         <img 
           src="/logos/blink-icon-light.svg" 
           alt="Blink" 
@@ -770,7 +771,7 @@ export default function NostrLoginForm() {
       
       {/* Debug Panel - shown after 5 logo taps */}
       {showDebugPanel && (
-        <div className="fixed inset-0 bg-black/80 z-50 p-4 overflow-auto">
+        <div className="fixed inset-0 bg-black/80 z-50 p-4 overflow-auto" data-testid="debug-panel">
           <div className="bg-gray-900 rounded-xl p-4 max-w-lg mx-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-white">🔧 Debug Panel</h3>
@@ -839,6 +840,43 @@ export default function NostrLoginForm() {
                   </pre>
                 </div>
               )}
+              
+              {/* Environment Toggle Section */}
+              <div className="border-t border-gray-700 my-3 pt-3">
+                <h4 className="text-sm font-medium text-gray-400 mb-2">API Environment:</h4>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setEnvironment('production')}
+                    data-testid="production-toggle"
+                    className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
+                      getEnvironment() === 'production' 
+                        ? 'bg-green-600 text-white' 
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    Production
+                  </button>
+                  <button
+                    onClick={() => setEnvironment('staging')}
+                    data-testid="staging-toggle"
+                    className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
+                      getEnvironment() === 'staging' 
+                        ? 'bg-amber-600 text-white' 
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    Staging
+                  </button>
+                </div>
+                {isStaging() && (
+                  <p className="text-xs text-amber-400 mt-2">
+                    Using staging environment (signet) - not real sats!
+                  </p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  API: {getEnvironmentConfig().apiUrl}
+                </p>
+              </div>
               
               <div className="border-t border-gray-700 my-3 pt-3">
                 <h4 className="text-sm font-medium text-gray-400 mb-2">Other Actions:</h4>

@@ -16,6 +16,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 import { useTheme, THEMES } from '../lib/hooks/useTheme';
+import { getApiUrl } from '../lib/config/api';
 
 // localStorage keys
 const STORAGE_KEYS = {
@@ -105,7 +106,7 @@ export default function SetupPWAForm() {
     setError(null);
 
     try {
-      const response = await fetch('https://api.blink.sv/graphql', {
+      const response = await fetch(getApiUrl(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

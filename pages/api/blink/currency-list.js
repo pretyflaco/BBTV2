@@ -3,6 +3,8 @@
  * This is a public query and doesn't require authentication
  */
 
+const { getApiUrl } = require('../../../lib/config/api');
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -21,7 +23,7 @@ export default async function handler(req, res) {
       }
     `;
 
-    const response = await fetch('https://api.blink.sv/graphql', {
+    const response = await fetch(getApiUrl(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

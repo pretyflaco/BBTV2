@@ -5,6 +5,7 @@ import { ProfileProvider } from '../lib/hooks/useProfile';
 import { useEffect } from 'react';
 import Head from 'next/head';
 import { initRemoteLogger } from '../lib/debug/remoteLogger';
+import StagingBanner from '../components/StagingBanner';
 
 /**
  * BlinkPOS App - Supports dual authentication methods:
@@ -173,6 +174,8 @@ function MyApp({ Component, pageProps }) {
         <meta httpEquiv="Expires" content="0" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
       </Head>
+      {/* Staging environment indicator banner */}
+      <StagingBanner />
       {/* Legacy auth provider for existing API-key users */}
       <AuthProvider>
         {/* New Nostr auth provider for extension/signer login */}

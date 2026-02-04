@@ -1,0 +1,257 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  # Scheduled nightly runs to catch regressions
+  schedule:
+    - cron: '0 6 * * *' # Daily at 6 AM UTC
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      browser:
+        description: 'Browser to test'
+        required: false
+        default: 'chromium'
+        type: choice
+        options:
+          - chromium
+          - firefox
+          - webkit
+          - all
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Force staging environment for all E2E tests
+  BLINK_ENVIRONMENT: staging
+  # Node version to use
+  NODE_VERSION: '20'
+
+jobs:
+  e2e-tests:
+    name: E2E Tests (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium]
+        # Uncomment to test on multiple browsers:
+        # browser: [chromium, firefox, webkit]
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(node -e "console.log(require('./package.json').devDependencies['@playwright/test'])")" >> $GITHUB_OUTPUT
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}-${{ matrix.browser }}
+          restore-keys: |
+            playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}-
+            playwright-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Install Playwright dependencies (if cached)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps ${{ matrix.browser }}
+
+      - name: Build application
+        run: npm run build
+        env:
+          BLINK_ENVIRONMENT: staging
+
+      - name: Run E2E tests
+        id: e2e-tests
+        run: |
+          npx playwright test --project=${{ matrix.browser }} 2>&1 | tee test-output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+        env:
+          CI: true
+          BLINK_ENVIRONMENT: staging
+
+      - name: Generate test summary
+        if: always()
+        run: |
+          echo "## E2E Test Results (${{ matrix.browser }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f e2e/reports/results.json ]; then
+            # Extract stats from JSON report
+            PASSED=$(jq '.stats.expected // 0' e2e/reports/results.json)
+            FAILED=$(jq '.stats.unexpected // 0' e2e/reports/results.json)
+            SKIPPED=$(jq '.stats.skipped // 0' e2e/reports/results.json)
+            DURATION=$(jq '.stats.duration // 0' e2e/reports/results.json)
+            DURATION_SEC=$((DURATION / 1000))
+            
+            echo "| Status | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Passed | $PASSED |" >> $GITHUB_STEP_SUMMARY
+            echo "| Failed | $FAILED |" >> $GITHUB_STEP_SUMMARY
+            echo "| Skipped | $SKIPPED |" >> $GITHUB_STEP_SUMMARY
+            echo "| Duration | ${DURATION_SEC}s |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "$FAILED" -gt 0 ]; then
+              echo "### Failed Tests" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              jq -r '.suites[].suites[]?.specs[]? | select(.ok == false) | "- \(.title)"' e2e/reports/results.json 2>/dev/null >> $GITHUB_STEP_SUMMARY || echo "See artifacts for details" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "Test results not available" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: |
+            e2e/reports/
+            e2e/test-results/
+          retention-days: 30
+
+      - name: Upload test screenshots on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-screenshots-${{ matrix.browser }}
+          path: |
+            e2e/test-results/**/*.png
+            e2e/test-results/**/*.webm
+          retention-days: 7
+
+  # Mobile browser tests (separate job for clarity)
+  e2e-mobile:
+    name: E2E Tests (Mobile)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Only run on main branch, scheduled runs, or when explicitly requested
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(node -e "console.log(require('./package.json').devDependencies['@playwright/test'])")" >> $GITHUB_OUTPUT
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}-mobile
+          restore-keys: |
+            playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}-
+            playwright-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium webkit
+
+      - name: Install Playwright dependencies (if cached)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium webkit
+
+      - name: Build application
+        run: npm run build
+        env:
+          BLINK_ENVIRONMENT: staging
+
+      - name: Run Mobile Chrome tests
+        id: mobile-chrome
+        run: npx playwright test --project=mobile-chrome
+        env:
+          CI: true
+          BLINK_ENVIRONMENT: staging
+
+      - name: Run Mobile Safari tests
+        id: mobile-safari
+        run: npx playwright test --project=mobile-safari
+        env:
+          CI: true
+          BLINK_ENVIRONMENT: staging
+        continue-on-error: true # WebKit can be flaky
+
+      - name: Generate mobile test summary
+        if: always()
+        run: |
+          echo "## Mobile E2E Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Mobile Chrome: ${{ steps.mobile-chrome.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Mobile Safari: ${{ steps.mobile-safari.outcome }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload mobile test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-mobile
+          path: |
+            e2e/reports/
+            e2e/test-results/
+          retention-days: 30
+
+  # Summary job that reports overall status
+  e2e-summary:
+    name: E2E Test Summary
+    runs-on: ubuntu-latest
+    needs: [e2e-tests]
+    if: always()
+    
+    steps:
+      - name: Check test results
+        run: |
+          if [ "${{ needs.e2e-tests.result }}" == "failure" ]; then
+            echo "E2E tests failed!"
+            exit 1
+          elif [ "${{ needs.e2e-tests.result }}" == "cancelled" ]; then
+            echo "E2E tests were cancelled"
+            exit 1
+          else
+            echo "All E2E tests passed!"
+          fi
+
+      - name: Post summary
+        run: |
+          echo "## E2E Test Suite Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Desktop Tests | ${{ needs.e2e-tests.result }} |" >> $GITHUB_STEP_SUMMARY

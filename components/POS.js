@@ -1063,6 +1063,8 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
           currency: 'BTC', // Always create BTC invoices
           memo: memo, // Show calculation in memo
           displayCurrency: displayCurrency, // Pass the actual display currency for tip memo
+          // Environment for staging/production switching (client-side state)
+          environment: getEnvironment(),
           // Tip information for payment splitting
           baseAmount: baseInSats,
           tipAmount: tipInSats,

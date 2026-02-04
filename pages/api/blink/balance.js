@@ -1,6 +1,7 @@
 const AuthManager = require('../../../lib/auth');
 const StorageManager = require('../../../lib/storage');
 const BlinkAPI = require('../../../lib/blink-api');
+const { getApiUrlForEnvironment } = require('../../../lib/config/api');
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -16,14 +17,18 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    // Get environment from query parameter (client passes it)
+    const environment = req.query.environment === 'staging' ? 'staging' : 'production';
+    const apiUrl = getApiUrlForEnvironment(environment);
+
     // Get user's API key
     const userData = await StorageManager.loadUserData(session.username);
     if (!userData?.apiKey) {
       return res.status(400).json({ error: 'No API key found' });
     }
 
-    // Create Blink API instance
-    const blink = new BlinkAPI(userData.apiKey);
+    // Create Blink API instance with environment-specific URL
+    const blink = new BlinkAPI(userData.apiKey, apiUrl);
     
     // Get balance
     const wallets = await blink.getBalance();

@@ -1,4 +1,5 @@
 import BlinkAPI from '../../../lib/blink-api';
+import { getApiUrlForEnvironment } from '../../../lib/config/api';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -6,7 +7,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { apiKey } = req.body;
+    const { apiKey, environment = 'production' } = req.body;
 
     // Validate required fields
     if (!apiKey) {
@@ -15,7 +16,11 @@ export default async function handler(req, res) {
       });
     }
 
-    const blinkAPI = new BlinkAPI(apiKey);
+    // Get environment-specific API URL
+    const validEnvironment = environment === 'staging' ? 'staging' : 'production';
+    const apiUrl = getApiUrlForEnvironment(validEnvironment);
+
+    const blinkAPI = new BlinkAPI(apiKey, apiUrl);
 
     try {
       const wallets = await blinkAPI.getWalletInfo();

@@ -5,7 +5,7 @@ import { useCurrencies } from '../lib/hooks/useCurrencies';
 import { useTheme } from '../lib/hooks/useTheme';
 import { useNFC } from './NFCPayment';
 import { isBitcoinCurrency } from '../lib/currency-utils';
-import { getApiUrl, getLnAddressDomain, getPayUrl, getAllValidDomains } from '../lib/config/api';
+import { getApiUrl, getLnAddressDomain, getPayUrl, getAllValidDomains, getEnvironment } from '../lib/config/api';
 import PaymentAnimation from './PaymentAnimation';
 import POS from './POS';
 import Voucher from './Voucher';
@@ -1466,7 +1466,9 @@ export default function Dashboard() {
         }
 
         // Fetch transactions only (no balance for employee privacy)
-        const transactionsRes = await fetch('/api/blink/transactions?first=100', {
+        // Include environment for staging/production switching
+        const currentEnv = getEnvironment();
+        const transactionsRes = await fetch(`/api/blink/transactions?first=100&environment=${currentEnv}`, {
           signal: controller.signal,
           headers,
           credentials: 'include' // Include cookies for session-based auth
@@ -1510,12 +1512,13 @@ export default function Dashboard() {
     }
 
     try {
+      const currentEnv = getEnvironment();
       const response = await fetch('/api/blink/wallets', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ apiKey }),
+        body: JSON.stringify({ apiKey, environment: currentEnv }),
       });
 
       if (response.ok) {
@@ -1543,10 +1546,11 @@ export default function Dashboard() {
     
     setVoucherWalletBalanceLoading(true);
     try {
+      const currentEnv = getEnvironment();
       const response = await fetch('/api/blink/wallets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: voucherWallet.apiKey })
+        body: JSON.stringify({ apiKey: voucherWallet.apiKey, environment: currentEnv })
       });
       
       const data = await response.json();
@@ -1939,7 +1943,8 @@ export default function Dashboard() {
       }
       
       while (hasMore && batchCount < maxBatches) {
-        const response = await fetch(`/api/blink/transactions?first=100&after=${nextCursor}`, { headers, credentials: 'include' });
+        const currentEnv = getEnvironment();
+        const response = await fetch(`/api/blink/transactions?first=100&after=${nextCursor}&environment=${currentEnv}`, { headers, credentials: 'include' });
         
         if (response.ok) {
           const data = await response.json();
@@ -1999,7 +2004,8 @@ export default function Dashboard() {
       }
       
       const lastTransaction = transactions[transactions.length - 1];
-      const response = await fetch(`/api/blink/transactions?first=100&after=${lastTransaction?.cursor || ''}`, { headers, credentials: 'include' });
+      const currentEnv = getEnvironment();
+      const response = await fetch(`/api/blink/transactions?first=100&after=${lastTransaction?.cursor || ''}&environment=${currentEnv}`, { headers, credentials: 'include' });
       
       if (response.ok) {
         const data = await response.json();
@@ -2211,9 +2217,10 @@ export default function Dashboard() {
         }
         
         batchCount++;
+        const currentEnv = getEnvironment();
         const url = cursor 
-          ? `/api/blink/transactions?first=100&after=${cursor}` 
-          : '/api/blink/transactions?first=100';
+          ? `/api/blink/transactions?first=100&after=${cursor}&environment=${currentEnv}` 
+          : `/api/blink/transactions?first=100&environment=${currentEnv}`;
           
         const response = await fetch(url, { headers, credentials: 'include' });
         
@@ -2535,9 +2542,10 @@ export default function Dashboard() {
       
       while (hasMore) {
         pageCount++;
+        const currentEnv = getEnvironment();
         const url = cursor 
-          ? `/api/blink/transactions?first=100&after=${cursor}`
-          : '/api/blink/transactions?first=100';
+          ? `/api/blink/transactions?first=100&after=${cursor}&environment=${currentEnv}`
+          : `/api/blink/transactions?first=100&environment=${currentEnv}`;
         
         console.log(`Fetching page ${pageCount}, cursor: ${cursor ? cursor.substring(0, 20) + '...' : 'none'}`);
         

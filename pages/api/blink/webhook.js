@@ -28,7 +28,7 @@ import NWCClient from '../../../lib/nwc/NWCClient';
 const AuthManager = require('../../../lib/auth');
 const { getHybridStore } = require('../../../lib/storage/hybrid-store');
 const { formatCurrencyServer, isBitcoinCurrency } = require('../../../lib/currency-formatter-server');
-const { getApiUrl } = require('../../../lib/config/api');
+const { getApiUrl, getApiUrlForEnvironment } = require('../../../lib/config/api');
 
 /**
  * Generate enhanced memo with tip split information
@@ -265,7 +265,12 @@ export default async function handler(req, res) {
 async function forwardToLnAddress(paymentHash, amount, forwardingData, hybridStore) {
   const blinkposApiKey = process.env.BLINKPOS_API_KEY;
   const blinkposBtcWalletId = process.env.BLINKPOS_BTC_WALLET_ID;
-  const blinkposAPI = new BlinkAPI(blinkposApiKey);
+  
+  // Get the environment-specific API URL from stored forwarding data
+  const environment = forwardingData.environment || 'production';
+  const apiUrl = getApiUrlForEnvironment(environment);
+  
+  const blinkposAPI = new BlinkAPI(blinkposApiKey, apiUrl);
 
   const recipientUsername = forwardingData.blinkLnAddressUsername;
   const baseAmount = forwardingData.baseAmount || amount;
@@ -276,7 +281,7 @@ async function forwardToLnAddress(paymentHash, amount, forwardingData, hybridSto
   const tipAmountDisplay = forwardingData.tipAmountDisplay || tipAmount;
   const forwardingMemo = generateEnhancedMemo(memo, baseAmount, tipAmount, tipRecipients, displayCurrency, tipAmountDisplay);
 
-  // Look up recipient's BTC wallet
+  // Look up recipient's BTC wallet using environment-specific URL
   const walletLookupQuery = `
     query getRecipientBtcWallet($username: Username!) {
       accountDefaultWallet(username: $username, walletCurrency: BTC) {
@@ -286,7 +291,7 @@ async function forwardToLnAddress(paymentHash, amount, forwardingData, hybridSto
     }
   `;
 
-  const walletLookupResponse = await fetch(getApiUrl(), {
+  const walletLookupResponse = await fetch(apiUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -302,7 +307,7 @@ async function forwardToLnAddress(paymentHash, amount, forwardingData, hybridSto
     throw new Error(`Could not find BTC wallet for ${recipientUsername}`);
   }
 
-  // Create invoice on behalf of recipient
+  // Create invoice on behalf of recipient using environment-specific URL
   const createInvoiceQuery = `
     mutation lnInvoiceCreateOnBehalfOfRecipient($input: LnInvoiceCreateOnBehalfOfRecipientInput!) {
       lnInvoiceCreateOnBehalfOfRecipient(input: $input) {
@@ -316,7 +321,7 @@ async function forwardToLnAddress(paymentHash, amount, forwardingData, hybridSto
     }
   `;
 
-  const invoiceResponse = await fetch(getApiUrl(), {
+  const invoiceResponse = await fetch(apiUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -379,7 +384,12 @@ async function forwardToLnAddress(paymentHash, amount, forwardingData, hybridSto
 async function forwardToNpubCash(paymentHash, amount, forwardingData, hybridStore) {
   const blinkposApiKey = process.env.BLINKPOS_API_KEY;
   const blinkposBtcWalletId = process.env.BLINKPOS_BTC_WALLET_ID;
-  const blinkposAPI = new BlinkAPI(blinkposApiKey);
+  
+  // Get the environment-specific API URL from stored forwarding data
+  const environment = forwardingData.environment || 'production';
+  const apiUrl = getApiUrlForEnvironment(environment);
+  
+  const blinkposAPI = new BlinkAPI(blinkposApiKey, apiUrl);
 
   const recipientAddress = forwardingData.npubCashLightningAddress;
   const baseAmount = forwardingData.baseAmount || amount;
@@ -440,7 +450,12 @@ async function forwardToNpubCash(paymentHash, amount, forwardingData, hybridStor
 async function forwardToNWCWallet(paymentHash, amount, forwardingData, hybridStore) {
   const blinkposApiKey = process.env.BLINKPOS_API_KEY;
   const blinkposBtcWalletId = process.env.BLINKPOS_BTC_WALLET_ID;
-  const blinkposAPI = new BlinkAPI(blinkposApiKey);
+  
+  // Get the environment-specific API URL from stored forwarding data
+  const environment = forwardingData.environment || 'production';
+  const apiUrl = getApiUrlForEnvironment(environment);
+  
+  const blinkposAPI = new BlinkAPI(blinkposApiKey, apiUrl);
 
   // Decrypt the NWC connection URI
   const encryptedNwcUri = forwardingData.nwcConnectionUri;
@@ -534,7 +549,12 @@ async function forwardToNWCWallet(paymentHash, amount, forwardingData, hybridSto
 async function forwardToUserWallet(paymentHash, amount, forwardingData, hybridStore) {
   const blinkposApiKey = process.env.BLINKPOS_API_KEY;
   const blinkposBtcWalletId = process.env.BLINKPOS_BTC_WALLET_ID;
-  const blinkposAPI = new BlinkAPI(blinkposApiKey);
+  
+  // Get the environment-specific API URL from stored forwarding data
+  const environment = forwardingData.environment || 'production';
+  const apiUrl = getApiUrlForEnvironment(environment);
+  
+  const blinkposAPI = new BlinkAPI(blinkposApiKey, apiUrl);
 
   const userApiKey = forwardingData.userApiKey;
   const userWalletId = forwardingData.userWalletId;
@@ -546,8 +566,8 @@ async function forwardToUserWallet(paymentHash, amount, forwardingData, hybridSt
   const tipAmountDisplay = forwardingData.tipAmountDisplay || tipAmount;
   const forwardingMemo = generateEnhancedMemo(memo, baseAmount, tipAmount, tipRecipients, displayCurrency, tipAmountDisplay);
 
-  // Create invoice on user's wallet
-  const userAPI = new BlinkAPI(userApiKey);
+  // Create invoice on user's wallet with environment-specific URL
+  const userAPI = new BlinkAPI(userApiKey, apiUrl);
   const userInvoice = await userAPI.createLnInvoice(userWalletId, Math.round(baseAmount), forwardingMemo);
 
   if (!userInvoice?.paymentRequest) {

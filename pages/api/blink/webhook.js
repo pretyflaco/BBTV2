@@ -263,11 +263,15 @@ export default async function handler(req, res) {
  * Forward payment to a Blink Lightning Address wallet
  */
 async function forwardToLnAddress(paymentHash, amount, forwardingData, hybridStore) {
-  const blinkposApiKey = process.env.BLINKPOS_API_KEY;
-  const blinkposBtcWalletId = process.env.BLINKPOS_BTC_WALLET_ID;
-  
-  // Get the environment-specific API URL from stored forwarding data
+  // Get the environment-specific API URL and credentials from stored forwarding data
   const environment = forwardingData.environment || 'production';
+  const isStaging = environment === 'staging';
+  const blinkposApiKey = isStaging 
+    ? process.env.BLINKPOS_STAGING_API_KEY 
+    : process.env.BLINKPOS_API_KEY;
+  const blinkposBtcWalletId = isStaging 
+    ? process.env.BLINKPOS_STAGING_BTC_WALLET_ID 
+    : process.env.BLINKPOS_BTC_WALLET_ID;
   const apiUrl = getApiUrlForEnvironment(environment);
   
   const blinkposAPI = new BlinkAPI(blinkposApiKey, apiUrl);
@@ -382,11 +386,15 @@ async function forwardToLnAddress(paymentHash, amount, forwardingData, hybridSto
  * Forward payment to npub.cash via LNURL-pay
  */
 async function forwardToNpubCash(paymentHash, amount, forwardingData, hybridStore) {
-  const blinkposApiKey = process.env.BLINKPOS_API_KEY;
-  const blinkposBtcWalletId = process.env.BLINKPOS_BTC_WALLET_ID;
-  
-  // Get the environment-specific API URL from stored forwarding data
+  // Get the environment-specific API URL and credentials from stored forwarding data
   const environment = forwardingData.environment || 'production';
+  const isStaging = environment === 'staging';
+  const blinkposApiKey = isStaging 
+    ? process.env.BLINKPOS_STAGING_API_KEY 
+    : process.env.BLINKPOS_API_KEY;
+  const blinkposBtcWalletId = isStaging 
+    ? process.env.BLINKPOS_STAGING_BTC_WALLET_ID 
+    : process.env.BLINKPOS_BTC_WALLET_ID;
   const apiUrl = getApiUrlForEnvironment(environment);
   
   const blinkposAPI = new BlinkAPI(blinkposApiKey, apiUrl);
@@ -448,11 +456,15 @@ async function forwardToNpubCash(paymentHash, amount, forwardingData, hybridStor
  * This creates an invoice on the user's NWC wallet and pays it from BlinkPOS
  */
 async function forwardToNWCWallet(paymentHash, amount, forwardingData, hybridStore) {
-  const blinkposApiKey = process.env.BLINKPOS_API_KEY;
-  const blinkposBtcWalletId = process.env.BLINKPOS_BTC_WALLET_ID;
-  
-  // Get the environment-specific API URL from stored forwarding data
+  // Get the environment-specific API URL and credentials from stored forwarding data
   const environment = forwardingData.environment || 'production';
+  const isStaging = environment === 'staging';
+  const blinkposApiKey = isStaging 
+    ? process.env.BLINKPOS_STAGING_API_KEY 
+    : process.env.BLINKPOS_API_KEY;
+  const blinkposBtcWalletId = isStaging 
+    ? process.env.BLINKPOS_STAGING_BTC_WALLET_ID 
+    : process.env.BLINKPOS_BTC_WALLET_ID;
   const apiUrl = getApiUrlForEnvironment(environment);
   
   const blinkposAPI = new BlinkAPI(blinkposApiKey, apiUrl);
@@ -547,11 +559,15 @@ async function forwardToNWCWallet(paymentHash, amount, forwardingData, hybridSto
  * Forward payment to user's Blink wallet via their API key
  */
 async function forwardToUserWallet(paymentHash, amount, forwardingData, hybridStore) {
-  const blinkposApiKey = process.env.BLINKPOS_API_KEY;
-  const blinkposBtcWalletId = process.env.BLINKPOS_BTC_WALLET_ID;
-  
-  // Get the environment-specific API URL from stored forwarding data
+  // Get the environment-specific API URL and credentials from stored forwarding data
   const environment = forwardingData.environment || 'production';
+  const isStaging = environment === 'staging';
+  const blinkposApiKey = isStaging 
+    ? process.env.BLINKPOS_STAGING_API_KEY 
+    : process.env.BLINKPOS_API_KEY;
+  const blinkposBtcWalletId = isStaging 
+    ? process.env.BLINKPOS_STAGING_BTC_WALLET_ID 
+    : process.env.BLINKPOS_BTC_WALLET_ID;
   const apiUrl = getApiUrlForEnvironment(environment);
   
   const blinkposAPI = new BlinkAPI(blinkposApiKey, apiUrl);

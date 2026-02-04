@@ -1,4 +1,5 @@
 import BlinkAPI from '../../../lib/blink-api';
+import { getApiUrlForEnvironment } from '../../../lib/config/api';
 const { getHybridStore } = require('../../../lib/storage/hybrid-store');
 
 /**
@@ -22,7 +23,7 @@ export default async function handler(req, res) {
 
   try {
     // Support both 'invoice' and 'paymentRequest' field names for compatibility
-    const { paymentHash: reqPaymentHash, invoice: invoiceField, paymentRequest, memo = '' } = req.body;
+    const { paymentHash: reqPaymentHash, invoice: invoiceField, paymentRequest, memo = '', environment = 'production' } = req.body;
     const invoice = invoiceField || paymentRequest;
     paymentHash = reqPaymentHash;
 
@@ -42,8 +43,9 @@ export default async function handler(req, res) {
       });
     }
 
-    // Basic invoice validation (should start with lnbc)
-    if (!invoice.toLowerCase().startsWith('lnbc')) {
+    // Basic invoice validation (should start with lnbc for mainnet or lntbs for signet/staging)
+    const invoiceLower = invoice.toLowerCase();
+    if (!invoiceLower.startsWith('lnbc') && !invoiceLower.startsWith('lntbs')) {
       console.error('❌ Invalid invoice format');
       return res.status(400).json({ 
         error: 'Invalid invoice format' 
@@ -83,9 +85,15 @@ export default async function handler(req, res) {
     claimSucceeded = true;
     console.log(`✅ SECURITY: Claimed payment ${paymentHash?.substring(0, 16)}... for NWC forwarding`);
 
-    // Get BlinkPOS credentials from environment
-    const blinkposApiKey = process.env.BLINKPOS_API_KEY;
-    const blinkposBtcWalletId = process.env.BLINKPOS_BTC_WALLET_ID;
+    // Get BlinkPOS credentials from environment based on staging/production
+    const isStaging = environment === 'staging';
+    const blinkposApiKey = isStaging 
+      ? process.env.BLINKPOS_STAGING_API_KEY 
+      : process.env.BLINKPOS_API_KEY;
+    const blinkposBtcWalletId = isStaging 
+      ? process.env.BLINKPOS_STAGING_BTC_WALLET_ID 
+      : process.env.BLINKPOS_BTC_WALLET_ID;
+    const apiUrl = getApiUrlForEnvironment(environment);
 
     if (!blinkposApiKey || !blinkposBtcWalletId) {
       console.error('Missing BlinkPOS environment variables');
@@ -103,7 +111,7 @@ export default async function handler(req, res) {
 
     // Pay the invoice from BlinkPOS account
     // Pass memo for better transaction history visibility
-    const blinkposAPI = new BlinkAPI(blinkposApiKey);
+    const blinkposAPI = new BlinkAPI(blinkposApiKey, apiUrl);
     
     const paymentResult = await blinkposAPI.payLnInvoice(blinkposBtcWalletId, invoice, memo || 'BlinkPOS: Payment forwarded');
     

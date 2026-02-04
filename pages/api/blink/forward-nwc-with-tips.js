@@ -1,5 +1,6 @@
 import BlinkAPI from '../../../lib/blink-api';
 import { getInvoiceFromLightningAddress, isNpubCashAddress } from '../../../lib/lnurl';
+import { getApiUrlForEnvironment } from '../../../lib/config/api';
 const { getHybridStore } = require('../../../lib/storage/hybrid-store');
 const { formatCurrencyServer, isBitcoinCurrency } = require('../../../lib/currency-formatter-server');
 
@@ -109,9 +110,17 @@ export default async function handler(req, res) {
       timestamp: new Date().toISOString()
     });
 
-    // Get BlinkPOS credentials from environment
-    const blinkposApiKey = process.env.BLINKPOS_API_KEY;
-    const blinkposBtcWalletId = process.env.BLINKPOS_BTC_WALLET_ID;
+    // Get BlinkPOS credentials from environment based on staging/production
+    // Get environment from tip data (stored when invoice was created)
+    const environment = tipData.environment || 'production';
+    const isStaging = environment === 'staging';
+    const blinkposApiKey = isStaging 
+      ? process.env.BLINKPOS_STAGING_API_KEY 
+      : process.env.BLINKPOS_API_KEY;
+    const blinkposBtcWalletId = isStaging 
+      ? process.env.BLINKPOS_STAGING_BTC_WALLET_ID 
+      : process.env.BLINKPOS_BTC_WALLET_ID;
+    const apiUrl = getApiUrlForEnvironment(environment);
 
     if (!blinkposApiKey || !blinkposBtcWalletId) {
       console.error('Missing BlinkPOS environment variables');
@@ -213,7 +222,7 @@ export default async function handler(req, res) {
     let tipResult = null;
     
     if (tipAmountNum > 0 && tipRecipients.length > 0) {
-      const blinkposAPI = new BlinkAPI(blinkposApiKey);
+      const blinkposAPI = new BlinkAPI(blinkposApiKey, apiUrl);
       
       try {
         const totalTipSats = Math.round(tipAmountNum);

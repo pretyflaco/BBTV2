@@ -43,6 +43,10 @@ export default function Home() {
   // Track if we're redirecting to prevent flash
   const [redirecting, setRedirecting] = useState(false);
   
+  // Track if session establishment modal is showing (controls own lifecycle)
+  // This allows the modal to show all steps even after hasServerSession becomes true
+  const [showSessionModal, setShowSessionModal] = useState(false);
+  
   // Track the previous user to detect user changes
   const prevUserRef = useRef(publicKey);
   
@@ -55,6 +59,15 @@ export default function Home() {
     }
   }, [publicKey]);
 
+  // Show session modal when Nostr auth but no server session yet
+  // The modal controls its own lifecycle and calls onComplete when done
+  useEffect(() => {
+    if (authMode === 'nostr' && !hasServerSession && !showSessionModal) {
+      console.log('[Home] Nostr auth but no server session - showing session modal');
+      setShowSessionModal(true);
+    }
+  }, [authMode, hasServerSession, showSessionModal]);
+
   // Redirect unauthenticated users to /signin
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -64,7 +77,7 @@ export default function Home() {
     }
   }, [loading, isAuthenticated, router]);
 
-  console.log('Home render - loading:', loading, 'authenticated:', isAuthenticated, 'authMode:', authMode, 'needsWalletSetup:', needsWalletSetup, 'hasNWC:', hasNWC, 'walletSetupComplete:', walletSetupComplete, 'hasServerSession:', hasServerSession);
+  console.log('Home render - loading:', loading, 'authenticated:', isAuthenticated, 'authMode:', authMode, 'needsWalletSetup:', needsWalletSetup, 'hasNWC:', hasNWC, 'walletSetupComplete:', walletSetupComplete, 'hasServerSession:', hasServerSession, 'showSessionModal:', showSessionModal);
 
   // Loading state or redirecting
   if (loading || redirecting || !isAuthenticated) {
@@ -80,16 +93,17 @@ export default function Home() {
     );
   }
 
-  // Nostr authenticated but server session not yet established
-  // This prevents the "partial sign-in" race condition where Dashboard
-  // fetches data before NIP-98 session cookie is set (causing 401 errors)
-  // Only applies to Nostr auth - legacy auth doesn't need NIP-98 session
-  if (authMode === 'nostr' && !hasServerSession) {
-    console.log('[Home] Nostr auth but no server session yet - showing session modal');
+  // Nostr authenticated but session establishment modal is showing
+  // The modal controls its own lifecycle - it will call onComplete when all steps finish
+  if (showSessionModal) {
     return (
       <SessionEstablishmentModal
         hasServerSession={hasServerSession}
         signInMethod={_nostr?.method || 'extension'}
+        onComplete={() => {
+          console.log('[Home] Session modal complete - hiding modal');
+          setShowSessionModal(false);
+        }}
         onRetry={() => {
           // Trigger NIP-98 login retry
           console.log('[Home] Retrying session establishment...');
@@ -98,6 +112,7 @@ export default function Home() {
         onCancel={() => {
           // Sign out and redirect to signin
           console.log('[Home] User cancelled - signing out');
+          setShowSessionModal(false);
           logout();
         }}
       />

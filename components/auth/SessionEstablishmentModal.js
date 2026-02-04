@@ -10,9 +10,10 @@
  * 
  * Features:
  * - 3-step progress indicator (Connected → Signing → Loading data)
+ * - Minimum display times per step for good UX (even if auth is fast)
  * - Timeout handling (~10s) with error state
  * - Retry button on failure
- * - Auto-completes when hasServerSession becomes true
+ * - Calls onComplete when all steps finish (controls own visibility)
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -34,12 +35,14 @@ const MIN_STEP_DISPLAY_TIME = {
  * @param {boolean} props.hasServerSession - Whether server session is established
  * @param {Function} props.onRetry - Called when user clicks retry
  * @param {Function} props.onCancel - Called when user cancels (signs out)
+ * @param {Function} props.onComplete - Called when all steps complete (modal ready to hide)
  * @param {string} props.signInMethod - Method used to sign in ('extension', 'externalSigner')
  */
 export default function SessionEstablishmentModal({
   hasServerSession,
   onRetry,
   onCancel,
+  onComplete,
   signInMethod = 'extension'
 }) {
   // Stage: 'connected' | 'signing' | 'syncing' | 'complete' | 'error'
@@ -51,6 +54,8 @@ export default function SessionEstablishmentModal({
   const stageStartTimeRef = useRef(Date.now());
   // Track if session is ready but we're still showing steps
   const sessionReadyRef = useRef(false);
+  // Track if we've already called onComplete
+  const completedRef = useRef(false);
 
   // Define stages based on sign-in method
   const stages = [
@@ -66,15 +71,14 @@ export default function SessionEstablishmentModal({
 
   // Helper to advance to next stage with minimum display time enforcement
   const advanceToStage = useCallback((nextStage) => {
+    console.log(`[SessionEstablishmentModal] Advancing to stage: ${nextStage}`);
     stageStartTimeRef.current = Date.now();
     setStage(nextStage);
   }, []);
 
-  // Progress through stages with minimum display times for good UX
-  // This ensures users can see each step complete even when the actual process is fast
+  // Step 1: connected -> signing (after minimum display time)
   useEffect(() => {
     if (stage === 'connected') {
-      // Move to signing after minimum display time
       const timer = setTimeout(() => {
         advanceToStage('signing');
       }, MIN_STEP_DISPLAY_TIME.connected);
@@ -82,19 +86,85 @@ export default function SessionEstablishmentModal({
     }
   }, [stage, advanceToStage]);
 
-  // Track when session becomes ready
+  // Track when session becomes ready (can happen at any time)
   useEffect(() => {
-    if (hasServerSession) {
+    if (hasServerSession && !sessionReadyRef.current) {
+      console.log('[SessionEstablishmentModal] Session is now ready!');
       sessionReadyRef.current = true;
     }
   }, [hasServerSession]);
 
-  // Set up timeout
+  // Step 2: signing -> syncing (after session ready AND minimum display time)
+  useEffect(() => {
+    if (stage === 'signing') {
+      const checkAndAdvance = () => {
+        if (sessionReadyRef.current) {
+          const elapsed = Date.now() - stageStartTimeRef.current;
+          const remaining = Math.max(0, MIN_STEP_DISPLAY_TIME.signing - elapsed);
+          
+          const timer = setTimeout(() => {
+            advanceToStage('syncing');
+          }, remaining);
+          
+          return timer;
+        }
+        return null;
+      };
+      
+      // Check immediately in case session is already ready
+      let timer = checkAndAdvance();
+      
+      // If session wasn't ready, set up an interval to check
+      let interval = null;
+      if (!timer) {
+        interval = setInterval(() => {
+          if (sessionReadyRef.current) {
+            clearInterval(interval);
+            timer = checkAndAdvance();
+          }
+        }, 100);
+      }
+      
+      return () => {
+        if (timer) clearTimeout(timer);
+        if (interval) clearInterval(interval);
+      };
+    }
+  }, [stage, advanceToStage]);
+
+  // Step 3: syncing -> complete (after minimum display time)
+  useEffect(() => {
+    if (stage === 'syncing') {
+      // Clear the main timeout since we're almost done
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      
+      const timer = setTimeout(() => {
+        console.log('[SessionEstablishmentModal] All steps complete!');
+        setStage('complete');
+      }, MIN_STEP_DISPLAY_TIME.syncing);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [stage]);
+
+  // When complete, call onComplete callback
+  useEffect(() => {
+    if (stage === 'complete' && !completedRef.current) {
+      completedRef.current = true;
+      console.log('[SessionEstablishmentModal] Calling onComplete callback');
+      onComplete?.();
+    }
+  }, [stage, onComplete]);
+
+  // Set up timeout for error state
   useEffect(() => {
     startTimeRef.current = Date.now();
     
     timeoutRef.current = setTimeout(() => {
-      if (!hasServerSession) {
+      if (!sessionReadyRef.current) {
         console.log('[SessionEstablishmentModal] Timeout - session not established');
         setStage('error');
         setErrorMessage('Session establishment timed out. The server may be slow or there was a signing issue.');
@@ -106,44 +176,7 @@ export default function SessionEstablishmentModal({
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [hasServerSession]);
-
-  // Watch for session establishment and advance through stages with minimum display times
-  useEffect(() => {
-    // Only proceed if session is ready and we're in signing stage
-    if (sessionReadyRef.current && stage === 'signing') {
-      const elapsed = Date.now() - stageStartTimeRef.current;
-      const remaining = Math.max(0, MIN_STEP_DISPLAY_TIME.signing - elapsed);
-      
-      // Wait for minimum display time before moving to syncing
-      const timer = setTimeout(() => {
-        console.log('[SessionEstablishmentModal] Session ready, advancing to syncing stage');
-        advanceToStage('syncing');
-      }, remaining);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [stage, advanceToStage]);
-
-  // Handle syncing -> complete transition with minimum display time
-  useEffect(() => {
-    if (stage === 'syncing') {
-      // Clear the main timeout since we're almost done
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      
-      const elapsed = Date.now() - stageStartTimeRef.current;
-      const remaining = Math.max(0, MIN_STEP_DISPLAY_TIME.syncing - elapsed);
-      
-      const timer = setTimeout(() => {
-        console.log('[SessionEstablishmentModal] Session established! Completing...');
-        setStage('complete');
-      }, remaining);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [stage]);
+  }, []); // Only run once on mount
 
   const handleRetry = () => {
     console.log('[SessionEstablishmentModal] Retry clicked');
@@ -152,6 +185,19 @@ export default function SessionEstablishmentModal({
     startTimeRef.current = Date.now();
     stageStartTimeRef.current = Date.now();
     sessionReadyRef.current = false;
+    completedRef.current = false;
+    
+    // Reset timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
+      if (!sessionReadyRef.current) {
+        setStage('error');
+        setErrorMessage('Session establishment timed out. The server may be slow or there was a signing issue.');
+      }
+    }, SESSION_TIMEOUT);
+    
     onRetry?.();
   };
 
@@ -163,7 +209,7 @@ export default function SessionEstablishmentModal({
     onCancel?.();
   };
 
-  // Don't render if complete (parent should hide modal)
+  // Don't render if complete
   if (stage === 'complete') {
     return null;
   }
@@ -195,7 +241,7 @@ export default function SessionEstablishmentModal({
               />
               
               {/* Helpful tip during signing */}
-              {stage === 'signing' && (
+              {stage === 'signing' && !sessionReadyRef.current && (
                 <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                   <p className="text-sm text-blue-700 dark:text-blue-400">
                     {signInMethod === 'extension' 

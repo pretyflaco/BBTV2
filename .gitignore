@@ -5,6 +5,7 @@
 
 # Testing
 /coverage
+/tests/coverage/
 
 # E2E Testing (Playwright)
 /e2e/test-results/

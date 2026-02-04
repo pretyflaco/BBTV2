@@ -3,7 +3,8 @@ import { useCurrencies } from '../lib/hooks/useCurrencies';
 import { useTheme, THEMES } from '../lib/hooks/useTheme';
 import { useNFC } from './NFCPayment';
 import { isBitcoinCurrency } from '../lib/currency-utils';
-import { getApiUrl } from '../lib/config/api';
+import { getApiUrl, getEnvironment, isStaging } from '../lib/config/api';
+import StagingBanner from './StagingBanner';
 import POS from './POS';
 import ItemCart from './ItemCart';
 import QRCode from 'react-qr-code';
@@ -38,6 +39,10 @@ const SPINNER_COLORS = [
 export default function PublicPOSDashboard({ username, walletCurrency }) {
   const { currencies, loading: currenciesLoading, getAllCurrencies, popularCurrencyIds, addToPopular, removeFromPopular, isPopularCurrency } = useCurrencies();
   const { theme, cycleTheme, darkMode } = useTheme();
+  
+  // Staging validation state - check if user exists on staging when staging is enabled
+  const [stagingValidationError, setStagingValidationError] = useState(null);
+  const [stagingValidating, setStagingValidating] = useState(false);
   
   // Helper functions for consistent theme styling across all menus/submenus
   const isBlinkClassic = theme === 'blink-classic-dark' || theme === 'blink-classic-light';
@@ -199,6 +204,60 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
       setCurrencyFilterDebounced('');
     }
   }, [showCurrencySettings]);
+  
+  // Staging environment validation - check if user exists on staging API
+  // SSR validation only checks mainnet, so we need to re-validate on client for staging
+  useEffect(() => {
+    const validateStagingUser = async () => {
+      // Only validate when staging is enabled
+      if (!isStaging()) {
+        setStagingValidationError(null);
+        return;
+      }
+      
+      setStagingValidating(true);
+      setStagingValidationError(null);
+      
+      try {
+        const response = await fetch(getApiUrl(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: `
+              query AccountDefaultWallet($username: Username!) {
+                accountDefaultWallet(username: $username) {
+                  id
+                  walletCurrency
+                }
+              }
+            `,
+            variables: { username }
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.errors || !data.data?.accountDefaultWallet?.id) {
+          console.log(`[PublicPOS] User '${username}' not found on staging`);
+          setStagingValidationError(
+            `User '${username}' does not exist on staging environment. ` +
+            `This username exists on mainnet but not on the staging/signet network. ` +
+            `Either switch back to production (tap Blink logo 5x → Debug → Production) ` +
+            `or use a username that exists on staging.`
+          );
+        } else {
+          console.log(`[PublicPOS] User '${username}' validated on staging`);
+        }
+      } catch (error) {
+        console.error('[PublicPOS] Error validating staging user:', error);
+        setStagingValidationError('Failed to validate user on staging. Please try again.');
+      } finally {
+        setStagingValidating(false);
+      }
+    };
+    
+    validateStagingUser();
+  }, [username]);
   
   // Poll for payment status when showing invoice
   useEffect(() => {
@@ -512,6 +571,58 @@ export default function PublicPOSDashboard({ username, walletCurrency }) {
 
   return (
     <div className={`bg-white dark:bg-black ${isFixedView ? 'h-screen overflow-hidden fixed inset-0' : 'min-h-screen'}`}>
+      
+      {/* Staging Banner */}
+      <StagingBanner />
+      
+      {/* Staging Validation Error */}
+      {stagingValidationError && (
+        <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4">
+          <div className={`max-w-md w-full p-6 rounded-xl ${darkMode ? 'bg-gray-900' : 'bg-white'} shadow-2xl`}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold text-red-500">Staging Error</h2>
+            </div>
+            
+            <p className={`text-sm leading-relaxed ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+              {stagingValidationError}
+            </p>
+            
+            <div className="mt-6 flex gap-3">
+              <a
+                href="/signin"
+                className="flex-1 px-4 py-2 text-center rounded-lg bg-blink-accent hover:bg-blue-600 text-white text-sm font-medium transition-colors"
+              >
+                Switch Environment
+              </a>
+              <a
+                href="/setuppwa"
+                className={`flex-1 px-4 py-2 text-center rounded-lg text-sm font-medium transition-colors ${
+                  darkMode 
+                    ? 'bg-gray-800 hover:bg-gray-700 text-white' 
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
+                }`}
+              >
+                Change User
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Staging Validation Loading */}
+      {stagingValidating && (
+        <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-orange-500 border-t-transparent"></div>
+            <p className="text-white text-sm">Validating user on staging...</p>
+          </div>
+        </div>
+      )}
       
       {/* Header - Hidden when showing invoice */}
       {!showingInvoice && (

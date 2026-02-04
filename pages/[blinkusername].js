@@ -2,12 +2,15 @@ import Head from 'next/head';
 import PublicPOSDashboard from '../components/PublicPOSDashboard';
 
 // Note: getApiUrl cannot be used in getServerSideProps since it relies on client-side localStorage
-// For SSR, we check the BLINK_ENVIRONMENT env var directly
+// For SSR, we always validate against production. Staging validation happens client-side.
+// This means:
+// 1. SSR checks if username exists on MAINNET (fast 404 for invalid users)
+// 2. If user is in staging mode, client-side re-validates against STAGING API
+// 3. If user exists on mainnet but not staging, client shows an error
 const getServerApiUrl = () => {
-  const env = process.env.BLINK_ENVIRONMENT || 'production';
-  return env === 'staging' 
-    ? 'https://api.staging.blink.sv/graphql'
-    : 'https://api.blink.sv/graphql';
+  // Always use production for SSR validation
+  // Staging validation is handled client-side in PublicPOSDashboard
+  return 'https://api.blink.sv/graphql';
 };
 
 /**

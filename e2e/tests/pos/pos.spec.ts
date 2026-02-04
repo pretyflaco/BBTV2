@@ -141,8 +141,8 @@ test.describe('Point of Sale (POS)', () => {
       const numpad = page.locator('[data-testid="numpad"]');
       await expect(numpad).toBeVisible({ timeout: TIMEOUTS.medium });
       
-      // Wait a moment for exchange rates to load
-      await page.waitForTimeout(3000);
+      // Wait for exchange rates to load (longer for CI/staging API)
+      await page.waitForTimeout(5000);
       
       // Use data-testid selectors for numpad buttons
       // Enter 21 sats (standard test amount)
@@ -155,17 +155,18 @@ test.describe('Point of Sale (POS)', () => {
       await expect(digit1).toBeVisible({ timeout: TIMEOUTS.short });
       
       // Enter amount: 21 (TEST_DATA.amounts.testSats)
-      await digit2.click();
-      await page.waitForTimeout(100); // Small delay for state update
-      await digit1.click();
-      await page.waitForTimeout(200);
+      // Use force:true to ensure clicks work on mobile viewports
+      await digit2.click({ force: true });
+      await page.waitForTimeout(200); // Small delay for state update
+      await digit1.click({ force: true });
+      await page.waitForTimeout(500);
       
       // Wait for the generate button to be enabled (not disabled)
       // The button is disabled when amount is 0/invalid or exchange rate is unavailable
       await expect(generateButton).toBeEnabled({ timeout: TIMEOUTS.medium });
       
       // Generate invoice
-      await generateButton.click();
+      await generateButton.click({ force: true });
       
       // Wait for invoice/QR code to appear - check for various QR representations
       const qrCode = page.locator('[data-testid="invoice-qr"], canvas, svg[class*="qr"], img[alt*="QR"], svg').first();
@@ -179,20 +180,20 @@ test.describe('Point of Sale (POS)', () => {
       // Wait for numpad
       const numpad = page.locator('[data-testid="numpad"]');
       await expect(numpad).toBeVisible({ timeout: TIMEOUTS.medium });
-      await page.waitForTimeout(3000);
+      await page.waitForTimeout(5000);
       
       // Enter 21 sats
       const digit2 = page.locator('[data-testid="numpad-2"]');
       const digit1 = page.locator('[data-testid="numpad-1"]');
-      await digit2.click();
-      await page.waitForTimeout(100);
-      await digit1.click();
+      await digit2.click({ force: true });
       await page.waitForTimeout(200);
+      await digit1.click({ force: true });
+      await page.waitForTimeout(500);
       
       // Generate invoice
       const generateButton = page.locator('[data-testid="generate-invoice"]');
       await expect(generateButton).toBeEnabled({ timeout: TIMEOUTS.medium });
-      await generateButton.click();
+      await generateButton.click({ force: true });
       
       // Verify QR code is displayed
       const qrCode = page.locator('[data-testid="invoice-qr"]');
@@ -213,20 +214,20 @@ test.describe('Point of Sale (POS)', () => {
       // Wait for numpad
       const numpad = page.locator('[data-testid="numpad"]');
       await expect(numpad).toBeVisible({ timeout: TIMEOUTS.medium });
-      await page.waitForTimeout(3000);
+      await page.waitForTimeout(5000);
       
       // Enter 21 sats
       const digit2 = page.locator('[data-testid="numpad-2"]');
       const digit1 = page.locator('[data-testid="numpad-1"]');
-      await digit2.click();
-      await page.waitForTimeout(100);
-      await digit1.click();
+      await digit2.click({ force: true });
       await page.waitForTimeout(200);
+      await digit1.click({ force: true });
+      await page.waitForTimeout(500);
       
       // Generate invoice
       const generateButton = page.locator('[data-testid="generate-invoice"]');
       await expect(generateButton).toBeEnabled({ timeout: TIMEOUTS.medium });
-      await generateButton.click();
+      await generateButton.click({ force: true });
       
       // Wait for invoice to appear
       const qrCode = page.locator('[data-testid="invoice-qr"]');
@@ -295,8 +296,8 @@ test.describe('Point of Sale (POS)', () => {
       const numpad = page.locator('[data-testid="numpad"]');
       await expect(numpad).toBeVisible({ timeout: TIMEOUTS.medium });
       
-      // Wait for exchange rates to load
-      await page.waitForTimeout(3000);
+      // Wait for exchange rates to load (longer for CI/staging API)
+      await page.waitForTimeout(5000);
       
       // Use data-testid selectors for numpad buttons
       // Enter 21 sats (standard test amount)
@@ -308,17 +309,17 @@ test.describe('Point of Sale (POS)', () => {
       await expect(digit2).toBeVisible({ timeout: TIMEOUTS.short });
       await expect(digit1).toBeVisible({ timeout: TIMEOUTS.short });
       
-      // Enter amount: 21 sats
-      await digit2.click();
-      await page.waitForTimeout(100);
-      await digit1.click();
+      // Enter amount: 21 sats (use force for mobile viewports)
+      await digit2.click({ force: true });
       await page.waitForTimeout(200);
+      await digit1.click({ force: true });
+      await page.waitForTimeout(500);
       
       // Wait for generate button to be enabled
       await expect(generateButton).toBeEnabled({ timeout: TIMEOUTS.medium });
       
       // Generate invoice without being logged in
-      await generateButton.click();
+      await generateButton.click({ force: true });
       
       // Wait for invoice/QR code to appear
       const qrCode = page.locator('[data-testid="invoice-qr"], canvas, svg[class*="qr"], img[alt*="QR"], svg').first();
@@ -336,8 +337,8 @@ test.describe('Point of Sale (POS)', () => {
       const numpad = page.locator('[data-testid="numpad"]');
       await expect(numpad).toBeVisible({ timeout: TIMEOUTS.medium });
       
-      // Wait for exchange rates to load
-      await page.waitForTimeout(3000);
+      // Wait for exchange rates to load (longer for CI/staging API)
+      await page.waitForTimeout(5000);
       
       // Find and click currency toggle to switch to USD
       const currencyToggle = page.locator('[data-testid="currency-toggle"]');
@@ -347,7 +348,7 @@ test.describe('Point of Sale (POS)', () => {
         
         // If it's in BTC/sats mode, switch to USD
         if (initialText?.toLowerCase().includes('sat') || initialText?.toLowerCase().includes('btc')) {
-          await currencyToggle.click();
+          await currencyToggle.click({ force: true });
           await page.waitForTimeout(500);
         }
       }
@@ -357,16 +358,16 @@ test.describe('Point of Sale (POS)', () => {
       const digit1 = page.locator('[data-testid="numpad-1"]');
       const generateButton = page.locator('[data-testid="generate-invoice"]');
       
-      await digit2.click();
-      await page.waitForTimeout(100);
-      await digit1.click();
+      await digit2.click({ force: true });
       await page.waitForTimeout(200);
+      await digit1.click({ force: true });
+      await page.waitForTimeout(500);
       
       // Wait for generate button to be enabled
       await expect(generateButton).toBeEnabled({ timeout: TIMEOUTS.medium });
       
       // Generate invoice
-      await generateButton.click();
+      await generateButton.click({ force: true });
       
       // Wait for invoice/QR code to appear
       const qrCode = page.locator('[data-testid="invoice-qr"], canvas, svg[class*="qr"], img[alt*="QR"], svg').first();

@@ -106,7 +106,7 @@ jobs:
             PASSED=$(jq '.stats.expected // 0' e2e/reports/results.json)
             FAILED=$(jq '.stats.unexpected // 0' e2e/reports/results.json)
             SKIPPED=$(jq '.stats.skipped // 0' e2e/reports/results.json)
-            DURATION=$(jq '.stats.duration // 0' e2e/reports/results.json)
+            DURATION=$(jq '.stats.duration // 0' e2e/reports/results.json | cut -d'.' -f1)
             DURATION_SEC=$((DURATION / 1000))
             
             echo "| Status | Count |" >> $GITHUB_STEP_SUMMARY

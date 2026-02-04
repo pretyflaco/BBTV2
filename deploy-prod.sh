@@ -87,16 +87,28 @@ if [ -n "$(git status --porcelain)" ]; then
     print_success "Changes committed"
 fi
 
-# Step 2: Push to GitHub
-print_header "Step 2: Pushing to GitHub"
+# Step 2: Run Unit Tests
+print_header "Step 2: Running Unit Tests"
+
+print_info "Running unit tests before deployment..."
+if npm run test:unit; then
+    print_success "All unit tests passed ✅"
+else
+    print_error "Unit tests failed!"
+    confirm "Deploy anyway? (not recommended)"
+fi
+echo ""
+
+# Step 3: Push to GitHub
+print_header "Step 3: Pushing to GitHub"
 
 print_info "Pushing ${BRANCH} to origin..."
 git push origin ${BRANCH}
 print_success "Pushed to GitHub successfully"
 echo ""
 
-# Step 3: Check Service Worker version
-print_header "Step 3: Checking Service Worker"
+# Step 4: Check Service Worker version
+print_header "Step 4: Checking Service Worker"
 
 SW_VERSION=$(grep "CACHE_NAME = " public/sw.js | head -1 || echo "not found")
 print_info "Current SW version: ${CYAN}${SW_VERSION}${NC}"
@@ -106,8 +118,8 @@ if [[ $SW_VERSION == *"not found"* ]]; then
 fi
 echo ""
 
-# Step 4: Deploy to server
-print_header "Step 4: Deploying to Production Server"
+# Step 5: Deploy to server
+print_header "Step 5: Deploying to Production Server"
 
 print_info "Connecting to ${PROD_SERVER}..."
 
@@ -516,8 +528,8 @@ EOF
 print_success "Deployment completed successfully!"
 echo ""
 
-# Step 5: Verification
-print_header "Step 5: Verifying Deployment"
+# Step 6: Verification
+print_header "Step 6: Verifying Deployment"
 
 print_info "Checking public health endpoint..."
 if curl -f -s https://${PROD_SERVER}/api/health > /dev/null; then
@@ -569,7 +581,7 @@ fi
 
 echo ""
 
-# Step 6: Post-deployment info
+# Step 7: Post-deployment info
 print_header "📋 Post-Deployment Checklist"
 
 echo ""

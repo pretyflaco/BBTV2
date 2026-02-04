@@ -73,18 +73,34 @@ export default async function handler(req, res) {
   let hybridStore = null;
 
   try {
-    // Step 1: Verify webhook signature (if secret is configured)
-    const webhookSecret = process.env.BLINK_WEBHOOK_SECRET;
+    // Step 1: Verify webhook signature (try both production and staging secrets)
+    // We don't know which environment the webhook is from until we verify the signature
+    const productionSecret = process.env.BLINK_WEBHOOK_SECRET;
+    const stagingSecret = process.env.BLINK_STAGING_WEBHOOK_SECRET;
     
-    if (webhookSecret) {
-      const isValid = verifyWebhookSignature(req, webhookSecret);
+    let isValid = false;
+    let webhookEnvironment = null;
+    
+    if (productionSecret || stagingSecret) {
+      // Try production secret first
+      if (productionSecret && verifyWebhookSignature(req, productionSecret)) {
+        isValid = true;
+        webhookEnvironment = 'production';
+        console.log('✅ [Webhook] Signature verified with PRODUCTION secret');
+      }
+      // Try staging secret if production didn't work
+      else if (stagingSecret && verifyWebhookSignature(req, stagingSecret)) {
+        isValid = true;
+        webhookEnvironment = 'staging';
+        console.log('✅ [Webhook] Signature verified with STAGING secret');
+      }
+      
       if (!isValid) {
-        console.error('🚫 [Webhook] Invalid signature');
+        console.error('🚫 [Webhook] Invalid signature - tried both production and staging secrets');
         return res.status(401).json({ error: 'Invalid webhook signature' });
       }
-      console.log('✅ [Webhook] Signature verified');
     } else {
-      console.warn('⚠️ [Webhook] No BLINK_WEBHOOK_SECRET configured - skipping signature verification');
+      console.warn('⚠️ [Webhook] No webhook secrets configured - skipping signature verification');
     }
 
     // Step 2: Parse the webhook payload

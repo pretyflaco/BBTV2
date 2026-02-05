@@ -1,14 +1,12 @@
 import { bech32 } from 'bech32';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import QRCode from 'react-qr-code';
-import { playSound, unlockAudioContext } from '../lib/audio-utils';
 import { formatDisplayAmount as formatCurrency, getCurrencyById, isBitcoinCurrency, parseAmountParts } from '../lib/currency-utils';
 import { useThermalPrint } from '../lib/escpos/hooks/useThermalPrint';
-import { THEMES } from '../lib/hooks/useTheme';
 import { formatNumber } from '../lib/number-format';
 import { DEFAULT_EXPIRY } from './ExpirySelector';
-import Numpad from './Numpad';
 import { THEMES } from '../lib/hooks/useTheme';
+import Numpad from './Numpad';
 import { unlockAudioContext, playSound } from '../lib/audio-utils';
 import { getEnvironment } from '../lib/config/api';
 
@@ -802,7 +800,8 @@ const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, 
           // Include commission info for memo and printout
           commissionPercent: effectiveCommissionPercent,
           displayAmount: numericAmount,
-          displayCurrency: currency
+          displayCurrency: currency,
+          environment: getEnvironment()
         }),
       });
 

@@ -1,7 +1,6 @@
 import { bech32 } from 'bech32';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import QRCode from 'react-qr-code';
-import { isBitcoinCurrency } from '../lib/currency-utils';
 import { useBlinkWebSocket } from '../lib/hooks/useBlinkWebSocket';
 import { useCombinedAuth } from '../lib/hooks/useCombinedAuth';
 import { useCurrencies } from '../lib/hooks/useCurrencies';
@@ -4589,115 +4588,133 @@ export default function Dashboard() {
                 )}
 
                 {/* Split Profiles List */}
-                {!splitProfilesLoading && splitProfiles.map((profile) => {
-                  // Check if profile uses custom weights (not evenly distributed)
-                  const evenShare = 100 / (profile.recipients?.length || 1);
-                  const hasCustomWeights = profile.recipients?.some(r => Math.abs((r.share || evenShare) - evenShare) > 0.01);
+                {!splitProfilesLoading &&
+                  splitProfiles.map((profile) => {
+                    const evenShare = 100 / (profile.recipients?.length || 1);
+                    const hasCustomWeights = profile.recipients?.some(
+                      (r) => Math.abs((r.share || evenShare) - evenShare) > 0.01
+                    );
 
-                  return (
-                    <div
-                      key={profile.id}
-                      className={`w-full p-4 transition-all ${activeSplitProfile?.id === profile.id
-                        ? getSubmenuOptionActiveClasses()
-                        : getSubmenuOptionClasses()
-                        }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="text-left">
-                          <h3 className={`text-lg font-semibold mb-1 ${getPrimaryTextClasses()}`}>
-                            {profile.label}
-                          </h3>
-                          <p className={`text-sm ${getSecondaryTextClasses()}`}>
-                            {hasCustomWeights 
-                              ? profile.recipients.map(r => {
-                                  const name = r.type === 'npub_cash' ? r.username : `${r.username}@${getLnAddressDomain()}`;
-                                  return `${name} (${Math.round(r.share || evenShare)}%)`;
-                                }).join(', ')
-                              : profile.recipients.map(r => r.type === 'npub_cash' ? r.username : `${r.username}@${getLnAddressDomain()}`).join(', ')
-                            }
-                          </p>
-                        </div>
-                        {activeSplitProfile?.id === profile.id && (
-                          <div className={`text-2xl ${getCheckmarkClasses()}`}>✓</div>
-                        )}
-                      </div>
-                    </button>
-                    {/* Edit/Delete Actions */}
-                    <div className={`flex gap-2 mt-3 pt-3 border-t ${isBlinkClassic ? (isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light') : 'border-gray-200 dark:border-gray-700'}`}>
-                      <button
-                        onClick={() => {
-                          setActiveSplitProfileById(profile.id);
-                          setShowTipSettings(false);
-                        }}
-                        className="w-full"
+                    return (
+                      <div
+                        key={profile.id}
+                        className={`w-full p-4 transition-all ${activeSplitProfile?.id === profile.id
+                            ? getSubmenuOptionActiveClasses()
+                            : getSubmenuOptionClasses()
+                          }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="text-left">
-                            <h3 className={`text-lg font-semibold mb-1 ${getPrimaryTextClasses()}`}>
-                              {profile.label}
-                            </h3>
-                            <p className={`text-sm ${getSecondaryTextClasses()}`}>
-                              {hasCustomWeights
-                                ? profile.recipients.map(r => {
-                                  const name = r.type === 'npub_cash' ? r.username : `${r.username}@blink.sv`;
-                                  return `${name} (${Math.round(r.share || evenShare)}%)`;
-                                }).join(', ')
-                                : profile.recipients.map(r => r.type === 'npub_cash' ? r.username : `${r.username}@blink.sv`).join(', ')
-                              }
-                            </p>
-                          </div>
-                          {activeSplitProfile?.id === profile.id && (
-                            <div className={`text-2xl ${getCheckmarkClasses()}`}>✓</div>
-                          )}
-                        </div>
-                      </button>
-                      {/* Edit/Delete Actions */}
-                      <div className={`flex gap-2 mt-3 pt-3 border-t ${isBlinkClassic ? (isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light') : 'border-gray-200 dark:border-gray-700'}`}>
+                        {/* Profile header */}
                         <button
                           onClick={() => {
-                            setEditingSplitProfile(profile);
-                            setNewSplitProfileLabel(profile.label);
-                            // Initialize recipients array from profile with weights
-                            const recipients = profile.recipients?.map(r => ({
-                              username: r.username,
-                              validated: true,
-                              type: r.type || 'blink',
-                              weight: r.share || (100 / (profile.recipients?.length || 1))
-                            })) || [];
-                            setNewSplitProfileRecipients(recipients);
-                            // Check if profile uses custom weights (not evenly distributed)
-                            const evenShare = 100 / (recipients.length || 1);
-                            const hasCustomWeights = recipients.some(r => Math.abs(r.weight - evenShare) > 0.01);
-                            setUseCustomWeights(hasCustomWeights);
-                            setNewRecipientInput('');
-                            setRecipientValidation({ status: null, message: '', isValidating: false });
-                            setSplitProfileError(null);
-                            setShowCreateSplitProfile(true);
+                            setActiveSplitProfileById(profile.id);
+                            setShowTipSettings(false);
                           }}
-                          className={`flex-1 py-2 text-sm rounded-lg transition-colors ${isBlinkClassic
-                            ? `${getSecondaryTextClasses()} hover:text-blink-classic-amber border ${isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light'}`
-                            : 'text-gray-600 dark:text-gray-400 hover:text-blink-accent border border-gray-300 dark:border-gray-600'
+                          className="w-full"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="text-left">
+                              <h3 className={`text-lg font-semibold mb-1 ${getPrimaryTextClasses()}`}>
+                                {profile.label}
+                              </h3>
+
+                              <p className={`text-sm ${getSecondaryTextClasses()}`}>
+                                {hasCustomWeights
+                                  ? profile.recipients
+                                    .map((r) => {
+                                      const name =
+                                        r.type === "npub_cash"
+                                          ? r.username
+                                          : `${r.username}@${getLnAddressDomain()}`;
+                                      return `${name} (${Math.round(r.share || evenShare)}%)`;
+                                    })
+                                    .join(", ")
+                                  : profile.recipients
+                                    .map((r) =>
+                                      r.type === "npub_cash"
+                                        ? r.username
+                                        : `${r.username}@${getLnAddressDomain()}`
+                                    )
+                                    .join(", ")}
+                              </p>
+                            </div>
+
+                            {activeSplitProfile?.id === profile.id && (
+                              <div className={`text-2xl ${getCheckmarkClasses()}`}>✓</div>
+                            )}
+                          </div>
+                        </button>
+
+                        {/* Edit/Delete Actions */}
+                        <div
+                          className={`flex gap-2 mt-3 pt-3 border-t ${isBlinkClassic
+                              ? isBlinkClassicDark
+                                ? "border-blink-classic-border"
+                                : "border-blink-classic-border-light"
+                              : "border-gray-200 dark:border-gray-700"
                             }`}
                         >
-                          Edit
-                        </button>
-                        <button
-                          onClick={async () => {
-                            if (confirm('Delete this split profile?')) {
-                              await deleteSplitProfile(profile.id);
-                            }
-                          }}
-                          className={`flex-1 py-2 text-sm rounded-lg text-red-500 hover:text-red-700 border transition-colors ${isBlinkClassic
-                            ? (isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light')
-                            : 'border-gray-300 dark:border-gray-600'
-                            }`}
-                        >
-                          Delete
-                        </button>
+                          {/* Edit */}
+                          <button
+                            onClick={() => {
+                              setEditingSplitProfile(profile);
+                              setNewSplitProfileLabel(profile.label);
+
+                              const recipients =
+                                profile.recipients?.map((r) => ({
+                                  username: r.username,
+                                  validated: true,
+                                  type: r.type || "blink",
+                                  weight: r.share || 100 / (profile.recipients?.length || 1),
+                                })) || [];
+
+                              setNewSplitProfileRecipients(recipients);
+
+                              const evenShare = 100 / (recipients.length || 1);
+                              const hasCustomWeights = recipients.some(
+                                (r) => Math.abs(r.weight - evenShare) > 0.01
+                              );
+
+                              setUseCustomWeights(hasCustomWeights);
+                              setNewRecipientInput("");
+                              setRecipientValidation({
+                                status: null,
+                                message: "",
+                                isValidating: false,
+                              });
+                              setSplitProfileError(null);
+                              setShowCreateSplitProfile(true);
+                            }}
+                            className={`flex-1 py-2 text-sm rounded-lg transition-colors ${isBlinkClassic
+                                ? `${getSecondaryTextClasses()} hover:text-blink-classic-amber border ${isBlinkClassicDark
+                                  ? "border-blink-classic-border"
+                                  : "border-blink-classic-border-light"
+                                }`
+                                : "text-gray-600 dark:text-gray-400 hover:text-blink-accent border border-gray-300 dark:border-gray-600"
+                              }`}
+                          >
+                            Edit
+                          </button>
+
+                          {/* Delete */}
+                          <button
+                            onClick={async () => {
+                              if (confirm("Delete this split profile?")) {
+                                await deleteSplitProfile(profile.id);
+                              }
+                            }}
+                            className={`flex-1 py-2 text-sm rounded-lg text-red-500 hover:text-red-700 border transition-colors ${isBlinkClassic
+                                ? isBlinkClassicDark
+                                  ? "border-blink-classic-border"
+                                  : "border-blink-classic-border-light"
+                                : "border-gray-300 dark:border-gray-600"
+                              }`}
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
 
                 {/* No Profiles Yet Message */}
                 {!splitProfilesLoading && splitProfiles.length === 0 && authMode === 'nostr' && (

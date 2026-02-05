@@ -1,4 +1,5 @@
 import BlinkAPI from '../../../lib/blink-api';
+import { getApiUrlForEnvironment } from '../../../lib/config/api';
 const AuthManager = require('../../../lib/auth');
 const { getHybridStore } = require('../../../lib/storage/hybrid-store');
 
@@ -15,8 +16,13 @@ export default async function handler(req, res) {
       // Blink Lightning Address wallet fields (no API key required)
       blinkLnAddress, blinkLnAddressWalletId, blinkLnAddressUsername,
       // npub.cash wallet fields (intraledger via LNURL-pay)
-      npubCashActive, npubCashLightningAddress
+      npubCashActive, npubCashLightningAddress,
+      // Environment for staging/production switching
+      environment = 'production'
     } = req.body;
+
+    // Get the API URL for the specified environment
+    const apiUrl = getApiUrlForEnvironment(environment);
 
     console.log('📥 Create invoice request received:', {
       amount,
@@ -32,7 +38,9 @@ export default async function handler(req, res) {
       blinkLnAddress: !!blinkLnAddress,
       blinkLnAddressUsername,
       npubCashActive: !!npubCashActive,
-      npubCashLightningAddress: npubCashLightningAddress || undefined
+      npubCashLightningAddress: npubCashLightningAddress || undefined,
+      environment,
+      apiUrl
     });
 
     // Validate required fields
@@ -50,11 +58,18 @@ export default async function handler(req, res) {
       });
     }
 
-    // Get BlinkPOS credentials from environment
-    const blinkposApiKey = process.env.BLINKPOS_API_KEY;
-    const blinkposBtcWalletId = process.env.BLINKPOS_BTC_WALLET_ID;
+    // Get BlinkPOS credentials from environment (staging or production)
+    const isStaging = environment === 'staging';
+    const blinkposApiKey = isStaging 
+      ? process.env.BLINKPOS_STAGING_API_KEY 
+      : process.env.BLINKPOS_API_KEY;
+    const blinkposBtcWalletId = isStaging 
+      ? process.env.BLINKPOS_STAGING_BTC_WALLET_ID 
+      : process.env.BLINKPOS_BTC_WALLET_ID;
 
     console.log('🔐 BlinkPOS credentials check:', {
+      environment,
+      isStaging,
       hasApiKey: !!blinkposApiKey,
       apiKeyLength: blinkposApiKey ? blinkposApiKey.length : 0,
       hasWalletId: !!blinkposBtcWalletId,
@@ -90,7 +105,8 @@ export default async function handler(req, res) {
     });
 
     // Always use BlinkPOS API and BTC wallet for invoice creation
-    const blinkAPI = new BlinkAPI(blinkposApiKey);
+    // Pass the environment-specific API URL
+    const blinkAPI = new BlinkAPI(blinkposApiKey, apiUrl);
 
     let invoice;
     
@@ -143,6 +159,8 @@ export default async function handler(req, res) {
           // npub.cash wallet info (intraledger via LNURL-pay)
           npubCashActive: !!npubCashActive,
           npubCashLightningAddress: npubCashLightningAddress || null,
+          // Environment for staging/production (used by webhook forwarding)
+          environment: environment || 'production',
           // Metadata for webhook processing
           createdAt: Date.now(),
           forwardingType: blinkLnAddress ? 'ln_address' : npubCashActive ? 'npub_cash' : nwcActive ? 'nwc' : apiKey ? 'api_key' : 'unknown'

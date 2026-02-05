@@ -1,5 +1,6 @@
 import BlinkAPI from '../../../lib/blink-api';
 import { getInvoiceFromLightningAddress, isNpubCashAddress } from '../../../lib/lnurl';
+import { getApiUrlForEnvironment } from '../../../lib/config/api';
 const { getHybridStore } = require('../../../lib/storage/hybrid-store');
 const { formatCurrencyServer, isBitcoinCurrency } = require('../../../lib/currency-formatter-server');
 
@@ -22,12 +23,13 @@ export default async function handler(req, res) {
   let hybridStore = null;
 
   try {
-    const { paymentHash, tipData } = req.body;
+    const { paymentHash, tipData, environment: reqEnvironment } = req.body;
     
     console.log('💡 SEND NWC TIPS REQUEST (after base amount forwarded):', {
       paymentHash: paymentHash?.substring(0, 16) + '...',
       tipAmount: tipData?.tipAmount,
       recipientCount: tipData?.tipRecipients?.length,
+      environment: reqEnvironment || tipData?.environment,
       timestamp: new Date().toISOString()
     });
 
@@ -38,7 +40,9 @@ export default async function handler(req, res) {
       });
     }
 
-    const { tipAmount, tipRecipients, displayCurrency = 'BTC', tipAmountDisplay } = tipData;
+    // Environment can come from request body or from tipData (tipData takes precedence for backwards compatibility)
+    const { tipAmount, tipRecipients, displayCurrency = 'BTC', tipAmountDisplay, environment: tipEnv = 'production' } = tipData;
+    const environment = tipEnv || reqEnvironment || 'production';
 
     if (!tipAmount || tipAmount <= 0 || !tipRecipients || tipRecipients.length === 0) {
       return res.status(400).json({ 
@@ -46,9 +50,15 @@ export default async function handler(req, res) {
       });
     }
 
-    // Get BlinkPOS credentials from environment
-    const blinkposApiKey = process.env.BLINKPOS_API_KEY;
-    const blinkposBtcWalletId = process.env.BLINKPOS_BTC_WALLET_ID;
+    // Get BlinkPOS credentials from environment based on staging/production
+    const isStaging = environment === 'staging';
+    const blinkposApiKey = isStaging 
+      ? process.env.BLINKPOS_STAGING_API_KEY 
+      : process.env.BLINKPOS_API_KEY;
+    const blinkposBtcWalletId = isStaging 
+      ? process.env.BLINKPOS_STAGING_BTC_WALLET_ID 
+      : process.env.BLINKPOS_BTC_WALLET_ID;
+    const apiUrl = getApiUrlForEnvironment(environment);
 
     if (!blinkposApiKey || !blinkposBtcWalletId) {
       console.error('Missing BlinkPOS environment variables');
@@ -56,7 +66,7 @@ export default async function handler(req, res) {
     }
 
     hybridStore = await getHybridStore();
-    const blinkposAPI = new BlinkAPI(blinkposApiKey);
+    const blinkposAPI = new BlinkAPI(blinkposApiKey, apiUrl);
     
     // Calculate weighted tip amounts based on share percentages
     const totalTipSats = Math.round(tipAmount);

@@ -6,6 +6,7 @@ import { formatNumber } from '../lib/number-format';
 import ExpirySelector, { DEFAULT_EXPIRY, getExpiryOption } from './ExpirySelector';
 import Numpad from './Numpad';
 import { unlockAudioContext, playSound } from '../lib/audio-utils';
+import { getEnvironment } from '../lib/config/api';
 
 // Grid configuration options
 const GRID_OPTIONS = [
@@ -489,7 +490,9 @@ const MultiVoucher = forwardRef(({
             expiryId: selectedExpiry,
             commissionPercent: selectedCommissionPercent,
             displayAmount: numericAmount,
-            displayCurrency: displayCurrency
+            displayCurrency: displayCurrency,
+            // Environment for staging/production support
+            environment: getEnvironment()
           }),
         });
 

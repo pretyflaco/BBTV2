@@ -1,5 +1,6 @@
 const BlinkAPI = require('../../../lib/blink-api');
 const { verifyToken } = require('../../../lib/auth');
+const { getApiUrlForEnvironment } = require('../../../lib/config/api');
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -18,8 +19,12 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Invalid token or missing API key' });
     }
 
-    // Use the API key to fetch user info
-    const blinkAPI = new BlinkAPI(userData.apiKey);
+    // Get environment from query parameter (client passes it)
+    const environment = req.query.environment === 'staging' ? 'staging' : 'production';
+    const apiUrl = getApiUrlForEnvironment(environment);
+
+    // Use the API key to fetch user info with environment-specific URL
+    const blinkAPI = new BlinkAPI(userData.apiKey, apiUrl);
     const userInfo = await blinkAPI.getMe();
 
     if (!userInfo) {

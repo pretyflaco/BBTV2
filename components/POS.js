@@ -298,7 +298,10 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
         const response = await fetch('/api/blink/check-payment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paymentHash: invoice.paymentHash })
+          body: JSON.stringify({ 
+            paymentHash: invoice.paymentHash,
+            environment: getEnvironment()
+          })
         });
 
         if (response.ok) {
@@ -331,7 +334,8 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
                     paymentHash: invoice.paymentHash,
                     totalAmount: paymentAmount,
                     memo: invoice.memo,
-                    deferTips: true  // Get tip data but don't send yet
+                    deferTips: true,  // Get tip data but don't send yet
+                    environment: getEnvironment()
                   })
                 });
                 
@@ -376,7 +380,8 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
                         body: JSON.stringify({
                           paymentHash: invoice.paymentHash,
                           paymentRequest: nwcInvoiceResult.invoice,
-                          memo: enhancedMemo
+                          memo: enhancedMemo,
+                          environment: getEnvironment()
                         })
                       });
                       
@@ -391,7 +396,8 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                               paymentHash: invoice.paymentHash,
-                              tipData: tipResult.tipData
+                              tipData: tipResult.tipData,
+                              environment: getEnvironment()
                             })
                           });
                           console.log('✅ Tips sent!');
@@ -1063,6 +1069,8 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
           currency: 'BTC', // Always create BTC invoices
           memo: memo, // Show calculation in memo
           displayCurrency: displayCurrency, // Pass the actual display currency for tip memo
+          // Environment for staging/production switching (client-side state)
+          environment: getEnvironment(),
           // Tip information for payment splitting
           baseAmount: baseInSats,
           tipAmount: tipInSats,

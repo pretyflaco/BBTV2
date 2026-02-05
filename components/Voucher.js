@@ -8,6 +8,9 @@ import { THEMES } from '../lib/hooks/useTheme';
 import { formatNumber } from '../lib/number-format';
 import { DEFAULT_EXPIRY } from './ExpirySelector';
 import Numpad from './Numpad';
+import { THEMES } from '../lib/hooks/useTheme';
+import { unlockAudioContext, playSound } from '../lib/audio-utils';
+import { getEnvironment } from '../lib/config/api';
 
 const Voucher = forwardRef(({ userWallets, voucherWallet, walletBalance = null, displayCurrency, setCurrency, currency = "SATS", numberFormat = 'auto', bitcoinFormat = 'sats', currencies, darkMode, theme = THEMES.DARK, cycleTheme, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3] }, ref) => {
   const [amount, setAmount] = useState('');

@@ -1,5 +1,6 @@
 const voucherStore = require('../../../lib/voucher-store');
 const BlinkAPI = require('../../../lib/blink-api');
+const { getApiUrlForEnvironment } = require('../../../lib/config/api');
 
 /**
  * LNURL-withdraw callback endpoint
@@ -105,8 +106,11 @@ export default async function handler(req, res) {
     }
 
     try {
-      // Pay the invoice using Blink API
-      const blinkAPI = new BlinkAPI(voucher.apiKey);
+      // Pay the invoice using Blink API with correct environment
+      const apiUrl = getApiUrlForEnvironment(voucher.environment || 'production');
+      const blinkAPI = new BlinkAPI(voucher.apiKey, apiUrl);
+      
+      console.log('🌐 Using API environment:', voucher.environment || 'production', 'URL:', apiUrl);
       
       // Build memo with commission and display info if available
       let memo;

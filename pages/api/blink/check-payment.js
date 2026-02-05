@@ -6,6 +6,7 @@
  */
 
 import BlinkAPI from '../../../lib/blink-api';
+import { getApiUrlForEnvironment } from '../../../lib/config/api';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -13,21 +14,27 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { paymentHash } = req.body;
+    const { paymentHash, environment = 'production' } = req.body;
 
     if (!paymentHash) {
       return res.status(400).json({ error: 'Payment hash is required' });
     }
 
-    // Get BlinkPOS credentials
-    const blinkposApiKey = process.env.BLINKPOS_API_KEY;
-    const blinkposBtcWalletId = process.env.BLINKPOS_BTC_WALLET_ID;
+    // Get BlinkPOS credentials based on environment
+    const isStaging = environment === 'staging';
+    const blinkposApiKey = isStaging 
+      ? process.env.BLINKPOS_STAGING_API_KEY 
+      : process.env.BLINKPOS_API_KEY;
+    const blinkposBtcWalletId = isStaging 
+      ? process.env.BLINKPOS_STAGING_BTC_WALLET_ID 
+      : process.env.BLINKPOS_BTC_WALLET_ID;
+    const apiUrl = getApiUrlForEnvironment(environment);
 
     if (!blinkposApiKey || !blinkposBtcWalletId) {
       return res.status(500).json({ error: 'BlinkPOS configuration missing' });
     }
 
-    const blinkposAPI = new BlinkAPI(blinkposApiKey);
+    const blinkposAPI = new BlinkAPI(blinkposApiKey, apiUrl);
 
     // Query recent transactions and look for matching payment hash
     const query = `

@@ -12,6 +12,7 @@
 
 import BlinkAPI from '../../../lib/blink-api';
 import { getInvoiceFromLightningAddress } from '../../../lib/lnurl';
+import { getApiUrlForEnvironment } from '../../../lib/config/api';
 const { getHybridStore } = require('../../../lib/storage/hybrid-store');
 const { formatCurrencyServer, isBitcoinCurrency } = require('../../../lib/currency-formatter-server');
 
@@ -52,16 +53,33 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing totalAmount' });
     }
 
-    // Get BlinkPOS credentials
-    const blinkposApiKey = process.env.BLINKPOS_API_KEY;
-    const blinkposBtcWalletId = process.env.BLINKPOS_BTC_WALLET_ID;
+    // Get BlinkPOS credentials based on environment from stored tip data
+    // For npub.cash forwarding, we get environment from the stored tip data
+    let environment = 'production';
+    
+    // Check stored tip data for environment
+    hybridStore = await getHybridStore();
+    if (paymentHash) {
+      const tipData = await hybridStore.getTipData(paymentHash);
+      if (tipData?.environment) {
+        environment = tipData.environment;
+      }
+    }
+    
+    const isStaging = environment === 'staging';
+    const blinkposApiKey = isStaging 
+      ? process.env.BLINKPOS_STAGING_API_KEY 
+      : process.env.BLINKPOS_API_KEY;
+    const blinkposBtcWalletId = isStaging 
+      ? process.env.BLINKPOS_STAGING_BTC_WALLET_ID 
+      : process.env.BLINKPOS_BTC_WALLET_ID;
+    const apiUrl = getApiUrlForEnvironment(environment);
 
     if (!blinkposApiKey || !blinkposBtcWalletId) {
       return res.status(500).json({ error: 'BlinkPOS configuration missing' });
     }
 
-    const blinkposAPI = new BlinkAPI(blinkposApiKey);
-    hybridStore = await getHybridStore();
+    const blinkposAPI = new BlinkAPI(blinkposApiKey, apiUrl);
 
     // CRITICAL: Use atomic claim to prevent duplicate payouts
     // This ensures only ONE request (client or webhook) can process this payment

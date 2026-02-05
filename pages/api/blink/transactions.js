@@ -1,6 +1,7 @@
 const AuthManager = require('../../../lib/auth');
 const StorageManager = require('../../../lib/storage');
 const BlinkAPI = require('../../../lib/blink-api');
+const { getApiUrlForEnvironment } = require('../../../lib/config/api');
 
 /**
  * Transactions API - Supports both legacy and Nostr authentication
@@ -8,6 +9,10 @@ const BlinkAPI = require('../../../lib/blink-api');
  * Authentication methods:
  * 1. Legacy: auth-token cookie (JWT session)
  * 2. Nostr: X-API-KEY header (passed directly from client)
+ * 
+ * Environment:
+ * - Pass environment query parameter ('staging' or 'production')
+ * - Defaults to 'production' if not specified
  */
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -43,10 +48,14 @@ export default async function handler(req, res) {
     }
 
     // Parse query parameters
-    const { first = 100, after } = req.query;
+    const { first = 100, after, environment = 'production' } = req.query;
 
-    // Create Blink API instance
-    const blink = new BlinkAPI(apiKey);
+    // Get environment-specific API URL
+    const validEnvironment = environment === 'staging' ? 'staging' : 'production';
+    const apiUrl = getApiUrlForEnvironment(validEnvironment);
+
+    // Create Blink API instance with environment-specific URL
+    const blink = new BlinkAPI(apiKey, apiUrl);
     
     // Get transactions
     const transactionData = await blink.getTransactions(parseInt(first), after);

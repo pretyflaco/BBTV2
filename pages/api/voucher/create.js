@@ -12,7 +12,8 @@ const { isValidExpiryId, DEFAULT_EXPIRY_ID } = require('../../../lib/voucher-exp
  *   expiryId: string (optional, e.g., '6mo', '24h', '15m'),
  *   commissionPercent: number (optional),
  *   displayAmount: string (optional),
- *   displayCurrency: string (optional)
+ *   displayCurrency: string (optional),
+ *   environment: string (optional, 'production' or 'staging')
  * }
  */
 export default async function handler(req, res) {
@@ -30,7 +31,8 @@ export default async function handler(req, res) {
       expiryId,
       commissionPercent, 
       displayAmount, 
-      displayCurrency 
+      displayCurrency,
+      environment = 'production'
     } = req.body;
     console.log(`displayCurrency  is :`,     displayCurrency )
     // Validate required fields
@@ -58,7 +60,8 @@ export default async function handler(req, res) {
       expiryId: validExpiryId,
       commissionPercent: commissionPercent || 0,
       displayAmount: displayAmount || null,
-      displayCurrency: displayCurrency || null
+      displayCurrency: displayCurrency || null,
+      environment: environment
     });
 
     console.log('✅ Voucher created successfully:', {

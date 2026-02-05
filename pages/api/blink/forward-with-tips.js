@@ -1,5 +1,6 @@
 import BlinkAPI from '../../../lib/blink-api';
 import { getInvoiceFromLightningAddress, isNpubCashAddress } from '../../../lib/lnurl';
+import { getApiUrlForEnvironment } from '../../../lib/config/api';
 const { getHybridStore } = require('../../../lib/storage/hybrid-store');
 const { formatCurrencyServer, isBitcoinCurrency } = require('../../../lib/currency-formatter-server');
 
@@ -105,9 +106,17 @@ export default async function handler(req, res) {
       timestamp: new Date().toISOString()
     });
 
-    // Get BlinkPOS credentials from environment
-    const blinkposApiKey = process.env.BLINKPOS_API_KEY;
-    const blinkposBtcWalletId = process.env.BLINKPOS_BTC_WALLET_ID;
+    // Get BlinkPOS credentials from environment based on staging/production
+    // Get environment from tip data (stored when invoice was created)
+    const environment = tipData.environment || 'production';
+    const isStaging = environment === 'staging';
+    const blinkposApiKey = isStaging 
+      ? process.env.BLINKPOS_STAGING_API_KEY 
+      : process.env.BLINKPOS_API_KEY;
+    const blinkposBtcWalletId = isStaging 
+      ? process.env.BLINKPOS_STAGING_BTC_WALLET_ID 
+      : process.env.BLINKPOS_BTC_WALLET_ID;
+    const apiUrl = getApiUrlForEnvironment(environment);
 
     if (!blinkposApiKey || !blinkposBtcWalletId) {
       console.error('Missing BlinkPOS environment variables');
@@ -129,7 +138,7 @@ export default async function handler(req, res) {
     const userAmount = totalAmount - (tipData.tipAmount || 0);
 
     // Step 1: Forward base amount to user
-    const userBlinkAPI = new BlinkAPI(tipData.userApiKey);
+    const userBlinkAPI = new BlinkAPI(tipData.userApiKey, apiUrl);
     
     // Enhanced memo with tip information
     let forwardingMemo;
@@ -192,7 +201,7 @@ export default async function handler(req, res) {
     console.log('📄 User invoice created:', { paymentHash: userInvoice.paymentHash });
 
     // Step 2: Pay the user's invoice from BlinkPOS
-    const blinkposAPI = new BlinkAPI(blinkposApiKey);
+    const blinkposAPI = new BlinkAPI(blinkposApiKey, apiUrl);
     
     console.log('💰 Paying user invoice from BlinkPOS...');
     // Pass the memo to the payment so it shows in the receiver's Blink wallet

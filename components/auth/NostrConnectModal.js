@@ -69,6 +69,9 @@ export default function NostrConnectModal({
   const [authUrl, setAuthUrl] = useState(null);
   const [approvalPollCount, setApprovalPollCount] = useState(0);
   
+  // Security rejection state - shows special UI for blocked connections
+  const [securityRejection, setSecurityRejection] = useState(null);
+  
   // Timer refs
   const slowTimerRef = { current: null };
   const approvalPollRef = { current: null };
@@ -207,6 +210,7 @@ export default function NostrConnectModal({
     setAwaitingApproval(false);
     setAuthUrl(null);
     setApprovalPollCount(0);
+    setSecurityRejection(null); // Clear any previous security rejection
     
     // Clear any existing poll timer
     if (approvalPollRef.current) {
@@ -269,9 +273,21 @@ export default function NostrConnectModal({
         setAuthUrl(null);
         await handleConnectionSuccess(result.publicKey);
       } else {
-        setStage('error');
-        setErrorMessage(result.error || 'Connection failed');
-        setErrorStage('connected');
+        // Check for security rejection
+        if (result.securityRejection) {
+          logAuthWarn('NostrConnectModal', 'SECURITY: Connection blocked -', result.noSecret ? 'no secret' : result.unsupportedType);
+          setStage('error');
+          setSecurityRejection({
+            noSecret: result.noSecret,
+            unsupportedType: result.unsupportedType
+          });
+          setErrorMessage(result.error);
+          setErrorStage('connected');
+        } else {
+          setStage('error');
+          setErrorMessage(result.error || 'Connection failed');
+          setErrorStage('connected');
+        }
       }
     } catch (error) {
       setStage('error');
@@ -388,6 +404,7 @@ export default function NostrConnectModal({
     setErrorMessage('');
     setShowSlowWarning(false);
     setErrorStage(null);
+    setSecurityRejection(null); // Clear security rejection on retry
     
     // Check if we still have a relay connection (use appropriate service)
     const service = getService();
@@ -425,6 +442,7 @@ export default function NostrConnectModal({
     setErrorStage(null);
     setAwaitingApproval(false);
     setAuthUrl(null);
+    setSecurityRejection(null); // Clear security rejection
     // Stop approval polling
     stopApprovalPolling();
   };
@@ -721,13 +739,71 @@ export default function NostrConnectModal({
             <div className="py-4 text-center">
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
                 <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  {securityRejection ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  )}
                 </svg>
               </div>
               
-              <p className="text-gray-700 dark:text-gray-300 mb-2">
-                {errorMessage}
-              </p>
+              {/* Security Rejection - Special UI */}
+              {securityRejection && (
+                <div className="text-left mb-4">
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">
+                    <h4 className="font-semibold text-red-800 dark:text-red-200 mb-2 flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      Security Protection
+                    </h4>
+                    <p className="text-sm text-red-700 dark:text-red-300">
+                      {errorMessage}
+                    </p>
+                  </div>
+                  
+                  {securityRejection.noSecret && (
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 text-sm">
+                      <p className="font-medium text-gray-700 dark:text-gray-300 mb-3">
+                        How to get a secure bunker URL:
+                      </p>
+                      <ul className="space-y-2 text-gray-600 dark:text-gray-400">
+                        <li className="flex items-start gap-2">
+                          <span className="font-semibold text-purple-600 dark:text-purple-400">nsec.app:</span>
+                          <span>Keys → Copy bunker URL (includes secret)</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="font-semibold text-purple-600 dark:text-purple-400">Amber:</span>
+                          <span>Use QR code scan instead (auto-generates secret)</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="font-semibold text-purple-600 dark:text-purple-400">Portal:</span>
+                          <span>Create connection → Copy bunker URL</span>
+                        </li>
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {securityRejection.unsupportedType && (
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 text-sm">
+                      <p className="font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Secure connection options:
+                      </p>
+                      <ul className="space-y-1 text-gray-600 dark:text-gray-400 list-disc list-inside">
+                        <li>Scan the QR code with your signer app</li>
+                        <li>Paste a <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">bunker://</code> URL with a secret</li>
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* Regular error message (non-security) */}
+              {!securityRejection && (
+                <p className="text-gray-700 dark:text-gray-300 mb-2">
+                  {errorMessage}
+                </p>
+              )}
               
               <div className="flex gap-3 mt-6">
                 <button

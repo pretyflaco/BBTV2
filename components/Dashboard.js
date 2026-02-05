@@ -433,8 +433,18 @@ export default function Dashboard() {
   const [voucherWalletValidating, setVoucherWalletValidating] = useState(false);
   const [voucherWalletScopes, setVoucherWalletScopes] = useState(null); // Scopes returned from authorization query
   const [voucherWalletBalance, setVoucherWalletBalance] = useState(null); // BTC balance in sats
-  const [voucherWalletUsdBalance, setVoucherWalletUsdBalance] = useState(null); // USD balance in cents (for future Stablesats feature)
+  const [voucherWalletUsdBalance, setVoucherWalletUsdBalance] = useState(null); // USD balance in cents (for Stablesats feature)
   const [voucherWalletBalanceLoading, setVoucherWalletBalanceLoading] = useState(false);
+  const [voucherWalletBtcId, setVoucherWalletBtcId] = useState(null); // BTC wallet ID for voucher creation
+  const [voucherWalletUsdId, setVoucherWalletUsdId] = useState(null); // USD wallet ID for Stablesats vouchers
+  const [voucherCurrencyMode, setVoucherCurrencyMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('blinkpos-voucher-currency-mode');
+      return saved === 'USD' ? 'USD' : 'BTC'; // Default to BTC if not set or invalid
+    }
+    return 'BTC';
+  }); // 'BTC' or 'USD' - which wallet to use for vouchers
+  const [usdExchangeRate, setUsdExchangeRate] = useState(null); // USD exchange rate for voucher conversion
   const [currentAmountInSats, setCurrentAmountInSats] = useState(0); // For capacity indicator polling
   
   // Tip Profile state
@@ -587,6 +597,13 @@ export default function Dashboard() {
     }
   }, [bitcoinFormat]);
 
+  // Persist voucher currency mode to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('blinkpos-voucher-currency-mode', voucherCurrencyMode);
+    }
+  }, [voucherCurrencyMode]);
+
   // Fetch exchange rate when currency changes (for sats equivalent display in ItemCart)
   useEffect(() => {
     const fetchExchangeRate = async () => {
@@ -628,6 +645,55 @@ export default function Dashboard() {
     
     fetchExchangeRate();
   }, [displayCurrency, apiKey]);
+
+  // Fetch USD exchange rate for voucher creation (needed for USD/Stablesats vouchers)
+  useEffect(() => {
+    const fetchUsdExchangeRate = async () => {
+      // Only fetch if voucher wallet is connected
+      if (!voucherWallet?.apiKey) {
+        setUsdExchangeRate(null);
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/rates/exchange-rate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            apiKey: voucherWallet.apiKey,
+            currency: 'USD',
+            // Use BlinkPOS credentials if no API key available
+            useBlinkpos: !voucherWallet.apiKey
+          }),
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          setUsdExchangeRate({
+            satPriceInCurrency: data.satPriceInCurrency,
+            currency: 'USD'
+          });
+          console.log('[VoucherWallet] USD exchange rate:', data.satPriceInCurrency);
+        } else {
+          console.error('[VoucherWallet] Failed to fetch USD exchange rate:', data.error);
+          setUsdExchangeRate(null);
+        }
+      } catch (error) {
+        console.error('[VoucherWallet] USD exchange rate error:', error);
+        setUsdExchangeRate(null);
+      }
+    };
+    
+    fetchUsdExchangeRate();
+    
+    // Refresh USD rate every 5 minutes while voucher wallet is connected
+    const intervalId = voucherWallet?.apiKey ? setInterval(fetchUsdExchangeRate, 5 * 60 * 1000) : null;
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [voucherWallet?.apiKey]);
 
   // Persist active tip profile and update tipPresets when profile changes
   useEffect(() => {
@@ -732,6 +798,10 @@ export default function Dashboard() {
             setNumberFormat(serverPrefs.numberFormat);
             localStorage.setItem('blinkpos-number-format', serverPrefs.numberFormat);
           }
+          if (serverPrefs.voucherCurrencyMode) {
+            setVoucherCurrencyMode(serverPrefs.voucherCurrencyMode);
+            localStorage.setItem('blinkpos-voucher-currency-mode', serverPrefs.voucherCurrencyMode);
+          }
           
           lastSyncedPrefsRef.current = JSON.stringify(serverPrefs);
         } else {
@@ -742,7 +812,8 @@ export default function Dashboard() {
             tipsEnabled,
             tipPresets,
             displayCurrency,
-            numberFormat
+            numberFormat,
+            voucherCurrencyMode
           };
           syncPreferencesToServer(currentPrefs);
         }
@@ -890,7 +961,8 @@ export default function Dashboard() {
       tipsEnabled,
       tipPresets,
       displayCurrency,
-      numberFormat
+      numberFormat,
+      voucherCurrencyMode
     };
     
     const currentPrefsStr = JSON.stringify(currentPrefs);
@@ -899,7 +971,7 @@ export default function Dashboard() {
     if (lastSyncedPrefsRef.current && lastSyncedPrefsRef.current !== currentPrefsStr) {
       syncPreferencesToServer(currentPrefs);
     }
-  }, [publicKey, soundEnabled, soundTheme, tipsEnabled, tipPresets, displayCurrency, numberFormat, syncPreferencesToServer]);
+  }, [publicKey, soundEnabled, soundTheme, tipsEnabled, tipPresets, displayCurrency, numberFormat, voucherCurrencyMode, syncPreferencesToServer]);
 
   // Cleanup server sync timer on unmount
   useEffect(() => {
@@ -1536,11 +1608,13 @@ export default function Dashboard() {
     }
   }, [apiKey]);
 
-  // Fetch voucher wallet balance (BTC and USD)
+  // Fetch voucher wallet balance (BTC and USD) and wallet IDs
   const fetchVoucherWalletBalance = useCallback(async () => {
     if (!voucherWallet?.apiKey) {
       setVoucherWalletBalance(null);
       setVoucherWalletUsdBalance(null);
+      setVoucherWalletBtcId(null);
+      setVoucherWalletUsdId(null);
       return;
     }
     
@@ -1559,16 +1633,22 @@ export default function Dashboard() {
         const usdWallet = data.wallets.find(w => w.walletCurrency === 'USD');
         setVoucherWalletBalance(btcWallet?.balance || 0);
         setVoucherWalletUsdBalance(usdWallet?.balance ?? null); // null if no USD wallet
-        console.log('[VoucherWallet] Balance fetched - BTC:', btcWallet?.balance || 0, 'sats, USD:', usdWallet?.balance ?? 'N/A', 'cents');
+        setVoucherWalletBtcId(btcWallet?.id || null);
+        setVoucherWalletUsdId(usdWallet?.id || null);
+        console.log('[VoucherWallet] Balance fetched - BTC:', btcWallet?.balance || 0, 'sats (id:', btcWallet?.id, '), USD:', usdWallet?.balance ?? 'N/A', 'cents (id:', usdWallet?.id, ')');
       } else {
         console.error('[VoucherWallet] Failed to fetch balance:', data.error);
         setVoucherWalletBalance(null);
         setVoucherWalletUsdBalance(null);
+        setVoucherWalletBtcId(null);
+        setVoucherWalletUsdId(null);
       }
     } catch (error) {
       console.error('[VoucherWallet] Failed to fetch balance:', error);
       setVoucherWalletBalance(null);
       setVoucherWalletUsdBalance(null);
+      setVoucherWalletBtcId(null);
+      setVoucherWalletUsdId(null);
     } finally {
       setVoucherWalletBalanceLoading(false);
     }
@@ -7301,7 +7381,7 @@ export default function Dashboard() {
             <MultiVoucher
               ref={multiVoucherRef}
               voucherWallet={voucherWallet}
-              walletBalance={voucherWalletBalance}
+              walletBalance={voucherCurrencyMode === 'USD' ? voucherWalletUsdBalance : voucherWalletBalance}
               displayCurrency={displayCurrency}
               numberFormat={numberFormat}
               bitcoinFormat={bitcoinFormat}
@@ -7312,6 +7392,10 @@ export default function Dashboard() {
               soundEnabled={soundEnabled}
               commissionEnabled={commissionEnabled}
               commissionPresets={commissionPresets}
+              voucherCurrencyMode={voucherCurrencyMode}
+              onVoucherCurrencyToggle={voucherWalletUsdId ? () => setVoucherCurrencyMode(prev => prev === 'BTC' ? 'USD' : 'BTC') : null}
+              usdExchangeRate={usdExchangeRate}
+              usdWalletId={voucherWalletUsdId}
               onInternalTransition={() => {
                 // Rotate spinner color and show brief transition
                 setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);
@@ -7324,7 +7408,7 @@ export default function Dashboard() {
           <Voucher
             ref={voucherRef}
             voucherWallet={voucherWallet}
-            walletBalance={voucherWalletBalance}
+            walletBalance={voucherCurrencyMode === 'USD' ? voucherWalletUsdBalance : voucherWalletBalance}
             displayCurrency={displayCurrency}
             numberFormat={numberFormat}
             bitcoinFormat={bitcoinFormat}
@@ -7336,6 +7420,10 @@ export default function Dashboard() {
             onVoucherStateChange={setShowingVoucherQR}
             commissionEnabled={commissionEnabled}
             commissionPresets={commissionPresets}
+            voucherCurrencyMode={voucherCurrencyMode}
+            onVoucherCurrencyToggle={voucherWalletUsdId ? () => setVoucherCurrencyMode(prev => prev === 'BTC' ? 'USD' : 'BTC') : null}
+            usdExchangeRate={usdExchangeRate}
+            usdWalletId={voucherWalletUsdId}
             onInternalTransition={() => {
               // Rotate spinner color and show brief transition
               setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);

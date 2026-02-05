@@ -346,7 +346,8 @@ function getDefaultPreferences() {
     darkMode: false,
     displayCurrency: 'BTC',
     tipsEnabled: false,
-    tipPresets: [7.5, 10, 12.5, 20]
+    tipPresets: [7.5, 10, 12.5, 20],
+    voucherCurrencyMode: 'BTC'  // 'BTC' for Bitcoin vouchers, 'USD' for Dollar/Stablesats vouchers
   };
 }
 

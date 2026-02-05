@@ -29,7 +29,11 @@ const MultiVoucher = forwardRef(({
   soundEnabled, 
   onInternalTransition,
   commissionEnabled,
-  commissionPresets = [1, 2, 3]
+  commissionPresets = [1, 2, 3],
+  voucherCurrencyMode = 'BTC',
+  onVoucherCurrencyToggle,
+  usdExchangeRate = null,
+  usdWalletId = null
 }, ref) => {
   // Amount input state
   const [amount, setAmount] = useState('');
@@ -449,6 +453,12 @@ const MultiVoucher = forwardRef(({
       return;
     }
 
+    // For USD vouchers, check if USD wallet ID is available
+    if (voucherCurrencyMode === 'USD' && !usdWalletId) {
+      setError('USD wallet not configured. Please set up a USD/Stablesats wallet.');
+      return;
+    }
+
     setGenerating(true);
     setCurrentStep('generating');
     setError('');
@@ -475,7 +485,20 @@ const MultiVoucher = forwardRef(({
         }
       }
 
-      console.log(`Creating ${quantity} vouchers of ${amountInSats} sats each...`);
+      // For USD vouchers, calculate USD cents from sats
+      let usdAmountCents = null;
+      if (voucherCurrencyMode === 'USD') {
+        if (!usdExchangeRate || !usdExchangeRate.satPriceInCurrency) {
+          throw new Error('USD exchange rate not available. Please try again.');
+        }
+        usdAmountCents = Math.round(amountInSats * usdExchangeRate.satPriceInCurrency);
+        
+        if (usdAmountCents < 1) {
+          throw new Error('Amount too small. Converts to less than $0.01.');
+        }
+      }
+
+      console.log(`Creating ${quantity} ${voucherCurrencyMode} vouchers of ${amountInSats} sats each...`);
 
       const vouchers = [];
       
@@ -486,11 +509,14 @@ const MultiVoucher = forwardRef(({
           body: JSON.stringify({
             amount: amountInSats,
             apiKey: voucherWallet.apiKey,
-            walletId: voucherWallet.walletId,
+            walletId: voucherCurrencyMode === 'USD' ? usdWalletId : voucherWallet.walletId,
             expiryId: selectedExpiry,
             commissionPercent: selectedCommissionPercent,
             displayAmount: numericAmount,
             displayCurrency: displayCurrency,
+            // USD voucher support
+            walletCurrency: voucherCurrencyMode, // 'BTC' or 'USD'
+            usdAmount: usdAmountCents, // USD cents (only for USD vouchers)
             // Environment for staging/production support
             environment: getEnvironment()
           }),
@@ -505,7 +531,9 @@ const MultiVoucher = forwardRef(({
         if (data.success && data.voucher) {
           const protocol = window.location.protocol;
           const host = window.location.host;
-          const lnurlUrl = `${protocol}//${host}/api/voucher/lnurl/${data.voucher.id}/${amountInSats}`;
+          // LNURL encodes sats for BTC vouchers, or USD cents for USD vouchers
+          const lnurlAmount = voucherCurrencyMode === 'USD' ? usdAmountCents : amountInSats;
+          const lnurlUrl = `${protocol}//${host}/api/voucher/lnurl/${data.voucher.id}/${lnurlAmount}`;
           const lnurl = encodeLnurl(lnurlUrl);
 
           vouchers.push({
@@ -517,6 +545,8 @@ const MultiVoucher = forwardRef(({
             commissionAmount: commissionAmount,
             netAmount: netAmount,
             expiresAt: data.voucher.expiresAt, // Include expiry for PDF
+            walletCurrency: voucherCurrencyMode, // Track whether this is a USD or BTC voucher
+            usdAmountCents: usdAmountCents, // USD amount in cents (for USD vouchers)
             index: i + 1
           });
         }
@@ -524,7 +554,7 @@ const MultiVoucher = forwardRef(({
 
       setGeneratedVouchers(vouchers);
       setCurrentStep('preview');
-      console.log(`Successfully created ${vouchers.length} vouchers`);
+      console.log(`Successfully created ${vouchers.length} ${voucherCurrencyMode} vouchers`);
 
     } catch (err) {
       console.error('Voucher generation error:', err);
@@ -913,6 +943,9 @@ const MultiVoucher = forwardRef(({
           decimalDisabled={isBitcoinCurrency(displayCurrency) || getCurrentCurrency()?.fractionDigits === 0}
           accentColor="purple"
           showPlus={false}
+          showCurrencyToggle={!!onVoucherCurrencyToggle}
+          voucherCurrencyMode={voucherCurrencyMode}
+          onCurrencyToggle={onVoucherCurrencyToggle}
         />
 
         {/* Commission Selection Overlay */}

@@ -17,6 +17,9 @@ import { THEMES } from '../lib/hooks/useTheme';
  * @param {boolean} props.plusDisabled - Whether plus button is disabled
  * @param {string} props.accentColor - Accent color for buttons ('blue' | 'purple')
  * @param {boolean} props.showPlus - Whether to show plus button (default: true)
+ * @param {boolean} props.showCurrencyToggle - Whether to show currency toggle (BTC/USD) in top-right when showPlus=false
+ * @param {string} props.voucherCurrencyMode - Current voucher currency mode ('BTC' | 'USD')
+ * @param {Function} props.onCurrencyToggle - Handler for currency toggle
  */
 export default function Numpad({
   theme = THEMES.DARK,
@@ -31,6 +34,9 @@ export default function Numpad({
   plusDisabled = false,
   accentColor = 'blue',
   showPlus = true,
+  showCurrencyToggle = false,
+  voucherCurrencyMode = 'BTC',
+  onCurrencyToggle,
 }) {
   const isBlinkClassicDark = theme === THEMES.BLINK_CLASSIC_DARK;
   const isBlinkClassicLight = theme === THEMES.BLINK_CLASSIC_LIGHT;
@@ -53,6 +59,8 @@ export default function Numpad({
           return `${baseClassic} text-blink-classic-amber flex items-center justify-center`;
         case 'decimal':
           return `${baseClassic} text-white disabled:opacity-50 disabled:cursor-not-allowed`;
+        case 'currencyToggle':
+          return `${baseClassic} text-white flex items-center justify-center`;
         case 'ok':
           return 'h-[136px] md:h-[172px] bg-transparent border border-blink-classic-border hover:bg-blink-classic-bg hover:border-blink-classic-amber rounded-xl text-lg md:text-xl font-bold transition-colors text-white disabled:opacity-50 disabled:cursor-not-allowed row-span-2 flex items-center justify-center';
         default:
@@ -75,6 +83,8 @@ export default function Numpad({
           return `${baseClassic} text-blink-classic-amber flex items-center justify-center`;
         case 'decimal':
           return `${baseClassic} text-black disabled:opacity-50 disabled:cursor-not-allowed`;
+        case 'currencyToggle':
+          return `${baseClassic} text-black flex items-center justify-center`;
         case 'ok':
           return 'h-[136px] md:h-[172px] bg-transparent border border-blink-classic-border-light hover:bg-blink-classic-hover-light hover:border-blink-classic-amber rounded-xl text-lg md:text-xl font-bold transition-colors text-black disabled:opacity-50 disabled:cursor-not-allowed row-span-2 flex items-center justify-center';
         default:
@@ -114,6 +124,8 @@ export default function Numpad({
         return `${baseStandard} border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900 text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 flex items-center justify-center`;
       case 'decimal':
         return `${baseStandard} ${colors.border} ${colors.hoverBorder} ${colors.hoverBg} ${colors.text} ${colors.hoverText} disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed`;
+      case 'currencyToggle':
+        return `${baseStandard} ${colors.border} ${colors.hoverBorder} ${colors.hoverBg} ${colors.text} ${colors.hoverText} flex items-center justify-center`;
       case 'ok':
         return `h-[136px] md:h-[172px] bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-lg text-lg md:text-xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center row-span-2`;
       default:
@@ -182,8 +194,22 @@ export default function Numpad({
           >
             +
           </button>
+        ) : showCurrencyToggle && onCurrencyToggle ? (
+          <button
+            onClick={onCurrencyToggle}
+            className={getButtonClasses('currencyToggle')}
+            style={fontStyle}
+            data-testid="numpad-currency-toggle"
+            title={voucherCurrencyMode === 'BTC' ? 'Bitcoin voucher (click to switch to USD)' : 'USD voucher (click to switch to Bitcoin)'}
+          >
+            {voucherCurrencyMode === 'BTC' ? (
+              <span className="text-lg md:text-xl">&#8383;</span>
+            ) : (
+              <span className="text-lg md:text-xl">$</span>
+            )}
+          </button>
         ) : (
-          <div></div> // Empty cell when showPlus is false
+          <div></div> // Empty cell when showPlus is false and no toggle
         )}
 
         {/* Row 2: 4, 5, 6, OK (starts) */}

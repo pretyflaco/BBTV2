@@ -92,6 +92,8 @@ export default async function handler(req, res) {
     console.log('💳 Processing voucher withdrawal:', {
       chargeId: chargeId.substring(0, 8) + '...',
       amount: voucher.amount,
+      walletCurrency: voucher.walletCurrency || 'BTC',
+      usdAmountCents: voucher.usdAmountCents,
       invoicePrefix: pr.substring(0, 30) + '...'
     });
 
@@ -114,7 +116,23 @@ export default async function handler(req, res) {
       
       // Build memo with commission and display info if available
       let memo;
-      if (voucher.displayAmount && voucher.displayCurrency) {
+      const isUsdVoucher = voucher.walletCurrency === 'USD';
+      
+      if (isUsdVoucher && voucher.usdAmountCents) {
+        // USD voucher - show USD value prominently
+        const usdAmount = (voucher.usdAmountCents / 100).toFixed(2);
+        if (voucher.displayAmount && voucher.displayCurrency && voucher.displayCurrency !== 'USD') {
+          // Display currency is different from USD (e.g., ARS)
+          if (voucher.commissionPercent && voucher.commissionPercent > 0) {
+            memo = `BlinkPOS USD Voucher: ${voucher.displayCurrency} ${voucher.displayAmount} (${voucher.commissionPercent}% commission) = $${usdAmount} USD`;
+          } else {
+            memo = `BlinkPOS USD Voucher: ${voucher.displayCurrency} ${voucher.displayAmount} = $${usdAmount} USD`;
+          }
+        } else {
+          memo = `BlinkPOS USD Voucher: $${usdAmount} USD = ${voucher.amount} sats`;
+        }
+      } else if (voucher.displayAmount && voucher.displayCurrency) {
+        // BTC voucher with display currency
         if (voucher.commissionPercent && voucher.commissionPercent > 0) {
           memo = `BlinkPOS Voucher: ${voucher.displayCurrency} ${voucher.displayAmount} (${voucher.commissionPercent}% commission) = ${voucher.amount} sats`;
         } else {
@@ -124,7 +142,11 @@ export default async function handler(req, res) {
         memo = `BlinkPOS Voucher: ${voucher.amount} sats`;
       }
       
-      console.log('⚡ Paying invoice from voucher wallet...');
+      console.log('⚡ Paying invoice from voucher wallet...', {
+        walletId: voucher.walletId,
+        walletCurrency: voucher.walletCurrency || 'BTC',
+        memo
+      });
       
       const paymentResult = await blinkAPI.payLnInvoice(
         voucher.walletId, 
@@ -153,6 +175,8 @@ export default async function handler(req, res) {
       console.log(`✅ Voucher redeemed successfully in ${elapsed}ms:`, {
         chargeId: chargeId.substring(0, 8) + '...',
         amount: voucher.amount,
+        walletCurrency: voucher.walletCurrency || 'BTC',
+        usdAmountCents: voucher.usdAmountCents,
         status: paymentResult.status
       });
 

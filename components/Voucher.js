@@ -10,7 +10,7 @@ import { THEMES } from '../lib/hooks/useTheme';
 import { unlockAudioContext, playSound } from '../lib/audio-utils';
 import { getEnvironment } from '../lib/config/api';
 
-const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, darkMode, theme = THEMES.DARK, cycleTheme, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3] }, ref) => {
+const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, darkMode, theme = THEMES.DARK, cycleTheme, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3], voucherCurrencyMode = 'BTC', onVoucherCurrencyToggle, usdExchangeRate = null, usdWalletId = null }, ref) => {
   const [amount, setAmount] = useState('');
   const [voucher, setVoucher] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -718,7 +718,7 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
     const effectiveCommissionPercent = forceCommissionPercent !== null ? forceCommissionPercent : selectedCommissionPercent;
 
     if (!isValidAmount()) {
-      setError('Please enter a valid amount (minimum 1 sat)');
+      setError(voucherCurrencyMode === 'USD' ? 'Please enter a valid amount (minimum $0.01)' : 'Please enter a valid amount (minimum 1 sat)');
       return;
     }
 
@@ -730,6 +730,12 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
 
     if (!voucherWallet || !voucherWallet.apiKey || !voucherWallet.walletId) {
       setError('Voucher wallet not configured');
+      return;
+    }
+
+    // For USD vouchers, check if USD wallet ID is available
+    if (voucherCurrencyMode === 'USD' && !usdWalletId) {
+      setError('USD wallet not configured. Please set up a USD/Stablesats wallet.');
       return;
     }
 
@@ -767,14 +773,33 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
         }
       }
 
+      // For USD vouchers, calculate USD cents from sats
+      // Display amount → Sats → USD cents (two-step conversion)
+      let usdAmountCents = null;
+      if (voucherCurrencyMode === 'USD') {
+        if (!usdExchangeRate || !usdExchangeRate.satPriceInCurrency) {
+          throw new Error('USD exchange rate not available. Please try again.');
+        }
+        // Convert sats to USD cents: sats * (price per sat in USD) * 100
+        // satPriceInCurrency is cents per sat, so multiply by sats to get cents
+        usdAmountCents = Math.round(amountInSats * usdExchangeRate.satPriceInCurrency);
+        
+        if (usdAmountCents < 1) {
+          throw new Error('Amount too small. Converts to less than $0.01.');
+        }
+      }
+
       console.log('🔨 Creating voucher:', {
+        voucherCurrencyMode: voucherCurrencyMode,
         displayAmount: numericAmount,
         displayCurrency: displayCurrency,
         commissionPercent: effectiveCommissionPercent,
         commissionAmount: commissionAmount,
         netAmount: netAmount,
         amountInSats: amountInSats,
+        usdAmountCents: usdAmountCents,
         exchangeRate: exchangeRate,
+        usdExchangeRate: usdExchangeRate,
         expiryId: selectedExpiry
       });
 
@@ -787,12 +812,15 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
         body: JSON.stringify({
           amount: amountInSats,
           apiKey: voucherWallet.apiKey,
-          walletId: voucherWallet.walletId,
+          walletId: voucherCurrencyMode === 'USD' ? usdWalletId : voucherWallet.walletId,
           expiryId: selectedExpiry,
           // Include commission info for memo and printout
           commissionPercent: effectiveCommissionPercent,
           displayAmount: numericAmount,
           displayCurrency: displayCurrency,
+          // USD voucher support
+          walletCurrency: voucherCurrencyMode, // 'BTC' or 'USD'
+          usdAmount: usdAmountCents, // USD cents (only for USD vouchers)
           // Environment for staging/production support
           environment: getEnvironment()
         }),
@@ -806,10 +834,12 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
       }
 
       if (data.success && data.voucher) {
-        // Build LNURL
+        // Build LNURL - for USD vouchers, encode the USD amount instead of sats
         const protocol = window.location.protocol;
         const host = window.location.host;
-        const lnurlUrl = `${protocol}//${host}/api/voucher/lnurl/${data.voucher.id}/${amountInSats}`;
+        // LNURL encodes sats for BTC vouchers, or USD cents for USD vouchers
+        const lnurlAmount = voucherCurrencyMode === 'USD' ? usdAmountCents : amountInSats;
+        const lnurlUrl = `${protocol}//${host}/api/voucher/lnurl/${data.voucher.id}/${lnurlAmount}`;
         
         console.log('🔗 LNURL URL:', lnurlUrl);
         
@@ -826,12 +856,16 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
           commissionPercent: effectiveCommissionPercent,
           commissionAmount: commissionAmount,
           netAmount: netAmount, // Amount after commission deduction
-          expiresAt: data.voucher.expiresAt // Include expiry for PDF
+          expiresAt: data.voucher.expiresAt, // Include expiry for PDF
+          walletCurrency: voucherCurrencyMode, // Track whether this is a USD or BTC voucher
+          usdAmountCents: usdAmountCents // USD amount in cents (for USD vouchers)
         });
 
         console.log('✅ Voucher created:', {
           chargeId: data.voucher.id.substring(0, 8) + '...',
+          walletCurrency: voucherCurrencyMode,
           amount: amountInSats,
+          usdAmountCents: usdAmountCents,
           displayAmount: numericAmount,
           displayCurrency: displayCurrency,
           commissionPercent: effectiveCommissionPercent,
@@ -1705,6 +1739,9 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
           plusDisabled={true}
           accentColor="purple"
           showPlus={false}
+          showCurrencyToggle={!!onVoucherCurrencyToggle}
+          voucherCurrencyMode={voucherCurrencyMode}
+          onCurrencyToggle={onVoucherCurrencyToggle}
         />
       </div>
 

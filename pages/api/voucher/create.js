@@ -13,7 +13,9 @@ const { isValidExpiryId, DEFAULT_EXPIRY_ID } = require('../../../lib/voucher-exp
  *   commissionPercent: number (optional),
  *   displayAmount: string (optional),
  *   displayCurrency: string (optional),
- *   environment: string (optional, 'production' or 'staging')
+ *   environment: string (optional, 'production' or 'staging'),
+ *   walletCurrency: string (optional, 'BTC' or 'USD', defaults to 'BTC'),
+ *   usdAmount: number (optional, USD cents - required if walletCurrency is 'USD')
  * }
  */
 export default async function handler(req, res) {
@@ -30,7 +32,9 @@ export default async function handler(req, res) {
       commissionPercent, 
       displayAmount, 
       displayCurrency,
-      environment = 'production'
+      environment = 'production',
+      walletCurrency = 'BTC',
+      usdAmount
     } = req.body;
 
     // Validate required fields
@@ -50,6 +54,25 @@ export default async function handler(req, res) {
       });
     }
 
+    // Validate walletCurrency
+    if (walletCurrency !== 'BTC' && walletCurrency !== 'USD') {
+      console.error('❌ Invalid walletCurrency:', walletCurrency);
+      return res.status(400).json({ 
+        error: 'walletCurrency must be BTC or USD' 
+      });
+    }
+
+    // Validate USD voucher has usdAmount
+    if (walletCurrency === 'USD') {
+      const usdAmountNum = parseInt(usdAmount);
+      if (isNaN(usdAmountNum) || usdAmountNum <= 0) {
+        console.error('❌ USD voucher missing or invalid usdAmount:', usdAmount);
+        return res.status(400).json({ 
+          error: 'USD vouchers require a positive usdAmount (in cents)' 
+        });
+      }
+    }
+
     // Validate expiryId if provided
     const validExpiryId = expiryId && isValidExpiryId(expiryId) ? expiryId : DEFAULT_EXPIRY_ID;
 
@@ -59,12 +82,16 @@ export default async function handler(req, res) {
       commissionPercent: commissionPercent || 0,
       displayAmount: displayAmount || null,
       displayCurrency: displayCurrency || null,
-      environment: environment
+      environment: environment,
+      walletCurrency: walletCurrency,
+      usdAmount: walletCurrency === 'USD' ? parseInt(usdAmount) : null
     });
 
     console.log('✅ Voucher created successfully:', {
       chargeId: voucher.id,
       amount: voucher.amount,
+      walletCurrency: voucher.walletCurrency,
+      usdAmountCents: voucher.usdAmountCents,
       expiryId: voucher.expiryId,
       expiresAt: new Date(voucher.expiresAt).toISOString(),
       commissionPercent: voucher.commissionPercent,
@@ -78,6 +105,8 @@ export default async function handler(req, res) {
       voucher: {
         id: voucher.id,
         amount: voucher.amount,
+        walletCurrency: voucher.walletCurrency,
+        usdAmountCents: voucher.usdAmountCents,
         createdAt: voucher.createdAt,
         expiresAt: voucher.expiresAt,
         expiryId: voucher.expiryId

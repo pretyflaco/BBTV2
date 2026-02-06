@@ -194,6 +194,9 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     
     echo ""
     echo "🔨 Building and starting containers..."
+    # Extract git commit hash for auto-versioning
+    export GIT_COMMIT=\$(git rev-parse --short HEAD)
+    echo "📌 Build version: \${GIT_COMMIT}"
     docker-compose -f docker-compose.prod.yml up --build -d
     
     echo ""

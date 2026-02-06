@@ -28,6 +28,10 @@ ENV NEXT_TELEMETRY_DISABLED 1
 # They get inlined into the JavaScript bundle during build
 ENV NEXT_PUBLIC_USE_NDK_NIP46=true
 
+# Git commit hash for build versioning (passed from docker-compose or build command)
+ARG GIT_COMMIT=unknown
+ENV GIT_COMMIT=${GIT_COMMIT}
+
 # Limit Node.js memory to avoid OOM on low-memory servers
 # Disable webpack cache to save disk space during build
 ENV NODE_OPTIONS="--max-old-space-size=512"

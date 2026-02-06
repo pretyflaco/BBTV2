@@ -1,8 +1,23 @@
 /** @type {import('next').NextConfig} */
+
+// Get git commit hash at build time
+const { execSync } = require('child_process');
+let gitCommit = 'dev';
+try {
+  gitCommit = execSync('git rev-parse --short HEAD').toString().trim();
+} catch (e) {
+  // Fallback if git is not available (e.g., in Docker without .git)
+  gitCommit = process.env.GIT_COMMIT || 'unknown';
+}
+
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   output: 'standalone',
+  // Inject git commit hash as environment variable
+  env: {
+    NEXT_PUBLIC_GIT_COMMIT: gitCommit,
+  },
   // Enable ESM external resolution for pure ESM packages
   experimental: {
     esmExternals: 'loose',

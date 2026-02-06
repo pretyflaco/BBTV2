@@ -1,6 +1,24 @@
 #!/bin/bash
+# ============================================================================
 # Production Deployment Script - Git-Based Workflow
-# Uses git pull instead of rsync for cleaner deployments
+# ============================================================================
+#
+# ⚠️  IMPORTANT: This app runs via DOCKER, NOT PM2!
+#
+# The production stack uses docker-compose.prod.yml with:
+#   - blinkpos-app (Next.js application)
+#   - blinkpos-redis (Redis cache)
+#   - blinkpos-postgres (PostgreSQL database)
+#
+# DO NOT:
+#   ❌ Run 'pm2 start' or 'npm start' directly
+#   ❌ Use ecosystem.config.js
+#   ❌ Run 'npm run build && npm start' manually
+#
+# If PM2 is running, it will be STOPPED by this script to avoid conflicts.
+# Docker is the ONLY supported production deployment method.
+#
+# ============================================================================
 
 set -e  # Exit on any error
 
@@ -128,6 +146,26 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     
     echo "📁 Navigating to deployment directory..."
     cd ${PROD_PATH}
+    
+    # ============================================================================
+    # CRITICAL: Stop PM2 if running - Docker is the ONLY deployment method
+    # ============================================================================
+    echo ""
+    echo "🛑 Checking for PM2 processes (should NOT be running)..."
+    if command -v pm2 &> /dev/null; then
+        PM2_STATUS=\$(pm2 list 2>/dev/null | grep -c "blinkpos" || echo "0")
+        if [ "\${PM2_STATUS}" -gt 0 ]; then
+            echo "⚠️  WARNING: PM2 process 'blinkpos' found - STOPPING IT!"
+            echo "   Docker is the ONLY supported production deployment method."
+            pm2 stop blinkpos 2>/dev/null || true
+            pm2 delete blinkpos 2>/dev/null || true
+            echo "✅ PM2 process stopped and removed"
+        else
+            echo "✅ No PM2 blinkpos process running (correct!)"
+        fi
+    else
+        echo "✅ PM2 not installed (correct - using Docker only)"
+    fi
     
     # Pre-deployment backup of voucher store (safety net before container rebuild)
     echo ""
@@ -562,6 +600,17 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     echo ""
     echo "📊 Container status:"
     docker ps --filter name=blinkpos
+    
+    # Final PM2 verification
+    echo ""
+    echo "🔍 Verifying NO PM2 processes are running..."
+    if command -v pm2 &> /dev/null && pm2 list 2>/dev/null | grep -q "blinkpos"; then
+        echo "❌ ERROR: PM2 is still running! This should not happen."
+        echo "   Please manually run: pm2 delete blinkpos"
+        exit 1
+    else
+        echo "✅ Confirmed: No PM2 processes (Docker only)"
+    fi
     
     echo ""
     echo "🏥 Health check:"

@@ -60,7 +60,11 @@ export default function Numpad({
         case 'decimal':
           return `${baseClassic} text-white disabled:opacity-50 disabled:cursor-not-allowed`;
         case 'currencyToggle':
-          return `${baseClassic} text-white flex items-center justify-center`;
+          // Dynamic border and text color based on voucher currency mode
+          const toggleColorDark = voucherCurrencyMode === 'BTC' 
+            ? 'border-orange-500 text-orange-500 hover:border-orange-400 hover:text-orange-400' 
+            : 'border-green-500 text-green-500 hover:border-green-400 hover:text-green-400';
+          return `h-16 md:h-20 bg-transparent border ${toggleColorDark} rounded-xl text-xl md:text-2xl font-bold transition-colors flex items-center justify-center`;
         case 'ok':
           return 'h-[136px] md:h-[172px] bg-transparent border border-blink-classic-border hover:bg-blink-classic-bg hover:border-blink-classic-amber rounded-xl text-lg md:text-xl font-bold transition-colors text-white disabled:opacity-50 disabled:cursor-not-allowed row-span-2 flex items-center justify-center';
         default:
@@ -84,7 +88,11 @@ export default function Numpad({
         case 'decimal':
           return `${baseClassic} text-black disabled:opacity-50 disabled:cursor-not-allowed`;
         case 'currencyToggle':
-          return `${baseClassic} text-black flex items-center justify-center`;
+          // Dynamic border and text color based on voucher currency mode
+          const toggleColorLight = voucherCurrencyMode === 'BTC' 
+            ? 'border-orange-500 text-orange-500 hover:border-orange-400 hover:text-orange-400' 
+            : 'border-green-500 text-green-500 hover:border-green-400 hover:text-green-400';
+          return `h-16 md:h-20 bg-transparent border ${toggleColorLight} rounded-xl text-xl md:text-2xl font-bold transition-colors flex items-center justify-center`;
         case 'ok':
           return 'h-[136px] md:h-[172px] bg-transparent border border-blink-classic-border-light hover:bg-blink-classic-hover-light hover:border-blink-classic-amber rounded-xl text-lg md:text-xl font-bold transition-colors text-black disabled:opacity-50 disabled:cursor-not-allowed row-span-2 flex items-center justify-center';
         default:
@@ -125,7 +133,11 @@ export default function Numpad({
       case 'decimal':
         return `${baseStandard} ${colors.border} ${colors.hoverBorder} ${colors.hoverBg} ${colors.text} ${colors.hoverText} disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed`;
       case 'currencyToggle':
-        return `${baseStandard} ${colors.border} ${colors.hoverBorder} ${colors.hoverBg} ${colors.text} ${colors.hoverText} flex items-center justify-center`;
+        // Dynamic border and text color based on voucher currency mode
+        const toggleColorStd = voucherCurrencyMode === 'BTC'
+          ? 'border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30 text-orange-500 dark:text-orange-400'
+          : 'border-green-500 dark:border-green-500 hover:border-green-600 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 text-green-500 dark:text-green-400';
+        return `${baseStandard} ${toggleColorStd} flex items-center justify-center`;
       case 'ok':
         return `h-[136px] md:h-[172px] bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-lg text-lg md:text-xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center row-span-2`;
       default:

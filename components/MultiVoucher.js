@@ -686,7 +686,9 @@ const MultiVoucher = forwardRef(({
             voucherSecret: generateVoucherSecret(voucher.id),
             commissionPercent: voucher.commissionPercent || 0,
             expiresAt: voucher.expiresAt || null,
-            issuedBy: voucherWallet?.username || null
+            issuedBy: voucherWallet?.username || null,
+            walletCurrency: voucher.walletCurrency || 'BTC',
+            usdAmountCents: voucher.usdAmountCents || null
           };
         })
       );
@@ -767,7 +769,9 @@ const MultiVoucher = forwardRef(({
             voucherSecret: generateVoucherSecret(voucher.id),
             commissionPercent: voucher.commissionPercent || 0,
             expiresAt: voucher.expiresAt || null,
-            issuedBy: voucherWallet?.username || null
+            issuedBy: voucherWallet?.username || null,
+            walletCurrency: voucher.walletCurrency || 'BTC',
+            usdAmountCents: voucher.usdAmountCents || null
           };
         })
       );

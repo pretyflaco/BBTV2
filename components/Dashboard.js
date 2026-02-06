@@ -7259,16 +7259,25 @@ export default function Dashboard() {
               <div className="flex-1 flex justify-end">
                 {(currentView === 'voucher' || currentView === 'multivoucher') && !showingVoucherQR && (
                   <div 
-                    className="flex items-center" 
+                    className="flex items-center gap-1.5" 
                     title="Wallet capacity"
                   >
                     {voucherWalletBalanceLoading ? (
                       <div className="animate-spin w-2.5 h-2.5 border border-gray-400 border-t-transparent rounded-full"></div>
                     ) : (
-                      <div className={`w-2.5 h-2.5 rounded-full ${getCapacityColor(
-                        currentVoucherCurrencyMode === 'USD' ? currentAmountInUsdCents : currentAmountInSats,
-                        currentVoucherCurrencyMode === 'USD' ? voucherWalletUsdBalance : voucherWalletBalance
-                      )}`}></div>
+                      <>
+                        <div className={`w-2.5 h-2.5 rounded-full ${getCapacityColor(
+                          currentVoucherCurrencyMode === 'USD' ? currentAmountInUsdCents : currentAmountInSats,
+                          currentVoucherCurrencyMode === 'USD' ? voucherWalletUsdBalance : voucherWalletBalance
+                        )}`}></div>
+                        <span className={`text-xs font-medium ${
+                          currentVoucherCurrencyMode === 'USD' 
+                            ? 'text-green-500' 
+                            : 'text-orange-500'
+                        }`}>
+                          {currentVoucherCurrencyMode === 'USD' ? 'Dollar' : 'Bitcoin'}
+                        </span>
+                      </>
                     )}
                   </div>
                 )}

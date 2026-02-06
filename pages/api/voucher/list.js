@@ -53,7 +53,10 @@ export default async function handler(req, res) {
         displayCurrency: voucher.displayCurrency,
         commissionPercent: voucher.commissionPercent || 0,
         timeRemaining: timeRemaining,
-        status: voucher.status
+        status: voucher.status,
+        // USD voucher fields
+        walletCurrency: voucher.walletCurrency || 'BTC',
+        usdAmountCents: voucher.usdAmountCents || null
       };
     });
     

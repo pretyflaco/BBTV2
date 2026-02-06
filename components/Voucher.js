@@ -1067,7 +1067,9 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
             voucherSecret: voucherSecret,
             commissionPercent: voucher.commissionPercent || 0,
             expiresAt: voucher.expiresAt || null,
-            issuedBy: voucherWallet?.username || null
+            issuedBy: voucherWallet?.username || null,
+            walletCurrency: voucher.walletCurrency || 'BTC',
+            usdAmountCents: voucher.usdAmountCents || null
           }],
           format: printFormat
         }),
@@ -1129,6 +1131,8 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
         commissionPercent: voucher.commissionPercent || 0,
         expiresAt: voucher.expiresAt || null,
         issuedBy: voucherWallet?.username || null,
+        walletCurrency: voucher.walletCurrency || 'BTC',
+        usdAmountCents: voucher.usdAmountCents || null,
       };
       
       // Determine paper width from format

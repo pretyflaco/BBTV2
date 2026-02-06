@@ -20,6 +20,7 @@ const VoucherManager = forwardRef(({
   const [error, setError] = useState('');
   const [selectedVoucher, setSelectedVoucher] = useState(null);
   const [filter, setFilter] = useState('all'); // 'all', 'active', 'expiring', 'claimed', 'cancelled', 'expired'
+  const [currencyFilter, setCurrencyFilter] = useState('all'); // 'all', 'BTC', 'USD'
   const [cancelling, setCancelling] = useState(false);
   const [reissuing, setReissuing] = useState(false);
   
@@ -233,7 +234,10 @@ const VoucherManager = forwardRef(({
             commissionPercent: voucher.commissionPercent || 0,
             expiresAt: voucher.expiresAt || null,
             lnurl: lnurl,
-            issuedBy: voucherWallet?.username || null
+            issuedBy: voucherWallet?.username || null,
+            // USD voucher fields
+            walletCurrency: voucher.walletCurrency || 'BTC',
+            usdAmountCents: voucher.usdAmountCents || null
           }],
           format: 'reissue'
         }),
@@ -352,6 +356,11 @@ const VoucherManager = forwardRef(({
 
   // Filter vouchers
   const filteredVouchers = vouchers.filter(v => {
+    // Currency filter
+    if (currencyFilter !== 'all' && (v.walletCurrency || 'BTC') !== currencyFilter) {
+      return false;
+    }
+    // Status filter
     if (filter === 'all') return true;
     if (filter === 'active') return v.status === 'ACTIVE';
     if (filter === 'expiring') return v.status === 'ACTIVE' && v.timeRemaining && v.timeRemaining < 24 * 60 * 60 * 1000;
@@ -434,15 +443,47 @@ const VoucherManager = forwardRef(({
           </div>
           
           <div className="space-y-3">
+            {/* Voucher Type */}
+            <div className={`rounded-lg p-3 ${
+              selectedVoucher.walletCurrency === 'USD' 
+                ? 'bg-green-50 dark:bg-green-900/30' 
+                : 'bg-orange-50 dark:bg-orange-900/30'
+            }`}>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Voucher Type</div>
+              <div className={`text-lg font-semibold ${
+                selectedVoucher.walletCurrency === 'USD'
+                  ? 'text-green-600 dark:text-green-400'
+                  : 'text-orange-500 dark:text-orange-400'
+              }`}>
+                {selectedVoucher.walletCurrency === 'USD' ? 'Dollar Voucher' : 'Bitcoin Voucher'}
+              </div>
+            </div>
+            
+            {/* Amount */}
             <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
               <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Amount</div>
-              <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                {selectedVoucher.amount.toLocaleString()} sats
-              </div>
-              {selectedVoucher.displayAmount && selectedVoucher.displayCurrency && (
-                <div className="text-sm text-gray-600 dark:text-gray-400">
-                  {formatCurrency(selectedVoucher.displayAmount, selectedVoucher.displayCurrency, currencies)}
-                </div>
+              {selectedVoucher.walletCurrency === 'USD' && selectedVoucher.usdAmountCents ? (
+                <>
+                  <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                    ${(selectedVoucher.usdAmountCents / 100).toFixed(2)}
+                  </div>
+                  {selectedVoucher.displayAmount && selectedVoucher.displayCurrency && selectedVoucher.displayCurrency !== 'USD' && (
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      {formatCurrency(selectedVoucher.displayAmount, selectedVoucher.displayCurrency, currencies)}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                    {selectedVoucher.amount.toLocaleString()} sats
+                  </div>
+                  {selectedVoucher.displayAmount && selectedVoucher.displayCurrency && (
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      {formatCurrency(selectedVoucher.displayAmount, selectedVoucher.displayCurrency, currencies)}
+                    </div>
+                  )}
+                </>
               )}
             </div>
             
@@ -631,6 +672,40 @@ const VoucherManager = forwardRef(({
         </div>
       </div>
       
+      {/* Currency Filter Row */}
+      <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-800">
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { id: 'all', label: 'All', color: null },
+            { id: 'BTC', label: 'Bitcoin', color: 'orange' },
+            { id: 'USD', label: 'Dollar', color: 'green' }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => {
+                if (onInternalTransition) onInternalTransition();
+                setCurrencyFilter(tab.id);
+              }}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                currencyFilter === tab.id
+                  ? tab.color === 'orange' 
+                    ? 'bg-orange-500 text-white'
+                    : tab.color === 'green' 
+                      ? 'bg-green-500 text-white'
+                      : 'bg-purple-600 text-white'
+                  : tab.color === 'orange' 
+                    ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50'
+                    : tab.color === 'green' 
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      
       {/* Filter Tabs - Two rows to avoid horizontal scrolling */}
       <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-800">
         <div className="grid grid-cols-3 gap-2 mb-2">
@@ -742,13 +817,23 @@ const VoucherManager = forwardRef(({
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-gray-900 dark:text-gray-100">
-                          {voucher.amount.toLocaleString()} sats
+                          {voucher.walletCurrency === 'USD' && voucher.usdAmountCents
+                            ? `$${(voucher.usdAmountCents / 100).toFixed(2)}`
+                            : `${voucher.amount.toLocaleString()} sats`}
                         </span>
                         {voucher.commissionPercent > 0 && (
                           <span className="text-xs text-gray-500 dark:text-gray-400">
                             +{voucher.commissionPercent}%
                           </span>
                         )}
+                        {/* Currency indicator badge */}
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${
+                          voucher.walletCurrency === 'USD'
+                            ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                            : 'bg-orange-100 dark:bg-orange-900/30 text-orange-500 dark:text-orange-400'
+                        }`}>
+                          {voucher.walletCurrency === 'USD' ? '$' : '₿'}
+                        </span>
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
                         {voucher.shortId}

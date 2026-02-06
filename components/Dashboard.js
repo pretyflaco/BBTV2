@@ -76,11 +76,11 @@ const TIP_PROFILES = [
 export default function Dashboard() {
   const { 
     user, logout, authMode, getApiKey, hasServerSession, publicKey, 
-    activeBlinkAccount, blinkAccounts, addBlinkAccount, addBlinkLnAddressWallet, removeBlinkAccount, setActiveBlinkAccount, 
+    activeBlinkAccount, blinkAccounts, addBlinkAccount, addBlinkLnAddressWallet, removeBlinkAccount, updateBlinkAccount, setActiveBlinkAccount, 
     storeBlinkAccountOnServer, tippingSettings: profileTippingSettings, updateTippingSettings: updateProfileTippingSettings, 
     nostrProfile,
     // NWC data from useCombinedAuth (user-scoped)
-    nwcConnections, activeNWC, addNWCConnection, removeNWCConnection, setActiveNWC,
+    nwcConnections, activeNWC, addNWCConnection, removeNWCConnection, updateNWCConnection, setActiveNWC,
     nwcMakeInvoice, nwcLookupInvoice, nwcListTransactions, nwcHasCapability, nwcClientReady,
     getActiveNWCUri, // For server-side NWC forwarding via webhook
     // npub.cash wallet data
@@ -421,6 +421,8 @@ export default function Dashboard() {
   const [npubCashValidating, setNpubCashValidating] = useState(false);
   const [npubCashValidated, setNpubCashValidated] = useState(null); // { lightningAddress, minSendable, maxSendable }
   const [confirmDeleteWallet, setConfirmDeleteWallet] = useState(null); // { type: 'blink'|'nwc', id: string }
+  const [editingWalletLabel, setEditingWalletLabel] = useState(null); // { type: 'sending'|'blink'|'nwc'|'npub-cash', id?: string }
+  const [editedWalletLabel, setEditedWalletLabel] = useState('');
   
   // Voucher Wallet state (separate from regular wallet - for voucher feature)
   // NOTE: Initial state is null - we load ONLY after authentication to ensure user-scoped storage
@@ -6206,6 +6208,7 @@ export default function Dashboard() {
                           : getWalletCardClasses()
                       }`}
                     >
+                      {/* Wallet Info Section */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${
@@ -6246,36 +6249,84 @@ export default function Dashboard() {
                               Use
                             </button>
                           )}
-                          {/* Delete button */}
-                          {confirmDeleteWallet?.type === 'blink' && confirmDeleteWallet?.id === account.id ? (
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => { removeBlinkAccount(account.id); setConfirmDeleteWallet(null); }}
-                                className="px-2 py-1 text-xs font-medium bg-red-600 text-white rounded hover:bg-red-700"
-                              >
-                                Delete
-                              </button>
-                              <button
-                                onClick={() => setConfirmDeleteWallet(null)}
-                                className={`px-2 py-1 text-xs rounded ${isBlinkClassic ? 'bg-blink-classic-bg text-gray-300' : (darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700')}`}
-                              >
-                                No
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => setConfirmDeleteWallet({ type: 'blink', id: account.id })}
-                              className={`p-1.5 rounded transition-colors ${getWalletDeleteButtonClasses()}`}
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          )}
                         </div>
+                      </div>
+                      
+                      {/* Edit/Delete Actions */}
+                      <div className={`flex gap-2 mt-3 pt-3 border-t ${isBlinkClassic ? (isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light') : 'border-gray-200 dark:border-gray-700'}`}>
+                        <button
+                          onClick={() => {
+                            setEditingWalletLabel({ type: 'blink', id: account.id });
+                            setEditedWalletLabel(account.label || '');
+                          }}
+                          className={`flex-1 py-2 text-sm rounded-lg transition-colors ${
+                            isBlinkClassic 
+                              ? `${getSecondaryTextClasses()} hover:text-blink-classic-amber border ${isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light'}` 
+                              : 'text-gray-600 dark:text-gray-400 hover:text-blink-accent border border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm('Delete this wallet?')) {
+                              removeBlinkAccount(account.id);
+                            }
+                          }}
+                          className={`flex-1 py-2 text-sm rounded-lg text-red-500 hover:text-red-700 border transition-colors ${
+                            isBlinkClassic 
+                              ? (isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light')
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          Delete
+                        </button>
                       </div>
                     </div>
                   ))}
+                  
+                  {/* Edit Blink Account Label Modal */}
+                  {editingWalletLabel?.type === 'blink' && (
+                    <div className={`p-4 rounded-lg ${isBlinkClassic ? (isBlinkClassicDark ? 'bg-blink-classic-bg border border-blink-classic-amber' : 'bg-blink-classic-hover-light border border-blink-classic-amber') : (darkMode ? 'bg-amber-900/30 border border-amber-500' : 'bg-amber-100 border border-amber-500')}`}>
+                      <h4 className={`text-sm font-medium mb-3 ${isBlinkClassicDark ? 'text-white' : isBlinkClassicLight ? 'text-black' : (darkMode ? 'text-white' : 'text-gray-900')}`}>
+                        Edit Wallet Label
+                      </h4>
+                      <input
+                        type="text"
+                        value={editedWalletLabel}
+                        onChange={(e) => setEditedWalletLabel(e.target.value)}
+                        placeholder="Enter wallet label"
+                        className={`w-full px-3 py-2 rounded-lg border ${getInputClasses()} focus:outline-none focus:ring-2 ${isBlinkClassic ? 'focus:ring-blink-classic-amber' : 'focus:ring-amber-500'}`}
+                      />
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={async () => {
+                            // Update the label using updateBlinkAccount
+                            await updateBlinkAccount(editingWalletLabel.id, { label: editedWalletLabel.trim() || 'Blink Wallet' });
+                            // Close the edit form
+                            setEditingWalletLabel(null);
+                            setEditedWalletLabel('');
+                          }}
+                          className={`flex-1 py-2 text-sm rounded-lg transition-colors ${isBlinkClassic ? 'bg-blink-classic-amber text-black hover:bg-blink-classic-amber/80' : 'bg-amber-600 text-white hover:bg-amber-700'}`}
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingWalletLabel(null);
+                            setEditedWalletLabel('');
+                          }}
+                          className={`flex-1 py-2 text-sm rounded-lg transition-colors ${
+                            isBlinkClassic 
+                              ? 'bg-blink-classic-bg text-gray-300 hover:text-white border border-blink-classic-border' 
+                              : (darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')
+                          }`}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* npub.cash Wallets */}
                   {npubCashWallets && npubCashWallets.map((wallet) => (
@@ -6287,6 +6338,7 @@ export default function Dashboard() {
                           : getWalletCardClasses()
                       }`}
                     >
+                      {/* Wallet Info Section */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${
@@ -6330,36 +6382,84 @@ export default function Dashboard() {
                               Use
                             </button>
                           )}
-                          {/* Delete button */}
-                          {confirmDeleteWallet?.type === 'npub-cash' && confirmDeleteWallet?.id === wallet.id ? (
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => { removeBlinkAccount(wallet.id); setConfirmDeleteWallet(null); }}
-                                className="px-2 py-1 text-xs font-medium bg-red-600 text-white rounded hover:bg-red-700"
-                              >
-                                Delete
-                              </button>
-                              <button
-                                onClick={() => setConfirmDeleteWallet(null)}
-                                className={`px-2 py-1 text-xs rounded ${isBlinkClassic ? 'bg-blink-classic-bg text-gray-300' : (darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700')}`}
-                              >
-                                No
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => setConfirmDeleteWallet({ type: 'npub-cash', id: wallet.id })}
-                              className={`p-1.5 rounded transition-colors ${getWalletDeleteButtonClasses()}`}
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          )}
                         </div>
+                      </div>
+                      
+                      {/* Edit/Delete Actions */}
+                      <div className={`flex gap-2 mt-3 pt-3 border-t ${isBlinkClassic ? (isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light') : 'border-gray-200 dark:border-gray-700'}`}>
+                        <button
+                          onClick={() => {
+                            setEditingWalletLabel({ type: 'npub-cash', id: wallet.id });
+                            setEditedWalletLabel(wallet.label || '');
+                          }}
+                          className={`flex-1 py-2 text-sm rounded-lg transition-colors ${
+                            isBlinkClassic 
+                              ? `${getSecondaryTextClasses()} hover:text-blink-classic-amber border ${isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light'}` 
+                              : 'text-gray-600 dark:text-gray-400 hover:text-teal-500 border border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm('Delete this wallet?')) {
+                              removeBlinkAccount(wallet.id);
+                            }
+                          }}
+                          className={`flex-1 py-2 text-sm rounded-lg text-red-500 hover:text-red-700 border transition-colors ${
+                            isBlinkClassic 
+                              ? (isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light')
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          Delete
+                        </button>
                       </div>
                     </div>
                   ))}
+                  
+                  {/* Edit npub.cash Wallet Label Modal */}
+                  {editingWalletLabel?.type === 'npub-cash' && (
+                    <div className={`p-4 rounded-lg ${isBlinkClassic ? (isBlinkClassicDark ? 'bg-blink-classic-bg border border-blink-classic-amber' : 'bg-blink-classic-hover-light border border-blink-classic-amber') : (darkMode ? 'bg-teal-900/30 border border-teal-500' : 'bg-teal-100 border border-teal-500')}`}>
+                      <h4 className={`text-sm font-medium mb-3 ${isBlinkClassicDark ? 'text-white' : isBlinkClassicLight ? 'text-black' : (darkMode ? 'text-white' : 'text-gray-900')}`}>
+                        Edit Wallet Label
+                      </h4>
+                      <input
+                        type="text"
+                        value={editedWalletLabel}
+                        onChange={(e) => setEditedWalletLabel(e.target.value)}
+                        placeholder="Enter wallet label"
+                        className={`w-full px-3 py-2 rounded-lg border ${getInputClasses()} focus:outline-none focus:ring-2 ${isBlinkClassic ? 'focus:ring-blink-classic-amber' : 'focus:ring-teal-500'}`}
+                      />
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={async () => {
+                            // Update the label using updateBlinkAccount (npub.cash wallets are stored as Blink accounts)
+                            await updateBlinkAccount(editingWalletLabel.id, { label: editedWalletLabel.trim() || 'npub.cash Wallet' });
+                            // Close the edit form
+                            setEditingWalletLabel(null);
+                            setEditedWalletLabel('');
+                          }}
+                          className={`flex-1 py-2 text-sm rounded-lg transition-colors ${isBlinkClassic ? 'bg-blink-classic-amber text-black hover:bg-blink-classic-amber/80' : 'bg-teal-600 text-white hover:bg-teal-700'}`}
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingWalletLabel(null);
+                            setEditedWalletLabel('');
+                          }}
+                          className={`flex-1 py-2 text-sm rounded-lg transition-colors ${
+                            isBlinkClassic 
+                              ? 'bg-blink-classic-bg text-gray-300 hover:text-white border border-blink-classic-border' 
+                              : (darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')
+                          }`}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* NWC Connections */}
                   {nwcConnections && nwcConnections.map((conn) => (
@@ -6371,6 +6471,7 @@ export default function Dashboard() {
                           : getWalletCardClasses()
                       }`}
                     >
+                      {/* Wallet Info Section */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${
@@ -6411,36 +6512,84 @@ export default function Dashboard() {
                               Use
                             </button>
                           )}
-                          {/* Delete button */}
-                          {confirmDeleteWallet?.type === 'nwc' && confirmDeleteWallet?.id === conn.id ? (
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => { removeNWCConnection(conn.id); setConfirmDeleteWallet(null); }}
-                                className="px-2 py-1 text-xs font-medium bg-red-600 text-white rounded hover:bg-red-700"
-                              >
-                                Delete
-                              </button>
-                              <button
-                                onClick={() => setConfirmDeleteWallet(null)}
-                                className={`px-2 py-1 text-xs rounded ${isBlinkClassic ? 'bg-blink-classic-bg text-gray-300' : (darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700')}`}
-                              >
-                                No
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => setConfirmDeleteWallet({ type: 'nwc', id: conn.id })}
-                              className={`p-1.5 rounded transition-colors ${getWalletDeleteButtonClasses()}`}
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          )}
                         </div>
+                      </div>
+                      
+                      {/* Edit/Delete Actions */}
+                      <div className={`flex gap-2 mt-3 pt-3 border-t ${isBlinkClassic ? (isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light') : 'border-gray-200 dark:border-gray-700'}`}>
+                        <button
+                          onClick={() => {
+                            setEditingWalletLabel({ type: 'nwc', id: conn.id });
+                            setEditedWalletLabel(conn.label || '');
+                          }}
+                          className={`flex-1 py-2 text-sm rounded-lg transition-colors ${
+                            isBlinkClassic 
+                              ? `${getSecondaryTextClasses()} hover:text-blink-classic-amber border ${isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light'}` 
+                              : 'text-gray-600 dark:text-gray-400 hover:text-purple-500 border border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm('Delete this NWC connection?')) {
+                              removeNWCConnection(conn.id);
+                            }
+                          }}
+                          className={`flex-1 py-2 text-sm rounded-lg text-red-500 hover:text-red-700 border transition-colors ${
+                            isBlinkClassic 
+                              ? (isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light')
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          Delete
+                        </button>
                       </div>
                     </div>
                   ))}
+                  
+                  {/* Edit NWC Connection Label Modal */}
+                  {editingWalletLabel?.type === 'nwc' && (
+                    <div className={`p-4 rounded-lg ${isBlinkClassic ? (isBlinkClassicDark ? 'bg-blink-classic-bg border border-blink-classic-amber' : 'bg-blink-classic-hover-light border border-blink-classic-amber') : (darkMode ? 'bg-purple-900/30 border border-purple-500' : 'bg-purple-100 border border-purple-500')}`}>
+                      <h4 className={`text-sm font-medium mb-3 ${isBlinkClassicDark ? 'text-white' : isBlinkClassicLight ? 'text-black' : (darkMode ? 'text-white' : 'text-gray-900')}`}>
+                        Edit NWC Connection Label
+                      </h4>
+                      <input
+                        type="text"
+                        value={editedWalletLabel}
+                        onChange={(e) => setEditedWalletLabel(e.target.value)}
+                        placeholder="Enter connection label"
+                        className={`w-full px-3 py-2 rounded-lg border ${getInputClasses()} focus:outline-none focus:ring-2 ${isBlinkClassic ? 'focus:ring-blink-classic-amber' : 'focus:ring-purple-500'}`}
+                      />
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={() => {
+                            // Update the label using updateNWCConnection
+                            updateNWCConnection(editingWalletLabel.id, { label: editedWalletLabel.trim() || 'NWC Wallet' });
+                            // Close the edit form
+                            setEditingWalletLabel(null);
+                            setEditedWalletLabel('');
+                          }}
+                          className={`flex-1 py-2 text-sm rounded-lg transition-colors ${isBlinkClassic ? 'bg-blink-classic-amber text-black hover:bg-blink-classic-amber/80' : 'bg-purple-600 text-white hover:bg-purple-700'}`}
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingWalletLabel(null);
+                            setEditedWalletLabel('');
+                          }}
+                          className={`flex-1 py-2 text-sm rounded-lg transition-colors ${
+                            isBlinkClassic 
+                              ? 'bg-blink-classic-bg text-gray-300 hover:text-white border border-blink-classic-border' 
+                              : (darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')
+                          }`}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Empty state */}
                   {(!blinkAccounts || blinkAccounts.length === 0) && (!nwcConnections || nwcConnections.length === 0) && (
@@ -6534,96 +6683,171 @@ export default function Dashboard() {
                 {/* Current Voucher Wallet */}
                 {voucherWallet && (
                   <div className={`rounded-lg p-4 border-2 ${darkMode ? 'bg-purple-900/20 border-purple-500' : 'bg-purple-50 border-purple-400'}`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center bg-purple-500/20">
-                          <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
-                          </svg>
-                        </div>
-                        <div className="min-w-0">
-                          <h5 className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                            {voucherWallet.label || 'Sending Wallet'}
-                          </h5>
-                          <p className={`text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                            @{voucherWallet.username}
+                    {/* Wallet Info Section */}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center bg-purple-500/20">
+                        <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                        </svg>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h5 className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {voucherWallet.label || 'Sending Wallet'}
+                        </h5>
+                        <p className={`text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          @{voucherWallet.username}
+                        </p>
+                        {voucherWallet.walletId && (
+                          <p className={`text-xs truncate ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                            Wallet: {voucherWallet.walletId}
                           </p>
-                          {voucherWallet.walletId && (
-                            <p className={`text-xs truncate ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                              Wallet: {voucherWallet.walletId}
-                            </p>
-                          )}
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {voucherWallet.scopes?.map((scope) => (
-                              <span key={scope} className={`px-1.5 py-0.5 rounded text-xs ${
-                                scope === 'WRITE' 
-                                  ? 'bg-green-500/20 text-green-400' 
-                                  : 'bg-gray-500/20 text-gray-400'
-                              }`}>
-                                {scope}
-                              </span>
-                            ))}
-                          </div>
-                          {/* Balance Display Section */}
-                          <div className={`mt-3 pt-3 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                            <div className="flex items-center justify-between">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>BTC Wallet:</span>
-                                  <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                    {voucherWalletBalanceLoading ? (
-                                      <span className="text-gray-400">Loading...</span>
-                                    ) : voucherWalletBalance !== null ? (
-                                      `${formatNumber(voucherWalletBalance, numberFormat, 0)} sats`
-                                    ) : (
-                                      <span className="text-gray-400">--</span>
-                                    )}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>USD Wallet:</span>
-                                  <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                    {voucherWalletBalanceLoading ? (
-                                      <span className="text-gray-400">Loading...</span>
-                                    ) : voucherWalletUsdBalance !== null ? (
-                                      `$${(voucherWalletUsdBalance / 100).toFixed(2)} USD`
-                                    ) : (
-                                      <span className="text-gray-400">--</span>
-                                    )}
-                                  </span>
-                                </div>
+                        )}
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {voucherWallet.scopes?.map((scope) => (
+                            <span key={scope} className={`px-1.5 py-0.5 rounded text-xs ${
+                              scope === 'WRITE' 
+                                ? 'bg-green-500/20 text-green-400' 
+                                : 'bg-gray-500/20 text-gray-400'
+                            }`}>
+                              {scope}
+                            </span>
+                          ))}
+                        </div>
+                        {/* Balance Display Section */}
+                        <div className={`mt-3 pt-3 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>BTC Wallet:</span>
+                                <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {voucherWalletBalanceLoading ? (
+                                    <span className="text-gray-400">Loading...</span>
+                                  ) : voucherWalletBalance !== null ? (
+                                    `${formatNumber(voucherWalletBalance, numberFormat, 0)} sats`
+                                  ) : (
+                                    <span className="text-gray-400">--</span>
+                                  )}
+                                </span>
                               </div>
-                              <button
-                                onClick={fetchVoucherWalletBalance}
-                                disabled={voucherWalletBalanceLoading}
-                                className={`p-2 rounded transition-colors ${darkMode ? 'text-gray-400 hover:text-purple-400 hover:bg-gray-800' : 'text-gray-500 hover:text-purple-500 hover:bg-gray-100'} disabled:opacity-50`}
-                                title="Refresh balance"
-                              >
-                                <svg className={`w-4 h-4 ${voucherWalletBalanceLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                              </button>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>USD Wallet:</span>
+                                <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {voucherWalletBalanceLoading ? (
+                                    <span className="text-gray-400">Loading...</span>
+                                  ) : voucherWalletUsdBalance !== null ? (
+                                    `$${(voucherWalletUsdBalance / 100).toFixed(2)} USD`
+                                  ) : (
+                                    <span className="text-gray-400">--</span>
+                                  )}
+                                </span>
+                              </div>
                             </div>
+                            <button
+                              onClick={fetchVoucherWalletBalance}
+                              disabled={voucherWalletBalanceLoading}
+                              className={`p-2 rounded transition-colors ${darkMode ? 'text-gray-400 hover:text-purple-400 hover:bg-gray-800' : 'text-gray-500 hover:text-purple-500 hover:bg-gray-100'} disabled:opacity-50`}
+                              title="Refresh balance"
+                            >
+                              <svg className={`w-4 h-4 ${voucherWalletBalanceLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                            </button>
                           </div>
                         </div>
                       </div>
+                    </div>
+                    
+                    {/* Edit/Delete Actions */}
+                    <div className={`flex gap-2 mt-3 pt-3 border-t ${darkMode ? 'border-purple-700/50' : 'border-purple-200'}`}>
                       <button
                         onClick={() => {
+                          setEditingWalletLabel({ type: 'sending' });
+                          setEditedWalletLabel(voucherWallet.label || '');
+                        }}
+                        className={`flex-1 py-2 text-sm rounded-lg transition-colors ${
+                          darkMode 
+                            ? 'text-gray-400 hover:text-purple-400 border border-purple-700/50' 
+                            : 'text-gray-600 hover:text-purple-600 border border-purple-300'
+                        }`}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm('Delete this sending wallet?')) {
+                            if (typeof window !== 'undefined' && publicKey) {
+                              const storageKey = getVoucherWalletKey(publicKey);
+                              if (storageKey) {
+                                localStorage.removeItem(storageKey);
+                              }
+                            }
+                            setVoucherWallet(null);
+                            // Sync deletion to server
+                            syncVoucherWalletToServer(null);
+                          }
+                        }}
+                        className={`flex-1 py-2 text-sm rounded-lg text-red-500 hover:text-red-700 border transition-colors ${
+                          darkMode ? 'border-purple-700/50' : 'border-purple-300'
+                        }`}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Edit Sending Wallet Label Modal */}
+                {editingWalletLabel?.type === 'sending' && (
+                  <div className={`rounded-lg p-4 border-2 ${darkMode ? 'bg-purple-900/30 border-purple-400' : 'bg-purple-100 border-purple-500'}`}>
+                    <h4 className={`text-sm font-medium mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      Edit Wallet Label
+                    </h4>
+                    <input
+                      type="text"
+                      value={editedWalletLabel}
+                      onChange={(e) => setEditedWalletLabel(e.target.value)}
+                      placeholder="Enter wallet label"
+                      className={`w-full px-3 py-2 rounded-lg border ${
+                        darkMode 
+                          ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                      } focus:outline-none focus:ring-2 focus:ring-purple-500`}
+                    />
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={() => {
+                          // Update the label in voucherWallet
+                          const updatedWallet = { ...voucherWallet, label: editedWalletLabel.trim() || 'Sending Wallet' };
+                          setVoucherWallet(updatedWallet);
+                          // Save to localStorage
                           if (typeof window !== 'undefined' && publicKey) {
                             const storageKey = getVoucherWalletKey(publicKey);
                             if (storageKey) {
-                              localStorage.removeItem(storageKey);
+                              localStorage.setItem(storageKey, JSON.stringify(updatedWallet));
                             }
                           }
-                          setVoucherWallet(null);
-                          // Sync deletion to server
-                          syncVoucherWalletToServer(null);
+                          // Sync to server
+                          syncVoucherWalletToServer(updatedWallet);
+                          // Close the edit form
+                          setEditingWalletLabel(null);
+                          setEditedWalletLabel('');
                         }}
-                        className={`p-2 rounded transition-colors ${darkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'}`}
+                        className="flex-1 py-2 text-sm rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors"
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
+                        Save
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingWalletLabel(null);
+                          setEditedWalletLabel('');
+                        }}
+                        className={`flex-1 py-2 text-sm rounded-lg transition-colors ${
+                          darkMode 
+                            ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        Cancel
                       </button>
                     </div>
                   </div>
@@ -7255,38 +7479,30 @@ export default function Dashboard() {
                 </span>
               </div>
               
-              {/* Right side: Capacity Indicator (on Voucher and MultiVoucher screens) */}
+              {/* Right side: Expiry Selector (on Voucher and MultiVoucher screens) */}
               <div className="flex-1 flex justify-end">
                 {(currentView === 'voucher' || currentView === 'multivoucher') && !showingVoucherQR && (
-                  <div 
-                    className="flex items-center gap-1.5" 
-                    title="Wallet capacity"
-                  >
-                    {voucherWalletBalanceLoading ? (
-                      <div className="animate-spin w-2.5 h-2.5 border border-gray-400 border-t-transparent rounded-full"></div>
-                    ) : (
-                      <>
-                        <div className={`w-2.5 h-2.5 rounded-full ${getCapacityColor(
-                          currentVoucherCurrencyMode === 'USD' ? currentAmountInUsdCents : currentAmountInSats,
-                          currentVoucherCurrencyMode === 'USD' ? voucherWalletUsdBalance : voucherWalletBalance
-                        )}`}></div>
-                        <span className={`text-xs font-medium ${
-                          currentVoucherCurrencyMode === 'USD' 
-                            ? 'text-green-500' 
-                            : 'text-orange-500'
-                        }`}>
-                          {currentVoucherCurrencyMode === 'USD' ? 'Dollar' : 'Bitcoin'}
-                        </span>
-                      </>
+                  <>
+                    {currentView === 'voucher' && (
+                      <ExpirySelector
+                        value={voucherRef.current?.getSelectedExpiry?.() || '7d'}
+                        onChange={(expiryId) => voucherRef.current?.setSelectedExpiry?.(expiryId)}
+                      />
                     )}
-                  </div>
+                    {currentView === 'multivoucher' && (
+                      <ExpirySelector
+                        value={multiVoucherRef.current?.getSelectedExpiry?.() || '7d'}
+                        onChange={(expiryId) => multiVoucherRef.current?.setSelectedExpiry?.(expiryId)}
+                      />
+                    )}
+                  </>
                 )}
               </div>
             </div>
             
             {/* Agent Display Row - Always reserve space for consistent numpad positioning */}
             {/* On POS/Cart: Show split profile if active, otherwise empty placeholder */}
-            {/* On Voucher/MultiVoucher/VoucherManager: Show Expiry selector on right, or empty placeholder */}
+            {/* On Voucher/MultiVoucher: Show Capacity indicator on right */}
             <div className="flex items-center gap-2 min-h-[18px]">
               {activeSplitProfile && currentView !== 'voucher' && currentView !== 'multivoucher' && currentView !== 'vouchermanager' && (
                 <>
@@ -7300,21 +7516,31 @@ export default function Dashboard() {
                   </span>
                 </>
               )}
-              {/* Expiry Selector - Right aligned on Voucher and MultiVoucher views */}
+              {/* Capacity Indicator - Right aligned on Voucher and MultiVoucher views */}
               {(currentView === 'voucher' || currentView === 'multivoucher') && !showingVoucherQR && (
                 <div className="flex-1 flex justify-end">
-                  {currentView === 'voucher' && (
-                    <ExpirySelector
-                      value={voucherRef.current?.getSelectedExpiry?.() || '7d'}
-                      onChange={(expiryId) => voucherRef.current?.setSelectedExpiry?.(expiryId)}
-                    />
-                  )}
-                  {currentView === 'multivoucher' && (
-                    <ExpirySelector
-                      value={multiVoucherRef.current?.getSelectedExpiry?.() || '7d'}
-                      onChange={(expiryId) => multiVoucherRef.current?.setSelectedExpiry?.(expiryId)}
-                    />
-                  )}
+                  <div 
+                    className="flex items-center gap-1.5" 
+                    title="Wallet capacity"
+                  >
+                    {voucherWalletBalanceLoading ? (
+                      <div className="animate-spin w-2.5 h-2.5 border border-gray-400 border-t-transparent rounded-full"></div>
+                    ) : (
+                      <>
+                        <span className={`text-xs font-medium ${
+                          isBlinkClassic
+                            ? (currentVoucherCurrencyMode === 'USD' ? 'text-green-500' : 'text-orange-500')
+                            : (currentVoucherCurrencyMode === 'USD' ? 'text-teal-500' : 'text-cyan-500')
+                        }`}>
+                          {currentVoucherCurrencyMode === 'USD' ? 'Dollar' : 'Bitcoin'}
+                        </span>
+                        <div className={`w-2.5 h-2.5 rounded-full ${getCapacityColor(
+                          currentVoucherCurrencyMode === 'USD' ? currentAmountInUsdCents : currentAmountInSats,
+                          currentVoucherCurrencyMode === 'USD' ? voucherWalletUsdBalance : voucherWalletBalance
+                        )}`}></div>
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

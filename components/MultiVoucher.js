@@ -394,12 +394,23 @@ const MultiVoucher = forwardRef(({
   }, [amount, quantity, displayCurrency, exchangeRate, currencies]);
 
   // Check if total amount exceeds wallet balance
+  // In USD mode: walletBalance is in USD cents, compare against USD cents
+  // In BTC mode: walletBalance is in sats, compare against sats
   const isBalanceExceeded = useCallback(() => {
     if (walletBalance === null) return false;
     const totalSats = getTotalInSats();
     if (totalSats === 0) return false;
+    
+    // In USD mode, convert sats to USD cents for comparison
+    if (voucherCurrencyMode === 'USD') {
+      if (!usdExchangeRate?.satPriceInCurrency) return false;
+      const totalUsdCents = Math.round(totalSats * usdExchangeRate.satPriceInCurrency);
+      return totalUsdCents > walletBalance;
+    }
+    
+    // In BTC mode, compare sats directly
     return totalSats > walletBalance;
-  }, [walletBalance, getTotalInSats]);
+  }, [walletBalance, getTotalInSats, voucherCurrencyMode, usdExchangeRate]);
 
   const encodeLnurl = (url) => {
     try {

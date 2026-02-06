@@ -548,6 +548,8 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
   };
 
   // Check if current amount exceeds wallet balance
+  // In USD mode: walletBalance is in USD cents, compare against USD cents
+  // In BTC mode: walletBalance is in sats, compare against sats
   const isBalanceExceeded = useCallback(() => {
     if (walletBalance === null) return false;
     if (!amount || amount === '' || amount === '0') return false;
@@ -555,6 +557,7 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
     const numericAmount = parseFloat(amount);
     if (isNaN(numericAmount) || numericAmount <= 0) return false;
     
+    // First calculate amount in sats (needed for both modes)
     let amountInSats;
     if (isBitcoinCurrency(displayCurrency)) {
       amountInSats = Math.round(numericAmount);
@@ -567,8 +570,16 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
       return false; // Can't determine, allow creation
     }
     
+    // In USD mode, convert sats to USD cents for comparison
+    if (voucherCurrencyMode === 'USD') {
+      if (!usdExchangeRate?.satPriceInCurrency) return false;
+      const amountInUsdCents = Math.round(amountInSats * usdExchangeRate.satPriceInCurrency);
+      return amountInUsdCents > walletBalance;
+    }
+    
+    // In BTC mode, compare sats directly
     return amountInSats > walletBalance;
-  }, [amount, walletBalance, displayCurrency, exchangeRate, currencies]);
+  }, [amount, walletBalance, displayCurrency, exchangeRate, currencies, voucherCurrencyMode, usdExchangeRate]);
 
   const encodeLnurl = (url) => {
     try {

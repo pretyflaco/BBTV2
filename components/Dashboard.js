@@ -446,6 +446,8 @@ export default function Dashboard() {
   }); // 'BTC' or 'USD' - which wallet to use for vouchers
   const [usdExchangeRate, setUsdExchangeRate] = useState(null); // USD exchange rate for voucher conversion
   const [currentAmountInSats, setCurrentAmountInSats] = useState(0); // For capacity indicator polling
+  const [currentAmountInUsdCents, setCurrentAmountInUsdCents] = useState(0); // For capacity indicator in USD mode
+  const [currentVoucherCurrencyMode, setCurrentVoucherCurrencyMode] = useState('BTC'); // Track child's currency mode
   
   // Tip Profile state
   const [showTipProfileSettings, setShowTipProfileSettings] = useState(false);
@@ -1266,14 +1268,19 @@ export default function Dashboard() {
   useEffect(() => {
     if (currentView !== 'voucher' && currentView !== 'multivoucher') {
       setCurrentAmountInSats(0);
+      setCurrentAmountInUsdCents(0);
+      setCurrentVoucherCurrencyMode('BTC');
       return;
     }
     
     const pollAmount = () => {
-      const amount = currentView === 'voucher'
-        ? (voucherRef.current?.getAmountInSats?.() || 0)
-        : (multiVoucherRef.current?.getAmountInSats?.() || 0);
-      setCurrentAmountInSats(amount);
+      const ref = currentView === 'voucher' ? voucherRef.current : multiVoucherRef.current;
+      const amountSats = ref?.getAmountInSats?.() || 0;
+      const amountUsdCents = ref?.getAmountInUsdCents?.() || 0;
+      const currencyMode = ref?.getVoucherCurrencyMode?.() || 'BTC';
+      setCurrentAmountInSats(amountSats);
+      setCurrentAmountInUsdCents(amountUsdCents);
+      setCurrentVoucherCurrencyMode(currencyMode);
     };
     
     pollAmount(); // Initial
@@ -7258,7 +7265,10 @@ export default function Dashboard() {
                     {voucherWalletBalanceLoading ? (
                       <div className="animate-spin w-2.5 h-2.5 border border-gray-400 border-t-transparent rounded-full"></div>
                     ) : (
-                      <div className={`w-2.5 h-2.5 rounded-full ${getCapacityColor(currentAmountInSats, voucherWalletBalance)}`}></div>
+                      <div className={`w-2.5 h-2.5 rounded-full ${getCapacityColor(
+                        currentVoucherCurrencyMode === 'USD' ? currentAmountInUsdCents : currentAmountInSats,
+                        currentVoucherCurrencyMode === 'USD' ? voucherWalletUsdBalance : voucherWalletBalance
+                      )}`}></div>
                     )}
                   </div>
                 )}

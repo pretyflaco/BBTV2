@@ -531,9 +531,8 @@ const MultiVoucher = forwardRef(({
         if (data.success && data.voucher) {
           const protocol = window.location.protocol;
           const host = window.location.host;
-          // LNURL encodes sats for BTC vouchers, or USD cents for USD vouchers
-          const lnurlAmount = voucherCurrencyMode === 'USD' ? usdAmountCents : amountInSats;
-          const lnurlUrl = `${protocol}//${host}/api/voucher/lnurl/${data.voucher.id}/${lnurlAmount}`;
+          // LNURL always uses sats - even for USD vouchers, Lightning payout is based on sats equivalent
+          const lnurlUrl = `${protocol}//${host}/api/voucher/lnurl/${data.voucher.id}/${amountInSats}`;
           const lnurl = encodeLnurl(lnurlUrl);
 
           vouchers.push({
@@ -855,6 +854,33 @@ const MultiVoucher = forwardRef(({
       }
       return amountPerVoucher * quantity; // Total for all vouchers
     },
+    // Get current total amount in USD cents (for capacity indicator when in USD mode)
+    // Returns amount × quantity for multi-voucher
+    getAmountInUsdCents: () => {
+      if (!amount || amount === '' || amount === '0') return 0;
+      const numericAmount = parseFloat(amount);
+      if (isNaN(numericAmount) || numericAmount <= 0) return 0;
+      
+      // First get sats per voucher
+      let amountPerVoucherSats = 0;
+      if (isBitcoinCurrency(displayCurrency)) {
+        amountPerVoucherSats = Math.round(numericAmount);
+      } else if (exchangeRate?.satPriceInCurrency) {
+        const currency = getCurrencyById(displayCurrency, currencies);
+        const fractionDigits = currency?.fractionDigits ?? 2;
+        const amountInMinorUnits = numericAmount * Math.pow(10, fractionDigits);
+        amountPerVoucherSats = Math.round(amountInMinorUnits / exchangeRate.satPriceInCurrency);
+      }
+      
+      // Convert sats to USD cents using USD exchange rate
+      if (amountPerVoucherSats > 0 && usdExchangeRate?.satPriceInCurrency) {
+        const centsPerVoucher = Math.round(amountPerVoucherSats * usdExchangeRate.satPriceInCurrency);
+        return centsPerVoucher * quantity; // Total for all vouchers
+      }
+      return 0;
+    },
+    // Get current voucher currency mode
+    getVoucherCurrencyMode: () => voucherCurrencyMode,
     getSelectedExpiry: () => selectedExpiry,
     setSelectedExpiry: (expiryId) => setSelectedExpiry(expiryId),
     isCommissionDialogOpen: () => showCommissionDialog,

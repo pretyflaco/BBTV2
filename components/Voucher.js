@@ -632,6 +632,31 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
       }
       return 0;
     },
+    // Get current amount in USD cents (for capacity indicator when in USD mode)
+    getAmountInUsdCents: () => {
+      if (!amount || amount === '' || amount === '0') return 0;
+      const numericAmount = parseFloat(amount);
+      if (isNaN(numericAmount) || numericAmount <= 0) return 0;
+      
+      // First get sats
+      let amountInSats = 0;
+      if (isBitcoinCurrency(displayCurrency)) {
+        amountInSats = Math.round(numericAmount);
+      } else if (exchangeRate?.satPriceInCurrency) {
+        const currency = getCurrencyById(displayCurrency, currencies);
+        const fractionDigits = currency?.fractionDigits ?? 2;
+        const amountInMinorUnits = numericAmount * Math.pow(10, fractionDigits);
+        amountInSats = Math.round(amountInMinorUnits / exchangeRate.satPriceInCurrency);
+      }
+      
+      // Convert sats to USD cents using USD exchange rate
+      if (amountInSats > 0 && usdExchangeRate?.satPriceInCurrency) {
+        return Math.round(amountInSats * usdExchangeRate.satPriceInCurrency);
+      }
+      return 0;
+    },
+    // Get current voucher currency mode
+    getVoucherCurrencyMode: () => voucherCurrencyMode,
     // Expiry state for external rendering
     getSelectedExpiry: () => selectedExpiry,
     setSelectedExpiry: (expiryId) => setSelectedExpiry(expiryId),
@@ -834,12 +859,11 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
       }
 
       if (data.success && data.voucher) {
-        // Build LNURL - for USD vouchers, encode the USD amount instead of sats
+        // Build LNURL - ALWAYS use sats for the amount since LNURL-withdraw works in millisats
+        // Even for USD vouchers, the Lightning payout is based on the sats equivalent
         const protocol = window.location.protocol;
         const host = window.location.host;
-        // LNURL encodes sats for BTC vouchers, or USD cents for USD vouchers
-        const lnurlAmount = voucherCurrencyMode === 'USD' ? usdAmountCents : amountInSats;
-        const lnurlUrl = `${protocol}//${host}/api/voucher/lnurl/${data.voucher.id}/${lnurlAmount}`;
+        const lnurlUrl = `${protocol}//${host}/api/voucher/lnurl/${data.voucher.id}/${amountInSats}`;
         
         console.log('🔗 LNURL URL:', lnurlUrl);
         

@@ -1729,7 +1729,7 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
       <div className="px-4">
         <div className="text-center">
           <div className="text-center">
-            <div className={`font-inter-tight font-semibold text-purple-600 dark:text-purple-400 min-h-[72px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${
+            <div className={`font-inter-tight font-semibold text-gray-800 dark:text-gray-100 min-h-[72px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${
               getDynamicFontSize(formatDisplayAmount(amount || 0, displayCurrency))
             }`} style={{wordBreak: 'keep-all', overflowWrap: 'normal'}}>
               <div className="max-w-full">

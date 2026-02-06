@@ -134,9 +134,10 @@ export default function Numpad({
         return `${baseStandard} ${colors.border} ${colors.hoverBorder} ${colors.hoverBg} ${colors.text} ${colors.hoverText} disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed`;
       case 'currencyToggle':
         // Dynamic border and text color based on voucher currency mode
+        // Using cyan/teal to avoid conflict with orange (backspace) and green (OK)
         const toggleColorStd = voucherCurrencyMode === 'BTC'
-          ? 'border-orange-500 dark:border-orange-500 hover:border-orange-600 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30 text-orange-500 dark:text-orange-400'
-          : 'border-green-500 dark:border-green-500 hover:border-green-600 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 text-green-500 dark:text-green-400';
+          ? 'border-cyan-500 dark:border-cyan-500 hover:border-cyan-600 dark:hover:border-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 text-cyan-500 dark:text-cyan-400'
+          : 'border-teal-500 dark:border-teal-500 hover:border-teal-600 dark:hover:border-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/30 text-teal-500 dark:text-teal-400';
         return `${baseStandard} ${toggleColorStd} flex items-center justify-center`;
       case 'ok':
         return `h-[136px] md:h-[172px] bg-white dark:bg-black border-2 border-green-600 dark:border-green-500 hover:border-green-700 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 disabled:bg-gray-200 dark:disabled:bg-blink-dark disabled:border-gray-400 dark:disabled:border-gray-600 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-lg text-lg md:text-xl font-normal leading-none tracking-normal transition-colors shadow-md flex items-center justify-center row-span-2`;
@@ -215,9 +216,9 @@ export default function Numpad({
             title={voucherCurrencyMode === 'BTC' ? 'Bitcoin voucher (click to switch to USD)' : 'USD voucher (click to switch to Bitcoin)'}
           >
             {voucherCurrencyMode === 'BTC' ? (
-              <span className="text-lg md:text-xl">&#8383;</span>
+              <span className="text-[10px] md:text-xs font-medium leading-tight text-center">Bitcoin<br/>Voucher</span>
             ) : (
-              <span className="text-lg md:text-xl">$</span>
+              <span className="text-[10px] md:text-xs font-medium leading-tight text-center">Dollar<br/>Voucher</span>
             )}
           </button>
         ) : (

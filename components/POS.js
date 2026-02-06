@@ -1414,6 +1414,8 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
               ) : null}
             </div>
           </div>
+          {/* Reserve space for consistency with voucher screens that show balance warnings */}
+          <div className="min-h-[20px]"></div>
           {/* Error Message - inline below amount */}
           {error && (
             <div className="mt-2 bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 px-3 py-2 rounded text-sm animate-pulse">

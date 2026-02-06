@@ -8,16 +8,17 @@
 import { useState, useEffect, useRef } from 'react';
 
 // Expiry preset options (must match lib/voucher-expiry.js)
+// Note: 15m and 1h removed from UI but kept in voucher-expiry.js for backward compatibility
 const EXPIRY_OPTIONS = [
-  { id: '15m', label: '15 min', description: '15 minutes' },
-  { id: '1h', label: '1 hour', description: '1 hour' },
-  { id: '24h', label: '24h', description: '24 hours' },
+  { id: '24h', label: '24 hours', description: '24 hours' },
+  { id: '72h', label: '72 hours', description: '72 hours' },
   { id: '7d', label: '7 days', description: '7 days' },
   { id: '30d', label: '30 days', description: '30 days' },
+  { id: '90d', label: '90 days', description: '90 days' },
   { id: '6mo', label: '6 months', description: '6 months' },
 ];
 
-const DEFAULT_EXPIRY = '7d';
+const DEFAULT_EXPIRY = '24h';
 
 /**
  * ExpirySelector - Minimal dropdown selector for voucher expiry

@@ -446,6 +446,17 @@ export default function Dashboard() {
     }
     return 'BTC';
   }); // 'BTC' or 'USD' - which wallet to use for vouchers
+  const [voucherExpiry, setVoucherExpiry] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('blinkpos-voucher-expiry');
+      // Migration: if saved is '7d' or legacy values, migrate to '24h'
+      if (!saved || saved === '7d' || saved === '15m' || saved === '1h') {
+        return '24h';
+      }
+      return saved;
+    }
+    return '24h';
+  }); // Voucher expiry preference (synced cross-device)
   const [usdExchangeRate, setUsdExchangeRate] = useState(null); // USD exchange rate for voucher conversion
   const [currentAmountInSats, setCurrentAmountInSats] = useState(0); // For capacity indicator polling
   const [currentAmountInUsdCents, setCurrentAmountInUsdCents] = useState(0); // For capacity indicator in USD mode
@@ -607,6 +618,13 @@ export default function Dashboard() {
       localStorage.setItem('blinkpos-voucher-currency-mode', voucherCurrencyMode);
     }
   }, [voucherCurrencyMode]);
+
+  // Persist voucher expiry to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('blinkpos-voucher-expiry', voucherExpiry);
+    }
+  }, [voucherExpiry]);
 
   // Fetch exchange rate when currency changes (for sats equivalent display in ItemCart)
   useEffect(() => {
@@ -806,6 +824,15 @@ export default function Dashboard() {
             setVoucherCurrencyMode(serverPrefs.voucherCurrencyMode);
             localStorage.setItem('blinkpos-voucher-currency-mode', serverPrefs.voucherCurrencyMode);
           }
+          // Handle voucherExpiry with migration from old default '7d' to new default '24h'
+          if (serverPrefs.voucherExpiry) {
+            // Migration: if server has '7d' or legacy values, migrate to '24h'
+            const migratedExpiry = (serverPrefs.voucherExpiry === '7d' || serverPrefs.voucherExpiry === '15m' || serverPrefs.voucherExpiry === '1h') 
+              ? '24h' 
+              : serverPrefs.voucherExpiry;
+            setVoucherExpiry(migratedExpiry);
+            localStorage.setItem('blinkpos-voucher-expiry', migratedExpiry);
+          }
           
           lastSyncedPrefsRef.current = JSON.stringify(serverPrefs);
         } else {
@@ -817,7 +844,8 @@ export default function Dashboard() {
             tipPresets,
             displayCurrency,
             numberFormat,
-            voucherCurrencyMode
+            voucherCurrencyMode,
+            voucherExpiry
           };
           syncPreferencesToServer(currentPrefs);
         }
@@ -966,7 +994,8 @@ export default function Dashboard() {
       tipPresets,
       displayCurrency,
       numberFormat,
-      voucherCurrencyMode
+      voucherCurrencyMode,
+      voucherExpiry
     };
     
     const currentPrefsStr = JSON.stringify(currentPrefs);
@@ -975,7 +1004,7 @@ export default function Dashboard() {
     if (lastSyncedPrefsRef.current && lastSyncedPrefsRef.current !== currentPrefsStr) {
       syncPreferencesToServer(currentPrefs);
     }
-  }, [publicKey, soundEnabled, soundTheme, tipsEnabled, tipPresets, displayCurrency, numberFormat, voucherCurrencyMode, syncPreferencesToServer]);
+  }, [publicKey, soundEnabled, soundTheme, tipsEnabled, tipPresets, displayCurrency, numberFormat, voucherCurrencyMode, voucherExpiry, syncPreferencesToServer]);
 
   // Cleanup server sync timer on unmount
   useEffect(() => {
@@ -7485,14 +7514,20 @@ export default function Dashboard() {
                   <>
                     {currentView === 'voucher' && (
                       <ExpirySelector
-                        value={voucherRef.current?.getSelectedExpiry?.() || '7d'}
-                        onChange={(expiryId) => voucherRef.current?.setSelectedExpiry?.(expiryId)}
+                        value={voucherExpiry}
+                        onChange={(expiryId) => {
+                          setVoucherExpiry(expiryId);
+                          voucherRef.current?.setSelectedExpiry?.(expiryId);
+                        }}
                       />
                     )}
                     {currentView === 'multivoucher' && (
                       <ExpirySelector
-                        value={multiVoucherRef.current?.getSelectedExpiry?.() || '7d'}
-                        onChange={(expiryId) => multiVoucherRef.current?.setSelectedExpiry?.(expiryId)}
+                        value={voucherExpiry}
+                        onChange={(expiryId) => {
+                          setVoucherExpiry(expiryId);
+                          multiVoucherRef.current?.setSelectedExpiry?.(expiryId);
+                        }}
                       />
                     )}
                   </>
@@ -7641,6 +7676,7 @@ export default function Dashboard() {
               onVoucherCurrencyToggle={voucherWalletUsdId ? () => setVoucherCurrencyMode(prev => prev === 'BTC' ? 'USD' : 'BTC') : null}
               usdExchangeRate={usdExchangeRate}
               usdWalletId={voucherWalletUsdId}
+              initialExpiry={voucherExpiry}
               onInternalTransition={() => {
                 // Rotate spinner color and show brief transition
                 setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);
@@ -7669,6 +7705,7 @@ export default function Dashboard() {
             onVoucherCurrencyToggle={voucherWalletUsdId ? () => setVoucherCurrencyMode(prev => prev === 'BTC' ? 'USD' : 'BTC') : null}
             usdExchangeRate={usdExchangeRate}
             usdWalletId={voucherWalletUsdId}
+            initialExpiry={voucherExpiry}
             onInternalTransition={() => {
               // Rotate spinner color and show brief transition
               setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);

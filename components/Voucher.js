@@ -10,7 +10,7 @@ import { THEMES } from '../lib/hooks/useTheme';
 import { unlockAudioContext, playSound } from '../lib/audio-utils';
 import { getEnvironment } from '../lib/config/api';
 
-const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, darkMode, theme = THEMES.DARK, cycleTheme, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3], voucherCurrencyMode = 'BTC', onVoucherCurrencyToggle, usdExchangeRate = null, usdWalletId = null }, ref) => {
+const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, darkMode, theme = THEMES.DARK, cycleTheme, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3], voucherCurrencyMode = 'BTC', onVoucherCurrencyToggle, usdExchangeRate = null, usdWalletId = null, initialExpiry = DEFAULT_EXPIRY }, ref) => {
   const [amount, setAmount] = useState('');
   const [voucher, setVoucher] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -29,7 +29,7 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
   const [pendingCommissionSelection, setPendingCommissionSelection] = useState(null);
   const [commissionOptionIndex, setCommissionOptionIndex] = useState(0); // Keyboard navigation index
   // Expiry selection state
-  const [selectedExpiry, setSelectedExpiry] = useState(DEFAULT_EXPIRY);
+  const [selectedExpiry, setSelectedExpiry] = useState(initialExpiry);
   // Thermal print state
   const [thermalPrintMethod, setThermalPrintMethod] = useState('auto');
   const [showThermalOptions, setShowThermalOptions] = useState(false);
@@ -212,6 +212,11 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
       }
     };
   }, []);
+
+  // Sync selectedExpiry with initialExpiry prop when it changes (from preferences)
+  useEffect(() => {
+    setSelectedExpiry(initialExpiry);
+  }, [initialExpiry]);
 
   // Handle commission selection and create voucher after state update
   useEffect(() => {
@@ -1749,11 +1754,14 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
               ) : null}
             </div>
           </div>
-          {isBalanceExceeded() && walletBalance !== null && (
-            <div className="text-xs text-red-500 dark:text-red-400 font-medium">
-              Exceeds wallet balance
-            </div>
-          )}
+          {/* Always reserve space for balance warning to prevent numpad layout shift */}
+          <div className="min-h-[20px]">
+            {isBalanceExceeded() && walletBalance !== null && (
+              <div className="text-xs text-red-500 dark:text-red-400 font-medium">
+                Exceeds wallet balance
+              </div>
+            )}
+          </div>
           {error && (
             <div className="mt-2 bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 px-3 py-2 rounded text-sm animate-pulse">
               {error}

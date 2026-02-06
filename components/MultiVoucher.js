@@ -33,7 +33,8 @@ const MultiVoucher = forwardRef(({
   voucherCurrencyMode = 'BTC',
   onVoucherCurrencyToggle,
   usdExchangeRate = null,
-  usdWalletId = null
+  usdWalletId = null,
+  initialExpiry = DEFAULT_EXPIRY
 }, ref) => {
   // Amount input state
   const [amount, setAmount] = useState('');
@@ -45,7 +46,7 @@ const MultiVoucher = forwardRef(({
   const [quantity, setQuantity] = useState(4);
   const [gridSize, setGridSize] = useState('2x2');
   const [selectedCommissionPercent, setSelectedCommissionPercent] = useState(0);
-  const [selectedExpiry, setSelectedExpiry] = useState(DEFAULT_EXPIRY);
+  const [selectedExpiry, setSelectedExpiry] = useState(initialExpiry);
   
   // Generation state
   const [generating, setGenerating] = useState(false);
@@ -90,6 +91,11 @@ const MultiVoucher = forwardRef(({
       setCommissionOptionIndex(0);
     }
   }, [showCommissionDialog]);
+
+  // Sync selectedExpiry with initialExpiry prop when it changes (from preferences)
+  useEffect(() => {
+    setSelectedExpiry(initialExpiry);
+  }, [initialExpiry]);
 
   const fetchExchangeRate = async () => {
     if (isBitcoinCurrency(displayCurrency)) return;
@@ -957,11 +963,14 @@ const MultiVoucher = forwardRef(({
               ) : null}
             </div>
           </div>
-          {isBalanceExceeded() && walletBalance !== null && (
-            <div className="text-xs text-red-500 dark:text-red-400 font-medium">
-              Total exceeds wallet balance
-            </div>
-          )}
+          {/* Always reserve space for balance warning to prevent numpad layout shift */}
+          <div className="min-h-[20px]">
+            {isBalanceExceeded() && walletBalance !== null && (
+              <div className="text-xs text-red-500 dark:text-red-400 font-medium">
+                Total exceeds wallet balance
+              </div>
+            )}
+          </div>
           {error && (
             <div className="mt-2 bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 px-3 py-2 rounded text-sm animate-pulse">
               {error}

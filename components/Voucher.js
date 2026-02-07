@@ -409,6 +409,32 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
     return formatNumber(sats, numberFormat, 0);
   };
 
+  // Calculate USD equivalent from any fiat/BTC amount (for Dollar Voucher bracket display)
+  const getUsdEquivalent = (inputAmount) => {
+    if (!usdExchangeRate?.satPriceInCurrency) return null;
+    if (inputAmount <= 0) return null;
+    
+    // First convert display amount to sats
+    let satsAmount;
+    if (isBitcoinCurrency(displayCurrency)) {
+      // Input is already in sats
+      satsAmount = inputAmount;
+    } else {
+      // Convert fiat to sats using the display currency exchange rate
+      if (!exchangeRate?.satPriceInCurrency) return null;
+      const currency = getCurrencyById(displayCurrency, currencies);
+      const fractionDigits = currency?.fractionDigits ?? 2;
+      const amountInMinorUnits = inputAmount * Math.pow(10, fractionDigits);
+      satsAmount = Math.round(amountInMinorUnits / exchangeRate.satPriceInCurrency);
+    }
+    
+    if (!satsAmount || satsAmount <= 0) return null;
+    
+    // Then convert sats to USD cents and format
+    const usdCents = Math.round(satsAmount * usdExchangeRate.satPriceInCurrency);
+    return `$${(usdCents / 100).toFixed(2)}`;
+  };
+
   const handleDigitPress = (digit) => {
     playKeystrokeSound();
     
@@ -780,8 +806,11 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
       return;
     }
 
+    // Skip commission entirely when Bitcoin Voucher + Bitcoin display currency
+    const shouldSkipCommissionForBtcBtc = voucherCurrencyMode === 'BTC' && isBitcoinCurrency(displayCurrency);
+
     // Show commission dialog if commission is enabled and we haven't skipped it
-    if (commissionEnabled && commissionPresets && commissionPresets.length > 0 && !shouldSkipCommissionDialog && effectiveCommissionPercent === 0) {
+    if (commissionEnabled && commissionPresets && commissionPresets.length > 0 && !shouldSkipCommissionDialog && effectiveCommissionPercent === 0 && !shouldSkipCommissionForBtcBtc) {
       if (onInternalTransition) onInternalTransition();
       setShowCommissionDialog(true);
       return;
@@ -1439,18 +1468,31 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
 
           {/* Voucher Display */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Amount - Fixed at top position */}
+            {/* Amount - Fixed at top position, matching numpad screen styling */}
             <div className="px-4 pt-4 pb-2 flex-shrink-0">
               <div className="text-center">
-                <div className="text-6xl font-semibold text-purple-600 dark:text-purple-400 mb-1 leading-none tracking-normal">
-                  {voucher.displayCurrency && !isBitcoinCurrency(voucher.displayCurrency) ? (
-                    <div>
-                      <div>{formatDisplayAmount(voucher.displayAmount, voucher.displayCurrency)}</div>
-                      <div className="text-lg text-gray-600 dark:text-gray-400 mt-1">({voucher.amount} sats)</div>
-                    </div>
-                  ) : (
-                    <div>{formatDisplayAmount(voucher.amount, voucher.displayCurrency || 'BTC')}</div>
-                  )}
+                <div className={`font-inter-tight font-semibold text-gray-800 dark:text-gray-100 min-h-[72px] flex items-center justify-center leading-none tracking-normal max-w-full overflow-hidden px-2 ${
+                  getDynamicFontSize(formatDisplayAmount(voucher.displayAmount || voucher.amount, voucher.displayCurrency || 'BTC'))
+                }`} style={{wordBreak: 'keep-all', overflowWrap: 'normal'}}>
+                  <div className="max-w-full">
+                    {renderStyledAmount(voucher.displayAmount || voucher.amount, voucher.displayCurrency || 'BTC')}
+                  </div>
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  <div className="mb-1 min-h-[20px] max-w-full overflow-x-auto px-2">
+                    {(() => {
+                      // Dollar Voucher: show USD equivalent
+                      if (voucher.walletCurrency === 'USD' && voucher.usdAmountCents) {
+                        return `($${(voucher.usdAmountCents / 100).toFixed(2)} USD)`;
+                      }
+                      // Bitcoin Voucher with BTC display: no brackets
+                      if (isBitcoinCurrency(voucher.displayCurrency)) {
+                        return null;
+                      }
+                      // Bitcoin Voucher with fiat display: show sats
+                      return `(${voucher.amount} sats)`;
+                    })()}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1494,14 +1536,14 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
               </div>
             </div>
 
-            {/* Cancel Button - Bottom */}
+            {/* Close Button - Bottom */}
             <div className="px-4 pb-4 pt-4 flex-shrink-0">
               <button
                 onClick={handleClear}
-                className="w-full h-12 bg-white dark:bg-black border-2 border-red-600 dark:border-red-500 hover:border-red-700 dark:hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-lg font-normal transition-colors shadow-md"
+                className="w-full h-12 bg-white dark:bg-black border-2 border-purple-500 dark:border-purple-400 hover:border-purple-600 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg text-lg font-normal transition-colors shadow-md"
                 style={{fontFamily: "'Source Sans Pro', sans-serif"}}
               >
-                Cancel
+                Close
               </button>
             </div>
           </div>
@@ -1749,9 +1791,19 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-400">
             <div className="mb-1 min-h-[20px] max-w-full overflow-x-auto px-2">
-              {!isBitcoinCurrency(displayCurrency) ? (
-                `(${getSatsEquivalent(parseFloat(amount) || 0)} sats)`
-              ) : null}
+              {(() => {
+                // Dollar Voucher: always show USD equivalent
+                if (voucherCurrencyMode === 'USD') {
+                  const usdEquiv = getUsdEquivalent(parseFloat(amount) || 0);
+                  return usdEquiv ? `(${usdEquiv} USD)` : null;
+                }
+                // Bitcoin Voucher with BTC display: no brackets (same currency)
+                if (isBitcoinCurrency(displayCurrency)) {
+                  return null;
+                }
+                // Bitcoin Voucher with fiat display: show sats equivalent
+                return `(${getSatsEquivalent(parseFloat(amount) || 0)} sats)`;
+              })()}
             </div>
           </div>
           {/* Always reserve space for balance warning to prevent numpad layout shift */}

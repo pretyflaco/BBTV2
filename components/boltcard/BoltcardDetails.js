@@ -121,6 +121,23 @@ export default function BoltcardDetails({
   // Reset card state
   const [showResetQR, setShowResetQR] = useState(false);
   const [resetDeeplink, setResetDeeplink] = useState(null);
+  const [showResetQRCode, setShowResetQRCode] = useState(false);
+
+  // Platform detection for mobile-first UI
+  const [isMobile, setIsMobile] = useState(false);
+  const [isAndroidDevice, setIsAndroidDevice] = useState(false);
+  const [isIOSDevice, setIsIOSDevice] = useState(false);
+
+  // Detect mobile on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const ua = navigator.userAgent.toLowerCase();
+      const mobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(ua);
+      setIsMobile(mobile);
+      setIsAndroidDevice(/android/i.test(ua));
+      setIsIOSDevice(/iphone|ipad|ipod/i.test(ua));
+    }
+  }, []);
 
   // Load card details on mount
   useEffect(() => {
@@ -211,6 +228,17 @@ export default function BoltcardDetails({
     const deeplink = generateResetDeeplink(card.id);
     setResetDeeplink(deeplink);
     setShowResetQR(true);
+    // On mobile, don't show QR by default - show button instead
+    setShowResetQRCode(!isMobile);
+  };
+
+  /**
+   * Handle opening reset deeplink directly (mobile)
+   */
+  const handleOpenResetDeeplink = () => {
+    if (resetDeeplink) {
+      window.location.href = resetDeeplink;
+    }
   };
 
   /**
@@ -266,25 +294,114 @@ export default function BoltcardDetails({
           {/* Content */}
           <div className="p-4 space-y-4">
             <p className={`text-sm text-center ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Scan this QR code with the Bolt Card NFC Programmer app to reset your card to factory defaults.
+              {isMobile 
+                ? 'Tap the button below to reset your card to factory defaults.'
+                : 'Scan this QR code with the Bolt Card NFC Programmer app to reset your card to factory defaults.'
+              }
             </p>
 
-            {/* QR Code */}
-            <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-              <div className="flex justify-center mb-3">
-                <div className="p-3 bg-white rounded-lg">
-                  <QRCodeSVG
-                    value={resetDeeplink}
-                    size={180}
-                    level="M"
-                    includeMargin={false}
-                  />
+            {/* Mobile: Primary button to open NFC Programmer */}
+            {isMobile && (
+              <div className="space-y-3">
+                <button
+                  onClick={handleOpenResetDeeplink}
+                  className="w-full py-4 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-3"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  <span>Open NFC Programmer to Reset</span>
+                </button>
+                
+                {/* App download links */}
+                <div className={`p-3 rounded-lg border ${
+                  darkMode ? 'bg-blue-900/10 border-blue-500/30' : 'bg-blue-50 border-blue-200'
+                }`}>
+                  <p className={`text-sm mb-2 ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                    Don't have the NFC Programmer app?
+                  </p>
+                  <div className="flex gap-3">
+                    {isAndroidDevice && (
+                      <a 
+                        href="https://play.google.com/store/apps/details?id=com.lightningnfcapp"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 py-2 px-3 bg-blink-accent/20 text-blink-accent text-sm font-medium rounded-md text-center hover:bg-blink-accent/30 transition-colors"
+                      >
+                        Get on Google Play
+                      </a>
+                    )}
+                    {isIOSDevice && (
+                      <a 
+                        href="https://apps.apple.com/app/boltcard-nfc-programmer/id6450968873"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 py-2 px-3 bg-blink-accent/20 text-blink-accent text-sm font-medium rounded-md text-center hover:bg-blink-accent/30 transition-colors"
+                      >
+                        Get on App Store
+                      </a>
+                    )}
+                    {!isAndroidDevice && !isIOSDevice && (
+                      <>
+                        <a 
+                          href="https://play.google.com/store/apps/details?id=com.lightningnfcapp"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 py-2 px-3 bg-blink-accent/20 text-blink-accent text-sm font-medium rounded-md text-center hover:bg-blink-accent/30 transition-colors"
+                        >
+                          Google Play
+                        </a>
+                        <a 
+                          href="https://apps.apple.com/app/boltcard-nfc-programmer/id6450968873"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 py-2 px-3 bg-blink-accent/20 text-blink-accent text-sm font-medium rounded-md text-center hover:bg-blink-accent/30 transition-colors"
+                        >
+                          App Store
+                        </a>
+                      </>
+                    )}
+                  </div>
                 </div>
+
+                {/* Toggle to show QR */}
+                <button
+                  onClick={() => setShowResetQRCode(!showResetQRCode)}
+                  className={`w-full py-2 text-sm font-medium flex items-center justify-center gap-2 ${
+                    darkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}
+                >
+                  <span>{showResetQRCode ? 'Hide' : 'Show'} QR Code</span>
+                  <svg 
+                    className={`w-4 h-4 transition-transform ${showResetQRCode ? 'rotate-180' : ''}`} 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
               </div>
-              <p className={`text-xs text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                Scan with Bolt Card NFC Programmer app
-              </p>
-            </div>
+            )}
+
+            {/* QR Code - always on desktop, collapsible on mobile */}
+            {(showResetQRCode || !isMobile) && (
+              <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                <div className="flex justify-center mb-3">
+                  <div className="p-3 bg-white rounded-lg">
+                    <QRCodeSVG
+                      value={resetDeeplink}
+                      size={180}
+                      level="M"
+                      includeMargin={false}
+                    />
+                  </div>
+                </div>
+                <p className={`text-xs text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Scan with Bolt Card NFC Programmer app
+                </p>
+              </div>
+            )}
 
             {/* Warning */}
             <div className={`p-3 rounded-lg border ${
@@ -307,11 +424,22 @@ export default function BoltcardDetails({
               <ol className={`text-xs space-y-1 list-decimal list-inside ${
                 darkMode ? 'text-gray-400' : 'text-gray-500'
               }`}>
-                <li>Open the Bolt Card NFC Programmer app</li>
-                <li>Scan the QR code above</li>
-                <li>Tap your card on your phone</li>
-                <li>Wait for reset to complete</li>
-                <li>Card will be returned to factory state</li>
+                {isMobile ? (
+                  <>
+                    <li>Tap "Open NFC Programmer to Reset" above</li>
+                    <li>Tap your card on your phone when prompted</li>
+                    <li>Wait for reset to complete</li>
+                    <li>Card will be returned to factory state</li>
+                  </>
+                ) : (
+                  <>
+                    <li>Open the Bolt Card NFC Programmer app</li>
+                    <li>Scan the QR code above</li>
+                    <li>Tap your card on your phone</li>
+                    <li>Wait for reset to complete</li>
+                    <li>Card will be returned to factory state</li>
+                  </>
+                )}
               </ol>
             </div>
 

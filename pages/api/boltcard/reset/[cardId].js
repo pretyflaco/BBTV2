@@ -125,9 +125,16 @@ export default async function handler(req, res) {
 
     console.log(`[ResetAPI] Card ${cardId} verified for reset. Counter: ${verifyResult.counter}`);
 
-    // Return current keys for reset operation
+    // Build the LNURLW URL that was on the card
+    const host = req.headers.host;
+    const protocol = req.headers['x-forwarded-proto'] || 'https';
+    const lnurlwUrl = `lnurlw://${host}/api/boltcard/lnurlw/${cardId}`;
+
+    // Return current keys for reset operation per DEEPLINK.md spec
     // The NFC Programmer app needs these to authenticate with the card
+    // Reset response format uses UPPERCASE keys per spec
     res.status(200).json({
+      LNURLW: lnurlwUrl,
       K0: card.k0.toUpperCase(),
       K1: card.k1.toUpperCase(),
       K2: card.k2.toUpperCase(),

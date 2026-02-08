@@ -14,7 +14,7 @@ import { useState, useEffect } from 'react';
 import { useTheme } from '../../lib/hooks/useTheme';
 import { CardStatus } from './useBoltcards';
 import BoltcardTopUp from './BoltcardTopUp';
-import QRCode from 'qrcode.react';
+import { QRCodeSVGSVG } from 'qrcode.react';
 
 /**
  * Format balance for display
@@ -273,7 +273,7 @@ export default function BoltcardDetails({
             <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
               <div className="flex justify-center mb-3">
                 <div className="p-3 bg-white rounded-lg">
-                  <QRCode
+                  <QRCodeSVG
                     value={resetDeeplink}
                     size={180}
                     level="M"

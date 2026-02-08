@@ -13,7 +13,7 @@ import { useState, useEffect } from 'react';
 import { useTheme } from '../../lib/hooks/useTheme';
 import { useCombinedAuth } from '../../lib/hooks/useCombinedAuth';
 import { CardCurrency } from './useBoltcards';
-import QRCode from 'qrcode.react';
+import { QRCodeSVGSVG } from 'qrcode.react';
 
 /**
  * Registration steps
@@ -368,7 +368,7 @@ export default function BoltcardRegister({
           <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
             <div className="flex justify-center mb-3">
               <div className="p-3 bg-white rounded-lg">
-                <QRCode
+                <QRCodeSVG
                   value={qrPayload}
                   size={200}
                   level="M"

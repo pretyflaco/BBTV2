@@ -6,7 +6,7 @@
 
 import { useState } from 'react';
 import { useTheme } from '../../lib/hooks/useTheme';
-import QRCode from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react';
 
 /**
  * Format balance for display
@@ -73,7 +73,7 @@ export default function BoltcardTopUp({
         <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
           <div className="flex justify-center mb-3">
             <div className="p-3 bg-white rounded-lg">
-              <QRCode
+              <QRCodeSVG
                 value={topUpQR.lnurl.toUpperCase()}
                 size={200}
                 level="M"

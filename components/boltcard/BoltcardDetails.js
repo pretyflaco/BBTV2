@@ -81,6 +81,21 @@ function generateResetDeeplink(cardId) {
 }
 
 /**
+ * Generate force-reset deeplink URL (for cards with malformed NDEF)
+ * Uses boltcard://program which sends UID instead of LNURLW
+ * Format: boltcard://program?url={serverUrl}/api/boltcard/force-reset/{cardId}
+ */
+function generateForceResetDeeplink(cardId) {
+  const serverUrl = typeof window !== 'undefined' 
+    ? window.location.origin 
+    : process.env.NEXT_PUBLIC_BASE_URL || '';
+  
+  // Use "program" action - it sends UID which our force-reset endpoint accepts
+  const forceResetUrl = `${serverUrl}/api/boltcard/force-reset/${cardId}`;
+  return `boltcard://program?url=${encodeURIComponent(forceResetUrl)}`;
+}
+
+/**
  * BoltcardDetails component
  */
 export default function BoltcardDetails({
@@ -122,6 +137,10 @@ export default function BoltcardDetails({
   const [showResetQR, setShowResetQR] = useState(false);
   const [resetDeeplink, setResetDeeplink] = useState(null);
   const [showResetQRCode, setShowResetQRCode] = useState(false);
+  
+  // Force reset state (for malformed cards)
+  const [forceResetDeeplink, setForceResetDeeplink] = useState(null);
+  const [showForceReset, setShowForceReset] = useState(false);
 
   // Platform detection for mobile-first UI
   const [isMobile, setIsMobile] = useState(false);
@@ -226,7 +245,9 @@ export default function BoltcardDetails({
    */
   const handleShowResetQR = () => {
     const deeplink = generateResetDeeplink(card.id);
+    const forceDeeplink = generateForceResetDeeplink(card.id);
     setResetDeeplink(deeplink);
+    setForceResetDeeplink(forceDeeplink);
     setShowResetQR(true);
     // On mobile, don't show QR by default - show button instead
     setShowResetQRCode(!isMobile);
@@ -238,6 +259,25 @@ export default function BoltcardDetails({
   const handleOpenResetDeeplink = () => {
     if (resetDeeplink) {
       window.location.href = resetDeeplink;
+    }
+  };
+
+  /**
+   * Handle force reset - for cards with malformed NDEF data
+   * Uses the "program" deeplink which sends UID instead of LNURLW
+   */
+  const handleForceReset = () => {
+    const deeplink = generateForceResetDeeplink(card.id);
+    setForceResetDeeplink(deeplink);
+    setShowForceReset(true);
+  };
+
+  /**
+   * Handle opening force reset deeplink directly (mobile)
+   */
+  const handleOpenForceResetDeeplink = () => {
+    if (forceResetDeeplink) {
+      window.location.href = forceResetDeeplink;
     }
   };
 
@@ -441,6 +481,43 @@ export default function BoltcardDetails({
                   </>
                 )}
               </ol>
+            </div>
+
+            {/* Force Reset - Troubleshooting option */}
+            <div className={`p-3 rounded-lg border ${
+              darkMode ? 'bg-red-900/10 border-red-500/30' : 'bg-red-50 border-red-200'
+            }`}>
+              <h5 className={`text-sm font-medium mb-1 ${darkMode ? 'text-red-400' : 'text-red-700'}`}>
+                Reset Not Working?
+              </h5>
+              <p className={`text-xs mb-2 ${darkMode ? 'text-red-300' : 'text-red-600'}`}>
+                If you see "Error fetching keys" or the reset fails, the card may have corrupted data.
+                Use Force Reset to fix this.
+              </p>
+              {isMobile ? (
+                <button
+                  onClick={handleOpenForceResetDeeplink}
+                  className="w-full py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors"
+                >
+                  Force Reset Card
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    Scan this QR code for Force Reset:
+                  </p>
+                  <div className="flex justify-center">
+                    <div className="p-2 bg-white rounded-lg">
+                      <QRCodeSVG
+                        value={generateForceResetDeeplink(card.id)}
+                        size={120}
+                        level="M"
+                        includeMargin={false}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Close button */}

@@ -24,6 +24,7 @@ services:
       BLINKPOS_BTC_WALLET_ID: ${BLINKPOS_BTC_WALLET_ID}
       BLINK_WEBHOOK_SECRET: ${BLINK_WEBHOOK_SECRET:-}
       JWT_SECRET: ${JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       ENABLE_HYBRID_STORAGE: "true"
     volumes:
       # Persist user data (profiles, split settings, API keys) across container rebuilds

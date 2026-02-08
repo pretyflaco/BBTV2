@@ -21,13 +21,51 @@ export default async function handler(req, res) {
     console.log('Payment Request (invoice):', paymentRequest.substring(0, 50) + '...');
 
     // Parse the LNURL to get the withdraw parameters
-    const lnurlParams = await getParams(lnurl);
+    let lnurlParams;
+    try {
+      lnurlParams = await getParams(lnurl);
+    } catch (parseError) {
+      console.error('Failed to parse LNURL:', parseError.message);
+      console.log('Raw LNURL that failed:', lnurl);
+      
+      // Check if this looks like a Boltcard URL with missing/invalid params
+      if (lnurl.includes('/api/boltcard/lnurlw/')) {
+        // Extract more details about what's wrong
+        const urlMatch = lnurl.match(/[?&]p=([^&]*)/);
+        const cmacMatch = lnurl.match(/[?&]c=([^&]*)/);
+        
+        const diagnosis = [];
+        if (!urlMatch || !urlMatch[1]) {
+          diagnosis.push('missing p (PICCData) parameter');
+        } else if (urlMatch[1].length !== 32) {
+          diagnosis.push(`p parameter has wrong length (${urlMatch[1].length} chars, expected 32)`);
+        }
+        if (!cmacMatch || !cmacMatch[1]) {
+          diagnosis.push('missing c (CMAC) parameter');
+        } else if (cmacMatch[1].length !== 16) {
+          diagnosis.push(`c parameter has wrong length (${cmacMatch[1].length} chars, expected 16)`);
+        }
+        
+        return res.status(400).json({
+          error: 'Card authentication failed',
+          reason: `Boltcard URL validation failed: ${diagnosis.join(', ')}. The card may need to be reprogrammed with correct SUN/SDM settings.`,
+          details: parseError.message
+        });
+      }
+      
+      return res.status(400).json({
+        error: 'Failed to parse LNURL',
+        reason: parseError.message
+      });
+    }
 
     // Validate that it's a withdraw request (Boltcard)
     if (!('tag' in lnurlParams && lnurlParams.tag === 'withdrawRequest')) {
+      console.log('LNURL params received:', JSON.stringify(lnurlParams, null, 2));
       return res.status(400).json({
         error: 'Not a properly configured LNURL withdraw tag',
-        reason: 'This is not a valid Boltcard or LNURL-withdraw compatible card'
+        reason: 'This is not a valid Boltcard or LNURL-withdraw compatible card. The card may have authentication issues (missing or invalid p/c parameters).',
+        received: lnurlParams.tag || 'no tag'
       });
     }
 

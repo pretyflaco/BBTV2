@@ -145,13 +145,14 @@ export default async function handler(req, res) {
     const lnurlwUrl = lnurlw.generateCardUrl(serverUrl, card.id);
 
     // Build response in format expected by NFC Programmer app
+    // Format matches: https://bolt-card-mock-server.vercel.app/api/create
     const keysResponse = boltcardCrypto.generateKeysResponse(lnurlwUrl, {
       k0: card.k0,
       k1: card.k1,
       k2: card.k2,
       k3: card.k3,
       k4: card.k4,
-    });
+    }, card.name || 'Boltcard');
 
     console.log(`[KeysAPI][${requestId}] SUCCESS - Card programmed: ${card.id} (UID: ${cardUid})`);
     console.log(`[KeysAPI][${requestId}] Response: ${JSON.stringify(keysResponse)}`);

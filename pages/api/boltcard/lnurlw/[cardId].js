@@ -48,6 +48,11 @@ async function handleWithdrawGet(req, res, cardId) {
   try {
     const { p: piccData, c: sunMac } = req.query;
 
+    // Enhanced logging for debugging card tap issues
+    console.log(`[LNURLW] Card tap request for: ${cardId}`);
+    console.log(`[LNURLW] Full URL: ${req.url}`);
+    console.log(`[LNURLW] Query params: p=${piccData ? piccData.substring(0, 16) + '...' : 'MISSING'} (${piccData?.length || 0} chars), c=${sunMac || 'MISSING'} (${sunMac?.length || 0} chars)`);
+
     // If no p/c params, this might be a balance check or info request
     if (!piccData || !sunMac) {
       // Return basic card info (without sensitive data)
@@ -66,24 +71,35 @@ async function handleWithdrawGet(req, res, cardId) {
         });
       }
 
+      // Detailed error for missing params (helps debug card programming issues)
+      const missingParams = [];
+      if (!piccData) missingParams.push('p (PICCData)');
+      if (!sunMac) missingParams.push('c (SunMAC/CMAC)');
+      
+      console.log(`[LNURLW] ERROR: Missing params: ${missingParams.join(', ')}`);
+      console.log(`[LNURLW] This usually means the card SUN feature is not configured correctly.`);
+      console.log(`[LNURLW] The NFC Programmer app should configure SDM/SUN to include both PICCData and CMAC.`);
+
       return res.status(400).json({
         status: 'ERROR',
-        reason: 'Missing authentication parameters (p, c)'
+        reason: `Missing authentication parameters: ${missingParams.join(', ')}. The card may not be programmed correctly - SUN/SDM feature needs to include both PICCData and CMAC.`
       });
     }
 
-    // Validate parameter formats
+    // Validate parameter formats with helpful error messages
     if (!/^[0-9a-fA-F]{32}$/.test(piccData)) {
+      console.log(`[LNURLW] ERROR: Invalid PICCData format. Expected 32 hex chars, got ${piccData.length}: ${piccData.substring(0, 50)}...`);
       return res.status(400).json({
         status: 'ERROR',
-        reason: 'Invalid PICCData format'
+        reason: `Invalid PICCData format: expected 32 hex characters, got ${piccData.length}. This may indicate incorrect SUN/SDM configuration on the card.`
       });
     }
 
     if (!/^[0-9a-fA-F]{16}$/.test(sunMac)) {
+      console.log(`[LNURLW] ERROR: Invalid SunMAC format. Expected 16 hex chars, got ${sunMac.length}: ${sunMac}`);
       return res.status(400).json({
         status: 'ERROR',
-        reason: 'Invalid SunMAC format'
+        reason: `Invalid SunMAC format: expected 16 hex characters, got ${sunMac.length}`
       });
     }
 

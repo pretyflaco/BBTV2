@@ -145,10 +145,17 @@ async function handleGet(req, res, pubkey, username) {
   // Decrypt Voucher Wallet API key for the client
   let voucherWallet = null;
   if (userData.voucherWallet) {
+    const encryptedApiKey = userData.voucherWallet.apiKey;
+    const decryptedApiKey = decryptSensitiveData(encryptedApiKey);
+    console.log('[user/sync] voucherWallet found, encrypted apiKey length:', encryptedApiKey?.length || 0);
+    console.log('[user/sync] Decrypted apiKey result:', decryptedApiKey ? `success (${decryptedApiKey.length} chars)` : 'FAILED - null/empty');
+    
     voucherWallet = {
       ...userData.voucherWallet,
-      apiKey: decryptSensitiveData(userData.voucherWallet.apiKey)
+      apiKey: decryptedApiKey
     };
+  } else {
+    console.log('[user/sync] No voucherWallet in userData');
   }
   
   return res.status(200).json({

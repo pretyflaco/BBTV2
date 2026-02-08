@@ -864,6 +864,13 @@ export default function Dashboard() {
         
         // Sync voucher wallet from server (using user-scoped localStorage key)
         const voucherWalletStorageKey = getVoucherWalletKey(publicKey);
+        console.log('[Dashboard] voucherWallet from server:', data.voucherWallet ? {
+          label: data.voucherWallet.label,
+          hasApiKey: !!data.voucherWallet.apiKey,
+          apiKeyLength: data.voucherWallet.apiKey?.length || 0,
+          apiKeyType: typeof data.voucherWallet.apiKey
+        } : 'null/undefined');
+        
         if (data.voucherWallet && data.voucherWallet.apiKey) {
           console.log('[Dashboard] Loaded voucher wallet from server:', data.voucherWallet.label);
           setVoucherWallet(data.voucherWallet);

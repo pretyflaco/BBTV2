@@ -97,7 +97,10 @@ export default async function handler(req, res) {
         registrationId: pending.id,
         name: pending.name,
         walletCurrency: pending.walletCurrency,
-        environment
+        environment,
+        keysRequestUrl,
+        deeplink,
+        deeplinkLength: deeplink.length,
       });
 
       return res.status(200).json({

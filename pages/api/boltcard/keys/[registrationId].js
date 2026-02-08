@@ -30,17 +30,44 @@ const boltcardCrypto = require('../../../../lib/boltcard/crypto');
 const lnurlw = require('../../../../lib/boltcard/lnurlw');
 
 export default async function handler(req, res) {
+  // Enhanced logging for debugging NFC Programmer app requests
+  const requestId = Math.random().toString(36).substring(7);
+  const timestamp = new Date().toISOString();
+  
+  console.log(`[KeysAPI][${requestId}] ========== INCOMING REQUEST ==========`);
+  console.log(`[KeysAPI][${requestId}] Timestamp: ${timestamp}`);
+  console.log(`[KeysAPI][${requestId}] Method: ${req.method}`);
+  console.log(`[KeysAPI][${requestId}] URL: ${req.url}`);
+  console.log(`[KeysAPI][${requestId}] Query: ${JSON.stringify(req.query)}`);
+  console.log(`[KeysAPI][${requestId}] Headers: ${JSON.stringify(req.headers)}`);
+  console.log(`[KeysAPI][${requestId}] Body: ${JSON.stringify(req.body)}`);
+  console.log(`[KeysAPI][${requestId}] Remote IP: ${req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown'}`);
+  console.log(`[KeysAPI][${requestId}] User-Agent: ${req.headers['user-agent'] || 'none'}`);
+  
   // Set CORS headers for NFC Programmer app
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
   
   // Handle preflight
   if (req.method === 'OPTIONS') {
+    console.log(`[KeysAPI][${requestId}] Responding to OPTIONS preflight`);
     return res.status(200).end();
   }
   
+  // Also allow GET for debugging (returns info about the endpoint)
+  if (req.method === 'GET') {
+    console.log(`[KeysAPI][${requestId}] GET request - returning endpoint info`);
+    return res.status(200).json({
+      status: 'OK',
+      message: 'Boltcard keys endpoint. POST with { UID: "14-hex-chars" } to get card keys.',
+      registrationId: req.query.registrationId,
+      timestamp,
+    });
+  }
+  
   if (req.method !== 'POST') {
+    console.log(`[KeysAPI][${requestId}] Method not allowed: ${req.method}`);
     return res.status(405).json({ 
       status: 'ERROR',
       reason: 'Method not allowed' 
@@ -126,12 +153,13 @@ export default async function handler(req, res) {
       k4: card.k4,
     });
 
-    console.log(`[KeysAPI] Card programmed: ${card.id} (UID: ${cardUid})`);
+    console.log(`[KeysAPI][${requestId}] SUCCESS - Card programmed: ${card.id} (UID: ${cardUid})`);
+    console.log(`[KeysAPI][${requestId}] Response: ${JSON.stringify(keysResponse)}`);
 
     res.status(200).json(keysResponse);
 
   } catch (error) {
-    console.error('[KeysAPI] Error:', error);
+    console.error(`[KeysAPI][${requestId}] ERROR:`, error);
 
     // Handle specific errors
     if (error.message.includes('already registered')) {

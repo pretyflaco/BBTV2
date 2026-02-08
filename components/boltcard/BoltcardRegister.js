@@ -23,6 +23,32 @@ const Steps = {
 };
 
 /**
+ * Detect if user is on a mobile device
+ */
+const isMobileDevice = () => {
+  if (typeof window === 'undefined') return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
+};
+
+/**
+ * Detect if user is on Android (NFC Programmer app is primarily for Android)
+ */
+const isAndroid = () => {
+  if (typeof window === 'undefined') return false;
+  return /Android/i.test(navigator.userAgent);
+};
+
+/**
+ * Detect if user is on iOS
+ */
+const isIOS = () => {
+  if (typeof window === 'undefined') return false;
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent);
+};
+
+/**
  * BoltcardRegister component
  * @param {Object} props
  * @param {Function} props.onRegister - Callback for registration
@@ -54,8 +80,24 @@ export default function BoltcardRegister({
   // Registration result (deeplink flow)
   const [registrationResult, setRegistrationResult] = useState(null);
   
+  // QR code visibility (collapsed by default on mobile)
+  const [showQR, setShowQR] = useState(false);
+  
   // Expiry countdown
   const [expiresIn, setExpiresIn] = useState(null);
+  
+  // Platform detection (run once on mount)
+  const [isMobile, setIsMobile] = useState(false);
+  const [isAndroidDevice, setIsAndroidDevice] = useState(false);
+  const [isIOSDevice, setIsIOSDevice] = useState(false);
+  
+  useEffect(() => {
+    setIsMobile(isMobileDevice());
+    setIsAndroidDevice(isAndroid());
+    setIsIOSDevice(isIOS());
+    // Default QR visibility based on platform
+    setShowQR(!isMobileDevice());
+  }, []);
 
   /**
    * Countdown timer for pending registration expiry
@@ -343,6 +385,16 @@ export default function BoltcardRegister({
     const qrPayload = registrationResult.qrPayload || registrationResult.deeplink;
     const pendingReg = registrationResult.pendingRegistration;
 
+    /**
+     * Handle opening the deeplink
+     */
+    const handleOpenDeeplink = () => {
+      if (qrPayload) {
+        // On mobile, try to open the deeplink
+        window.location.href = qrPayload;
+      }
+    };
+
     return (
       <div className="space-y-4">
         <div className="text-center">
@@ -355,7 +407,10 @@ export default function BoltcardRegister({
             Program Your Card
           </h4>
           <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            Scan this QR code with the Bolt Card NFC Programmer app to program your NTAG424DNA card.
+            {isMobile 
+              ? 'Open the NFC Programmer app to program your NTAG424DNA card.'
+              : 'Scan this QR code with the Bolt Card NFC Programmer app to program your NTAG424DNA card.'
+            }
           </p>
         </div>
 
@@ -374,22 +429,115 @@ export default function BoltcardRegister({
           </div>
         )}
 
-        {/* QR Code for programming */}
-        {qrPayload && (
-          <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-            <div className="flex justify-center mb-3">
-              <div className="p-3 bg-white rounded-lg">
-                <QRCodeSVG
-                  value={qrPayload}
-                  size={200}
-                  level="M"
-                  includeMargin={false}
-                />
+        {/* Primary action: Open in NFC Programmer (mobile only) */}
+        {isMobile && qrPayload && (
+          <div className="space-y-3">
+            <button
+              onClick={handleOpenDeeplink}
+              className="w-full py-4 bg-blink-accent text-black font-medium rounded-lg hover:bg-blink-accent/90 transition-colors flex items-center justify-center gap-3"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+              <span>Open in NFC Programmer</span>
+            </button>
+            
+            {/* App download links - shown prominently on mobile */}
+            <div className={`p-3 rounded-lg border ${
+              darkMode ? 'bg-blue-900/10 border-blue-500/30' : 'bg-blue-50 border-blue-200'
+            }`}>
+              <p className={`text-sm mb-2 ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                Don't have the NFC Programmer app?
+              </p>
+              <div className="flex gap-3">
+                {isAndroidDevice && (
+                  <a 
+                    href="https://play.google.com/store/apps/details?id=com.lightningnfcapp"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 py-2 px-3 bg-blink-accent/20 text-blink-accent text-sm font-medium rounded-md text-center hover:bg-blink-accent/30 transition-colors"
+                  >
+                    Get on Google Play
+                  </a>
+                )}
+                {isIOSDevice && (
+                  <a 
+                    href="https://apps.apple.com/app/boltcard-nfc-programmer/id6450968873"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 py-2 px-3 bg-blink-accent/20 text-blink-accent text-sm font-medium rounded-md text-center hover:bg-blink-accent/30 transition-colors"
+                  >
+                    Get on App Store
+                  </a>
+                )}
+                {!isAndroidDevice && !isIOSDevice && (
+                  <>
+                    <a 
+                      href="https://play.google.com/store/apps/details?id=com.lightningnfcapp"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 py-2 px-3 bg-blink-accent/20 text-blink-accent text-sm font-medium rounded-md text-center hover:bg-blink-accent/30 transition-colors"
+                    >
+                      Google Play
+                    </a>
+                    <a 
+                      href="https://apps.apple.com/app/boltcard-nfc-programmer/id6450968873"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 py-2 px-3 bg-blink-accent/20 text-blink-accent text-sm font-medium rounded-md text-center hover:bg-blink-accent/30 transition-colors"
+                    >
+                      App Store
+                    </a>
+                  </>
+                )}
               </div>
             </div>
-            <p className={`text-xs text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-              Scan with Bolt Card NFC Programmer app
-            </p>
+          </div>
+        )}
+
+        {/* QR Code section - collapsible on mobile */}
+        {qrPayload && (
+          <div className={`rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+            {/* Toggle header for mobile */}
+            {isMobile ? (
+              <button
+                onClick={() => setShowQR(!showQR)}
+                className={`w-full p-3 flex items-center justify-between ${
+                  darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+                } transition-colors`}
+              >
+                <span className="text-sm font-medium">
+                  Or scan with another device
+                </span>
+                <svg 
+                  className={`w-5 h-5 transition-transform ${showQR ? 'rotate-180' : ''}`} 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            ) : null}
+            
+            {/* QR Code display */}
+            {(showQR || !isMobile) && (
+              <div className={`p-4 ${isMobile ? 'border-t ' + (darkMode ? 'border-gray-700' : 'border-gray-200') : ''}`}>
+                <div className="flex justify-center mb-3">
+                  <div className="p-3 bg-white rounded-lg">
+                    <QRCodeSVG
+                      value={qrPayload}
+                      size={200}
+                      level="M"
+                      includeMargin={false}
+                    />
+                  </div>
+                </div>
+                <p className={`text-xs text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Scan with Bolt Card NFC Programmer app
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -427,39 +575,53 @@ export default function BoltcardRegister({
           <ol className={`text-xs space-y-1 list-decimal list-inside ${
             darkMode ? 'text-blue-300' : 'text-blue-600'
           }`}>
-            <li>Open the Bolt Card NFC Programmer app</li>
-            <li>Tap "Scan QR" or use camera to scan the code above</li>
-            <li>Hold your NTAG424DNA card to your phone's NFC reader</li>
-            <li>Wait for programming to complete</li>
-            <li>Your card is ready! Top up to start using it</li>
+            {isMobile ? (
+              <>
+                <li>Tap "Open in NFC Programmer" above</li>
+                <li>The app will open and prompt you to tap your card</li>
+                <li>Hold your NTAG424DNA card to your phone's NFC reader</li>
+                <li>Wait for programming to complete</li>
+                <li>Your card is ready! Top up to start using it</li>
+              </>
+            ) : (
+              <>
+                <li>Open the Bolt Card NFC Programmer app on your phone</li>
+                <li>Tap "Scan QR" or use camera to scan the code above</li>
+                <li>Hold your NTAG424DNA card to your phone's NFC reader</li>
+                <li>Wait for programming to complete</li>
+                <li>Your card is ready! Top up to start using it</li>
+              </>
+            )}
           </ol>
         </div>
 
-        {/* App download links */}
-        <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-          <p className={`text-xs mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-            Don't have the app?
-          </p>
-          <div className="flex gap-2 text-xs">
-            <a 
-              href="https://apps.apple.com/app/boltcard-nfc-programmer/id6450968873"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blink-accent hover:underline"
-            >
-              iOS App Store
-            </a>
-            <span className={darkMode ? 'text-gray-600' : 'text-gray-300'}>|</span>
-            <a 
-              href="https://play.google.com/store/apps/details?id=com.lightningnfcapp"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blink-accent hover:underline"
-            >
-              Google Play
-            </a>
+        {/* App download links - for desktop users */}
+        {!isMobile && (
+          <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+            <p className={`text-xs mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+              Don't have the app?
+            </p>
+            <div className="flex gap-2 text-xs">
+              <a 
+                href="https://apps.apple.com/app/boltcard-nfc-programmer/id6450968873"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blink-accent hover:underline"
+              >
+                iOS App Store
+              </a>
+              <span className={darkMode ? 'text-gray-600' : 'text-gray-300'}>|</span>
+              <a 
+                href="https://play.google.com/store/apps/details?id=com.lightningnfcapp"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blink-accent hover:underline"
+              >
+                Google Play
+              </a>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="flex gap-2">
           <button

@@ -31,6 +31,7 @@ ENV NEXT_PUBLIC_USE_NDK_NIP46=true
 # Git commit hash for build versioning (passed from docker-compose or build command)
 ARG GIT_COMMIT=unknown
 ENV GIT_COMMIT=${GIT_COMMIT}
+ENV NEXT_PUBLIC_GIT_COMMIT=${GIT_COMMIT}
 
 # Limit Node.js memory to avoid OOM on low-memory servers
 # Disable webpack cache to save disk space during build

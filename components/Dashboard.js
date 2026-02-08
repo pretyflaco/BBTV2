@@ -764,6 +764,7 @@ export default function Dashboard() {
         const response = await fetch('/api/user/sync', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',  // Include session cookie for auth
           body: JSON.stringify({
             pubkey: publicKey,
             field: 'preferences',
@@ -788,7 +789,9 @@ export default function Dashboard() {
     const fetchServerPreferences = async () => {
       try {
         console.log('[Dashboard] Fetching preferences from server...');
-        const response = await fetch(`/api/user/sync?pubkey=${publicKey}`);
+        const response = await fetch(`/api/user/sync?pubkey=${publicKey}`, {
+          credentials: 'include'  // Include session cookie for auth
+        });
         
         if (!response.ok) return;
         
@@ -897,6 +900,7 @@ export default function Dashboard() {
       const response = await fetch('/api/user/sync', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',  // Include session cookie for auth
         body: JSON.stringify({
           pubkey: publicKey,
           field: 'voucherWallet',

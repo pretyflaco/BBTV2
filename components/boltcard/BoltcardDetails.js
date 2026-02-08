@@ -81,36 +81,6 @@ function generateResetDeeplink(cardId) {
 }
 
 /**
- * Generate force-reset deeplink URL (for cards with malformed NDEF)
- * Uses boltcard://program which sends UID instead of LNURLW
- * Format: boltcard://program?url={serverUrl}/api/boltcard/force-reset/{cardId}
- */
-function generateForceResetDeeplink(cardId) {
-  const serverUrl = typeof window !== 'undefined' 
-    ? window.location.origin 
-    : process.env.NEXT_PUBLIC_BASE_URL || '';
-  
-  // Use "program" action - it sends UID which our force-reset endpoint accepts
-  const forceResetUrl = `${serverUrl}/api/boltcard/force-reset/${cardId}`;
-  return `boltcard://program?url=${encodeURIComponent(forceResetUrl)}`;
-}
-
-/**
- * Generate factory-reset deeplink URL (returns all-zero keys)
- * This is the NUCLEAR option when stored keys don't match the card
- * Format: boltcard://program?url={serverUrl}/api/boltcard/factory-reset/{cardId}
- */
-function generateFactoryResetDeeplink(cardId) {
-  const serverUrl = typeof window !== 'undefined' 
-    ? window.location.origin 
-    : process.env.NEXT_PUBLIC_BASE_URL || '';
-  
-  // Use "program" action - it sends UID which our factory-reset endpoint accepts
-  const factoryResetUrl = `${serverUrl}/api/boltcard/factory-reset/${cardId}`;
-  return `boltcard://program?url=${encodeURIComponent(factoryResetUrl)}`;
-}
-
-/**
  * BoltcardDetails component
  */
 export default function BoltcardDetails({
@@ -149,17 +119,14 @@ export default function BoltcardDetails({
   const [error, setError] = useState(null);
   
   // Reset card state
-  const [showResetQR, setShowResetQR] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
   const [resetDeeplink, setResetDeeplink] = useState(null);
   const [showResetQRCode, setShowResetQRCode] = useState(false);
-  
-  // Force reset state (for malformed cards)
-  const [forceResetDeeplink, setForceResetDeeplink] = useState(null);
-  const [showForceReset, setShowForceReset] = useState(false);
-  
-  // Factory reset state (nuclear option - all-zero keys)
-  const [factoryResetDeeplink, setFactoryResetDeeplink] = useState(null);
-  const [showFactoryReset, setShowFactoryReset] = useState(false);
+  const [wipeKeys, setWipeKeys] = useState(null);
+  const [wipeKeysLoading, setWipeKeysLoading] = useState(false);
+  const [wipeKeysError, setWipeKeysError] = useState(null);
+  const [keysRevealed, setKeysRevealed] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(null);
 
   // Platform detection for mobile-first UI
   const [isMobile, setIsMobile] = useState(false);
@@ -260,18 +227,37 @@ export default function BoltcardDetails({
   };
 
   /**
-   * Handle reset card - show QR code with deeplink
+   * Handle reset card - show reset modal and fetch wipe keys
    */
-  const handleShowResetQR = () => {
+  const handleShowResetModal = async () => {
     const deeplink = generateResetDeeplink(card.id);
-    const forceDeeplink = generateForceResetDeeplink(card.id);
-    const factoryDeeplink = generateFactoryResetDeeplink(card.id);
     setResetDeeplink(deeplink);
-    setForceResetDeeplink(forceDeeplink);
-    setFactoryResetDeeplink(factoryDeeplink);
-    setShowResetQR(true);
-    // On mobile, don't show QR by default - show button instead
+    setShowResetModal(true);
     setShowResetQRCode(!isMobile);
+    setKeysRevealed(false);
+    setWipeKeys(null);
+    setWipeKeysError(null);
+    
+    // Fetch wipe keys from the API
+    setWipeKeysLoading(true);
+    try {
+      const response = await fetch(`/api/boltcard/wipe-keys/${card.id}`, {
+        credentials: 'include', // Include cookies for session auth
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || data.error || 'Failed to fetch wipe keys');
+      }
+      
+      const data = await response.json();
+      setWipeKeys(data);
+    } catch (error) {
+      console.error('Failed to fetch wipe keys:', error);
+      setWipeKeysError(error.message);
+    } finally {
+      setWipeKeysLoading(false);
+    }
   };
 
   /**
@@ -284,40 +270,29 @@ export default function BoltcardDetails({
   };
 
   /**
-   * Handle force reset - for cards with malformed NDEF data
-   * Uses the "program" deeplink which sends UID instead of LNURLW
+   * Copy key to clipboard
    */
-  const handleForceReset = () => {
-    const deeplink = generateForceResetDeeplink(card.id);
-    setForceResetDeeplink(deeplink);
-    setShowForceReset(true);
-  };
-
-  /**
-   * Handle opening force reset deeplink directly (mobile)
-   */
-  const handleOpenForceResetDeeplink = () => {
-    if (forceResetDeeplink) {
-      window.location.href = forceResetDeeplink;
+  const handleCopyKey = async (keyName, keyValue) => {
+    try {
+      await navigator.clipboard.writeText(keyValue);
+      setCopiedKey(keyName);
+      setTimeout(() => setCopiedKey(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
     }
   };
 
   /**
-   * Handle factory reset - nuclear option using all-zero keys
-   * Used when stored keys don't match what's on the card
+   * Copy wipe JSON to clipboard
    */
-  const handleFactoryReset = () => {
-    const deeplink = generateFactoryResetDeeplink(card.id);
-    setFactoryResetDeeplink(deeplink);
-    setShowFactoryReset(true);
-  };
-
-  /**
-   * Handle opening factory reset deeplink directly (mobile)
-   */
-  const handleOpenFactoryResetDeeplink = () => {
-    if (factoryResetDeeplink) {
-      window.location.href = factoryResetDeeplink;
+  const handleCopyWipeJson = async () => {
+    if (!wipeKeys?.wipeJson) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(wipeKeys.wipeJson, null, 2));
+      setCopiedKey('wipeJson');
+      setTimeout(() => setCopiedKey(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
     }
   };
 
@@ -340,10 +315,12 @@ export default function BoltcardDetails({
   );
 
   /**
-   * Render reset QR modal
+   * Render reset modal with wipe keys
    */
-  const renderResetQRModal = () => {
-    if (!showResetQR || !resetDeeplink) return null;
+  const renderResetModal = () => {
+    if (!showResetModal) return null;
+
+    const wipeJsonString = wipeKeys?.wipeJson ? JSON.stringify(wipeKeys.wipeJson) : null;
 
     return (
       <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4">
@@ -358,7 +335,7 @@ export default function BoltcardDetails({
               Reset Card
             </h3>
             <button
-              onClick={() => setShowResetQR(false)}
+              onClick={() => setShowResetModal(false)}
               className={`p-2 -mr-2 rounded-md ${
                 darkMode 
                   ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-800' 
@@ -373,61 +350,191 @@ export default function BoltcardDetails({
 
           {/* Content - Scrollable */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            <p className={`text-sm text-center ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              {isMobile 
-                ? 'Tap the button below to reset your card to factory defaults.'
-                : 'Scan this QR code with the Bolt Card NFC Programmer app to reset your card to factory defaults.'
-              }
-            </p>
+            
+            {/* Loading state */}
+            {wipeKeysLoading && (
+              <div className="text-center py-8">
+                <div className="animate-spin w-8 h-8 border-2 border-blink-accent border-t-transparent rounded-full mx-auto mb-3" />
+                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Loading wipe keys...
+                </p>
+              </div>
+            )}
 
-            {/* Mobile: Primary button to open NFC Programmer */}
-            {isMobile && (
-              <div className="space-y-3">
-                <button
-                  onClick={handleOpenResetDeeplink}
-                  className="w-full py-4 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-3"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                  </svg>
-                  <span>Open NFC Programmer to Reset</span>
-                </button>
-                
-                {/* App download links */}
-                <div className={`p-3 rounded-lg border ${
-                  darkMode ? 'bg-blue-900/10 border-blue-500/30' : 'bg-blue-50 border-blue-200'
-                }`}>
-                  <p className={`text-sm mb-2 ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>
-                    Don't have the NFC Programmer app?
-                  </p>
-                  <div className="flex gap-3">
-                    {isAndroidDevice && (
-                      <a 
-                        href="https://play.google.com/store/apps/details?id=com.lightningnfcapp"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 py-2 px-3 bg-blink-accent/20 text-blink-accent text-sm font-medium rounded-md text-center hover:bg-blink-accent/30 transition-colors"
-                      >
-                        Get on Google Play
-                      </a>
+            {/* Error state */}
+            {wipeKeysError && (
+              <div className={`p-4 rounded-lg border ${
+                darkMode ? 'bg-red-900/10 border-red-500/30' : 'bg-red-50 border-red-200'
+              }`}>
+                <h5 className={`text-sm font-medium mb-1 ${darkMode ? 'text-red-400' : 'text-red-700'}`}>
+                  Failed to load wipe keys
+                </h5>
+                <p className={`text-xs ${darkMode ? 'text-red-300' : 'text-red-600'}`}>
+                  {wipeKeysError}
+                </p>
+              </div>
+            )}
+
+            {/* Success state with keys */}
+            {wipeKeys && !wipeKeysLoading && (
+              <>
+                {/* Security warning (must acknowledge before revealing keys) */}
+                {!keysRevealed ? (
+                  <div className="space-y-4">
+                    <div className={`p-4 rounded-lg border ${
+                      darkMode ? 'bg-yellow-900/10 border-yellow-500/30' : 'bg-yellow-50 border-yellow-200'
+                    }`}>
+                      <h5 className={`text-sm font-bold mb-2 flex items-center gap-2 ${darkMode ? 'text-yellow-400' : 'text-yellow-700'}`}>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        Security Warning
+                      </h5>
+                      <p className={`text-xs mb-3 ${darkMode ? 'text-yellow-300' : 'text-yellow-600'}`}>
+                        The keys you are about to view are sensitive cryptographic secrets. 
+                        <strong> Anyone with access to these keys can reset your card.</strong>
+                      </p>
+                      <ul className={`text-xs space-y-1 list-disc list-inside ${darkMode ? 'text-yellow-300' : 'text-yellow-600'}`}>
+                        <li>Do not share these keys with anyone</li>
+                        <li>Do not screenshot or save them insecurely</li>
+                        <li>Close this window after you're done</li>
+                      </ul>
+                    </div>
+
+                    <button
+                      onClick={() => setKeysRevealed(true)}
+                      className="w-full py-3 bg-yellow-500 text-black text-sm font-medium rounded-lg hover:bg-yellow-400 transition-colors"
+                    >
+                      I Understand, Show Keys
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Card info */}
+                    <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                      <div className="flex justify-between text-sm">
+                        <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>Card UID</span>
+                        <span className={`font-mono ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {wipeKeys.card?.uid?.toUpperCase() || 'Unknown'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm mt-1">
+                        <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>Key Version</span>
+                        <span className={darkMode ? 'text-white' : 'text-gray-900'}>
+                          {wipeKeys.card?.version || 1}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Wipe JSON QR Code */}
+                    {wipeJsonString && (
+                      <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                        <p className={`text-xs text-center mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          Scan with NFC Programmer app (Reset screen)
+                        </p>
+                        <div className="flex justify-center mb-3">
+                          <div className="p-3 bg-white rounded-lg">
+                            <QRCodeSVG
+                              value={wipeJsonString}
+                              size={180}
+                              level="M"
+                              includeMargin={false}
+                            />
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleCopyWipeJson}
+                          className={`w-full py-2 text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-2 ${
+                            copiedKey === 'wipeJson'
+                              ? 'bg-green-500 text-white'
+                              : darkMode
+                                ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                        >
+                          {copiedKey === 'wipeJson' ? (
+                            <>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                              </svg>
+                              Copied!
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                              Copy Wipe JSON
+                            </>
+                          )}
+                        </button>
+                      </div>
                     )}
-                    {isIOSDevice && (
-                      <a 
-                        href="https://apps.apple.com/app/boltcard-nfc-programmer/id6450968873"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 py-2 px-3 bg-blink-accent/20 text-blink-accent text-sm font-medium rounded-md text-center hover:bg-blink-accent/30 transition-colors"
-                      >
-                        Get on App Store
-                      </a>
-                    )}
-                    {!isAndroidDevice && !isIOSDevice && (
-                      <>
+
+                    {/* Individual keys with copy buttons */}
+                    <div className={`rounded-lg overflow-hidden ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                      <div className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                        <h5 className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Individual Keys (for manual entry)
+                        </h5>
+                      </div>
+                      <div className="p-2 space-y-1">
+                        {wipeKeys.keys && Object.entries(wipeKeys.keys).map(([keyName, keyValue]) => (
+                          <button
+                            key={keyName}
+                            onClick={() => handleCopyKey(keyName, keyValue)}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors ${
+                              copiedKey === keyName
+                                ? 'bg-green-500 text-white'
+                                : darkMode
+                                  ? 'hover:bg-gray-700'
+                                  : 'hover:bg-gray-200'
+                            }`}
+                          >
+                            <span className={`text-xs font-bold ${
+                              copiedKey === keyName ? 'text-white' : darkMode ? 'text-blink-accent' : 'text-blink-accent'
+                            }`}>
+                              {keyName.toUpperCase()}
+                            </span>
+                            <span className={`font-mono text-xs ${
+                              copiedKey === keyName ? 'text-white' : darkMode ? 'text-gray-300' : 'text-gray-700'
+                            }`}>
+                              {copiedKey === keyName ? 'Copied!' : keyValue}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Instructions */}
+                    <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                      <h5 className={`text-xs font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        How to Reset:
+                      </h5>
+                      <ol className={`text-xs space-y-1 list-decimal list-inside ${
+                        darkMode ? 'text-gray-400' : 'text-gray-500'
+                      }`}>
+                        <li>Open the Bolt Card NFC Programmer app</li>
+                        <li>Go to the "Reset" screen</li>
+                        <li>Scan the QR code above, OR enter keys manually</li>
+                        <li>Tap your card on your phone when prompted</li>
+                        <li>Wait for reset to complete</li>
+                      </ol>
+                    </div>
+
+                    {/* App download links */}
+                    <div className={`p-3 rounded-lg border ${
+                      darkMode ? 'bg-blue-900/10 border-blue-500/30' : 'bg-blue-50 border-blue-200'
+                    }`}>
+                      <p className={`text-xs mb-2 ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                        Need the NFC Programmer app?
+                      </p>
+                      <div className="flex gap-2">
                         <a 
                           href="https://play.google.com/store/apps/details?id=com.lightningnfcapp"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex-1 py-2 px-3 bg-blink-accent/20 text-blink-accent text-sm font-medium rounded-md text-center hover:bg-blink-accent/30 transition-colors"
+                          className="flex-1 py-2 px-3 bg-blink-accent/20 text-blink-accent text-xs font-medium rounded-md text-center hover:bg-blink-accent/30 transition-colors"
                         >
                           Google Play
                         </a>
@@ -435,177 +542,27 @@ export default function BoltcardDetails({
                           href="https://apps.apple.com/app/boltcard-nfc-programmer/id6450968873"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex-1 py-2 px-3 bg-blink-accent/20 text-blink-accent text-sm font-medium rounded-md text-center hover:bg-blink-accent/30 transition-colors"
+                          className="flex-1 py-2 px-3 bg-blink-accent/20 text-blink-accent text-xs font-medium rounded-md text-center hover:bg-blink-accent/30 transition-colors"
                         >
                           App Store
                         </a>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Toggle to show QR */}
-                <button
-                  onClick={() => setShowResetQRCode(!showResetQRCode)}
-                  className={`w-full py-2 text-sm font-medium flex items-center justify-center gap-2 ${
-                    darkMode ? 'text-gray-400' : 'text-gray-500'
-                  }`}
-                >
-                  <span>{showResetQRCode ? 'Hide' : 'Show'} QR Code</span>
-                  <svg 
-                    className={`w-4 h-4 transition-transform ${showResetQRCode ? 'rotate-180' : ''}`} 
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-              </div>
-            )}
-
-            {/* QR Code - always on desktop, collapsible on mobile */}
-            {(showResetQRCode || !isMobile) && (
-              <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                <div className="flex justify-center mb-3">
-                  <div className="p-3 bg-white rounded-lg">
-                    <QRCodeSVG
-                      value={resetDeeplink}
-                      size={180}
-                      level="M"
-                      includeMargin={false}
-                    />
-                  </div>
-                </div>
-                <p className={`text-xs text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Scan with Bolt Card NFC Programmer app
-                </p>
-              </div>
-            )}
-
-            {/* Warning */}
-            <div className={`p-3 rounded-lg border ${
-              darkMode ? 'bg-yellow-900/10 border-yellow-500/30' : 'bg-yellow-50 border-yellow-200'
-            }`}>
-              <h5 className={`text-sm font-medium mb-1 ${darkMode ? 'text-yellow-400' : 'text-yellow-700'}`}>
-                Warning
-              </h5>
-              <p className={`text-xs ${darkMode ? 'text-yellow-300' : 'text-yellow-600'}`}>
-                Resetting the card will erase all programming and return it to factory defaults. 
-                Any remaining balance should be withdrawn first.
-              </p>
-            </div>
-
-            {/* Instructions */}
-            <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-              <h5 className={`text-xs font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                Reset Steps:
-              </h5>
-              <ol className={`text-xs space-y-1 list-decimal list-inside ${
-                darkMode ? 'text-gray-400' : 'text-gray-500'
-              }`}>
-                {isMobile ? (
-                  <>
-                    <li>Tap "Open NFC Programmer to Reset" above</li>
-                    <li>Tap your card on your phone when prompted</li>
-                    <li>Wait for reset to complete</li>
-                    <li>Card will be returned to factory state</li>
-                  </>
-                ) : (
-                  <>
-                    <li>Open the Bolt Card NFC Programmer app</li>
-                    <li>Scan the QR code above</li>
-                    <li>Tap your card on your phone</li>
-                    <li>Wait for reset to complete</li>
-                    <li>Card will be returned to factory state</li>
+                      </div>
+                    </div>
                   </>
                 )}
-              </ol>
-            </div>
+              </>
+            )}
 
-            {/* Force Reset - Troubleshooting option */}
-            <div className={`p-3 rounded-lg border ${
-              darkMode ? 'bg-red-900/10 border-red-500/30' : 'bg-red-50 border-red-200'
-            }`}>
-              <h5 className={`text-sm font-medium mb-1 ${darkMode ? 'text-red-400' : 'text-red-700'}`}>
-                Reset Not Working?
-              </h5>
-              <p className={`text-xs mb-2 ${darkMode ? 'text-red-300' : 'text-red-600'}`}>
-                If you see "Error fetching keys" or the reset fails, try Force Reset (uses stored keys).
-              </p>
-              {isMobile ? (
-                <button
-                  onClick={handleOpenForceResetDeeplink}
-                  className="w-full py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors"
-                >
-                  Force Reset Card
-                </button>
-              ) : (
-                <div className="space-y-2">
-                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    Scan this QR code for Force Reset:
-                  </p>
-                  <div className="flex justify-center">
-                    <div className="p-2 bg-white rounded-lg">
-                      <QRCodeSVG
-                        value={generateForceResetDeeplink(card.id)}
-                        size={120}
-                        level="M"
-                        includeMargin={false}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Factory Reset - Nuclear option with all-zero keys */}
-            <div className={`p-3 rounded-lg border ${
-              darkMode ? 'bg-purple-900/10 border-purple-500/30' : 'bg-purple-50 border-purple-200'
-            }`}>
-              <h5 className={`text-sm font-medium mb-1 ${darkMode ? 'text-purple-400' : 'text-purple-700'}`}>
-                Force Reset Also Failed?
-              </h5>
-              <p className={`text-xs mb-2 ${darkMode ? 'text-purple-300' : 'text-purple-600'}`}>
-                If Force Reset shows "TRY AGAIN AFTER RESETTING", the stored keys don't match the card.
-                Try Factory Reset which uses default keys (all zeros).
-              </p>
-              {isMobile ? (
-                <button
-                  onClick={handleOpenFactoryResetDeeplink}
-                  className="w-full py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 transition-colors"
-                >
-                  Factory Reset (Default Keys)
-                </button>
-              ) : (
-                <div className="space-y-2">
-                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    Scan this QR code for Factory Reset:
-                  </p>
-                  <div className="flex justify-center">
-                    <div className="p-2 bg-white rounded-lg">
-                      <QRCodeSVG
-                        value={generateFactoryResetDeeplink(card.id)}
-                        size={120}
-                        level="M"
-                        includeMargin={false}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Close button */}
+            {/* Done button - just closes the modal */}
             <button
-              onClick={() => setShowResetQR(false)}
+              onClick={() => setShowResetModal(false)}
               className={`w-full py-2 text-sm font-medium rounded-md transition-colors ${
                 darkMode
                   ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              Close
+              {keysRevealed ? "I've Reset My Card" : 'Close'}
             </button>
           </div>
         </div>
@@ -921,11 +878,11 @@ export default function BoltcardDetails({
                     Reset Card
                   </h4>
                   <p className={`text-xs mb-3 ${darkMode ? 'text-orange-300' : 'text-orange-600'}`}>
-                    Reset your card to factory defaults using the NFC Programmer app. 
+                    Get the keys needed to reset your card using the NFC Programmer app. 
                     You'll be able to reprogram it afterward or use it with a different service.
                   </p>
                   <button
-                    onClick={handleShowResetQR}
+                    onClick={handleShowResetModal}
                     disabled={loading || card.status === CardStatus.WIPED}
                     className={`w-full py-2 text-sm font-medium rounded-md transition-colors ${
                       darkMode
@@ -933,7 +890,7 @@ export default function BoltcardDetails({
                         : 'bg-orange-100 text-orange-700 hover:bg-orange-200 disabled:opacity-50'
                     }`}
                   >
-                    {card.status === CardStatus.WIPED ? 'Card Already Reset' : 'Show Reset QR Code'}
+                    {card.status === CardStatus.WIPED ? 'Card Already Reset' : 'Get Reset Keys'}
                   </button>
                 </div>
 
@@ -966,8 +923,8 @@ export default function BoltcardDetails({
         </div>
       </div>
 
-      {/* Reset QR Modal */}
-      {renderResetQRModal()}
+      {/* Reset Modal */}
+      {renderResetModal()}
     </>
   );
 }

@@ -14,6 +14,7 @@ import { useBoltcards } from './useBoltcards';
 import BoltcardCard from './BoltcardCard';
 import BoltcardRegister from './BoltcardRegister';
 import BoltcardDetails from './BoltcardDetails';
+import BoltcardRecovery from './BoltcardRecovery';
 
 /**
  * BoltcardSection component
@@ -50,6 +51,7 @@ export default function BoltcardSection({
   // UI state
   const [showRegister, setShowRegister] = useState(false);
   const [selectedCard, setSelectedCard] = useState(null);
+  const [showRecovery, setShowRecovery] = useState(false);
 
   /**
    * Handle card registration
@@ -239,6 +241,15 @@ export default function BoltcardSection({
           >
             Add Your First Card
           </button>
+          <p className={`text-xs mt-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+            Have a card that needs resetting?{' '}
+            <button
+              onClick={() => setShowRecovery(true)}
+              className="text-blink-accent hover:underline"
+            >
+              Recover card keys
+            </button>
+          </p>
         </div>
       )}
 
@@ -266,6 +277,14 @@ export default function BoltcardSection({
               Learn more about Boltcards
             </a>
           </p>
+          <p className="mt-1">
+            <button
+              onClick={() => setShowRecovery(true)}
+              className="text-blink-accent hover:underline"
+            >
+              Recover keys for an orphaned card
+            </button>
+          </p>
         </div>
       )}
 
@@ -281,6 +300,11 @@ export default function BoltcardSection({
           onResetDaily={handleResetDaily}
           fetchDetails={fetchCardDetails}
         />
+      )}
+
+      {/* Recovery Modal */}
+      {showRecovery && (
+        <BoltcardRecovery onClose={() => setShowRecovery(false)} />
       )}
     </div>
   );

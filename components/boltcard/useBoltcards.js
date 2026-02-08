@@ -262,6 +262,40 @@ export function useBoltcards(ownerPubkey) {
   }, [cardAction]);
 
   /**
+   * Fund card from Sending Wallet
+   * Increments the card's virtual balance
+   */
+  const fundCard = useCallback(async (cardId, amount, description) => {
+    try {
+      const response = await fetch('/api/boltcard/fund', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cardId,
+          amount,
+          description: description || 'Funded from Sending Wallet',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fund card');
+      }
+
+      // Update local state with new balance
+      setCards(prev => prev.map(card => 
+        card.id === cardId ? { ...card, balance: data.card.balance } : card
+      ));
+
+      return { success: true, card: data.card, transaction: data.transaction };
+    } catch (err) {
+      console.error('Failed to fund card:', err);
+      return { success: false, error: err.message };
+    }
+  }, []);
+
+  /**
    * Wipe/delete a card
    */
   const wipeCard = useCallback(async (cardId) => {
@@ -309,6 +343,7 @@ export function useBoltcards(ownerPubkey) {
     enableCard,
     resetDailySpent,
     adjustBalance,
+    fundCard,
     wipeCard,
 
     // Helpers

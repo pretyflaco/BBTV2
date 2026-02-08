@@ -15,6 +15,7 @@ import BoltcardCard from './BoltcardCard';
 import BoltcardRegister from './BoltcardRegister';
 import BoltcardDetails from './BoltcardDetails';
 import BoltcardRecovery from './BoltcardRecovery';
+import BoltcardFundCard from './BoltcardFundCard';
 
 /**
  * BoltcardSection component
@@ -22,11 +23,17 @@ import BoltcardRecovery from './BoltcardRecovery';
  * @param {Object} props.voucherWallet - The configured sending wallet with apiKey, walletId, username, etc.
  * @param {string} props.voucherWalletBtcId - BTC wallet ID
  * @param {string} props.voucherWalletUsdId - USD wallet ID (Stablesats)
+ * @param {number} props.voucherWalletBtcBalance - BTC wallet balance in sats
+ * @param {number} props.voucherWalletUsdBalance - USD wallet balance in cents
+ * @param {number} props.exchangeRate - BTC/USD exchange rate
  */
 export default function BoltcardSection({ 
   voucherWallet, 
   voucherWalletBtcId, 
-  voucherWalletUsdId 
+  voucherWalletUsdId,
+  voucherWalletBtcBalance,
+  voucherWalletUsdBalance,
+  exchangeRate,
 }) {
   const { darkMode } = useTheme();
   const { publicKey } = useCombinedAuth();
@@ -46,12 +53,14 @@ export default function BoltcardSection({
     enableCard,
     wipeCard,
     resetDailySpent,
+    fundCard,
   } = useBoltcards(publicKey);
 
   // UI state
   const [showRegister, setShowRegister] = useState(false);
   const [selectedCard, setSelectedCard] = useState(null);
   const [showRecovery, setShowRecovery] = useState(false);
+  const [fundingCard, setFundingCard] = useState(null); // Card being funded
 
   /**
    * Handle card registration
@@ -121,6 +130,30 @@ export default function BoltcardSection({
       setSelectedCard(prev => ({ ...prev, dailySpent: 0 }));
     }
     return result;
+  };
+
+  /**
+   * Handle fund card
+   */
+  const handleFund = async (cardId, amount) => {
+    const result = await fundCard(cardId, amount);
+    if (result.success) {
+      // Update selected card balance if it's the same card
+      if (selectedCard?.id === cardId) {
+        setSelectedCard(prev => ({ ...prev, balance: result.card.balance }));
+      }
+    }
+    return result;
+  };
+
+  /**
+   * Get wallet balance for a card's currency
+   */
+  const getWalletBalanceForCard = (card) => {
+    if (card.walletCurrency === 'USD') {
+      return voucherWalletUsdBalance || 0;
+    }
+    return voucherWalletBtcBalance || 0;
   };
 
   // Show warning if no wallet configured
@@ -298,7 +331,20 @@ export default function BoltcardSection({
           onEnable={handleEnable}
           onWipe={handleWipe}
           onResetDaily={handleResetDaily}
+          onFund={(card) => setFundingCard(card)}
           fetchDetails={fetchCardDetails}
+        />
+      )}
+
+      {/* Fund Card Modal */}
+      {fundingCard && (
+        <BoltcardFundCard
+          card={fundingCard}
+          walletBalance={getWalletBalanceForCard(fundingCard)}
+          onFund={handleFund}
+          onClose={() => setFundingCard(null)}
+          loading={loading}
+          exchangeRate={exchangeRate}
         />
       )}
 

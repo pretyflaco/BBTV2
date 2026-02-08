@@ -1361,6 +1361,13 @@ export default function Dashboard() {
     }
   }, [showVoucherWalletSettings, voucherWallet?.apiKey, fetchVoucherWalletBalance]);
 
+  // Fetch balance when Boltcards overlay opens (needed for wallet IDs)
+  useEffect(() => {
+    if (showBoltcards && voucherWallet?.apiKey) {
+      fetchVoucherWalletBalance();
+    }
+  }, [showBoltcards, voucherWallet?.apiKey, fetchVoucherWalletBalance]);
+
   // Refresh transaction data when active wallet changes (NWC or Blink)
   // This ensures we show the correct wallet's transactions
   const prevActiveNWCRef = useRef(activeNWC?.id);
@@ -3860,6 +3867,9 @@ export default function Dashboard() {
                 voucherWallet={voucherWallet}
                 voucherWalletBtcId={voucherWalletBtcId}
                 voucherWalletUsdId={voucherWalletUsdId}
+                voucherWalletBtcBalance={voucherWalletBalance}
+                voucherWalletUsdBalance={voucherWalletUsdBalance}
+                exchangeRate={exchangeRate}
               />
             </div>
           </div>

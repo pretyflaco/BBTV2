@@ -3845,7 +3845,11 @@ export default function Dashboard() {
             </div>
             {/* Content */}
             <div className="max-w-md mx-auto px-4 py-6">
-              <BoltcardSection />
+              <BoltcardSection 
+                voucherWallet={voucherWallet}
+                voucherWalletBtcId={voucherWalletBtcId}
+                voucherWalletUsdId={voucherWalletUsdId}
+              />
             </div>
           </div>
         </div>

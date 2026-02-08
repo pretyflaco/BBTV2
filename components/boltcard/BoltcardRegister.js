@@ -11,9 +11,8 @@
 
 import { useState, useEffect } from 'react';
 import { useTheme } from '../../lib/hooks/useTheme';
-import { useCombinedAuth } from '../../lib/hooks/useCombinedAuth';
 import { CardCurrency } from './useBoltcards';
-import { QRCodeSVGSVG } from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react';
 
 /**
  * Registration steps
@@ -25,14 +24,23 @@ const Steps = {
 
 /**
  * BoltcardRegister component
+ * @param {Object} props
+ * @param {Function} props.onRegister - Callback for registration
+ * @param {Function} props.onCancel - Callback for cancellation
+ * @param {boolean} props.loading - Loading state
+ * @param {Object} props.voucherWallet - The configured sending wallet with apiKey
+ * @param {string} props.voucherWalletBtcId - BTC wallet ID
+ * @param {string} props.voucherWalletUsdId - USD wallet ID (Stablesats)
  */
 export default function BoltcardRegister({
   onRegister,
   onCancel,
   loading = false,
+  voucherWallet,
+  voucherWalletBtcId,
+  voucherWalletUsdId,
 }) {
   const { darkMode } = useTheme();
-  const { blinkAccounts, activeBlinkAccount, getActiveBlinkApiKey } = useCombinedAuth();
   
   // Form state
   const [step, setStep] = useState(Steps.WALLET_SETTINGS);
@@ -90,18 +98,21 @@ export default function BoltcardRegister({
     setError(null);
     setIsRegistering(true);
 
-    // Get API key and wallet ID from active Blink account
-    const apiKey = await getActiveBlinkApiKey();
+    // Get API key from voucherWallet
+    const apiKey = voucherWallet?.apiKey;
     if (!apiKey) {
-      setError('No Blink account configured. Please add a wallet first.');
+      setError('No Sending Wallet configured. Please add a wallet in Settings first.');
       setIsRegistering(false);
       return;
     }
 
-    // Get wallet ID from active account
-    const walletId = activeBlinkAccount?.walletId;
+    // Get wallet ID based on selected currency
+    const walletId = walletCurrency === CardCurrency.USD 
+      ? voucherWalletUsdId 
+      : voucherWalletBtcId;
+    
     if (!walletId) {
-      setError('No wallet selected. Please configure a Blink account.');
+      setError(`No ${walletCurrency} wallet available. Please configure a Sending Wallet with a ${walletCurrency} wallet.`);
       setIsRegistering(false);
       return;
     }

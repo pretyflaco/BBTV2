@@ -17,10 +17,21 @@ import BoltcardDetails from './BoltcardDetails';
 
 /**
  * BoltcardSection component
+ * @param {Object} props
+ * @param {Object} props.voucherWallet - The configured sending wallet with apiKey, walletId, username, etc.
+ * @param {string} props.voucherWalletBtcId - BTC wallet ID
+ * @param {string} props.voucherWalletUsdId - USD wallet ID (Stablesats)
  */
-export default function BoltcardSection() {
+export default function BoltcardSection({ 
+  voucherWallet, 
+  voucherWalletBtcId, 
+  voucherWalletUsdId 
+}) {
   const { darkMode } = useTheme();
-  const { publicKey, hasBlinkAccount } = useCombinedAuth();
+  const { publicKey } = useCombinedAuth();
+  
+  // Check if we have a configured wallet
+  const hasWallet = voucherWallet?.apiKey && (voucherWalletBtcId || voucherWalletUsdId);
   
   // Boltcard state
   const {
@@ -110,8 +121,8 @@ export default function BoltcardSection() {
     return result;
   };
 
-  // Show warning if no Blink account
-  if (!hasBlinkAccount) {
+  // Show warning if no wallet configured
+  if (!hasWallet) {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -129,10 +140,10 @@ export default function BoltcardSection() {
             </svg>
             <div>
               <h4 className={`text-sm font-medium ${darkMode ? 'text-yellow-400' : 'text-yellow-700'}`}>
-                Wallet Required
+                Sending Wallet Required
               </h4>
               <p className={`text-xs mt-1 ${darkMode ? 'text-yellow-300' : 'text-yellow-600'}`}>
-                Add a Blink wallet first to use Boltcards. Boltcards need a wallet to fund withdrawals.
+                Configure a Sending Wallet in Settings first. Boltcards use this wallet to fund withdrawals.
               </p>
             </div>
           </div>
@@ -167,6 +178,9 @@ export default function BoltcardSection() {
           onRegister={handleRegister}
           onCancel={() => setShowRegister(false)}
           loading={loading}
+          voucherWallet={voucherWallet}
+          voucherWalletBtcId={voucherWalletBtcId}
+          voucherWalletUsdId={voucherWalletUsdId}
         />
       )}
 

@@ -559,6 +559,52 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
         echo "✅ Migration 015 already applied (skipping)"
     fi
     
+    # Refresh schema version
+    SCHEMA_VERSION=\$(get_schema_version)
+    
+    # Apply migration 016 (boltcards base table)
+    if [ "\${SCHEMA_VERSION}" -lt 16 ]; then
+        echo "🔄 Applying migration 016 (boltcards base table)..."
+        
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/016_boltcards_table.sql 2>&1 | tee /tmp/migration-016.log | grep -v "^$" | tail -20; then
+            echo ""
+            echo "❌ MIGRATION 016 FAILED!"
+            echo "📋 Check logs: /tmp/migration-016.log"
+            echo ""
+            echo "🔙 Rolling back deployment..."
+            docker-compose -f docker-compose.prod.yml down
+            echo "❌ Deployment stopped due to migration failure"
+            exit 1
+        fi
+        
+        echo "✅ Migration 016 applied successfully"
+    else
+        echo "✅ Migration 016 already applied (skipping)"
+    fi
+    
+    # Refresh schema version
+    SCHEMA_VERSION=\$(get_schema_version)
+    
+    # Apply migration 017 (boltcard spec compliance - issuer keys and pending registrations)
+    if [ "\${SCHEMA_VERSION}" -lt 17 ]; then
+        echo "🔄 Applying migration 017 (boltcard spec compliance)..."
+        
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/017_boltcard_spec_compliance.sql 2>&1 | tee /tmp/migration-017.log | grep -v "^$" | tail -20; then
+            echo ""
+            echo "❌ MIGRATION 017 FAILED!"
+            echo "📋 Check logs: /tmp/migration-017.log"
+            echo ""
+            echo "🔙 Rolling back deployment..."
+            docker-compose -f docker-compose.prod.yml down
+            echo "❌ Deployment stopped due to migration failure"
+            exit 1
+        fi
+        
+        echo "✅ Migration 017 applied successfully"
+    else
+        echo "✅ Migration 017 already applied (skipping)"
+    fi
+    
     # Display final schema version
     FINAL_VERSION=\$(get_schema_version)
     echo ""
@@ -598,6 +644,19 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     else
         echo "❌ VOUCHERS TABLE NOT FOUND!"
         echo "⚠️  Migration 008 may have failed"
+    fi
+    
+    # Verify boltcards tables exist
+    echo ""
+    echo "📋 Verifying boltcards tables..."
+    BOLTCARD_TABLES=\$(docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos -t -c \
+      "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('boltcards', 'boltcard_transactions', 'boltcard_issuer_keys', 'boltcard_pending_registrations');" \
+      2>/dev/null | tr -d ' \n\r' || echo "0")
+    
+    if [ "\${BOLTCARD_TABLES}" -ge 4 ]; then
+        echo "✅ Boltcard tables verified (\${BOLTCARD_TABLES} tables found)"
+    else
+        echo "⚠️  Boltcard tables not yet created (found \${BOLTCARD_TABLES}/4) - will be created on first use"
     fi
     
     echo ""
@@ -657,10 +716,10 @@ print_info "Verifying database migrations..."
 # Check schema version
 DEPLOYED_SCHEMA=$(ssh ${PROD_USER}@${PROD_SERVER} "cd ${PROD_PATH} && docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos -t -c \"SELECT COALESCE(MAX(metric_value::int), 0) FROM system_metrics WHERE metric_name = 'schema_version';\" 2>/dev/null | tr -d ' \n\r'" || echo "0")
 
-if [ "${DEPLOYED_SCHEMA}" -ge 15 ]; then
+if [ "${DEPLOYED_SCHEMA}" -ge 17 ]; then
     print_success "Database schema up to date (version ${DEPLOYED_SCHEMA})"
 else
-    print_warning "Database schema may need attention (version ${DEPLOYED_SCHEMA}, expected 15+)"
+    print_warning "Database schema may need attention (version ${DEPLOYED_SCHEMA}, expected 17+)"
 fi
 
 # Check voucher persistence

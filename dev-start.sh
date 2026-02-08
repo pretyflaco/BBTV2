@@ -17,6 +17,12 @@ if ! docker info > /dev/null 2>&1; then
     exit 1
 fi
 
+# Clear Next.js cache to ensure fresh build
+echo "0️⃣  Clearing Next.js cache..."
+rm -rf .next/cache 2>/dev/null
+echo "   ✅ Cache cleared"
+echo ""
+
 # Start Docker containers
 echo "1️⃣  Starting Docker containers..."
 docker start blinkpos-postgres blinkpos-redis blinkpos-pgadmin blinkpos-redis-commander 2>/dev/null

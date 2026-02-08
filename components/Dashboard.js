@@ -15,6 +15,7 @@ import Network from './Network';
 import ItemCart from './ItemCart';
 import BatchPayments from './BatchPayments';
 import KeyManagementSection from './Settings/KeyManagementSection';
+import { BoltcardSection } from './boltcard';
 import NWCClient from '../lib/nwc/NWCClient';
 import { isNpubCashAddress, validateNpubCashAddress, probeNpubCashAddress } from '../lib/lnurl';
 import TransactionDetail, { getTransactionLabel, initTransactionLabels } from './TransactionDetail';
@@ -399,6 +400,7 @@ export default function Dashboard() {
   const [showTipSettings, setShowTipSettings] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
   const [showKeyManagement, setShowKeyManagement] = useState(false);
+  const [showBoltcards, setShowBoltcards] = useState(false);
   const [showBatchPayments, setShowBatchPayments] = useState(false);
   const [showNetworkOverlay, setShowNetworkOverlay] = useState(false);
   const [showCurrencySettings, setShowCurrencySettings] = useState(false);
@@ -3716,6 +3718,27 @@ export default function Dashboard() {
                   </button>
                 )}
 
+                {/* Boltcards (only show for Nostr users) */}
+                {authMode === 'nostr' && (
+                  <button
+                    onClick={() => {
+                      setShowBoltcards(true);
+                      setSideMenuOpen(false);
+                    }}
+                    className={`w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Boltcards</span>
+                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                        </svg>
+                        <span className="ml-1">›</span>
+                      </div>
+                    </div>
+                  </button>
+                )}
+
                 {/* Circular Economy Network */}
                 <button
                   onClick={() => {
@@ -3793,6 +3816,36 @@ export default function Dashboard() {
             {/* Content */}
             <div className="max-w-md mx-auto px-4 py-6">
               <KeyManagementSection />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Boltcards Overlay */}
+      {showBoltcards && (
+        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
+          <div className="min-h-screen">
+            {/* Header */}
+            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
+              <div className="max-w-md mx-auto px-4 py-4">
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => setShowBoltcards(false)}
+                    className="flex items-center text-gray-600 dark:text-gray-400 text-base"
+                  >
+                    <svg className="w-6 h-6 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Back
+                  </button>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Boltcards</h2>
+                  <div className="w-16"></div>
+                </div>
+              </div>
+            </div>
+            {/* Content */}
+            <div className="max-w-md mx-auto px-4 py-6">
+              <BoltcardSection />
             </div>
           </div>
         </div>

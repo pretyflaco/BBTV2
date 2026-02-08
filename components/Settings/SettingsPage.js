@@ -5,6 +5,7 @@
 import { useTheme } from '../../lib/hooks/useTheme';
 import ProfileSection from './ProfileSection';
 import KeyManagementSection from './KeyManagementSection';
+import { BoltcardSection } from '../boltcard';
 
 export default function SettingsPage({ onClose }) {
   const { darkMode } = useTheme();
@@ -41,6 +42,7 @@ export default function SettingsPage({ onClose }) {
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
           <ProfileSection />
+          <BoltcardSection />
           <KeyManagementSection />
         </div>
       </div>

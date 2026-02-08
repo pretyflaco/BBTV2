@@ -140,15 +140,24 @@ export function useBoltcards(ownerPubkey) {
         throw new Error(data.error || 'Failed to register card');
       }
 
-      // Refresh cards list
-      await fetchCards();
+      // Refresh cards list (for direct flow where card is created)
+      if (data.flow === 'direct') {
+        await fetchCards();
+      }
 
+      // Return the full API response - supports both deeplink and direct flows
       return {
         success: true,
+        flow: data.flow,
+        // Direct flow fields
         card: data.card,
         keys: data.keys,
-        masterKey: data.masterKey,
         qrCodes: data.qrCodes,
+        // Deeplink flow fields
+        pendingRegistration: data.pendingRegistration,
+        deeplink: data.deeplink,
+        qrPayload: data.qrPayload,
+        keysRequestUrl: data.keysRequestUrl,
       };
     } catch (err) {
       console.error('Failed to register boltcard:', err);

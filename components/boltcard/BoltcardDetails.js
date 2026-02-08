@@ -14,7 +14,7 @@ import { useState, useEffect } from 'react';
 import { useTheme } from '../../lib/hooks/useTheme';
 import { CardStatus } from './useBoltcards';
 import BoltcardTopUp from './BoltcardTopUp';
-import { QRCodeSVGSVG } from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react';
 
 /**
  * Format balance for display

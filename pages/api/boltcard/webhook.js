@@ -5,8 +5,9 @@ const boltcard = require('../../../lib/boltcard');
  * 
  * POST /api/boltcard/webhook
  * 
- * This endpoint is called by Blink when a payment is received
- * for a card top-up invoice.
+ * This endpoint can be called directly for boltcard top-up notifications.
+ * However, the primary integration is via the main Blink webhook (/api/blink/webhook)
+ * which checks for boltcard top-ups before processing normal BlinkPOS forwarding.
  * 
  * Body:
  * {
@@ -35,12 +36,17 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, message: 'Ignored non-PAID status' });
     }
 
-    // Check if this is a pending top-up
-    const pendingTopUp = boltcard.lnurlp.getPendingTopUp(paymentHash);
+    // Check if this is a pending top-up (now uses database)
+    const pendingTopUp = await boltcard.lnurlp.getPendingTopUp(paymentHash);
 
     if (!pendingTopUp) {
       console.log('[Boltcard Webhook] No pending top-up found for:', paymentHash.substring(0, 16) + '...');
-      return res.status(200).json({ ok: true, message: 'No pending top-up' });
+      // Return 404 to indicate this payment hash doesn't match any pending top-up
+      // This helps debugging and prevents silent failures
+      return res.status(404).json({ 
+        ok: false, 
+        error: 'No pending top-up found for this payment hash'
+      });
     }
 
     // Process the top-up

@@ -14,8 +14,6 @@
  * @see https://dev.blink.sv/api/webhooks
  */
 
-// WebSocket polyfill for Node.js environment (required for NWCClient)
-// nostr-tools uses WebSocket which is only available in browsers by default
 import WebSocket from 'ws';
 if (typeof global !== 'undefined' && !global.WebSocket) {
   global.WebSocket = WebSocket;
@@ -29,6 +27,8 @@ const AuthManager = require('../../../lib/auth');
 const { getHybridStore } = require('../../../lib/storage/hybrid-store');
 const { formatCurrencyServer, isBitcoinCurrency } = require('../../../lib/currency-formatter-server');
 const { getApiUrl, getApiUrlForEnvironment } = require('../../../lib/config/api');
+// Import boltcard LNURL-pay for top-up processing
+const boltcardLnurlp = require('../../../lib/boltcard/lnurlp');
 
 /**
  * Generate enhanced memo with tip split information
@@ -140,7 +140,48 @@ export default async function handler(req, res) {
       eventType: payload.eventType
     });
 
-    // Step 3: Try to claim the payment for processing (atomic deduplication)
+    // Step 3a: Check if this is a Boltcard top-up payment
+    // Boltcard top-ups are tracked separately from BlinkPOS forwarding
+    try {
+      const boltcardTopUp = await boltcardLnurlp.getPendingTopUp(paymentHash);
+      
+      if (boltcardTopUp) {
+        console.log('💳 [Webhook] Processing Boltcard top-up:', {
+          cardId: boltcardTopUp.cardId,
+          amount: boltcardTopUp.amount,
+          currency: boltcardTopUp.currency
+        });
+        
+        const topUpResult = await boltcardLnurlp.processTopUpPayment(paymentHash);
+        
+        if (topUpResult.success) {
+          console.log('✅ [Webhook] Boltcard top-up processed:', {
+            cardId: topUpResult.cardId,
+            amount: topUpResult.amount,
+            newBalance: topUpResult.balance
+          });
+          
+          return res.status(200).json({
+            status: 'boltcard_topup',
+            cardId: topUpResult.cardId,
+            amount: topUpResult.amount,
+            balance: topUpResult.balance
+          });
+        } else {
+          console.error('❌ [Webhook] Boltcard top-up failed:', topUpResult.error);
+          // Return 500 so Svix will retry
+          return res.status(500).json({
+            error: 'Boltcard top-up failed',
+            details: topUpResult.error
+          });
+        }
+      }
+    } catch (boltcardError) {
+      console.error('❌ [Webhook] Error checking boltcard top-up:', boltcardError);
+      // Continue to normal forwarding flow - this payment may not be a boltcard top-up
+    }
+
+    // Step 3b: Try to claim the payment for BlinkPOS forwarding (atomic deduplication)
     // This prevents duplicate forwarding if both webhook and client try to process
     hybridStore = await getHybridStore();
     const claimResult = await hybridStore.claimPaymentForProcessing(paymentHash);

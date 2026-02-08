@@ -74,6 +74,7 @@ export default function BoltcardRegister({
   const [walletCurrency, setWalletCurrency] = useState(CardCurrency.BTC);
   const [maxTxAmount, setMaxTxAmount] = useState('');
   const [dailyLimit, setDailyLimit] = useState('');
+  const [initialBalance, setInitialBalance] = useState('');
   const [error, setError] = useState(null);
   const [isRegistering, setIsRegistering] = useState(false);
   
@@ -162,6 +163,7 @@ export default function BoltcardRegister({
     // Parse limits (convert to sats for BTC, cents for USD)
     let parsedMaxTx = null;
     let parsedDailyLimit = null;
+    let parsedInitialBalance = 0;
 
     if (maxTxAmount) {
       const amount = parseFloat(maxTxAmount);
@@ -189,6 +191,20 @@ export default function BoltcardRegister({
         : Math.round(amount);
     }
 
+    if (initialBalance) {
+      const amount = parseFloat(initialBalance);
+      if (isNaN(amount) || amount < 0) {
+        setError('Invalid initial balance');
+        setIsRegistering(false);
+        return;
+      }
+      // For USD, user enters dollars, convert to cents
+      // For BTC, user enters sats
+      parsedInitialBalance = walletCurrency === CardCurrency.USD 
+        ? Math.round(amount * 100) 
+        : Math.round(amount);
+    }
+
     // Call registration WITHOUT cardUid - this triggers deeplink flow
     const result = await onRegister({
       // No cardUid - triggers deeplink flow
@@ -198,6 +214,7 @@ export default function BoltcardRegister({
       walletCurrency,
       maxTxAmount: parsedMaxTx,
       dailyLimit: parsedDailyLimit,
+      initialBalance: parsedInitialBalance,
     });
 
     setIsRegistering(false);
@@ -345,6 +362,35 @@ export default function BoltcardRegister({
               } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
             />
           </div>
+        </div>
+      </div>
+
+      {/* Initial Balance */}
+      <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+        <h5 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+          Initial Balance (optional)
+        </h5>
+        
+        <div>
+          <label className={`block text-xs mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            Pre-fund card ({walletCurrency === CardCurrency.USD ? 'USD' : 'sats'})
+          </label>
+          <input
+            type="number"
+            value={initialBalance}
+            onChange={(e) => setInitialBalance(e.target.value)}
+            placeholder={walletCurrency === CardCurrency.USD ? '10.00' : '10000'}
+            min="0"
+            step={walletCurrency === CardCurrency.USD ? '0.01' : '1'}
+            className={`w-full px-3 py-2 rounded-md border text-sm ${
+              darkMode 
+                ? 'bg-gray-900 border-gray-600 text-white placeholder-gray-500' 
+                : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+            } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
+          />
+          <p className={`text-xs mt-1.5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+            This is the card's spending allowance. It represents how much the card is authorized to spend from the sending wallet.
+          </p>
         </div>
       </div>
 

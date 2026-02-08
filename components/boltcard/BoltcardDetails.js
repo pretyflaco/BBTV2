@@ -96,6 +96,21 @@ function generateForceResetDeeplink(cardId) {
 }
 
 /**
+ * Generate factory-reset deeplink URL (returns all-zero keys)
+ * This is the NUCLEAR option when stored keys don't match the card
+ * Format: boltcard://program?url={serverUrl}/api/boltcard/factory-reset/{cardId}
+ */
+function generateFactoryResetDeeplink(cardId) {
+  const serverUrl = typeof window !== 'undefined' 
+    ? window.location.origin 
+    : process.env.NEXT_PUBLIC_BASE_URL || '';
+  
+  // Use "program" action - it sends UID which our factory-reset endpoint accepts
+  const factoryResetUrl = `${serverUrl}/api/boltcard/factory-reset/${cardId}`;
+  return `boltcard://program?url=${encodeURIComponent(factoryResetUrl)}`;
+}
+
+/**
  * BoltcardDetails component
  */
 export default function BoltcardDetails({
@@ -141,6 +156,10 @@ export default function BoltcardDetails({
   // Force reset state (for malformed cards)
   const [forceResetDeeplink, setForceResetDeeplink] = useState(null);
   const [showForceReset, setShowForceReset] = useState(false);
+  
+  // Factory reset state (nuclear option - all-zero keys)
+  const [factoryResetDeeplink, setFactoryResetDeeplink] = useState(null);
+  const [showFactoryReset, setShowFactoryReset] = useState(false);
 
   // Platform detection for mobile-first UI
   const [isMobile, setIsMobile] = useState(false);
@@ -246,8 +265,10 @@ export default function BoltcardDetails({
   const handleShowResetQR = () => {
     const deeplink = generateResetDeeplink(card.id);
     const forceDeeplink = generateForceResetDeeplink(card.id);
+    const factoryDeeplink = generateFactoryResetDeeplink(card.id);
     setResetDeeplink(deeplink);
     setForceResetDeeplink(forceDeeplink);
+    setFactoryResetDeeplink(factoryDeeplink);
     setShowResetQR(true);
     // On mobile, don't show QR by default - show button instead
     setShowResetQRCode(!isMobile);
@@ -278,6 +299,25 @@ export default function BoltcardDetails({
   const handleOpenForceResetDeeplink = () => {
     if (forceResetDeeplink) {
       window.location.href = forceResetDeeplink;
+    }
+  };
+
+  /**
+   * Handle factory reset - nuclear option using all-zero keys
+   * Used when stored keys don't match what's on the card
+   */
+  const handleFactoryReset = () => {
+    const deeplink = generateFactoryResetDeeplink(card.id);
+    setFactoryResetDeeplink(deeplink);
+    setShowFactoryReset(true);
+  };
+
+  /**
+   * Handle opening factory reset deeplink directly (mobile)
+   */
+  const handleOpenFactoryResetDeeplink = () => {
+    if (factoryResetDeeplink) {
+      window.location.href = factoryResetDeeplink;
     }
   };
 
@@ -491,8 +531,7 @@ export default function BoltcardDetails({
                 Reset Not Working?
               </h5>
               <p className={`text-xs mb-2 ${darkMode ? 'text-red-300' : 'text-red-600'}`}>
-                If you see "Error fetching keys" or the reset fails, the card may have corrupted data.
-                Use Force Reset to fix this.
+                If you see "Error fetching keys" or the reset fails, try Force Reset (uses stored keys).
               </p>
               {isMobile ? (
                 <button
@@ -510,6 +549,43 @@ export default function BoltcardDetails({
                     <div className="p-2 bg-white rounded-lg">
                       <QRCodeSVG
                         value={generateForceResetDeeplink(card.id)}
+                        size={120}
+                        level="M"
+                        includeMargin={false}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Factory Reset - Nuclear option with all-zero keys */}
+            <div className={`p-3 rounded-lg border ${
+              darkMode ? 'bg-purple-900/10 border-purple-500/30' : 'bg-purple-50 border-purple-200'
+            }`}>
+              <h5 className={`text-sm font-medium mb-1 ${darkMode ? 'text-purple-400' : 'text-purple-700'}`}>
+                Force Reset Also Failed?
+              </h5>
+              <p className={`text-xs mb-2 ${darkMode ? 'text-purple-300' : 'text-purple-600'}`}>
+                If Force Reset shows "TRY AGAIN AFTER RESETTING", the stored keys don't match the card.
+                Try Factory Reset which uses default keys (all zeros).
+              </p>
+              {isMobile ? (
+                <button
+                  onClick={handleOpenFactoryResetDeeplink}
+                  className="w-full py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 transition-colors"
+                >
+                  Factory Reset (Default Keys)
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    Scan this QR code for Factory Reset:
+                  </p>
+                  <div className="flex justify-center">
+                    <div className="p-2 bg-white rounded-lg">
+                      <QRCodeSVG
+                        value={generateFactoryResetDeeplink(card.id)}
                         size={120}
                         level="M"
                         includeMargin={false}

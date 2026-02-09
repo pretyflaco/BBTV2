@@ -83,7 +83,8 @@ export default function BoltcardSection({
   const handleDisable = async (cardId) => {
     const result = await disableCard(cardId);
     if (result.success && selectedCard?.id === cardId) {
-      setSelectedCard(prev => ({ ...prev, status: 'disabled' }));
+      // Use status from API response (uppercase: 'DISABLED')
+      setSelectedCard(prev => ({ ...prev, status: result.card.status }));
     }
     return result;
   };
@@ -94,7 +95,8 @@ export default function BoltcardSection({
   const handleEnable = async (cardId) => {
     const result = await enableCard(cardId);
     if (result.success && selectedCard?.id === cardId) {
-      setSelectedCard(prev => ({ ...prev, status: 'active' }));
+      // Use status from API response (uppercase: 'ACTIVE')
+      setSelectedCard(prev => ({ ...prev, status: result.card.status }));
     }
     return result;
   };

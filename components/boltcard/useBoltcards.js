@@ -12,12 +12,13 @@ import { useState, useEffect, useCallback } from 'react';
 
 /**
  * Card status constants
+ * NOTE: These must match the values in lib/boltcard/store.js (uppercase)
  */
 export const CardStatus = {
-  PENDING: 'pending',
-  ACTIVE: 'active',
-  DISABLED: 'disabled',
-  WIPED: 'wiped',
+  PENDING: 'PENDING',
+  ACTIVE: 'ACTIVE',
+  DISABLED: 'DISABLED',
+  WIPED: 'WIPED',
 };
 
 /**

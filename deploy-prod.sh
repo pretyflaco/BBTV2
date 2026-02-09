@@ -204,6 +204,13 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     sleep 15
     
     echo ""
+    echo "🔐 Fixing .data directory permissions..."
+    # Ensure the nextjs user can write to .data volume (may be root-owned after volume creation)
+    docker exec -u root blinkpos-app chown -R nextjs:nodejs /app/.data 2>/dev/null || true
+    docker exec -u root blinkpos-app chmod -R 755 /app/.data 2>/dev/null || true
+    echo "✅ Permissions fixed"
+    
+    echo ""
     echo "💾 Creating database backup..."
     
     # Create timestamped backup

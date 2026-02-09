@@ -884,6 +884,45 @@ export default function BoltcardDetails({
                   </button>
                 </div>
 
+                {/* Freeze/Unfreeze Card Section */}
+                <div className={`rounded-lg p-3 border ${
+                  card.status === CardStatus.DISABLED
+                    ? (darkMode ? 'bg-blue-900/10 border-blue-500/30' : 'bg-blue-50 border-blue-200')
+                    : (darkMode ? 'bg-yellow-900/10 border-yellow-500/30' : 'bg-yellow-50 border-yellow-200')
+                }`}>
+                  <h4 className={`text-sm font-medium mb-2 ${
+                    card.status === CardStatus.DISABLED
+                      ? (darkMode ? 'text-blue-400' : 'text-blue-700')
+                      : (darkMode ? 'text-yellow-400' : 'text-yellow-700')
+                  }`}>
+                    {card.status === CardStatus.DISABLED ? 'Unfreeze Card' : 'Freeze Card'}
+                  </h4>
+                  <p className={`text-xs mb-3 ${
+                    card.status === CardStatus.DISABLED
+                      ? (darkMode ? 'text-blue-300' : 'text-blue-600')
+                      : (darkMode ? 'text-yellow-300' : 'text-yellow-600')
+                  }`}>
+                    {card.status === CardStatus.DISABLED
+                      ? 'This card is currently frozen and cannot be used for payments. Unfreeze it to resume normal operation.'
+                      : 'Temporarily freeze this card to prevent any payments. Useful if the card is lost or stolen. You can unfreeze it later.'}
+                  </p>
+                  <button
+                    onClick={() => card.status === CardStatus.DISABLED ? onEnable(card.id) : onDisable(card.id)}
+                    disabled={loading || card.status === CardStatus.WIPED}
+                    className={`w-full py-2 text-sm font-medium rounded-md transition-colors ${
+                      card.status === CardStatus.DISABLED
+                        ? (darkMode
+                            ? 'bg-blue-900/30 text-blue-400 hover:bg-blue-900/50 disabled:opacity-50'
+                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:opacity-50')
+                        : (darkMode
+                            ? 'bg-yellow-900/30 text-yellow-400 hover:bg-yellow-900/50 disabled:opacity-50'
+                            : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200 disabled:opacity-50')
+                    }`}
+                  >
+                    {card.status === CardStatus.DISABLED ? 'Unfreeze Card' : 'Freeze Card'}
+                  </button>
+                </div>
+
                 {/* Reset Card Section */}
                 <div className={`rounded-lg p-3 border ${
                   darkMode ? 'bg-orange-900/10 border-orange-500/30' : 'bg-orange-50 border-orange-200'

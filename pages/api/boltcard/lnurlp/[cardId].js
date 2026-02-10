@@ -70,23 +70,35 @@ async function handlePayCallback(req, res, cardId, amountMsats) {
       });
     }
 
-    // Create invoice function - uses different Blink mutation based on wallet currency
+    // Create invoice function - ALWAYS creates BTC invoice for exact sat amount
+    // For USD cards, we query the account's BTC wallet and convert sats→cents when crediting
     const createInvoice = async (amountSats, memo, walletId, apiKey, environment, walletCurrency) => {
       try {
         const apiUrl = getApiUrlForEnvironment(environment);
         const blinkAPI = new BlinkAPI(apiKey, apiUrl);
 
         let invoice;
+        let btcWalletId = walletId;
         
-        // Use different mutation based on wallet currency
+        // For USD cards, we need to find the account's BTC wallet
+        // because lnInvoiceCreate requires a BTC wallet and we need exact sat amounts
+        // for LUD-06 compliance (wallet verifies invoice amount matches request)
         if (walletCurrency === 'USD') {
-          // For USD/Stablesats wallets, use lnUsdInvoiceCreate
-          // Amount is in cents for USD cards
-          invoice = await blinkAPI.createLnUsdInvoice(walletId, amountSats, memo);
-        } else {
-          // For BTC wallets, use lnInvoiceCreate
-          invoice = await blinkAPI.createLnInvoice(walletId, amountSats, memo);
+          console.log(`[LNURLP] USD card detected, querying account for BTC wallet...`);
+          const wallets = await blinkAPI.getWalletInfo();
+          const btcWallet = wallets.find(w => w.walletCurrency === 'BTC');
+          
+          if (!btcWallet) {
+            console.error(`[LNURLP] No BTC wallet found for USD card account`);
+            return { error: 'No BTC wallet found for this account' };
+          }
+          
+          btcWalletId = btcWallet.id;
+          console.log(`[LNURLP] Found BTC wallet: ${btcWalletId} for USD card top-up`);
         }
+        
+        // Always create BTC invoice for exact sat amount (LUD-06 compliance)
+        invoice = await blinkAPI.createLnInvoice(btcWalletId, amountSats, memo);
 
         if (!invoice) {
           return { error: 'Failed to create invoice' };

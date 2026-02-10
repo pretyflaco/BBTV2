@@ -131,7 +131,8 @@ async function handleBalanceGet(req, res, cardId) {
         cardId,
         card.apiKey,
         card.environment,
-        card.walletId
+        card.walletId,
+        card.walletCurrency  // Pass currency so we can query BTC wallet for USD cards
       );
       
       if (pendingTopUpsResult.processed > 0) {

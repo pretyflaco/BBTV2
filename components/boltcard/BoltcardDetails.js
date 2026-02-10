@@ -93,6 +93,8 @@ export default function BoltcardDetails({
   onResetDaily,
   onFund,
   fetchDetails,
+  walletBalance = 0,
+  exchangeRate = null,
 }) {
   const { darkMode } = useTheme();
   const [activeTab, setActiveTab] = useState(Tabs.DETAILS);
@@ -267,6 +269,36 @@ export default function BoltcardDetails({
   const handleOpenResetDeeplink = () => {
     if (resetDeeplink) {
       window.location.href = resetDeeplink;
+    }
+  };
+
+  /**
+   * Handle fund from TopUp component (authenticated funding via slider)
+   */
+  const handleFundFromTopUp = async (cardId, newBalance, mode) => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/boltcard/fund', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cardId, newBalance, mode }),
+      });
+      
+      const result = await response.json();
+      
+      if (result.success && result.card) {
+        // Update local card state - notify parent
+        if (onUpdate) {
+          await onUpdate(cardId, { balance: result.card.balance });
+        }
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Fund error:', error);
+      return { success: false, error: error.message || 'Failed to update balance' };
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -650,6 +682,37 @@ export default function BoltcardDetails({
                   )}
                 </div>
 
+                {/* Underlying Wallet Balance */}
+                {walletBalance !== undefined && (
+                  <div className={`p-3 rounded-lg border ${
+                    walletBalance < (card.balance || 0)
+                      ? (darkMode ? 'bg-orange-900/10 border-orange-500/30' : 'bg-orange-50 border-orange-200')
+                      : (darkMode ? 'bg-blue-900/10 border-blue-500/30' : 'bg-blue-50 border-blue-200')
+                  }`}>
+                    <div className="flex justify-between items-baseline">
+                      <span className={`text-xs ${
+                        walletBalance < (card.balance || 0)
+                          ? (darkMode ? 'text-orange-400' : 'text-orange-600')
+                          : (darkMode ? 'text-blue-400' : 'text-blue-600')
+                      }`}>
+                        Underlying {card.walletCurrency} Wallet
+                      </span>
+                      <span className={`text-sm font-medium ${
+                        walletBalance < (card.balance || 0)
+                          ? (darkMode ? 'text-orange-300' : 'text-orange-700')
+                          : (darkMode ? 'text-blue-300' : 'text-blue-700')
+                      }`}>
+                        {formatBalance(walletBalance, card.walletCurrency)}
+                      </span>
+                    </div>
+                    {walletBalance < (card.balance || 0) && (
+                      <p className={`text-xs mt-1 ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>
+                        Card allocation exceeds wallet funds. Card can only spend available wallet funds.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {/* Card Info */}
                 <div className={`rounded-lg p-3 space-y-2 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
                   {/* Only show cardUid if available, otherwise show cardIdHash */}
@@ -752,6 +815,9 @@ export default function BoltcardDetails({
               <BoltcardTopUp
                 card={card}
                 topUpQR={topUpQR}
+                walletBalance={walletBalance}
+                onFund={handleFundFromTopUp}
+                exchangeRate={exchangeRate}
                 loading={loading}
               />
             )}

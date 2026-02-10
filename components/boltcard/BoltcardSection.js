@@ -335,6 +335,8 @@ export default function BoltcardSection({
           onResetDaily={handleResetDaily}
           onFund={(card) => setFundingCard(card)}
           fetchDetails={fetchCardDetails}
+          walletBalance={getWalletBalanceForCard(selectedCard)}
+          exchangeRate={exchangeRate}
         />
       )}
 

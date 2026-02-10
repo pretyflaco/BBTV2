@@ -3,16 +3,22 @@
  * 
  * POST /api/boltcard/fund
  * 
- * This endpoint increments the card's virtual balance. The actual sats/cents
+ * This endpoint sets or increments the card's virtual balance. The actual sats/cents
  * stay in the user's Sending Wallet - the card balance is just a spending limit.
  * 
  * Body:
  * - cardId: string - The card ID to fund
- * - amount: number - Amount to add (sats for BTC cards, cents for USD cards)
- * - walletBalance: number - Current wallet balance for validation (optional)
+ * - amount: number - Amount to add (sats for BTC cards, cents for USD cards) - used with mode='increment'
+ * - newBalance: number - Target balance to set - used with mode='set'
+ * - mode: 'increment' | 'set' - How to apply the amount (default: 'increment')
+ * - description: string - Optional description for the transaction
+ * 
+ * Response includes a 'warning' field if card balance exceeds wallet balance (soft limit).
  */
 
 const boltcard = require('../../../lib/boltcard');
+const BlinkAPI = require('../../../lib/blink-api');
+const { getApiUrlForEnvironment } = require('../../../lib/config/api');
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -20,25 +26,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { cardId, amount, description } = req.body;
+    const { cardId, amount, newBalance: targetBalance, mode = 'increment', description } = req.body;
 
     // Validate required fields
     if (!cardId) {
       return res.status(400).json({ error: 'Missing cardId' });
     }
 
-    if (amount === undefined || amount === null) {
-      return res.status(400).json({ error: 'Missing amount' });
-    }
-
-    const fundAmount = parseInt(amount);
-
-    if (isNaN(fundAmount) || fundAmount <= 0) {
-      return res.status(400).json({ error: 'Amount must be a positive number' });
-    }
-
-    // Get the card
-    const card = await boltcard.store.getCard(cardId);
+    // Get the card with API key for Blink API calls
+    const card = await boltcard.store.getCard(cardId, true); // includeKeys=true
     
     if (!card) {
       return res.status(404).json({ error: 'Card not found' });
@@ -49,9 +45,75 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Cannot fund a wiped card' });
     }
 
-    // Calculate new balance
     const currentBalance = card.balance || 0;
-    const newBalance = currentBalance + fundAmount;
+    let newBalance;
+    let fundAmount;
+    let txDescription;
+
+    if (mode === 'set') {
+      // Set mode: targetBalance is the new total balance
+      if (targetBalance === undefined || targetBalance === null) {
+        return res.status(400).json({ error: 'Missing newBalance for set mode' });
+      }
+
+      newBalance = parseInt(targetBalance);
+
+      if (isNaN(newBalance) || newBalance < 0) {
+        return res.status(400).json({ error: 'newBalance must be a non-negative number' });
+      }
+
+      fundAmount = newBalance - currentBalance;
+      txDescription = description || (fundAmount >= 0 
+        ? `Balance set to ${newBalance} (from ${currentBalance})`
+        : `Balance reduced to ${newBalance} (from ${currentBalance})`);
+
+    } else {
+      // Increment mode (default): amount is added to current balance
+      if (amount === undefined || amount === null) {
+        return res.status(400).json({ error: 'Missing amount' });
+      }
+
+      fundAmount = parseInt(amount);
+
+      if (isNaN(fundAmount) || fundAmount <= 0) {
+        return res.status(400).json({ error: 'Amount must be a positive number' });
+      }
+
+      newBalance = currentBalance + fundAmount;
+      txDescription = description || 'Funded from Sending Wallet';
+    }
+
+    // Fetch real-time wallet balance from Blink API for validation
+    let walletBalance = null;
+    let warning = null;
+
+    try {
+      const apiUrl = getApiUrlForEnvironment(card.environment || 'production');
+      const blinkAPI = new BlinkAPI(card.apiKey, apiUrl);
+      
+      const wallets = await blinkAPI.getWalletInfo();
+      const targetWallet = wallets.find(w => 
+        card.walletCurrency === 'USD' 
+          ? w.walletCurrency === 'USD' 
+          : w.walletCurrency === 'BTC'
+      );
+      
+      walletBalance = targetWallet?.balance || 0;
+      
+      // Check if over-allocated (soft limit - warn but allow)
+      if (newBalance > walletBalance) {
+        const unit = card.walletCurrency === 'USD' ? 'cents' : 'sats';
+        const formatValue = (val) => card.walletCurrency === 'USD' 
+          ? `$${(val / 100).toFixed(2)}` 
+          : `${val.toLocaleString()} sats`;
+        
+        warning = `Card balance (${formatValue(newBalance)}) exceeds wallet balance (${formatValue(walletBalance)}). Card can only spend available wallet funds.`;
+        console.log(`⚠️ Card ${cardId} over-allocated: card=${newBalance} ${unit}, wallet=${walletBalance} ${unit}`);
+      }
+    } catch (apiError) {
+      // Log but don't fail - we can still update the balance
+      console.warn(`⚠️ Could not fetch wallet balance for validation: ${apiError.message}`);
+    }
 
     // Update the card balance
     const success = await boltcard.store.updateCardBalance(cardId, newBalance);
@@ -60,21 +122,27 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Failed to update card balance' });
     }
 
-    // Record the transaction
-    await boltcard.store.recordTransaction(cardId, {
-      type: boltcard.TxType.TOPUP, // Use TOPUP type for funding
-      amount: fundAmount,
-      balanceAfter: newBalance,
-      description: description || 'Funded from Sending Wallet',
-    });
+    // Record the transaction (only if balance changed)
+    if (fundAmount !== 0) {
+      await boltcard.store.recordTransaction(cardId, {
+        type: fundAmount > 0 ? boltcard.TxType.TOPUP : boltcard.TxType.ADJUST,
+        amount: Math.abs(fundAmount),
+        balanceAfter: newBalance,
+        description: txDescription,
+      });
+    }
 
-    console.log('✅ Card funded:', {
+    const unit = card.walletCurrency === 'USD' ? 'cents' : 'sats';
+    console.log(`✅ Card balance updated:`, {
       cardId,
       cardName: card.name,
-      amount: fundAmount,
-      currency: card.walletCurrency,
+      mode,
       previousBalance: currentBalance,
       newBalance,
+      change: fundAmount,
+      currency: card.walletCurrency,
+      walletBalance,
+      overAllocated: walletBalance !== null && newBalance > walletBalance,
     });
 
     // Get updated card data
@@ -82,7 +150,11 @@ export default async function handler(req, res) {
 
     res.status(200).json({
       success: true,
-      message: `Card funded with ${fundAmount} ${card.walletCurrency === 'USD' ? 'cents' : 'sats'}`,
+      message: mode === 'set' 
+        ? `Card balance set to ${newBalance} ${unit}`
+        : `Card funded with ${fundAmount} ${unit}`,
+      warning, // Include soft limit warning if over-allocated
+      walletBalance, // Include wallet balance for client reference
       card: {
         id: updatedCard.id,
         name: updatedCard.name,
@@ -90,11 +162,11 @@ export default async function handler(req, res) {
         walletCurrency: updatedCard.walletCurrency,
         status: updatedCard.status,
       },
-      transaction: {
-        type: 'topup',
-        amount: fundAmount,
+      transaction: fundAmount !== 0 ? {
+        type: fundAmount > 0 ? 'topup' : 'adjust',
+        amount: Math.abs(fundAmount),
         balanceAfter: newBalance,
-      },
+      } : null,
     });
 
   } catch (error) {

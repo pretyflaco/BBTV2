@@ -46,22 +46,28 @@ export default async function handler(req, res) {
     }
 
     // Create invoice payment function
-    const payInvoice = async (amountSats, invoice, apiKey, environment) => {
+    // For BTC cards: Pay from BTC wallet
+    // For USD cards: Pay from USD wallet (Blink auto-converts USD→sats)
+    const payInvoice = async (amountSats, invoice, apiKey, environment, walletCurrency = 'BTC') => {
       try {
         const apiUrl = getApiUrlForEnvironment(environment);
         const blinkAPI = new BlinkAPI(apiKey, apiUrl);
         
-        // Get wallet info to find the right wallet
+        // Get wallet info to find the right wallet based on card's currency
         const wallets = await blinkAPI.getWalletInfo();
-        const btcWallet = wallets.find(w => w.walletCurrency === 'BTC');
+        const targetWallet = wallets.find(w => w.walletCurrency === walletCurrency);
         
-        if (!btcWallet) {
-          return { success: false, error: 'No BTC wallet found' };
+        if (!targetWallet) {
+          console.error(`[LNURLW] No ${walletCurrency} wallet found`);
+          return { success: false, error: `No ${walletCurrency} wallet found` };
         }
 
-        // Pay the invoice
+        console.log(`[LNURLW] Paying ${amountSats} sats invoice from ${walletCurrency} wallet (${targetWallet.id})`);
+
+        // Pay the invoice from the card's wallet
+        // For USD wallet, Blink automatically converts USD→sats at current exchange rate
         const result = await blinkAPI.payLnInvoice(
-          btcWallet.id,
+          targetWallet.id,
           invoice,
           'Boltcard payment'
         );

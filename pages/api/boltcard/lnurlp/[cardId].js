@@ -70,14 +70,23 @@ async function handlePayCallback(req, res, cardId, amountMsats) {
       });
     }
 
-    // Create invoice function
-    const createInvoice = async (amountSats, memo, walletId, apiKey, environment) => {
+    // Create invoice function - uses different Blink mutation based on wallet currency
+    const createInvoice = async (amountSats, memo, walletId, apiKey, environment, walletCurrency) => {
       try {
         const apiUrl = getApiUrlForEnvironment(environment);
         const blinkAPI = new BlinkAPI(apiKey, apiUrl);
 
-        // Create the invoice
-        const invoice = await blinkAPI.createLnInvoice(walletId, amountSats, memo);
+        let invoice;
+        
+        // Use different mutation based on wallet currency
+        if (walletCurrency === 'USD') {
+          // For USD/Stablesats wallets, use lnUsdInvoiceCreate
+          // Amount is in cents for USD cards
+          invoice = await blinkAPI.createLnUsdInvoice(walletId, amountSats, memo);
+        } else {
+          // For BTC wallets, use lnInvoiceCreate
+          invoice = await blinkAPI.createLnInvoice(walletId, amountSats, memo);
+        }
 
         if (!invoice) {
           return { error: 'Failed to create invoice' };

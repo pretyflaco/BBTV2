@@ -58,7 +58,7 @@ async function handleWithdrawGet(req, res, cardId) {
 
     if (isBrowser) {
       console.log(`[LNURLW] Browser detected, redirecting to balance page for card: ${cardId}`);
-      return res.redirect(302, `/card/${cardId}?p=${piccData}&c=${sunMac}`);
+      return res.redirect(302, `/boltcard-balance/${cardId}?p=${piccData}&c=${sunMac}`);
     }
 
     // Enhanced logging for debugging card tap issues

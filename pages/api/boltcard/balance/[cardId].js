@@ -24,6 +24,10 @@
  *   "topUp": {
  *     "lnurl": "LNURL1...",
  *     "url": "https://..."
+ *   },
+ *   "pendingTopUps": {
+ *     "processed": 1,
+ *     "total": 1
  *   }
  * }
  * 
@@ -31,6 +35,11 @@
  * - Card tap required (p/c params verified via SunMAC)
  * - Counter replay protection (each tap increments counter)
  * - No sensitive data exposed (no keys, no owner info)
+ * 
+ * Top-up Processing:
+ * - When balance is checked, we also check for any pending top-ups
+ * - If pending top-ups exist, we query Blink API to see if they've been paid
+ * - Paid top-ups are automatically credited to the card balance
  */
 
 const boltcard = require('../../../../lib/boltcard');
@@ -81,7 +90,7 @@ async function handleBalanceGet(req, res, cardId) {
       });
     }
 
-    // Get card with keys (need keys for tap verification)
+    // Get card with keys (need keys for tap verification and API key for top-up check)
     const card = await boltcard.store.getCard(cardId, true);
 
     if (!card) {
@@ -114,6 +123,30 @@ async function handleBalanceGet(req, res, cardId) {
     // Update last counter for replay protection
     await boltcard.store.updateLastCounter(cardId, tapResult.counter);
 
+    // Check and process any pending top-ups before returning balance
+    // This detects paid invoices that weren't processed via webhook
+    let pendingTopUpsResult = { processed: 0, total: 0, errors: 0 };
+    try {
+      pendingTopUpsResult = await boltcard.lnurlp.checkAndProcessPendingTopUps(
+        cardId,
+        card.apiKey,
+        card.environment
+      );
+      
+      if (pendingTopUpsResult.processed > 0) {
+        console.log(`[BALANCE] Processed ${pendingTopUpsResult.processed} pending top-up(s) for card ${cardId}`);
+      }
+    } catch (topUpError) {
+      console.error(`[BALANCE] Error checking pending top-ups: ${topUpError.message}`);
+      // Continue with balance check even if top-up processing fails
+    }
+
+    // Re-fetch card to get updated balance if any top-ups were processed
+    let updatedCard = card;
+    if (pendingTopUpsResult.processed > 0) {
+      updatedCard = await boltcard.store.getCard(cardId) || card;
+    }
+
     // Get last 5 transactions
     const transactions = await boltcard.store.getCardTransactions(cardId, 5);
 
@@ -122,27 +155,27 @@ async function handleBalanceGet(req, res, cardId) {
     const topUpData = boltcard.lnurlp.generateTopUpQR(serverUrl, cardId);
 
     // Format balance for display
-    const displayBalance = formatBalance(card.balance, card.walletCurrency);
+    const displayBalance = formatBalance(updatedCard.balance, updatedCard.walletCurrency);
     
     // Calculate daily remaining
-    const dailyRemaining = card.dailyLimit 
-      ? Math.max(0, card.dailyLimit - card.dailySpent)
+    const dailyRemaining = updatedCard.dailyLimit 
+      ? Math.max(0, updatedCard.dailyLimit - updatedCard.dailySpent)
       : null;
 
     console.log(`[BALANCE] Card ${cardId} balance: ${displayBalance}`);
 
     // Return balance response (no sensitive data)
-    return res.status(200).json({
+    const response = {
       card: {
-        name: card.name || 'Boltcard',
-        balance: card.balance,
-        currency: card.walletCurrency,
+        name: updatedCard.name || 'Boltcard',
+        balance: updatedCard.balance,
+        currency: updatedCard.walletCurrency,
         displayBalance,
-        dailyLimit: card.dailyLimit,
+        dailyLimit: updatedCard.dailyLimit,
         dailyRemaining,
-        dailySpent: card.dailySpent,
-        status: card.status,
-        lastUsedAt: card.lastUsedAt,
+        dailySpent: updatedCard.dailySpent,
+        status: updatedCard.status,
+        lastUsedAt: updatedCard.lastUsedAt,
       },
       transactions: transactions.map(tx => ({
         type: tx.type,
@@ -154,7 +187,17 @@ async function handleBalanceGet(req, res, cardId) {
         lnurl: topUpData.qrData,
         url: topUpData.url,
       },
-    });
+    };
+
+    // Include pending top-ups info if any were processed
+    if (pendingTopUpsResult.processed > 0 || pendingTopUpsResult.total > 0) {
+      response.pendingTopUps = {
+        processed: pendingTopUpsResult.processed,
+        total: pendingTopUpsResult.total,
+      };
+    }
+
+    return res.status(200).json(response);
 
   } catch (error) {
     console.error('[BALANCE] Error:', error);

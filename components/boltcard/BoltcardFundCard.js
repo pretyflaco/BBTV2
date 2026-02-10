@@ -7,18 +7,16 @@
 
 import { useState, useEffect } from 'react';
 import { useTheme } from '../../lib/hooks/useTheme';
+import { formatBitcoinAmount } from '../../lib/number-format';
 
 /**
- * Format balance for display
+ * Format balance for display based on user's bitcoin format preference
  */
-function formatBalance(balance, currency) {
+function formatBalance(balance, currency, bitcoinFormat = 'sats') {
   if (currency === 'USD') {
     return `$${(balance / 100).toFixed(2)}`;
   }
-  if (balance >= 100000) {
-    return `${(balance / 100000000).toFixed(8)} BTC`;
-  }
-  return `${balance.toLocaleString()} sats`;
+  return formatBitcoinAmount(balance, bitcoinFormat);
 }
 
 /**
@@ -37,6 +35,7 @@ export default function BoltcardFundCard({
   onClose,
   loading = false,
   exchangeRate = null, // BTC/USD exchange rate for display
+  bitcoinFormat = 'sats', // User's bitcoin format preference
 }) {
   const { darkMode } = useTheme();
   const [amount, setAmount] = useState('');
@@ -189,7 +188,7 @@ export default function BoltcardFundCard({
                 Available in Sending Wallet
               </span>
               <span className={`text-sm font-medium ${darkMode ? 'text-blue-400' : 'text-blue-700'}`}>
-                {formatBalance(maxAmount, card.walletCurrency)}
+                {formatBalance(maxAmount, card.walletCurrency, bitcoinFormat)}
               </span>
             </div>
           </div>

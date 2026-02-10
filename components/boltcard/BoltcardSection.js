@@ -353,6 +353,7 @@ export default function BoltcardSection({
           onClose={() => setFundingCard(null)}
           loading={loading}
           exchangeRate={exchangeRate}
+          bitcoinFormat={bitcoinFormat}
         />
       )}
 

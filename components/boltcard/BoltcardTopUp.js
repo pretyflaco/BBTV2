@@ -12,18 +12,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '../../lib/hooks/useTheme';
 import { QRCodeSVG } from 'qrcode.react';
+import { formatBitcoinAmount } from '../../lib/number-format';
 
 /**
- * Format balance for display
+ * Format balance for display using user's bitcoin format preference
+ * @param {number} balance - Balance in sats (BTC) or cents (USD)
+ * @param {string} currency - 'BTC' or 'USD'
+ * @param {string} bitcoinFormat - User's bitcoin format preference ('sats', 'bip177', 'sat')
  */
-function formatBalance(balance, currency) {
+function formatBalance(balance, currency, bitcoinFormat = 'sats') {
   if (currency === 'USD') {
     return `$${(balance / 100).toFixed(2)}`;
   }
-  if (balance >= 100000) {
-    return `${(balance / 100000000).toFixed(8)} BTC`;
-  }
-  return `${balance.toLocaleString()} sats`;
+  // Always use the user's bitcoin format preference for BTC
+  return formatBitcoinAmount(balance, bitcoinFormat);
 }
 
 /**
@@ -53,6 +55,7 @@ export default function BoltcardTopUp({
   onFund,
   exchangeRate = null,
   loading = false,
+  bitcoinFormat = 'sats',
 }) {
   const { darkMode } = useTheme();
   const [sliderValue, setSliderValue] = useState(card.balance || 0);
@@ -87,9 +90,9 @@ export default function BoltcardTopUp({
       return `~$${usdValue.toFixed(2)} USD`;
     } else {
       const satsValue = Math.round((value / 100) / exchangeRate * 100000000);
-      return `~${satsValue.toLocaleString()} sats`;
+      return `~${formatBitcoinAmount(satsValue, bitcoinFormat)}`;
     }
-  }, [exchangeRate, isBTC]);
+  }, [exchangeRate, isBTC, bitcoinFormat]);
 
   /**
    * Handle slider change
@@ -143,7 +146,7 @@ export default function BoltcardTopUp({
       const result = await onFund(card.id, sliderValue, 'set');
       
       if (result.success) {
-        setSuccess(`Balance updated to ${formatBalance(sliderValue, card.walletCurrency)}`);
+        setSuccess(`Balance updated to ${formatBalance(sliderValue, card.walletCurrency, bitcoinFormat)}`);
         
         // Show warning if returned from API
         if (result.warning) {
@@ -192,7 +195,7 @@ export default function BoltcardTopUp({
       <div className={`text-center p-4 rounded-lg ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Current Card Balance</p>
         <p className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-          {formatBalance(currentBalance, card.walletCurrency)}
+          {formatBalance(currentBalance, card.walletCurrency, bitcoinFormat)}
         </p>
         {getEquivalentDisplay(currentBalance) && (
           <p className={`text-xs mt-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
@@ -220,7 +223,7 @@ export default function BoltcardTopUp({
               ? (darkMode ? 'text-orange-300' : 'text-orange-700')
               : (darkMode ? 'text-blue-300' : 'text-blue-700')
           }`}>
-            {formatBalance(walletBalance, card.walletCurrency)}
+            {formatBalance(walletBalance, card.walletCurrency, bitcoinFormat)}
           </span>
         </div>
         {isOverAllocated && (
@@ -255,10 +258,10 @@ export default function BoltcardTopUp({
           <div className="flex justify-between mt-1">
             <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>0</span>
             <span className={`text-xs font-medium ${darkMode ? 'text-blink-accent' : 'text-blink-accent'}`}>
-              {formatBalance(sliderValue, card.walletCurrency)}
+              {formatBalance(sliderValue, card.walletCurrency, bitcoinFormat)}
             </span>
             <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-              {formatBalance(maxSliderValue, card.walletCurrency)}
+              {formatBalance(maxSliderValue, card.walletCurrency, bitcoinFormat)}
             </span>
           </div>
         </div>
@@ -329,7 +332,7 @@ export default function BoltcardTopUp({
                   ? (darkMode ? 'text-green-400' : 'text-green-600')
                   : (darkMode ? 'text-red-400' : 'text-red-600')
               }`}>
-                {sliderValue > currentBalance ? '+' : '-'}{formatBalance(Math.abs(sliderValue - currentBalance), card.walletCurrency)}
+                {sliderValue > currentBalance ? '+' : '-'}{formatBalance(Math.abs(sliderValue - currentBalance), card.walletCurrency, bitcoinFormat)}
               </span>
             </div>
           </div>
@@ -339,7 +342,7 @@ export default function BoltcardTopUp({
         {sliderValue > walletBalance && (
           <div className={`p-3 rounded-lg mb-4 ${darkMode ? 'bg-orange-900/10' : 'bg-orange-50'}`}>
             <p className={`text-xs ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>
-              Setting balance above wallet funds. Card will only be able to spend {formatBalance(walletBalance, card.walletCurrency)}.
+              Setting balance above wallet funds. Card will only be able to spend {formatBalance(walletBalance, card.walletCurrency, bitcoinFormat)}.
             </p>
           </div>
         )}
@@ -379,7 +382,7 @@ export default function BoltcardTopUp({
               Updating...
             </span>
           ) : hasChanges ? (
-            `Update to ${formatBalance(sliderValue, card.walletCurrency)}`
+            `Update to ${formatBalance(sliderValue, card.walletCurrency, bitcoinFormat)}`
           ) : (
             'No Changes'
           )}
@@ -494,7 +497,7 @@ export default function BoltcardTopUp({
               <div className="flex justify-between">
                 <span className={darkMode ? 'text-gray-500' : 'text-gray-400'}>Max per transaction</span>
                 <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>
-                  {formatBalance(card.maxTxAmount, card.walletCurrency)}
+                  {formatBalance(card.maxTxAmount, card.walletCurrency, bitcoinFormat)}
                 </span>
               </div>
             )}
@@ -502,7 +505,7 @@ export default function BoltcardTopUp({
               <div className="flex justify-between">
                 <span className={darkMode ? 'text-gray-500' : 'text-gray-400'}>Daily remaining</span>
                 <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>
-                  {formatBalance(Math.max(0, card.dailyLimit - (card.dailySpent || 0)), card.walletCurrency)}
+                  {formatBalance(Math.max(0, card.dailyLimit - (card.dailySpent || 0)), card.walletCurrency, bitcoinFormat)}
                 </span>
               </div>
             )}

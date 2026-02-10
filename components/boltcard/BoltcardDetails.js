@@ -15,18 +15,20 @@ import { useTheme } from '../../lib/hooks/useTheme';
 import { CardStatus } from './useBoltcards';
 import BoltcardTopUp from './BoltcardTopUp';
 import { QRCodeSVG } from 'qrcode.react';
+import { formatBitcoinAmount } from '../../lib/number-format';
 
 /**
- * Format balance for display
+ * Format balance for display using user's bitcoin format preference
+ * @param {number} balance - Balance in sats (BTC) or cents (USD)
+ * @param {string} currency - 'BTC' or 'USD'
+ * @param {string} bitcoinFormat - User's bitcoin format preference ('sats', 'bip177', 'sat')
  */
-function formatBalance(balance, currency) {
+function formatBalance(balance, currency, bitcoinFormat = 'sats') {
   if (currency === 'USD') {
     return `$${(balance / 100).toFixed(2)}`;
   }
-  if (balance >= 100000) {
-    return `${(balance / 100000000).toFixed(8)} BTC`;
-  }
-  return `${balance.toLocaleString()} sats`;
+  // Always use the user's bitcoin format preference for BTC
+  return formatBitcoinAmount(balance, bitcoinFormat);
 }
 
 /**
@@ -84,7 +86,7 @@ function generateResetDeeplink(cardId) {
  * BoltcardDetails component
  */
 export default function BoltcardDetails({
-  card,
+  card: initialCard,
   onClose,
   onUpdate,
   onDisable,
@@ -92,15 +94,25 @@ export default function BoltcardDetails({
   onWipe,
   onResetDaily,
   onFund,
+  onFundCard,
   fetchDetails,
   walletBalance = 0,
   exchangeRate = null,
+  bitcoinFormat = 'sats',
 }) {
   const { darkMode } = useTheme();
   const [activeTab, setActiveTab] = useState(Tabs.DETAILS);
   const [loading, setLoading] = useState(false);
   const [transactions, setTransactions] = useState([]);
   const [topUpQR, setTopUpQR] = useState(null);
+  
+  // Local card state to enable immediate UI updates after funding
+  const [card, setCard] = useState(initialCard);
+  
+  // Sync local card state when prop changes (e.g., when parent refreshes)
+  useEffect(() => {
+    setCard(initialCard);
+  }, [initialCard]);
   
   // Edit state
   const [editing, setEditing] = useState(false);
@@ -274,10 +286,26 @@ export default function BoltcardDetails({
 
   /**
    * Handle fund from TopUp component (authenticated funding via slider)
+   * Uses onFundCard from parent (which uses the useBoltcards hook) to properly
+   * update both local and global card state
    */
   const handleFundFromTopUp = async (cardId, newBalance, mode) => {
     setLoading(true);
     try {
+      // Use onFundCard callback which uses the hook's fundCard function
+      // This properly updates the cards list in the parent
+      if (onFundCard) {
+        const result = await onFundCard(cardId, newBalance, mode);
+        
+        if (result.success && result.card) {
+          // Immediately update local card state for instant UI feedback
+          setCard(prev => ({ ...prev, balance: result.card.balance }));
+        }
+        
+        return result;
+      }
+      
+      // Fallback: direct API call if onFundCard not provided
       const response = await fetch('/api/boltcard/fund', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -287,10 +315,8 @@ export default function BoltcardDetails({
       const result = await response.json();
       
       if (result.success && result.card) {
-        // Update local card state - notify parent
-        if (onUpdate) {
-          await onUpdate(cardId, { balance: result.card.balance });
-        }
+        // Update local card state for immediate UI feedback
+        setCard(prev => ({ ...prev, balance: result.card.balance }));
       }
       
       return result;
@@ -652,7 +678,7 @@ export default function BoltcardDetails({
                   <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Balance</p>
                   <div className="flex items-baseline gap-2 mt-1">
                     <span className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                      {formatBalance(card.balance || 0, card.walletCurrency)}
+                      {formatBalance(card.balance || 0, card.walletCurrency, bitcoinFormat)}
                     </span>
                   </div>
                   
@@ -702,7 +728,7 @@ export default function BoltcardDetails({
                           ? (darkMode ? 'text-orange-300' : 'text-orange-700')
                           : (darkMode ? 'text-blue-300' : 'text-blue-700')
                       }`}>
-                        {formatBalance(walletBalance, card.walletCurrency)}
+                        {formatBalance(walletBalance, card.walletCurrency, bitcoinFormat)}
                       </span>
                     </div>
                     {walletBalance < (card.balance || 0) && (
@@ -739,7 +765,7 @@ export default function BoltcardDetails({
                     <div className="flex justify-between text-sm">
                       <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>Max per tx</span>
                       <span className={darkMode ? 'text-white' : 'text-gray-900'}>
-                        {formatBalance(card.maxTxAmount, card.walletCurrency)}
+                        {formatBalance(card.maxTxAmount, card.walletCurrency, bitcoinFormat)}
                       </span>
                     </div>
                   )}
@@ -747,7 +773,7 @@ export default function BoltcardDetails({
                     <div className="flex justify-between text-sm">
                       <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>Daily limit</span>
                       <span className={darkMode ? 'text-white' : 'text-gray-900'}>
-                        {formatBalance(card.dailySpent || 0, card.walletCurrency)} / {formatBalance(card.dailyLimit, card.walletCurrency)}
+                        {formatBalance(card.dailySpent || 0, card.walletCurrency, bitcoinFormat)} / {formatBalance(card.dailyLimit, card.walletCurrency, bitcoinFormat)}
                       </span>
                     </div>
                   )}
@@ -819,6 +845,7 @@ export default function BoltcardDetails({
                 onFund={handleFundFromTopUp}
                 exchangeRate={exchangeRate}
                 loading={loading}
+                bitcoinFormat={bitcoinFormat}
               />
             )}
 
@@ -857,7 +884,7 @@ export default function BoltcardDetails({
                           </div>
                           <div className="text-right">
                             <span className={`font-medium ${typeInfo.color}`}>
-                              {typeInfo.sign}{formatBalance(Math.abs(tx.amount), card.walletCurrency)}
+                              {typeInfo.sign}{formatBalance(Math.abs(tx.amount), card.walletCurrency, bitcoinFormat)}
                             </span>
                             <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                               {formatDate(tx.createdAt)}

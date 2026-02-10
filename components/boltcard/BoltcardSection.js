@@ -26,6 +26,7 @@ import BoltcardFundCard from './BoltcardFundCard';
  * @param {number} props.voucherWalletBtcBalance - BTC wallet balance in sats
  * @param {number} props.voucherWalletUsdBalance - USD wallet balance in cents
  * @param {number} props.exchangeRate - BTC/USD exchange rate
+ * @param {string} props.bitcoinFormat - Bitcoin format preference ('sats', 'btc', 'bits')
  */
 export default function BoltcardSection({ 
   voucherWallet, 
@@ -34,6 +35,7 @@ export default function BoltcardSection({
   voucherWalletBtcBalance,
   voucherWalletUsdBalance,
   exchangeRate,
+  bitcoinFormat = 'sats',
 }) {
   const { darkMode } = useTheme();
   const { publicKey } = useCombinedAuth();
@@ -334,9 +336,11 @@ export default function BoltcardSection({
           onWipe={handleWipe}
           onResetDaily={handleResetDaily}
           onFund={(card) => setFundingCard(card)}
+          onFundCard={fundCard}
           fetchDetails={fetchCardDetails}
           walletBalance={getWalletBalanceForCard(selectedCard)}
           exchangeRate={exchangeRate}
+          bitcoinFormat={bitcoinFormat}
         />
       )}
 

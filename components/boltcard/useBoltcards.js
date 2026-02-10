@@ -264,18 +264,31 @@ export function useBoltcards(ownerPubkey) {
 
   /**
    * Fund card from Sending Wallet
-   * Increments the card's virtual balance
+   * Supports both incrementing balance and setting total balance
+   * @param {string} cardId - Card ID to fund
+   * @param {number} amount - Amount to add (mode='increment') or target balance (mode='set')
+   * @param {string} mode - 'increment' (add to balance) or 'set' (set total balance)
+   * @param {string} description - Optional description
    */
-  const fundCard = useCallback(async (cardId, amount, description) => {
+  const fundCard = useCallback(async (cardId, amount, mode = 'increment', description) => {
     try {
+      const body = {
+        cardId,
+        mode,
+        description: description || (mode === 'set' ? 'Balance adjusted' : 'Funded from Sending Wallet'),
+      };
+
+      // Support both modes
+      if (mode === 'set') {
+        body.newBalance = amount;
+      } else {
+        body.amount = amount;
+      }
+
       const response = await fetch('/api/boltcard/fund', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cardId,
-          amount,
-          description: description || 'Funded from Sending Wallet',
-        }),
+        body: JSON.stringify(body),
       });
 
       const data = await response.json();
@@ -289,7 +302,13 @@ export function useBoltcards(ownerPubkey) {
         card.id === cardId ? { ...card, balance: data.card.balance } : card
       ));
 
-      return { success: true, card: data.card, transaction: data.transaction };
+      return { 
+        success: true, 
+        card: data.card, 
+        transaction: data.transaction,
+        warning: data.warning,
+        walletBalance: data.walletBalance,
+      };
     } catch (err) {
       console.error('Failed to fund card:', err);
       return { success: false, error: err.message };

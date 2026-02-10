@@ -3870,6 +3870,7 @@ export default function Dashboard() {
                 voucherWalletBtcBalance={voucherWalletBalance}
                 voucherWalletUsdBalance={voucherWalletUsdBalance}
                 exchangeRate={exchangeRate}
+                bitcoinFormat={bitcoinFormat}
               />
             </div>
           </div>

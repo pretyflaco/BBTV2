@@ -48,6 +48,19 @@ async function handleWithdrawGet(req, res, cardId) {
   try {
     const { p: piccData, c: sunMac } = req.query;
 
+    // Check if this is a browser request - redirect to cardholder balance page
+    // Browsers send Accept headers like "text/html,application/xhtml+xml,..."
+    // Wallets send Accept headers like "application/json" or "*/*"
+    const acceptHeader = req.headers['accept'] || '';
+    const isBrowser = acceptHeader.includes('text/html') && 
+                      !acceptHeader.includes('application/json') &&
+                      piccData && sunMac;
+
+    if (isBrowser) {
+      console.log(`[LNURLW] Browser detected, redirecting to balance page for card: ${cardId}`);
+      return res.redirect(302, `/card/${cardId}?p=${piccData}&c=${sunMac}`);
+    }
+
     // Enhanced logging for debugging card tap issues
     console.log(`[LNURLW] Card tap request for: ${cardId}`);
     console.log(`[LNURLW] Full URL: ${req.url}`);

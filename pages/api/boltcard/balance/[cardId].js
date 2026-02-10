@@ -130,7 +130,8 @@ async function handleBalanceGet(req, res, cardId) {
       pendingTopUpsResult = await boltcard.lnurlp.checkAndProcessPendingTopUps(
         cardId,
         card.apiKey,
-        card.environment
+        card.environment,
+        card.walletId
       );
       
       if (pendingTopUpsResult.processed > 0) {

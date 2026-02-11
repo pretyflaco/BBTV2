@@ -11,40 +11,151 @@
  */
 
 // Import noble curves for in-app key generation and signing
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore -- subpath exports require moduleResolution:"bundler", works at runtime via webpack
 import { schnorr } from "@noble/curves/secp256k1"
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore -- subpath exports require moduleResolution:"bundler", works at runtime via webpack
 import { sha256 } from "@noble/hashes/sha256"
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore -- subpath exports require moduleResolution:"bundler", works at runtime via webpack
 import { bytesToHex, hexToBytes, randomBytes } from "@noble/hashes/utils"
 import { logAuth, logAuthError, logAuthWarn } from "../version"
 
-/**
- * @typedef {'extension' | 'externalSigner' | 'generated'} SignInMethod
- *
- * @typedef {Object} AuthResult
- * @property {boolean} success
- * @property {string} [publicKey] - Hex-encoded public key
- * @property {SignInMethod} [method]
- * @property {string} [error]
- * @property {boolean} [pending] - True if waiting for external signer return
- */
+// NIP-07 window.nostr type is declared in types/nostr.d.ts (NostrExtension interface)
+// No need to re-declare it here.
+
+// ============= Local Type Definitions =============
+
+/** Sign-in method types supported by this service */
+type SignInMethod = "extension" | "externalSigner" | "generated" | "nostrConnect"
+
+/** Result of an authentication attempt */
+interface AuthResult {
+  success: boolean
+  publicKey?: string
+  method?: SignInMethod
+  error?: string
+  pending?: boolean
+  /** True if a challenge flow was already pending (dedup for rapid clicks) */
+  alreadyPending?: boolean
+  /** True if a server session was established via challenge verification */
+  hasServerSession?: boolean
+  /** Additional error details from server */
+  details?: string
+}
+
+/** Unsigned Nostr event (before signing) */
+interface UnsignedEvent {
+  kind: number
+  created_at: number
+  tags: string[][]
+  content: string
+  pubkey?: string
+}
+
+/** Signed Nostr event (after signing) */
+interface SignedEvent {
+  id: string
+  pubkey: string
+  created_at: number
+  kind: number
+  tags: string[][]
+  content: string
+  sig: string
+}
+
+/** Stored authentication data from localStorage */
+interface StoredAuthData {
+  publicKey: string | null
+  method: string | null
+}
+
+/** Data stored in localStorage during external signer sign-in flow */
+interface SignInFlowData {
+  flow: string
+  timestamp: number
+  callbackUrl?: string
+  event?: UnsignedEvent
+}
+
+/** Data stored in localStorage during challenge-based authentication */
+interface ChallengeFlowData {
+  step: string
+  challenge?: string
+  eventTemplate?: Record<string, unknown>
+  timestamp: number
+  pubkey?: string
+}
+
+/** Result from the challenge fetch API */
+interface ChallengeResult {
+  success: boolean
+  challenge?: string
+  eventTemplate?: Record<string, unknown>
+  expiresIn?: number
+  error?: string
+}
+
+/** Result from the sign event return handler */
+interface SignEventReturnResult {
+  pending: boolean
+  event?: SignedEvent
+  error?: string
+}
+
+/** Result from NIP-98 login */
+interface Nip98LoginResult {
+  success: boolean
+  user?: Record<string, unknown>
+  error?: string
+  details?: string
+}
+
+/** Result from server session verification */
+interface ServerSessionResult {
+  hasSession: boolean
+  pubkey?: string
+}
+
+/** Result from bech32 decoding */
+interface Bech32Decoded {
+  prefix: string
+  data: Uint8Array
+}
+
+/** Encrypted nsec storage format */
+interface EncryptedNsecData {
+  encrypted: string
+  iv: string
+  salt: string
+  [key: string]: unknown
+}
+
+/** Debug info returned from debugChallengeFlow */
+interface DebugChallengeInfo {
+  url: string
+  nostrReturn: string | null
+  flow: ChallengeFlowData | null
+}
+
+// ============= NostrConnect service type (dynamic imports) =============
 
 /**
- * @typedef {Object} UnsignedEvent
- * @property {number} kind
- * @property {number} created_at
- * @property {string[][]} tags
- * @property {string} content
+ * Minimal interface for the dynamically imported NostrConnect services.
+ * Uses `any` for the event parameter because the imported .js services
+ * use the global UnsignedEvent type from nostr.d.ts which has a different
+ * index signature than our local UnsignedEvent interface.
  */
-
-/**
- * @typedef {Object} SignedEvent
- * @property {string} id
- * @property {string} pubkey
- * @property {number} created_at
- * @property {number} kind
- * @property {string[][]} tags
- * @property {string} content
- * @property {string} sig
- */
+interface NostrConnectServiceLike {
+  isConnected: () => boolean
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  signEvent: (event: any) => Promise<{
+    success: boolean
+    event?: SignedEvent
+    error?: string
+  }>
+}
 
 // Use localStorage for signer flow (persists across page reloads/redirects)
 const SIGN_IN_STORAGE_KEY = "blinkpos_signin_flow"
@@ -59,11 +170,11 @@ const SIGNER_RETURN_PARAM = "nostr_return"
  * Check if running as an installed PWA (standalone mode)
  * @returns {boolean}
  */
-function isPWAMode() {
+function isPWAMode(): boolean {
   if (typeof window === "undefined") return false
   return (
     window.matchMedia("(display-mode: standalone)").matches ||
-    window.navigator.standalone === true
+    (navigator as { standalone?: boolean }).standalone === true
   )
 }
 
@@ -71,11 +182,14 @@ function isPWAMode() {
  * Navigate to a custom URL scheme (nostrsigner:)
  * PWA standalone mode blocks some navigation methods, so we try multiple approaches.
  *
- * @param {string} url - The nostrsigner: URL to open
- * @param {string} [context] - Description for logging
- * @returns {Promise<boolean>} - True if navigation was initiated (doesn't mean app opened)
+ * @param url - The nostrsigner: URL to open
+ * @param context - Description for logging
+ * @returns True if navigation was initiated (doesn't mean app opened)
  */
-async function navigateToSignerUrl(url, context = "unknown") {
+async function navigateToSignerUrl(
+  url: string,
+  context: string = "unknown",
+): Promise<boolean> {
   const inPWA = isPWAMode()
   logAuth("NostrAuthService", `navigateToSignerUrl (${context}), PWA mode: ${inPWA}`)
   logAuth("NostrAuthService", `URL (first 100 chars): ${url.substring(0, 100)}...`)
@@ -98,10 +212,10 @@ async function navigateToSignerUrl(url, context = "unknown") {
       document.body.removeChild(anchor)
       logAuth("NostrAuthService", "Anchor click triggered")
       // Small delay to let the navigation start
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await new Promise<void>((resolve) => setTimeout(resolve, 100))
       return true
-    } catch (e) {
-      logAuthWarn("NostrAuthService", "Anchor method failed:", e)
+    } catch (err: unknown) {
+      logAuthWarn("NostrAuthService", "Anchor method failed:", err)
     }
   }
 
@@ -119,8 +233,8 @@ async function navigateToSignerUrl(url, context = "unknown") {
           "window.open() returned null (blocked by popup blocker or PWA)",
         )
       }
-    } catch (e) {
-      logAuthWarn("NostrAuthService", "window.open() failed:", e)
+    } catch (err: unknown) {
+      logAuthWarn("NostrAuthService", "window.open() failed:", err)
     }
   }
 
@@ -129,7 +243,7 @@ async function navigateToSignerUrl(url, context = "unknown") {
   // and the browser doesn't ignore the navigation due to pending JavaScript
   logAuth("NostrAuthService", "Scheduling deferred navigation via setTimeout...")
 
-  return new Promise((resolve) => {
+  return new Promise<boolean>((resolve) => {
     // Schedule for next event loop tick
     setTimeout(() => {
       logAuth("NostrAuthService", "Deferred navigation executing now...")
@@ -139,8 +253,8 @@ async function navigateToSignerUrl(url, context = "unknown") {
         window.location.replace(url)
         logAuth("NostrAuthService", "location.replace() called")
         resolve(true)
-      } catch (e) {
-        logAuthWarn("NostrAuthService", "location.replace() failed:", e)
+      } catch (err: unknown) {
+        logAuthWarn("NostrAuthService", "location.replace() failed:", err)
 
         // Fall back to location.href
         try {
@@ -148,8 +262,8 @@ async function navigateToSignerUrl(url, context = "unknown") {
           window.location.href = url
           logAuth("NostrAuthService", "location.href assigned")
           resolve(true)
-        } catch (e2) {
-          logAuthError("NostrAuthService", "location.href assignment failed:", e2)
+        } catch (err2: unknown) {
+          logAuthError("NostrAuthService", "location.href assignment failed:", err2)
 
           // Last resort: location.assign()
           try {
@@ -157,7 +271,7 @@ async function navigateToSignerUrl(url, context = "unknown") {
             window.location.assign(url)
             logAuth("NostrAuthService", "location.assign() called")
             resolve(true)
-          } catch (e3) {
+          } catch (_err3: unknown) {
             logAuthError("NostrAuthService", "All navigation methods failed")
             resolve(false)
           }
@@ -168,13 +282,13 @@ async function navigateToSignerUrl(url, context = "unknown") {
 }
 
 class NostrAuthService {
-  static METHODS = ["extension", "externalSigner", "generated", "nostrConnect"]
+  static METHODS: string[] = ["extension", "externalSigner", "generated", "nostrConnect"]
 
   /**
    * Check if a Nostr browser extension is available
    * @returns {boolean}
    */
-  static isExtensionAvailable() {
+  static isExtensionAvailable(): boolean {
     return typeof window !== "undefined" && !!window.nostr
   }
 
@@ -182,7 +296,7 @@ class NostrAuthService {
    * Check if we're on a mobile device (likely to have Amber)
    * @returns {boolean}
    */
-  static isMobileDevice() {
+  static isMobileDevice(): boolean {
     if (typeof window === "undefined") return false
     return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
   }
@@ -191,8 +305,8 @@ class NostrAuthService {
    * Get available sign-in methods based on environment
    * @returns {SignInMethod[]}
    */
-  static getAvailableMethods() {
-    const methods = []
+  static getAvailableMethods(): SignInMethod[] {
+    const methods: SignInMethod[] = []
 
     if (this.isExtensionAvailable()) {
       methods.push("extension")
@@ -212,28 +326,28 @@ class NostrAuthService {
 
   /**
    * Generate a new Nostr keypair
-   * @returns {{privateKey: string, publicKey: string}} - Both keys as hex strings
+   * @returns Both keys as hex strings
    */
-  static generateKeypair() {
+  static generateKeypair(): { privateKey: string; publicKey: string } {
     // Generate random 32-byte private key
-    const privateKeyBytes = randomBytes(32)
-    const privateKey = bytesToHex(privateKeyBytes)
+    const privateKeyBytes: Uint8Array = randomBytes(32)
+    const privateKey: string = bytesToHex(privateKeyBytes)
 
     // Derive public key using schnorr
-    const publicKeyBytes = schnorr.getPublicKey(privateKeyBytes)
-    const publicKey = bytesToHex(publicKeyBytes)
+    const publicKeyBytes: Uint8Array = schnorr.getPublicKey(privateKeyBytes)
+    const publicKey: string = bytesToHex(publicKeyBytes)
 
     return { privateKey, publicKey }
   }
 
   /**
    * Get public key from a private key
-   * @param {string} privateKey - Hex-encoded private key
-   * @returns {string} - Hex-encoded public key
+   * @param privateKey - Hex-encoded private key
+   * @returns Hex-encoded public key
    */
-  static getPublicKeyFromPrivate(privateKey) {
-    const privateKeyBytes = hexToBytes(privateKey)
-    const publicKeyBytes = schnorr.getPublicKey(privateKeyBytes)
+  static getPublicKeyFromPrivate(privateKey: string): string {
+    const privateKeyBytes: Uint8Array = hexToBytes(privateKey)
+    const publicKeyBytes: Uint8Array = schnorr.getPublicKey(privateKeyBytes)
     return bytesToHex(publicKeyBytes)
   }
 
@@ -241,16 +355,16 @@ class NostrAuthService {
    * Check if there's an encrypted nsec stored locally
    * @returns {boolean}
    */
-  static hasStoredEncryptedNsec() {
+  static hasStoredEncryptedNsec(): boolean {
     if (typeof localStorage === "undefined") return false
     return !!localStorage.getItem(ENCRYPTED_NSEC_KEY)
   }
 
   /**
    * Store encrypted nsec in localStorage
-   * @param {Object} encryptedData - Encrypted data object from CryptoUtils
+   * @param encryptedData - Encrypted data object from CryptoUtils
    */
-  static storeEncryptedNsec(encryptedData) {
+  static storeEncryptedNsec(encryptedData: EncryptedNsecData): void {
     if (typeof localStorage !== "undefined") {
       localStorage.setItem(ENCRYPTED_NSEC_KEY, JSON.stringify(encryptedData))
     }
@@ -258,14 +372,14 @@ class NostrAuthService {
 
   /**
    * Get stored encrypted nsec
-   * @returns {Object|null} - Encrypted data object or null
+   * @returns Encrypted data object or null
    */
-  static getStoredEncryptedNsec() {
+  static getStoredEncryptedNsec(): EncryptedNsecData | null {
     if (typeof localStorage === "undefined") return null
     const stored = localStorage.getItem(ENCRYPTED_NSEC_KEY)
     if (!stored) return null
     try {
-      return JSON.parse(stored)
+      return JSON.parse(stored) as EncryptedNsecData
     } catch {
       return null
     }
@@ -274,7 +388,7 @@ class NostrAuthService {
   /**
    * Clear stored encrypted nsec (use with caution!)
    */
-  static clearEncryptedNsec() {
+  static clearEncryptedNsec(): void {
     if (typeof localStorage !== "undefined") {
       localStorage.removeItem(ENCRYPTED_NSEC_KEY)
     }
@@ -284,11 +398,11 @@ class NostrAuthService {
    * Sign event using locally stored private key (for 'generated' method)
    * Requires the decrypted private key to be passed in
    *
-   * @param {UnsignedEvent} event - Event to sign
-   * @param {string} privateKey - Hex-encoded private key
-   * @returns {SignedEvent} - Signed event
+   * @param event - Event to sign
+   * @param privateKey - Hex-encoded private key
+   * @returns Signed event
    */
-  static signEventWithPrivateKey(event, privateKey) {
+  static signEventWithPrivateKey(event: UnsignedEvent, privateKey: string): SignedEvent {
     const publicKey = this.getPublicKeyFromPrivate(privateKey)
 
     // Build the event with pubkey
@@ -307,13 +421,13 @@ class NostrAuthService {
       eventWithPubkey.content,
     ])
 
-    const eventIdBytes = sha256(new TextEncoder().encode(serialized))
-    const eventId = bytesToHex(eventIdBytes)
+    const eventIdBytes: Uint8Array = sha256(new TextEncoder().encode(serialized))
+    const eventId: string = bytesToHex(eventIdBytes)
 
     // Sign the event ID with schnorr
-    const privateKeyBytes = hexToBytes(privateKey)
-    const signatureBytes = schnorr.sign(eventIdBytes, privateKeyBytes)
-    const signature = bytesToHex(signatureBytes)
+    const privateKeyBytes: Uint8Array = hexToBytes(privateKey)
+    const signatureBytes: Uint8Array = schnorr.sign(eventIdBytes, privateKeyBytes)
+    const signature: string = bytesToHex(signatureBytes)
 
     // Return complete signed event
     return {
@@ -332,13 +446,13 @@ class NostrAuthService {
    * This is cleared on page refresh or when clearSessionPrivateKey() is called
    * @private
    */
-  static _sessionPrivateKey = null
+  static _sessionPrivateKey: string | null = null
 
   /**
    * Set session private key (call after password verification)
-   * @param {string} privateKey - Decrypted private key
+   * @param privateKey - Decrypted private key
    */
-  static setSessionPrivateKey(privateKey) {
+  static setSessionPrivateKey(privateKey: string): void {
     this._sessionPrivateKey = privateKey
   }
 
@@ -346,14 +460,14 @@ class NostrAuthService {
    * Get session private key
    * @returns {string|null}
    */
-  static getSessionPrivateKey() {
+  static getSessionPrivateKey(): string | null {
     return this._sessionPrivateKey
   }
 
   /**
    * Clear session private key from memory
    */
-  static clearSessionPrivateKey() {
+  static clearSessionPrivateKey(): void {
     this._sessionPrivateKey = null
   }
 
@@ -361,11 +475,11 @@ class NostrAuthService {
    * Sign in with generated keys (create new account)
    * The caller is responsible for encrypting the private key with CryptoUtils
    *
-   * @param {string} publicKey - Hex-encoded public key
-   * @param {string} privateKey - Hex-encoded private key (will be stored in session)
+   * @param publicKey - Hex-encoded public key
+   * @param privateKey - Hex-encoded private key (will be stored in session)
    * @returns {AuthResult}
    */
-  static signInWithGeneratedKeys(publicKey, privateKey) {
+  static signInWithGeneratedKeys(publicKey: string, privateKey: string): AuthResult {
     try {
       // Validate keys
       if (!publicKey || publicKey.length !== 64 || !/^[0-9a-f]{64}$/i.test(publicKey)) {
@@ -396,14 +510,12 @@ class NostrAuthService {
         publicKey: publicKey.toLowerCase(),
         method: "generated",
       }
-    } catch (error) {
-      logAuthError("NostrAuthService", "Generated key sign in failed:", error)
+    } catch (err: unknown) {
+      logAuthError("NostrAuthService", "Generated key sign in failed:", err)
       return {
         success: false,
         error:
-          error instanceof Error
-            ? error.message
-            : "Failed to sign in with generated keys",
+          err instanceof Error ? err.message : "Failed to sign in with generated keys",
       }
     }
   }
@@ -412,10 +524,10 @@ class NostrAuthService {
    * Sign in with password (for returning users with stored encrypted nsec)
    * The caller must decrypt the nsec using CryptoUtils and pass the result
    *
-   * @param {string} privateKey - Decrypted private key
+   * @param privateKey - Decrypted private key
    * @returns {AuthResult}
    */
-  static signInWithDecryptedKey(privateKey) {
+  static signInWithDecryptedKey(privateKey: string): AuthResult {
     try {
       // Derive public key from private key
       const publicKey = this.getPublicKeyFromPrivate(privateKey)
@@ -431,11 +543,11 @@ class NostrAuthService {
         publicKey: publicKey.toLowerCase(),
         method: "generated",
       }
-    } catch (error) {
-      logAuthError("NostrAuthService", "Decrypted key sign in failed:", error)
+    } catch (err: unknown) {
+      logAuthError("NostrAuthService", "Decrypted key sign in failed:", err)
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to sign in",
+        error: err instanceof Error ? err.message : "Failed to sign in",
       }
     }
   }
@@ -444,10 +556,10 @@ class NostrAuthService {
    * Sign in with Nostr Connect (NIP-46)
    * Called after successful NIP-46 connection via NostrConnectService
    *
-   * @param {string} publicKey - Public key from connected remote signer
+   * @param publicKey - Public key from connected remote signer
    * @returns {AuthResult}
    */
-  static signInWithNostrConnect(publicKey) {
+  static signInWithNostrConnect(publicKey: string): AuthResult {
     try {
       // Validate public key format
       if (!publicKey || publicKey.length !== 64 || !/^[0-9a-f]{64}$/i.test(publicKey)) {
@@ -470,12 +582,12 @@ class NostrAuthService {
         publicKey: normalizedPublicKey,
         method: "nostrConnect",
       }
-    } catch (error) {
-      logAuthError("NostrAuthService", "Nostr Connect sign in failed:", error)
+    } catch (err: unknown) {
+      logAuthError("NostrAuthService", "Nostr Connect sign in failed:", err)
       return {
         success: false,
         error:
-          error instanceof Error ? error.message : "Failed to sign in with Nostr Connect",
+          err instanceof Error ? err.message : "Failed to sign in with Nostr Connect",
       }
     }
   }
@@ -486,7 +598,7 @@ class NostrAuthService {
    *
    * @returns {Promise<AuthResult>}
    */
-  static async signInWithExtension() {
+  static async signInWithExtension(): Promise<AuthResult> {
     try {
       if (!this.isExtensionAvailable()) {
         return {
@@ -497,7 +609,7 @@ class NostrAuthService {
       }
 
       // Request public key from extension
-      const publicKey = await window.nostr.getPublicKey()
+      const publicKey = await window.nostr!.getPublicKey()
 
       // Validate public key format (64 hex characters)
       if (!publicKey || typeof publicKey !== "string" || publicKey.length !== 64) {
@@ -526,11 +638,14 @@ class NostrAuthService {
         publicKey: normalizedPublicKey,
         method: "extension",
       }
-    } catch (error) {
-      logAuthError("NostrAuthService", "Extension sign in failed:", error)
+    } catch (err: unknown) {
+      logAuthError("NostrAuthService", "Extension sign in failed:", err)
 
       // Handle user rejection
-      if (error.message?.includes("rejected") || error.message?.includes("denied")) {
+      if (
+        (err as Error).message?.includes("rejected") ||
+        (err as Error).message?.includes("denied")
+      ) {
         return {
           success: false,
           error: "Sign-in was rejected. Please approve the request in your extension.",
@@ -539,7 +654,7 @@ class NostrAuthService {
 
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Extension sign in failed",
+        error: err instanceof Error ? err.message : "Extension sign in failed",
       }
     }
   }
@@ -552,10 +667,10 @@ class NostrAuthService {
    * to the app after signing, and handleExternalSignerReturn() should
    * be called to complete the flow.
    *
-   * @param {string} [callbackUrl] - Optional callback URL for the signer to return to
+   * @param callbackUrl - Optional callback URL for the signer to return to
    * @returns {Promise<AuthResult>}
    */
-  static async signInWithExternalSigner(callbackUrl) {
+  static async signInWithExternalSigner(callbackUrl?: string): Promise<AuthResult> {
     try {
       // Build callback URL with return indicator
       // IMPORTANT: Amber concatenates the result directly to the callback URL
@@ -570,7 +685,7 @@ class NostrAuthService {
       const returnUrl = callbackUrl || currentUrl.toString() + "&pubkey="
 
       // Store sign-in flow data in localStorage (persists across page reloads)
-      const signInData = {
+      const signInData: SignInFlowData = {
         flow: "externalSigner",
         timestamp: Date.now(),
         callbackUrl: returnUrl,
@@ -596,7 +711,7 @@ class NostrAuthService {
       // iOS Safari requires a valid URL structure with host/path
       // nostrsigner://sign?... works on iOS
       // Android uses nostrsigner:?... format
-      let nostrSignerURL
+      let nostrSignerURL: string
       if (isIOS) {
         // For iOS, use nostrsigner://sign?... format (valid URL with path)
         nostrSignerURL = "nostrsigner://sign?" + params.toString()
@@ -619,12 +734,12 @@ class NostrAuthService {
         method: "externalSigner",
         pending: true,
       }
-    } catch (error) {
-      logAuthError("NostrAuthService", "External signer sign in failed:", error)
+    } catch (err: unknown) {
+      logAuthError("NostrAuthService", "External signer sign in failed:", err)
       localStorage.removeItem(SIGN_IN_STORAGE_KEY)
       return {
         success: false,
-        error: error instanceof Error ? error.message : "External signer sign in failed",
+        error: err instanceof Error ? err.message : "External signer sign in failed",
       }
     }
   }
@@ -635,7 +750,7 @@ class NostrAuthService {
    *
    * @returns {Promise<AuthResult>}
    */
-  static async handleExternalSignerReturn() {
+  static async handleExternalSignerReturn(): Promise<AuthResult> {
     try {
       // Check if we have a pubkey in the URL - this takes priority
       // Even if localStorage is cleared, if URL has pubkey, we can complete sign-in
@@ -659,7 +774,7 @@ class NostrAuthService {
 
       // If we have localStorage data, validate it
       if (signInDataStr) {
-        const signInData = JSON.parse(signInDataStr)
+        const signInData = JSON.parse(signInDataStr) as SignInFlowData
 
         if (signInData.flow !== "externalSigner") {
           // If URL has pubkey, we can still proceed despite invalid localStorage
@@ -690,12 +805,12 @@ class NostrAuthService {
         hasPubkeyInUrl,
       )
 
-      let publicKey = null
+      let publicKey: string | null = null
 
       // Method 1: Check URL parameters (some signers return data via URL)
       // Amber appends the result directly to the callbackUrl, so check various param names
       // Note: urlParams and nostrReturn already defined above
-      let urlPubkey =
+      let urlPubkey: string | null =
         urlParams.get("pubkey") || urlParams.get("result") || urlParams.get("signature")
 
       logAuth("NostrAuthService", "URL search:", window.location.search)
@@ -709,9 +824,9 @@ class NostrAuthService {
       // "?nostr_return=1", the result becomes "?nostr_return=1{pubkey}"
       // So nostr_return value = "1" + 64-char hex pubkey
       if (!urlPubkey) {
-        const nostrReturn = urlParams.get(SIGNER_RETURN_PARAM) || ""
+        const nostrReturnVal = urlParams.get(SIGNER_RETURN_PARAM) || ""
         // Check if it's "1" followed by 64 hex chars (our marker + pubkey)
-        const concatMatch = nostrReturn.match(/^1([a-f0-9]{64})$/i)
+        const concatMatch = nostrReturnVal.match(/^1([a-f0-9]{64})$/i)
         if (concatMatch) {
           logAuth("NostrAuthService", "Found pubkey concatenated to nostr_return")
           urlPubkey = concatMatch[1]
@@ -770,12 +885,12 @@ class NostrAuthService {
         publicKey,
         method: "externalSigner",
       }
-    } catch (error) {
-      logAuthError("NostrAuthService", "External signer return handling failed:", error)
+    } catch (err: unknown) {
+      logAuthError("NostrAuthService", "External signer return handling failed:", err)
       localStorage.removeItem(SIGN_IN_STORAGE_KEY)
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to complete sign-in",
+        error: err instanceof Error ? err.message : "Failed to complete sign-in",
       }
     }
   }
@@ -785,7 +900,7 @@ class NostrAuthService {
    * Also checks for return URL parameter
    * @returns {boolean}
    */
-  static hasPendingExternalSignerFlow() {
+  static hasPendingExternalSignerFlow(): boolean {
     try {
       // Check if we just returned from signer (URL has return param)
       if (typeof window !== "undefined") {
@@ -806,7 +921,7 @@ class NostrAuthService {
       const signInDataStr = localStorage.getItem(SIGN_IN_STORAGE_KEY)
       if (!signInDataStr) return false
 
-      const signInData = JSON.parse(signInDataStr)
+      const signInData = JSON.parse(signInDataStr) as SignInFlowData
       return signInData.flow === "externalSigner"
     } catch {
       return false
@@ -817,12 +932,12 @@ class NostrAuthService {
    * Read raw text from clipboard (used for signed events)
    * Returns the raw clipboard content without any parsing/transformation
    *
-   * @param {string} fallbackPromptMessage - Message to show if clipboard access fails
+   * @param fallbackPromptMessage - Message to show if clipboard access fails
    * @returns {Promise<string|null>}
    */
   static async getRawClipboardText(
-    fallbackPromptMessage = "Please paste from clipboard:",
-  ) {
+    fallbackPromptMessage: string = "Please paste from clipboard:",
+  ): Promise<string | null> {
     try {
       // Try modern clipboard API first
       if (navigator.clipboard && navigator.clipboard.readText) {
@@ -831,22 +946,22 @@ class NostrAuthService {
           try {
             const text = await navigator.clipboard.readText()
             if (text && text.trim()) return text.trim()
-          } catch (clipboardError) {
+          } catch (clipboardError: unknown) {
             logAuthWarn(
               "NostrAuthService",
               "Clipboard read attempt failed:",
               clipboardError,
             )
           }
-          await new Promise((resolve) => setTimeout(resolve, 100))
+          await new Promise<void>((resolve) => setTimeout(resolve, 100))
         }
       }
 
       // Fallback: prompt user to paste manually
       const manualInput = window.prompt(fallbackPromptMessage)
       return manualInput ? manualInput.trim() : null
-    } catch (error) {
-      logAuthError("NostrAuthService", "Clipboard access failed:", error)
+    } catch (err: unknown) {
+      logAuthError("NostrAuthService", "Clipboard access failed:", err)
       return null
     }
   }
@@ -857,7 +972,7 @@ class NostrAuthService {
    *
    * @returns {Promise<string|null>}
    */
-  static async getPublicKeyFromClipboard() {
+  static async getPublicKeyFromClipboard(): Promise<string | null> {
     const rawText = await this.getRawClipboardText(
       "Please paste your public key from your signer app:\n\n" +
         "(It should have copied it to your clipboard)",
@@ -874,10 +989,10 @@ class NostrAuthService {
    * Parse a public key from various formats
    * Supports: hex, npub1..., nostr:npub1..., URL-encoded, JSON
    *
-   * @param {string} input
+   * @param input
    * @returns {string|null}
    */
-  static parsePublicKey(input) {
+  static parsePublicKey(input: string): string | null {
     if (!input || typeof input !== "string") return null
 
     try {
@@ -910,20 +1025,20 @@ class NostrAuthService {
           ) {
             return this.bytesToHex(bech32Decoded.data)
           }
-        } catch (e) {
-          logAuthWarn("NostrAuthService", "Failed to decode npub:", e)
+        } catch (err: unknown) {
+          logAuthWarn("NostrAuthService", "Failed to decode npub:", err)
         }
       }
 
       // Try parsing as JSON (some signers return JSON with pubkey field)
       try {
-        const parsed = JSON.parse(trimmed)
+        const parsed = JSON.parse(trimmed) as Record<string, unknown>
         if (parsed.pubkey) {
           // Recursively parse the pubkey field (might be hex or npub)
-          return this.parsePublicKey(parsed.pubkey)
+          return this.parsePublicKey(parsed.pubkey as string)
         }
         if (parsed.result) {
-          return this.parsePublicKey(parsed.result)
+          return this.parsePublicKey(parsed.result as string)
         }
       } catch {
         // Not JSON, continue
@@ -943,11 +1058,11 @@ class NostrAuthService {
    *   Use handleSignEventReturn() on page reload to get the signed event.
    * For generated method: Signs locally with session private key.
    *
-   * @param {UnsignedEvent} event
+   * @param event
    * @returns {Promise<SignedEvent>}
    * @throws {Error} If using external signer (will redirect) or if session key not available
    */
-  static async signEvent(event) {
+  static async signEvent(event: UnsignedEvent): Promise<SignedEvent> {
     const method = this.getCurrentMethod()
 
     if (!method) {
@@ -984,15 +1099,19 @@ class NostrAuthService {
    * - Bunker URL flow uses NostrConnectServiceNDK when USE_NDK=true
    * - We need to check both services and use whichever one is connected
    *
-   * @param {UnsignedEvent} event
+   * @param event
    * @returns {Promise<SignedEvent>}
    */
-  static async signEventWithNostrConnect(event) {
+  static async signEventWithNostrConnect(event: UnsignedEvent): Promise<SignedEvent> {
     const USE_NDK = process.env.NEXT_PUBLIC_USE_NDK_NIP46 === "true"
 
     // Import both services
-    const NostrConnectServiceNDK = (await import("./NostrConnectServiceNDK.js")).default
-    const NostrConnectService = (await import("./NostrConnectService.js")).default
+    const NostrConnectServiceNDK: NostrConnectServiceLike = (
+      await import("./NostrConnectServiceNDK")
+    ).default
+    const NostrConnectService: NostrConnectServiceLike = (
+      await import("./NostrConnectService")
+    ).default
 
     // Check which service is actually connected
     const ndkConnected = NostrConnectServiceNDK.isConnected()
@@ -1016,7 +1135,7 @@ class NostrAuthService {
         throw new Error(result.error || "Failed to sign event via Nostr Connect (NDK)")
       }
 
-      return result.event
+      return result.event!
     } else if (legacyConnected) {
       logAuth("NostrAuthService", "Using legacy nostr-tools service for signing")
       const result = await NostrConnectService.signEvent(event)
@@ -1025,7 +1144,7 @@ class NostrAuthService {
         throw new Error(result.error || "Failed to sign event via Nostr Connect")
       }
 
-      return result.event
+      return result.event!
     } else {
       // Neither service is connected
       throw new Error("Nostr Connect session not active. Please reconnect.")
@@ -1034,20 +1153,24 @@ class NostrAuthService {
 
   /**
    * Sign event using browser extension (NIP-07)
-   * @param {UnsignedEvent} event
+   * @param event
    * @returns {Promise<SignedEvent>}
    */
-  static async signEventWithExtension(event) {
+  static async signEventWithExtension(event: UnsignedEvent): Promise<SignedEvent> {
     if (!this.isExtensionAvailable()) {
       throw new Error("Nostr extension not available")
     }
 
     // Ensure pubkey is set
     if (!event.pubkey) {
-      event.pubkey = await window.nostr.getPublicKey()
+      event.pubkey = await window.nostr!.getPublicKey()
     }
 
-    return await window.nostr.signEvent(event)
+    // window.nostr.signEvent expects UnsignedNostrEvent from the global types (nostr.d.ts)
+    // Our local UnsignedEvent is structurally compatible but TS can't verify this across
+    // the two different type names, so we cast through unknown
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (await window.nostr!.signEvent(event as any)) as unknown as SignedEvent
   }
 
   /**
@@ -1058,12 +1181,12 @@ class NostrAuthService {
    * The calling code must handle the return flow separately by checking
    * for pending sign event data when the page reloads.
    *
-   * @param {UnsignedEvent} event
+   * @param event
    * @throws {Error} Always throws to indicate redirect will occur
    */
-  static signEventWithExternalSigner(event) {
+  static signEventWithExternalSigner(event: UnsignedEvent): never {
     // Store the event data for when we return
-    const signData = {
+    const signData: SignInFlowData = {
       flow: "signEvent",
       event,
       timestamp: Date.now(),
@@ -1088,9 +1211,11 @@ class NostrAuthService {
 
     // Navigate to signer app using PWA-compatible method
     // Note: This is an async function now, but we still throw after to indicate the flow changed
-    navigateToSignerUrl(nostrSignerURL, "signEventWithExternalSigner").catch((e) => {
-      logAuthError("NostrAuthService", "Navigation to signer failed:", e)
-    })
+    navigateToSignerUrl(nostrSignerURL, "signEventWithExternalSigner").catch(
+      (err: unknown) => {
+        logAuthError("NostrAuthService", "Navigation to signer failed:", err)
+      },
+    )
 
     // Throw to make it clear this function doesn't return normally
     // The page will redirect, so this code may not even execute
@@ -1101,9 +1226,9 @@ class NostrAuthService {
    * Check if there's a pending sign event flow and retrieve the signed event
    * Call this on page load to complete external signer sign event flow
    *
-   * @returns {Promise<{pending: boolean, event?: SignedEvent, error?: string}>}
+   * @returns {Promise<SignEventReturnResult>}
    */
-  static async handleSignEventReturn() {
+  static async handleSignEventReturn(): Promise<SignEventReturnResult> {
     try {
       const signDataStr = localStorage.getItem(SIGN_IN_STORAGE_KEY)
 
@@ -1111,7 +1236,7 @@ class NostrAuthService {
         return { pending: false }
       }
 
-      const signData = JSON.parse(signDataStr)
+      const signData = JSON.parse(signDataStr) as SignInFlowData
 
       if (signData.flow !== "signEvent") {
         return { pending: false }
@@ -1140,7 +1265,7 @@ class NostrAuthService {
 
       // Try to parse as JSON (signed event)
       try {
-        const signedEvent = JSON.parse(clipboardText)
+        const signedEvent = JSON.parse(clipboardText) as SignedEvent
         if (signedEvent.id && signedEvent.sig && signedEvent.pubkey) {
           return { pending: true, event: signedEvent }
         }
@@ -1148,26 +1273,29 @@ class NostrAuthService {
           pending: true,
           error: "Signed event missing required fields (id, sig, pubkey)",
         }
-      } catch (parseError) {
+      } catch (parseError: unknown) {
         logAuthError("NostrAuthService", "Failed to parse signed event JSON:", parseError)
         return { pending: true, error: "Invalid signed event JSON format" }
       }
-    } catch (error) {
-      logAuthError("NostrAuthService", "Handle sign event return failed:", error)
+    } catch (err: unknown) {
+      logAuthError("NostrAuthService", "Handle sign event return failed:", err)
       localStorage.removeItem(SIGN_IN_STORAGE_KEY)
-      return { pending: false, error: error.message }
+      return { pending: false, error: (err as Error).message }
     }
   }
 
   /**
    * Create a NIP-98 HTTP Auth event for server authentication
    *
-   * @param {string} url - The URL being authenticated to
-   * @param {string} method - HTTP method (GET, POST, etc.)
+   * @param url - The URL being authenticated to
+   * @param method - HTTP method (GET, POST, etc.)
    * @returns {Promise<SignedEvent>}
    */
-  static async createAuthEvent(url, method = "GET") {
-    const event = {
+  static async createAuthEvent(
+    url: string,
+    method: string = "GET",
+  ): Promise<SignedEvent> {
+    const event: UnsignedEvent = {
       kind: 27235, // NIP-98 HTTP Auth
       created_at: Math.floor(Date.now() / 1000),
       tags: [
@@ -1182,10 +1310,10 @@ class NostrAuthService {
 
   /**
    * Store authentication data
-   * @param {string} publicKey
-   * @param {SignInMethod} method
+   * @param publicKey
+   * @param method
    */
-  static storeAuthData(publicKey, method) {
+  static storeAuthData(publicKey: string, method: string): void {
     if (typeof localStorage !== "undefined") {
       localStorage.setItem(PUBLIC_KEY_STORAGE_KEY, publicKey)
       localStorage.setItem(SIGN_IN_METHOD_KEY, method)
@@ -1194,9 +1322,9 @@ class NostrAuthService {
 
   /**
    * Get stored authentication data
-   * @returns {{publicKey: string|null, method: SignInMethod|null}}
+   * @returns {StoredAuthData}
    */
-  static getStoredAuthData() {
+  static getStoredAuthData(): StoredAuthData {
     if (typeof localStorage === "undefined") {
       return { publicKey: null, method: null }
     }
@@ -1211,15 +1339,15 @@ class NostrAuthService {
    * Get current user's public key
    * @returns {string|null}
    */
-  static getCurrentPublicKey() {
+  static getCurrentPublicKey(): string | null {
     return this.getStoredAuthData().publicKey
   }
 
   /**
    * Get current sign-in method
-   * @returns {SignInMethod|null}
+   * @returns {string|null}
    */
-  static getCurrentMethod() {
+  static getCurrentMethod(): string | null {
     return this.getStoredAuthData().method
   }
 
@@ -1227,7 +1355,7 @@ class NostrAuthService {
    * Check if user is authenticated
    * @returns {boolean}
    */
-  static isAuthenticated() {
+  static isAuthenticated(): boolean {
     const { publicKey, method } = this.getStoredAuthData()
     return !!publicKey && !!method && this.METHODS.includes(method)
   }
@@ -1235,7 +1363,7 @@ class NostrAuthService {
   /**
    * Clear authentication data (logout)
    */
-  static clearAuthData() {
+  static clearAuthData(): void {
     if (typeof localStorage !== "undefined") {
       localStorage.removeItem(PUBLIC_KEY_STORAGE_KEY)
       localStorage.removeItem(SIGN_IN_METHOD_KEY)
@@ -1250,11 +1378,11 @@ class NostrAuthService {
 
   /**
    * Encrypt data using NIP-04 (via extension)
-   * @param {string} recipientPubkey
-   * @param {string} plaintext
+   * @param recipientPubkey
+   * @param plaintext
    * @returns {Promise<string>}
    */
-  static async nip04Encrypt(recipientPubkey, plaintext) {
+  static async nip04Encrypt(recipientPubkey: string, plaintext: string): Promise<string> {
     const method = this.getCurrentMethod()
 
     if (method === "extension" && window.nostr?.nip04?.encrypt) {
@@ -1266,11 +1394,11 @@ class NostrAuthService {
 
   /**
    * Decrypt data using NIP-04 (via extension)
-   * @param {string} senderPubkey
-   * @param {string} ciphertext
+   * @param senderPubkey
+   * @param ciphertext
    * @returns {Promise<string>}
    */
-  static async nip04Decrypt(senderPubkey, ciphertext) {
+  static async nip04Decrypt(senderPubkey: string, ciphertext: string): Promise<string> {
     const method = this.getCurrentMethod()
 
     if (method === "extension" && window.nostr?.nip04?.decrypt) {
@@ -1282,12 +1410,15 @@ class NostrAuthService {
 
   /**
    * Get user's relay list from extension
-   * @returns {Promise<Object|null>}
+   * @returns {Promise<Record<string, { read: boolean; write: boolean }> | null>}
    */
-  static async getRelays() {
-    if (this.isExtensionAvailable() && window.nostr.getRelays) {
+  static async getRelays(): Promise<Record<
+    string,
+    { read: boolean; write: boolean }
+  > | null> {
+    if (this.isExtensionAvailable() && window.nostr!.getRelays) {
       try {
-        return await window.nostr.getRelays()
+        return await window.nostr!.getRelays!()
       } catch {
         return null
       }
@@ -1299,10 +1430,10 @@ class NostrAuthService {
 
   /**
    * Simple bech32 decoder for npub
-   * @param {string} bech32str
-   * @returns {{prefix: string, data: Uint8Array}}
+   * @param bech32str
+   * @returns Decoded bech32 data with prefix and byte array
    */
-  static decodeBech32(bech32str) {
+  static decodeBech32(bech32str: string): Bech32Decoded {
     const ALPHABET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
     const str = bech32str.toLowerCase()
 
@@ -1313,7 +1444,7 @@ class NostrAuthService {
     const dataStr = str.slice(sepIndex + 1)
 
     // Decode data part
-    const data = []
+    const data: number[] = []
     for (const char of dataStr) {
       const idx = ALPHABET.indexOf(char)
       if (idx === -1) throw new Error("Invalid character")
@@ -1326,7 +1457,7 @@ class NostrAuthService {
     // Convert 5-bit groups to 8-bit bytes
     let acc = 0
     let bits = 0
-    const result = []
+    const result: number[] = []
 
     for (const value of values) {
       acc = (acc << 5) | value
@@ -1342,10 +1473,10 @@ class NostrAuthService {
 
   /**
    * Convert bytes to hex string
-   * @param {Uint8Array} bytes
-   * @returns {string}
+   * @param bytes
+   * @returns Hex string
    */
-  static bytesToHex(bytes) {
+  static bytesToHex(bytes: Uint8Array): string {
     return Array.from(bytes)
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("")
@@ -1353,10 +1484,10 @@ class NostrAuthService {
 
   /**
    * Convert hex string to bytes
-   * @param {string} hex
-   * @returns {Uint8Array}
+   * @param hex
+   * @returns Byte array
    */
-  static hexToBytes(hex) {
+  static hexToBytes(hex: string): Uint8Array {
     const bytes = new Uint8Array(hex.length / 2)
     for (let i = 0; i < bytes.length; i++) {
       bytes[i] = parseInt(hex.substr(i * 2, 2), 16)
@@ -1368,10 +1499,10 @@ class NostrAuthService {
 
   /**
    * Create a NIP-98 Authorization header value
-   * @param {Object} signedEvent - Signed Nostr event
-   * @returns {string} - Authorization header value
+   * @param signedEvent - Signed Nostr event
+   * @returns Authorization header value
    */
-  static createNip98AuthHeader(signedEvent) {
+  static createNip98AuthHeader(signedEvent: SignedEvent): string {
     const eventJson = JSON.stringify(signedEvent)
     const base64Event = btoa(eventJson)
     return `Nostr ${base64Event}`
@@ -1381,9 +1512,9 @@ class NostrAuthService {
    * Perform NIP-98 authenticated login with the server
    * Creates a NIP-98 event, signs it, and sends to /api/auth/nostr-login
    *
-   * @returns {Promise<{success: boolean, user?: Object, error?: string}>}
+   * @returns {Promise<Nip98LoginResult>}
    */
-  static async nip98Login() {
+  static async nip98Login(): Promise<Nip98LoginResult> {
     logAuth("NostrAuthService", "nip98Login called")
 
     if (!this.isAuthenticated()) {
@@ -1418,26 +1549,26 @@ class NostrAuthService {
         credentials: "include", // Include cookies in response
       })
 
-      const data = await response.json()
+      const data = (await response.json()) as Record<string, unknown>
       logAuth("NostrAuthService", "NIP-98 login response:", response.status, data)
 
       if (!response.ok) {
         return {
           success: false,
-          error: data.error || "Login failed",
-          details: data.details,
+          error: (data.error as string) || "Login failed",
+          details: data.details as string | undefined,
         }
       }
 
       return {
         success: true,
-        user: data.user,
+        user: data.user as Record<string, unknown> | undefined,
       }
-    } catch (error) {
-      logAuthError("NostrAuthService", "NIP-98 login error:", error)
+    } catch (err: unknown) {
+      logAuthError("NostrAuthService", "NIP-98 login error:", err)
       return {
         success: false,
-        error: error.message || "Login failed",
+        error: (err as Error).message || "Login failed",
       }
     }
   }
@@ -1446,11 +1577,11 @@ class NostrAuthService {
    * Create a NIP-98 authenticated fetch wrapper
    * Automatically adds NIP-98 Authorization header to requests
    *
-   * @param {string} url - URL to fetch
-   * @param {Object} options - Fetch options
+   * @param url - URL to fetch
+   * @param options - Fetch options
    * @returns {Promise<Response>}
    */
-  static async nip98Fetch(url, options = {}) {
+  static async nip98Fetch(url: string, options: RequestInit = {}): Promise<Response> {
     if (!this.isAuthenticated()) {
       throw new Error("Not authenticated with Nostr")
     }
@@ -1459,7 +1590,7 @@ class NostrAuthService {
     const fullUrl = url.startsWith("http") ? url : `${window.location.origin}${url}`
 
     // Create and sign NIP-98 event
-    const method = options.method || "GET"
+    const method = (options.method as string) || "GET"
     const signedEvent = await this.createAuthEvent(fullUrl, method)
 
     if (!signedEvent) {
@@ -1470,8 +1601,8 @@ class NostrAuthService {
     const authHeader = this.createNip98AuthHeader(signedEvent)
 
     // Merge headers
-    const headers = {
-      ...options.headers,
+    const headers: Record<string, string> = {
+      ...(options.headers as Record<string, string>),
       Authorization: authHeader,
     }
 
@@ -1488,30 +1619,36 @@ class NostrAuthService {
   /**
    * Storage key for challenge signing flow
    */
-  static CHALLENGE_STORAGE_KEY = "blinkpos_challenge_flow"
+  static CHALLENGE_STORAGE_KEY: string = "blinkpos_challenge_flow"
 
   /**
    * Fetch a challenge from the server for ownership verification
-   * @returns {Promise<{success: boolean, challenge?: string, eventTemplate?: Object, error?: string}>}
+   * @returns {Promise<ChallengeResult>}
    */
-  static async fetchChallenge() {
+  static async fetchChallenge(): Promise<ChallengeResult> {
     try {
       const response = await fetch("/api/auth/challenge")
-      const data = await response.json()
+      const data = (await response.json()) as Record<string, unknown>
 
       if (!response.ok) {
-        return { success: false, error: data.error || "Failed to get challenge" }
+        return {
+          success: false,
+          error: (data.error as string) || "Failed to get challenge",
+        }
       }
 
       return {
         success: true,
-        challenge: data.challenge,
-        eventTemplate: data.eventTemplate,
-        expiresIn: data.expiresIn,
+        challenge: data.challenge as string,
+        eventTemplate: data.eventTemplate as Record<string, unknown> | undefined,
+        expiresIn: data.expiresIn as number | undefined,
       }
-    } catch (error) {
-      logAuthError("NostrAuthService", "Failed to fetch challenge:", error)
-      return { success: false, error: error.message || "Failed to fetch challenge" }
+    } catch (err: unknown) {
+      logAuthError("NostrAuthService", "Failed to fetch challenge:", err)
+      return {
+        success: false,
+        error: (err as Error).message || "Failed to fetch challenge",
+      }
     }
   }
 
@@ -1523,7 +1660,7 @@ class NostrAuthService {
    *
    * @returns {Promise<AuthResult>}
    */
-  static async signInWithExternalSignerChallenge() {
+  static async signInWithExternalSignerChallenge(): Promise<AuthResult> {
     try {
       logAuth("NostrAuthService", "signInWithExternalSignerChallenge() called")
 
@@ -1616,7 +1753,7 @@ class NostrAuthService {
       }
 
       // Store flow data
-      const flowData = {
+      const flowData: ChallengeFlowData = {
         step: "awaitingPubkey",
         challenge: challengeResult.challenge,
         eventTemplate: challengeResult.eventTemplate,
@@ -1653,23 +1790,23 @@ class NostrAuthService {
       )
 
       return { success: true, pending: true, method: "externalSigner" }
-    } catch (error) {
-      logAuthError("NostrAuthService", "Challenge sign-in failed:", error)
+    } catch (err: unknown) {
+      logAuthError("NostrAuthService", "Challenge sign-in failed:", err)
       localStorage.removeItem(this.CHALLENGE_STORAGE_KEY)
-      return { success: false, error: error.message }
+      return { success: false, error: (err as Error).message }
     }
   }
 
   /**
    * Get pending challenge flow data
-   * @returns {Object|null}
+   * @returns {ChallengeFlowData|null}
    */
-  static getPendingChallengeFlow() {
+  static getPendingChallengeFlow(): ChallengeFlowData | null {
     try {
       const data = localStorage.getItem(this.CHALLENGE_STORAGE_KEY)
       if (!data) return null
 
-      const flow = JSON.parse(data)
+      const flow = JSON.parse(data) as ChallengeFlowData
 
       // Check if expired (10 minutes)
       if (Date.now() - flow.timestamp > 10 * 60 * 1000) {
@@ -1687,7 +1824,7 @@ class NostrAuthService {
    * Clear pending challenge flow data
    * Used when flow is stale or needs to be reset
    */
-  static clearPendingChallengeFlow() {
+  static clearPendingChallengeFlow(): void {
     logAuth("NostrAuthService", "clearPendingChallengeFlow called")
     localStorage.removeItem(this.CHALLENGE_STORAGE_KEY)
   }
@@ -1697,7 +1834,7 @@ class NostrAuthService {
    * Called when URL has nostr_return=challenge
    * @returns {Promise<AuthResult>}
    */
-  static async handleChallengeFlowReturn() {
+  static async handleChallengeFlowReturn(): Promise<AuthResult> {
     const urlParams = new URLSearchParams(window.location.search)
     const nostrReturn = urlParams.get(SIGNER_RETURN_PARAM)
 
@@ -1719,7 +1856,7 @@ class NostrAuthService {
 
     if (flow.step === "awaitingPubkey") {
       // Extract pubkey from URL
-      let pubkey = urlParams.get("pubkey") || urlParams.get("result")
+      let pubkey: string | null = urlParams.get("pubkey") || urlParams.get("result")
       logAuth(
         "NostrAuthService",
         "Pubkey from URL params:",
@@ -1788,7 +1925,7 @@ class NostrAuthService {
       window.history.replaceState({}, "", cleanUrl.toString())
 
       // Update flow to step 2: sign challenge
-      const updatedFlow = {
+      const updatedFlow: ChallengeFlowData = {
         ...flow,
         step: "awaitingSignedChallenge",
         pubkey,
@@ -1801,10 +1938,10 @@ class NostrAuthService {
       const challengeEvent = {
         kind: 22242,
         created_at: Math.floor(Date.now() / 1000),
-        content: flow.challenge,
+        content: flow.challenge!,
         tags: [
           ["relay", window.location.origin],
-          ["challenge", flow.challenge],
+          ["challenge", flow.challenge!],
         ],
         pubkey: pubkey,
       }
@@ -1863,7 +2000,7 @@ class NostrAuthService {
    * This happens when Step 1 completed but Step 2 redirect failed or didn't execute
    * @returns {Promise<AuthResult>}
    */
-  static async retrySignChallengeRedirect() {
+  static async retrySignChallengeRedirect(): Promise<AuthResult> {
     logAuth("NostrAuthService", "retrySignChallengeRedirect called")
 
     const flow = this.getPendingChallengeFlow()
@@ -1986,7 +2123,7 @@ class NostrAuthService {
    * Handle return from signing the challenge event
    * @returns {Promise<AuthResult>}
    */
-  static async handleChallengeSignReturn() {
+  static async handleChallengeSignReturn(): Promise<AuthResult> {
     const urlParams = new URLSearchParams(window.location.search)
     const nostrReturn = urlParams.get(SIGNER_RETURN_PARAM)
 
@@ -2012,7 +2149,7 @@ class NostrAuthService {
     // 1. Amber's concatenated format: "signed{json-event}"
     // 2. Standard URL params: ?result= or ?event=
     // 3. Clipboard fallback
-    let signedEventJson = null
+    let signedEventJson: string | null = null
 
     // First check if Amber concatenated the event to nostr_return
     if (nostrReturn.length > 6) {
@@ -2039,15 +2176,15 @@ class NostrAuthService {
     }
 
     // Parse the signed event
-    let signedEvent
+    let signedEvent: SignedEvent
     try {
       // Handle URL-encoded JSON
       const decoded = decodeURIComponent(signedEventJson)
-      signedEvent = JSON.parse(decoded)
-    } catch (e) {
+      signedEvent = JSON.parse(decoded) as SignedEvent
+    } catch (_e: unknown) {
       try {
-        signedEvent = JSON.parse(signedEventJson)
-      } catch (e2) {
+        signedEvent = JSON.parse(signedEventJson) as SignedEvent
+      } catch (_e2: unknown) {
         localStorage.removeItem(this.CHALLENGE_STORAGE_KEY)
         return { success: false, error: "Invalid signed event JSON" }
       }
@@ -2064,17 +2201,17 @@ class NostrAuthService {
         credentials: "include",
       })
 
-      const data = await response.json()
+      const data = (await response.json()) as Record<string, unknown>
 
       if (!response.ok) {
         localStorage.removeItem(this.CHALLENGE_STORAGE_KEY)
-        return { success: false, error: data.error || "Verification failed" }
+        return { success: false, error: (data.error as string) || "Verification failed" }
       }
 
       logAuth("NostrAuthService", "✓ Challenge verified, session established!")
 
       // Store auth data
-      const pubkey = flow.pubkey.toLowerCase()
+      const pubkey = flow.pubkey!.toLowerCase()
       this.storeAuthData(pubkey, "externalSigner")
 
       // Clear flow data
@@ -2086,10 +2223,13 @@ class NostrAuthService {
         method: "externalSigner",
         hasServerSession: true,
       }
-    } catch (error) {
-      logAuthError("NostrAuthService", "Server verification failed:", error)
+    } catch (err: unknown) {
+      logAuthError("NostrAuthService", "Server verification failed:", err)
       localStorage.removeItem(this.CHALLENGE_STORAGE_KEY)
-      return { success: false, error: error.message || "Server verification failed" }
+      return {
+        success: false,
+        error: (err as Error).message || "Server verification failed",
+      }
     }
   }
 
@@ -2097,7 +2237,7 @@ class NostrAuthService {
    * Check if there's a pending challenge flow that needs handling
    * @returns {boolean}
    */
-  static hasPendingChallengeFlow() {
+  static hasPendingChallengeFlow(): boolean {
     if (typeof window === "undefined") return false
 
     const urlParams = new URLSearchParams(window.location.search)
@@ -2118,7 +2258,7 @@ class NostrAuthService {
    * Clear any stuck challenge flow data (for debugging/recovery)
    * Can be called from browser console: NostrAuthService.clearChallengeFlow()
    */
-  static clearChallengeFlow() {
+  static clearChallengeFlow(): string {
     localStorage.removeItem(this.CHALLENGE_STORAGE_KEY)
     logAuth("NostrAuthService", "Challenge flow data cleared")
     return "Challenge flow cleared. You can try signing in again."
@@ -2128,7 +2268,7 @@ class NostrAuthService {
    * Debug helper: Show current challenge flow state
    * Can be called from browser console: NostrAuthService.debugChallengeFlow()
    */
-  static debugChallengeFlow() {
+  static debugChallengeFlow(): DebugChallengeInfo {
     const flow = this.getPendingChallengeFlow()
     const urlParams = new URLSearchParams(window.location.search)
     logAuth("NostrAuthService", "Debug info:")
@@ -2144,9 +2284,9 @@ class NostrAuthService {
 
   /**
    * Verify server session with a simple authenticated request
-   * @returns {Promise<{hasSession: boolean, pubkey?: string}>}
+   * @returns {Promise<ServerSessionResult>}
    */
-  static async verifyServerSession() {
+  static async verifyServerSession(): Promise<ServerSessionResult> {
     try {
       const response = await fetch("/api/auth/session", {
         credentials: "include",
@@ -2156,10 +2296,10 @@ class NostrAuthService {
         return { hasSession: false }
       }
 
-      const data = await response.json()
+      const data = (await response.json()) as Record<string, unknown>
       return {
         hasSession: !!data.authenticated,
-        pubkey: data.pubkey,
+        pubkey: data.pubkey as string | undefined,
       }
     } catch {
       return { hasSession: false }
@@ -2167,11 +2307,5 @@ class NostrAuthService {
   }
 }
 
-// For CommonJS compatibility
-if (typeof module !== "undefined" && module.exports) {
-  module.exports = NostrAuthService
-}
-
-// For ES modules
 export default NostrAuthService
 export { NostrAuthService }

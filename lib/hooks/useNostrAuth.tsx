@@ -18,11 +18,11 @@ import React, {
   createContext,
   useContext,
 } from "react"
-import NostrAuthService from "../nostr/NostrAuthService.js"
-import NostrProfileService from "../nostr/NostrProfileService.js"
+import NostrAuthService from "../nostr/NostrAuthService"
+import NostrProfileService from "../nostr/NostrProfileService"
 import ProfileStorage from "../storage/ProfileStorage"
 import CryptoUtils from "../storage/CryptoUtils"
-import NostrConnectService from "../nostr/NostrConnectService.js"
+import NostrConnectService from "../nostr/NostrConnectService"
 import { AUTH_VERSION_FULL, logAuth, logAuthError, logAuthWarn } from "../version"
 
 // ============= Interfaces =============
@@ -623,7 +623,7 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
               try {
                 // Dynamic import to avoid circular dependency
                 const NostrConnectServiceModule: any = (
-                  await import("../nostr/NostrConnectService.js")
+                  await import("../nostr/NostrConnectService")
                 ).default
 
                 const restoreResult: any =

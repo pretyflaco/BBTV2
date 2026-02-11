@@ -3,6 +3,11 @@ import { useCombinedAuth } from '../lib/hooks/useCombinedAuth';
 import { useBlinkWebSocket } from '../lib/hooks/useBlinkWebSocket';
 import { useCurrencies } from '../lib/hooks/useCurrencies';
 import { useTheme } from '../lib/hooks/useTheme';
+import { useThemeStyles } from '../lib/hooks/useThemeStyles';
+import { useViewNavigation, SPINNER_COLORS } from '../lib/hooks/useViewNavigation';
+import { useDisplaySettings } from '../lib/hooks/useDisplaySettings';
+import { useSoundSettings } from '../lib/hooks/useSoundSettings';
+import { useCommissionSettings } from '../lib/hooks/useCommissionSettings';
 import { useNFC } from './NFCPayment';
 import { isBitcoinCurrency } from '../lib/currency-utils';
 import { getApiUrl, getLnAddressDomain, getPayUrl, getAllValidDomains, getEnvironment } from '../lib/config/api';
@@ -23,18 +28,6 @@ import ExpirySelector from './ExpirySelector';
 import QRCode from 'react-qr-code';
 import { bech32 } from 'bech32';
 import { FORMAT_OPTIONS, FORMAT_LABELS, FORMAT_DESCRIPTIONS, getFormatPreview, BITCOIN_FORMAT_OPTIONS, BITCOIN_FORMAT_LABELS, BITCOIN_FORMAT_DESCRIPTIONS, getBitcoinFormatPreview, formatNumber, NUMPAD_LAYOUT_OPTIONS, NUMPAD_LAYOUT_LABELS, NUMPAD_LAYOUT_DESCRIPTIONS } from '../lib/number-format';
-
-// Spinner colors matching the numpad buttons (rotates on each transition)
-const SPINNER_COLORS = [
-  'border-blue-600',    // Digits
-  'border-green-600',   // OK/Continue
-  'border-orange-500',  // Backspace
-  'border-red-600',     // Clear
-  'border-yellow-500',  // Skip tip
-  'border-purple-600',  // Variety
-  'border-cyan-500',    // Variety
-  'border-pink-500',    // Variety
-];
 
 // Voucher Wallet storage key (user-scoped for security)
 const VOUCHER_WALLET_OLD_KEY = 'blinkpos-voucher-wallet'; // Old global key (for cleanup)
@@ -88,249 +81,71 @@ export default function Dashboard() {
     activeNpubCashWallet, npubCashWallets, addNpubCashWallet
   } = useCombinedAuth();
   const { currencies, loading: currenciesLoading, getAllCurrencies, popularCurrencyIds, addToPopular, removeFromPopular, isPopularCurrency } = useCurrencies();
-  const { theme, cycleTheme, darkMode } = useTheme();
+  const { cycleTheme } = useTheme();
   
-  // Helper functions for consistent theme styling across all menus/submenus
-  const isBlinkClassic = theme === 'blink-classic-dark' || theme === 'blink-classic-light';
-  const isBlinkClassicDark = theme === 'blink-classic-dark';
-  const isBlinkClassicLight = theme === 'blink-classic-light';
+  // Theme styling utilities - extracted to useThemeStyles hook
+  const {
+    theme,
+    darkMode,
+    isBlinkClassic,
+    isBlinkClassicDark,
+    isBlinkClassicLight,
+    getMenuTileClasses,
+    getSubmenuBgClasses,
+    getSubmenuHeaderClasses,
+    getSelectionTileClasses,
+    getSelectionTileActiveClasses,
+    getInputClasses,
+    getWalletCardClasses,
+    getWalletCardActiveClasses,
+    getWalletIconClasses,
+    getWalletUseButtonClasses,
+    getWalletActiveBadgeClasses,
+    getWalletDeleteButtonClasses,
+    getSubmenuOptionClasses,
+    getSubmenuOptionActiveClasses,
+    getPreviewBoxClasses,
+    getSectionLabelClasses,
+    getPrimaryTextClasses,
+    getSecondaryTextClasses,
+    getCheckmarkClasses,
+  } = useThemeStyles();
   
-  // Menu tile styling (for main menu items)
-  const getMenuTileClasses = () => {
-    switch (theme) {
-      case 'blink-classic-dark':
-        return 'bg-transparent border border-blink-classic-border hover:bg-blink-classic-bg hover:border-blink-classic-amber';
-      case 'blink-classic-light':
-        return 'bg-transparent border border-blink-classic-border-light hover:bg-blink-classic-hover-light hover:border-blink-classic-amber';
-      case 'light':
-        return 'bg-gray-50 hover:bg-gray-100';
-      case 'dark':
-      default:
-        return 'bg-gray-900 hover:bg-gray-800';
-    }
-  };
+  // View navigation state - extracted to useViewNavigation hook
+  const {
+    currentView,
+    setCurrentView,
+    isViewTransitioning,
+    setIsViewTransitioning,
+    transitionColorIndex,
+    setTransitionColorIndex,
+    cartCheckoutData,
+    setCartCheckoutData,
+    sideMenuOpen,
+    setSideMenuOpen,
+    toggleSideMenu,
+    navigateToView,
+    currentSpinnerColor,
+    isVoucherRelatedView,
+  } = useViewNavigation();
   
-  // Submenu overlay background
-  const getSubmenuBgClasses = () => {
-    switch (theme) {
-      case 'blink-classic-dark':
-        return 'bg-black';
-      case 'blink-classic-light':
-        return 'bg-white';
-      default:
-        return 'bg-white dark:bg-black';
-    }
-  };
-  
-  // Submenu header styling
-  const getSubmenuHeaderClasses = () => {
-    switch (theme) {
-      case 'blink-classic-dark':
-        return 'bg-black border-b border-blink-classic-border';
-      case 'blink-classic-light':
-        return 'bg-white border-b border-blink-classic-border-light';
-      default:
-        return 'bg-gray-50 dark:bg-blink-dark shadow dark:shadow-black';
-    }
-  };
-  
-  // Selection tile styling (for option buttons in submenus) - unselected state
-  const getSelectionTileClasses = () => {
-    switch (theme) {
-      case 'blink-classic-dark':
-        return 'border-blink-classic-border bg-transparent hover:bg-blink-classic-bg hover:border-blink-classic-amber';
-      case 'blink-classic-light':
-        return 'border-blink-classic-border-light bg-transparent hover:bg-blink-classic-hover-light hover:border-blink-classic-amber';
-      default:
-        return 'border-gray-300 dark:border-gray-700 bg-white dark:bg-blink-dark hover:border-gray-400 dark:hover:border-gray-600';
-    }
-  };
-  
-  // Selection tile styling - selected/active state
-  const getSelectionTileActiveClasses = () => {
-    switch (theme) {
-      case 'blink-classic-dark':
-        return 'border-blink-classic-amber bg-blink-classic-bg';
-      case 'blink-classic-light':
-        return 'border-blink-classic-amber bg-blink-classic-hover-light';
-      default:
-        return 'border-blink-accent bg-blink-accent/10';
-    }
-  };
-  
-  // Input field styling
-  const getInputClasses = () => {
-    switch (theme) {
-      case 'blink-classic-dark':
-        return 'bg-transparent border-blink-classic-border text-white placeholder-gray-500 focus:border-blink-classic-amber focus:ring-blink-classic-amber';
-      case 'blink-classic-light':
-        return 'bg-transparent border-blink-classic-border-light text-black placeholder-gray-400 focus:border-blink-classic-amber focus:ring-blink-classic-amber';
-      default:
-        return 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white';
-    }
-  };
-  
-  // Wallet card styling - inactive state
-  const getWalletCardClasses = () => {
-    switch (theme) {
-      case 'blink-classic-dark':
-        return 'bg-transparent border border-blink-classic-border rounded-xl hover:bg-blink-classic-bg hover:border-blink-classic-amber';
-      case 'blink-classic-light':
-        return 'bg-transparent border border-blink-classic-border-light rounded-xl hover:bg-blink-classic-hover-light hover:border-blink-classic-amber';
-      default:
-        return 'bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg';
-    }
-  };
-  
-  // Wallet card styling - active state (with accent color support)
-  const getWalletCardActiveClasses = (accentColor = 'amber') => {
-    switch (theme) {
-      case 'blink-classic-dark':
-        return 'bg-blink-classic-bg border border-blink-classic-amber rounded-xl';
-      case 'blink-classic-light':
-        return 'bg-blink-classic-hover-light border border-blink-classic-amber rounded-xl';
-      default:
-        // Standard themes use different accent colors based on wallet type
-        if (accentColor === 'purple') return 'bg-purple-50 dark:bg-purple-900/20 border border-purple-400 dark:border-purple-500 rounded-lg';
-        if (accentColor === 'teal') return 'bg-teal-50 dark:bg-teal-900/20 border border-teal-400 dark:border-teal-500 rounded-lg';
-        return 'bg-blink-accent/5 dark:bg-blink-accent/10 border border-blink-accent rounded-lg';
-    }
-  };
-  
-  // Wallet icon container styling
-  const getWalletIconClasses = (isActive) => {
-    switch (theme) {
-      case 'blink-classic-dark':
-        return isActive ? 'bg-blink-classic-bg border border-blink-classic-amber' : 'bg-transparent border border-blink-classic-border';
-      case 'blink-classic-light':
-        return isActive ? 'bg-blink-classic-hover-light border border-blink-classic-amber' : 'bg-transparent border border-blink-classic-border-light';
-      default:
-        return isActive ? 'bg-blink-accent/20' : (darkMode ? 'bg-gray-800' : 'bg-gray-200');
-    }
-  };
-  
-  // Wallet "Use" button styling
-  const getWalletUseButtonClasses = () => {
-    switch (theme) {
-      case 'blink-classic-dark':
-        return 'bg-transparent border border-blink-classic-border text-white hover:bg-blink-classic-bg hover:border-blink-classic-amber';
-      case 'blink-classic-light':
-        return 'bg-transparent border border-blink-classic-border-light text-black hover:bg-blink-classic-hover-light hover:border-blink-classic-amber';
-      default:
-        return darkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-200 text-gray-700 hover:bg-gray-300';
-    }
-  };
-  
-  // Wallet "Active" badge styling
-  const getWalletActiveBadgeClasses = (accentColor = 'amber') => {
-    switch (theme) {
-      case 'blink-classic-dark':
-      case 'blink-classic-light':
-        return 'bg-blink-classic-amber/20 text-blink-classic-amber';
-      default:
-        if (accentColor === 'purple') return 'bg-purple-500/20 text-purple-400';
-        if (accentColor === 'teal') return 'bg-teal-500/20 text-teal-400';
-        return 'bg-blink-accent/20 text-blink-accent';
-    }
-  };
-  
-  // Wallet delete button styling
-  const getWalletDeleteButtonClasses = () => {
-    switch (theme) {
-      case 'blink-classic-dark':
-        return 'text-gray-500 hover:text-red-400 hover:bg-blink-classic-bg';
-      case 'blink-classic-light':
-        return 'text-gray-400 hover:text-red-500 hover:bg-blink-classic-hover-light';
-      default:
-        return darkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100';
-    }
-  };
-  
-  // Submenu option item styling - unselected state (for currency/regional options)
-  const getSubmenuOptionClasses = () => {
-    switch (theme) {
-      case 'blink-classic-dark':
-        return 'bg-transparent border border-blink-classic-border rounded-xl hover:bg-blink-classic-bg hover:border-blink-classic-amber';
-      case 'blink-classic-light':
-        return 'bg-transparent border border-blink-classic-border-light rounded-xl hover:bg-blink-classic-hover-light hover:border-blink-classic-amber';
-      default:
-        return darkMode ? 'bg-gray-900 hover:bg-gray-800 border-2 border-transparent' : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent';
-    }
-  };
-  
-  // Submenu option item styling - selected/active state
-  const getSubmenuOptionActiveClasses = () => {
-    switch (theme) {
-      case 'blink-classic-dark':
-        return 'bg-blink-classic-bg border border-blink-classic-amber rounded-xl';
-      case 'blink-classic-light':
-        return 'bg-blink-classic-hover-light border border-blink-classic-amber rounded-xl';
-      default:
-        return 'bg-blink-accent/20 border-2 border-blink-accent';
-    }
-  };
-  
-  // Preview/info box styling
-  const getPreviewBoxClasses = () => {
-    switch (theme) {
-      case 'blink-classic-dark':
-        return 'bg-blink-classic-bg border border-blink-classic-border rounded-xl';
-      case 'blink-classic-light':
-        return 'bg-blink-classic-hover-light border border-blink-classic-border-light rounded-xl';
-      default:
-        return darkMode ? 'bg-gray-900' : 'bg-gray-50';
-    }
-  };
-  
-  // Section label text styling
-  const getSectionLabelClasses = () => {
-    switch (theme) {
-      case 'blink-classic-dark':
-        return 'text-gray-400';
-      case 'blink-classic-light':
-        return 'text-gray-600';
-      default:
-        return darkMode ? 'text-gray-400' : 'text-gray-600';
-    }
-  };
-  
-  // Primary text styling (titles, main text)
-  const getPrimaryTextClasses = () => {
-    switch (theme) {
-      case 'blink-classic-dark':
-        return 'text-white';
-      case 'blink-classic-light':
-        return 'text-black';
-      default:
-        return darkMode ? 'text-white' : 'text-gray-900';
-    }
-  };
-  
-  // Secondary text styling (descriptions, captions)
-  const getSecondaryTextClasses = () => {
-    switch (theme) {
-      case 'blink-classic-dark':
-        return 'text-gray-400';
-      case 'blink-classic-light':
-        return 'text-gray-500';
-      default:
-        return darkMode ? 'text-gray-400' : 'text-gray-500';
-    }
-  };
-  
-  // Checkmark styling for selected items
-  const getCheckmarkClasses = () => {
-    switch (theme) {
-      case 'blink-classic-dark':
-      case 'blink-classic-light':
-        return 'text-blink-classic-amber';
-      default:
-        return 'text-blink-accent';
-    }
-  };
+  // Display and regional settings - extracted to useDisplaySettings hook
+  const {
+    displayCurrency,
+    setDisplayCurrency,
+    numberFormat,
+    setNumberFormat,
+    bitcoinFormat,
+    setBitcoinFormat,
+    numpadLayout,
+    setNumpadLayout,
+    currencyFilter,
+    setCurrencyFilter,
+    currencyFilterDebounced,
+    clearCurrencyFilter,
+  } = useDisplaySettings();
   
   const [apiKey, setApiKey] = useState(null);
-  const [sideMenuOpen, setSideMenuOpen] = useState(false);
   const [expandedMonths, setExpandedMonths] = useState(new Set());
   const [monthlyTransactions, setMonthlyTransactions] = useState({});
   const [hasMoreTransactions, setHasMoreTransactions] = useState(false);
@@ -340,50 +155,18 @@ export default function Dashboard() {
   const [exportingData, setExportingData] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
-  const [currentView, setCurrentView] = useState('pos'); // 'cart', 'pos', 'voucher', 'multivoucher', or 'transactions'
-  const [isViewTransitioning, setIsViewTransitioning] = useState(false); // Loading animation between views
-  const [transitionColorIndex, setTransitionColorIndex] = useState(0); // Rotating spinner color
-  const [cartCheckoutData, setCartCheckoutData] = useState(null); // Data from cart checkout to prefill POS
-  const [displayCurrency, setDisplayCurrency] = useState('USD'); // 'USD' or 'BTC'
-  const [numberFormat, setNumberFormat] = useState(() => {
-    // Load number format preference from localStorage, default to 'auto' (browser locale)
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('blinkpos-number-format') || 'auto';
-    }
-    return 'auto';
-  });
-  const [bitcoinFormat, setBitcoinFormat] = useState(() => {
-    // Load Bitcoin format preference from localStorage, default to 'bip177'
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('blinkpos-bitcoin-format') || 'sats';
-    }
-    return 'bip177';
-  });
-  const [numpadLayout, setNumpadLayout] = useState(() => {
-    // Load numpad layout preference from localStorage, default to 'calculator' (7-8-9 top)
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('blinkpos-numpad-layout') || 'calculator';
-    }
-    return 'calculator';
-  });
   const [wallets, setWallets] = useState([]);
-  const [soundEnabled, setSoundEnabled] = useState(() => {
-    // Load sound preference from localStorage, default to true
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('soundEnabled');
-      return saved !== null ? JSON.parse(saved) : true;
-    }
-    return true;
-  }); // Sound effects on/off
   
-  const [soundTheme, setSoundTheme] = useState(() => {
-    // Load sound theme from localStorage, default to 'success'
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('soundTheme');
-      return saved || 'success';
-    }
-    return 'success';
-  });
+  // Sound settings - extracted to useSoundSettings hook
+  const {
+    soundEnabled,
+    setSoundEnabled,
+    soundTheme,
+    setSoundTheme,
+    showSoundThemes,
+    setShowSoundThemes,
+    toggleSoundEnabled,
+  } = useSoundSettings();
 
   // Tip functionality state
   const [tipsEnabled, setTipsEnabled] = useState(() => {
@@ -403,7 +186,6 @@ export default function Dashboard() {
   const [usernameValidation, setUsernameValidation] = useState({ status: null, message: '', isValidating: false });
   const [showingInvoice, setShowingInvoice] = useState(false);
   const [showingVoucherQR, setShowingVoucherQR] = useState(false);
-  const [showSoundThemes, setShowSoundThemes] = useState(false);
   const [showTipSettings, setShowTipSettings] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
   const [showKeyManagement, setShowKeyManagement] = useState(false);
@@ -411,8 +193,6 @@ export default function Dashboard() {
   const [showBatchPayments, setShowBatchPayments] = useState(false);
   const [showNetworkOverlay, setShowNetworkOverlay] = useState(false);
   const [showCurrencySettings, setShowCurrencySettings] = useState(false);
-  const [currencyFilter, setCurrencyFilter] = useState('');
-  const [currencyFilterDebounced, setCurrencyFilterDebounced] = useState('');
   const [showRegionalSettings, setShowRegionalSettings] = useState(false);
   const [showAddAccountForm, setShowAddAccountForm] = useState(false);
   const [newAccountApiKey, setNewAccountApiKey] = useState('');
@@ -475,21 +255,18 @@ export default function Dashboard() {
   const [showTipProfileSettings, setShowTipProfileSettings] = useState(false);
   // % Settings submenu state (shows Tip % and Commission % options when voucher wallet connected)
   const [showPercentSettings, setShowPercentSettings] = useState(false);
-  const [showCommissionSettings, setShowCommissionSettings] = useState(false);
-  // Commission settings state (for voucher commission)
-  const [commissionEnabled, setCommissionEnabled] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('blinkpos-commission-enabled') === 'true';
-    }
-    return false;
-  });
-  const [commissionPresets, setCommissionPresets] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('blinkpos-commission-presets');
-      return saved ? JSON.parse(saved) : [1, 2, 3]; // Default commission percentages
-    }
-    return [1, 2, 3];
-  });
+  
+  // Commission settings - extracted to useCommissionSettings hook
+  const {
+    commissionEnabled,
+    setCommissionEnabled,
+    commissionPresets,
+    setCommissionPresets,
+    showCommissionSettings,
+    setShowCommissionSettings,
+    toggleCommissionEnabled,
+  } = useCommissionSettings();
+  
   // Paycode state
   const [showPaycode, setShowPaycode] = useState(false);
   const [paycodeAmount, setPaycodeAmount] = useState(''); // Amount in sats (empty = any amount)
@@ -551,35 +328,14 @@ export default function Dashboard() {
   const voucherManagerRef = useRef(null);
   const cartRef = useRef(null);
   
-  // Save sound preference to localStorage when it changes
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('soundEnabled', JSON.stringify(soundEnabled));
-    }
-  }, [soundEnabled]);
-  
-  // Debounce currency filter (150ms delay)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setCurrencyFilterDebounced(currencyFilter);
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [currencyFilter]);
+  // NOTE: Sound settings persistence is now handled by useSoundSettings hook
   
   // Reset currency filter when closing the currency settings overlay
   useEffect(() => {
     if (!showCurrencySettings) {
-      setCurrencyFilter('');
-      setCurrencyFilterDebounced('');
+      clearCurrencyFilter();
     }
-  }, [showCurrencySettings]);
-  
-  // Save sound theme to localStorage when it changes
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('soundTheme', soundTheme);
-    }
-  }, [soundTheme]);
+  }, [showCurrencySettings, clearCurrencyFilter]);
 
   // Persist tip settings to localStorage
   useEffect(() => {
@@ -594,39 +350,9 @@ export default function Dashboard() {
     }
   }, [tipPresets]);
 
-  // Persist commission settings to localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('blinkpos-commission-enabled', commissionEnabled.toString());
-    }
-  }, [commissionEnabled]);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('blinkpos-commission-presets', JSON.stringify(commissionPresets));
-    }
-  }, [commissionPresets]);
-
-  // Persist number format to localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('blinkpos-number-format', numberFormat);
-    }
-  }, [numberFormat]);
-
-  // Persist Bitcoin format to localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('blinkpos-bitcoin-format', bitcoinFormat);
-    }
-  }, [bitcoinFormat]);
-
-  // Persist numpad layout to localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('blinkpos-numpad-layout', numpadLayout);
-    }
-  }, [numpadLayout]);
+  // NOTE: Commission settings persistence is now handled by useCommissionSettings hook
+  // NOTE: Number format, Bitcoin format, and Numpad layout persistence
+  // are now handled by useDisplaySettings hook
 
   // Persist voucher currency mode to localStorage
   useEffect(() => {
@@ -7748,7 +7474,7 @@ export default function Dashboard() {
         {/* View Transition Loading Overlay */}
         {isViewTransitioning && (
           <div className="fixed inset-0 z-40 bg-white/80 dark:bg-black/80 flex items-center justify-center backdrop-blur-sm">
-            <div className={`animate-spin rounded-full h-12 w-12 border-4 ${SPINNER_COLORS[transitionColorIndex]} border-t-transparent`}></div>
+            <div className={`animate-spin rounded-full h-12 w-12 border-4 ${currentSpinnerColor} border-t-transparent`}></div>
           </div>
         )}
 

@@ -10,6 +10,7 @@ import { useSoundSettings } from '../lib/hooks/useSoundSettings';
 import { useCommissionSettings } from '../lib/hooks/useCommissionSettings';
 import { usePaycodeState } from '../lib/hooks/usePaycodeState';
 import { usePWAInstall } from '../lib/hooks/usePWAInstall';
+import { useAccountManagement } from '../lib/hooks/useAccountManagement';
 import { useNFC } from './NFCPayment';
 import { isBitcoinCurrency } from '../lib/currency-utils';
 import { getApiUrl, getLnAddressDomain, getPayUrl, getAllValidDomains, getEnvironment } from '../lib/config/api';
@@ -204,23 +205,45 @@ export default function Dashboard() {
   const [showCurrencySettings, setShowCurrencySettings] = useState(false);
   const [showRegionalSettings, setShowRegionalSettings] = useState(false);
   const [showAddAccountForm, setShowAddAccountForm] = useState(false);
-  const [newAccountApiKey, setNewAccountApiKey] = useState('');
-  const [newAccountLabel, setNewAccountLabel] = useState('');
-  const [newAccountNwcUri, setNewAccountNwcUri] = useState('');
-  const [newAccountType, setNewAccountType] = useState(null); // null | 'blink' | 'blink-ln-address' | 'nwc' | 'npub-cash'
-  const [addAccountLoading, setAddAccountLoading] = useState(false);
-  const [addAccountError, setAddAccountError] = useState(null);
-  const [nwcValidating, setNwcValidating] = useState(false);
-  const [nwcValidated, setNwcValidated] = useState(null); // { walletPubkey, relays, capabilities }
-  const [newAccountLnAddress, setNewAccountLnAddress] = useState('');
-  const [lnAddressValidating, setLnAddressValidating] = useState(false);
-  const [lnAddressValidated, setLnAddressValidated] = useState(null); // { username, walletId, walletCurrency, lightningAddress }
-  const [newNpubCashAddress, setNewNpubCashAddress] = useState('');
-  const [npubCashValidating, setNpubCashValidating] = useState(false);
-  const [npubCashValidated, setNpubCashValidated] = useState(null); // { lightningAddress, minSendable, maxSendable }
-  const [confirmDeleteWallet, setConfirmDeleteWallet] = useState(null); // { type: 'blink'|'nwc', id: string }
-  const [editingWalletLabel, setEditingWalletLabel] = useState(null); // { type: 'sending'|'blink'|'nwc'|'npub-cash', id?: string }
-  const [editedWalletLabel, setEditedWalletLabel] = useState('');
+  
+  // Account management state - extracted to useAccountManagement hook
+  const {
+    newAccountApiKey,
+    setNewAccountApiKey,
+    newAccountLabel,
+    setNewAccountLabel,
+    newAccountNwcUri,
+    setNewAccountNwcUri,
+    newAccountType,
+    setNewAccountType,
+    newAccountLnAddress,
+    setNewAccountLnAddress,
+    newNpubCashAddress,
+    setNewNpubCashAddress,
+    addAccountLoading,
+    setAddAccountLoading,
+    addAccountError,
+    setAddAccountError,
+    nwcValidating,
+    setNwcValidating,
+    nwcValidated,
+    setNwcValidated,
+    lnAddressValidating,
+    setLnAddressValidating,
+    lnAddressValidated,
+    setLnAddressValidated,
+    npubCashValidating,
+    setNpubCashValidating,
+    npubCashValidated,
+    setNpubCashValidated,
+    confirmDeleteWallet,
+    setConfirmDeleteWallet,
+    editingWalletLabel,
+    setEditingWalletLabel,
+    editedWalletLabel,
+    setEditedWalletLabel,
+    resetNewAccountForm,
+  } = useAccountManagement();
   
   // Voucher Wallet state (separate from regular wallet - for voucher feature)
   // NOTE: Initial state is null - we load ONLY after authentication to ensure user-scoped storage

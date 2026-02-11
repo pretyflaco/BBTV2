@@ -53,6 +53,11 @@ const config = {
   // Exclude patterns
   testPathIgnorePatterns: ["/node_modules/", "/.next/", "/e2e/"],
 
+  // Transform ESM modules in node_modules that need to be compiled
+  transformIgnorePatterns: [
+    "/node_modules/(?!(nostr-tools|@noble/curves|@noble/hashes|@noble/ciphers|@scure/bip32|@scure/bip39|@scure/base)/)",
+  ],
+
   // Coverage configuration
   collectCoverageFrom: [
     "lib/**/*.{js,ts}",

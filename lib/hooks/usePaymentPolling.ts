@@ -1,8 +1,42 @@
 import { useEffect, useRef } from "react"
 import { useNFC } from "../../components/NFCPayment"
 
+// ─── Types ────────────────────────────────────────────────────────
+
+export interface PaymentPollingInvoice {
+  paymentHash?: string
+  paymentRequest?: string
+  satoshis?: number
+  amount?: number
+  memo?: string
+}
+
+export interface PaymentAnimationData {
+  amount: number
+  currency: string
+  memo: string
+  isForwarded: boolean
+}
+
+export interface UsePaymentPollingParams {
+  currentInvoice: PaymentPollingInvoice | null
+  triggerPaymentAnimation: (data: PaymentAnimationData) => void
+  posPaymentReceivedRef: React.RefObject<(() => void) | null>
+  fetchData: () => void
+  soundEnabled: boolean
+  soundTheme: string
+}
+
+export interface UsePaymentPollingReturn {
+  nfcState: unknown
+}
+
+// ─── Constants ────────────────────────────────────────────────────
+
 const POLLING_INTERVAL_MS = 1000 // Poll every 1 second
 const POLLING_TIMEOUT_MS = 15 * 60 * 1000 // Stop polling after 15 minutes
+
+// ─── Hook ─────────────────────────────────────────────────────────
 
 /**
  * Hook for polling payment status and managing NFC payments.
@@ -27,9 +61,9 @@ export function usePaymentPolling({
   fetchData,
   soundEnabled,
   soundTheme,
-}) {
-  const pollingIntervalRef = useRef(null)
-  const pollingStartTimeRef = useRef(null)
+}: UsePaymentPollingParams): UsePaymentPollingReturn {
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const pollingStartTimeRef = useRef<number | null>(null)
 
   // Poll for payment status when we have a pending invoice
   useEffect(() => {
@@ -47,9 +81,9 @@ export function usePaymentPolling({
       )
       pollingStartTimeRef.current = Date.now()
 
-      const pollPaymentStatus = async () => {
+      const pollPaymentStatus = async (): Promise<void> => {
         // Check if we've exceeded the timeout
-        if (Date.now() - pollingStartTimeRef.current > POLLING_TIMEOUT_MS) {
+        if (Date.now() - (pollingStartTimeRef.current ?? 0) > POLLING_TIMEOUT_MS) {
           console.log("⏱️ Payment polling timeout reached (15 min) - stopping")
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current)
@@ -75,7 +109,7 @@ export function usePaymentPolling({
 
             // Trigger payment animation
             triggerPaymentAnimation({
-              amount: currentInvoice.satoshis || currentInvoice.amount,
+              amount: currentInvoice.satoshis || currentInvoice.amount || 0,
               currency: "BTC",
               memo: currentInvoice.memo || `Payment received`,
               isForwarded: true,
@@ -96,7 +130,7 @@ export function usePaymentPolling({
             }
           }
           // For 'pending', 'processing', 'not_found' - keep polling
-        } catch (error) {
+        } catch (error: unknown) {
           console.error("Payment status poll error:", error)
           // Continue polling despite errors
         }
@@ -117,13 +151,13 @@ export function usePaymentPolling({
   }, [currentInvoice?.paymentHash])
 
   // Setup NFC for Boltcard payments
-  const nfcState = useNFC({
+  const nfcState: unknown = useNFC({
     paymentRequest: currentInvoice?.paymentRequest,
     onPaymentSuccess: () => {
       console.log("🎉 NFC Boltcard payment successful")
       // Payment will be detected via webhook + polling
     },
-    onPaymentError: (error) => {
+    onPaymentError: (error: unknown) => {
       console.error("NFC payment error:", error)
     },
     soundEnabled,

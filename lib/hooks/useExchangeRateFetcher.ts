@@ -1,6 +1,43 @@
 import { useEffect } from "react"
 import { isBitcoinCurrency } from "../currency-utils"
 
+// ─── Types ────────────────────────────────────────────────────────
+
+export interface ExchangeRate {
+  satPriceInCurrency: number
+  currency: string
+}
+
+export interface VoucherWallet {
+  apiKey: string
+  [key: string]: unknown
+}
+
+export interface ActiveTipProfile {
+  tipOptions: number[]
+  [key: string]: unknown
+}
+
+export interface ExchangeRateUser {
+  username: string
+  [key: string]: unknown
+}
+
+export interface UseExchangeRateFetcherParams {
+  displayCurrency: string
+  apiKey: string | null
+  setExchangeRate: (rate: ExchangeRate) => void
+  setLoadingRate: (loading: boolean) => void
+  voucherWallet: VoucherWallet | null
+  setUsdExchangeRate: (rate: ExchangeRate | null) => void
+  activeTipProfile: ActiveTipProfile | null
+  setTipPresets: (presets: number[]) => void
+  resetTipRecipient: () => void
+  user: ExchangeRateUser | null
+}
+
+// ─── Hook ─────────────────────────────────────────────────────────
+
 /**
  * Hook for fetching exchange rates and syncing tip profile presets.
  *
@@ -33,10 +70,10 @@ export function useExchangeRateFetcher({
   setTipPresets,
   resetTipRecipient,
   user,
-}) {
+}: UseExchangeRateFetcherParams): void {
   // Fetch exchange rate when currency changes (for sats equivalent display in ItemCart)
   useEffect(() => {
-    const fetchExchangeRate = async () => {
+    const fetchExchangeRate = async (): Promise<void> => {
       if (isBitcoinCurrency(displayCurrency)) {
         setExchangeRate({ satPriceInCurrency: 1, currency: "BTC" })
         return
@@ -66,7 +103,7 @@ export function useExchangeRateFetcher({
         } else {
           console.error("Failed to fetch exchange rate:", data.error)
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error("Exchange rate error:", error)
       } finally {
         setLoadingRate(false)
@@ -78,7 +115,7 @@ export function useExchangeRateFetcher({
 
   // Fetch USD exchange rate for voucher creation (needed for USD/Stablesats vouchers)
   useEffect(() => {
-    const fetchUsdExchangeRate = async () => {
+    const fetchUsdExchangeRate = async (): Promise<void> => {
       // Only fetch if voucher wallet is connected
       if (!voucherWallet?.apiKey) {
         setUsdExchangeRate(null)
@@ -109,7 +146,7 @@ export function useExchangeRateFetcher({
           console.error("[VoucherWallet] Failed to fetch USD exchange rate:", data.error)
           setUsdExchangeRate(null)
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error("[VoucherWallet] USD exchange rate error:", error)
         setUsdExchangeRate(null)
       }
@@ -118,7 +155,7 @@ export function useExchangeRateFetcher({
     fetchUsdExchangeRate()
 
     // Refresh USD rate every 5 minutes while voucher wallet is connected
-    const intervalId = voucherWallet?.apiKey
+    const intervalId: NodeJS.Timeout | null = voucherWallet?.apiKey
       ? setInterval(fetchUsdExchangeRate, 5 * 60 * 1000)
       : null
 

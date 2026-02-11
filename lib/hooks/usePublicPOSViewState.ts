@@ -1,7 +1,13 @@
-import { useState, useCallback } from "react"
+import {
+  useState,
+  useCallback,
+  type Dispatch,
+  type SetStateAction,
+  type RefObject,
+} from "react"
 
 // Spinner colors for transitions
-const SPINNER_COLORS = [
+const SPINNER_COLORS: string[] = [
   "border-blue-600",
   "border-green-600",
   "border-orange-500",
@@ -11,6 +17,29 @@ const SPINNER_COLORS = [
   "border-cyan-500",
   "border-pink-500",
 ]
+
+interface CartRef {
+  resetNavigation?: () => void
+}
+
+interface UsePublicPOSViewStateParams {
+  cartRef?: RefObject<CartRef | null>
+}
+
+interface UsePublicPOSViewStateReturn {
+  currentView: string
+  setCurrentView: Dispatch<SetStateAction<string>>
+  isViewTransitioning: boolean
+  setIsViewTransitioning: Dispatch<SetStateAction<boolean>>
+  transitionColorIndex: number
+  cartCheckoutData: Record<string, unknown> | null
+  setCartCheckoutData: Dispatch<SetStateAction<Record<string, unknown> | null>>
+  showingInvoice: boolean
+  setShowingInvoice: Dispatch<SetStateAction<boolean>>
+  handleViewTransition: (newView: string) => void
+  handleInternalTransition: () => void
+  SPINNER_COLORS: string[]
+}
 
 /**
  * usePublicPOSViewState - Manages view navigation for PublicPOSDashboard
@@ -22,16 +51,21 @@ const SPINNER_COLORS = [
  * - Invoice showing state
  * - View transition handler with spinner color cycling
  */
-export function usePublicPOSViewState({ cartRef } = {}) {
+export function usePublicPOSViewState({
+  cartRef,
+}: UsePublicPOSViewStateParams = {}): UsePublicPOSViewStateReturn {
   const [currentView, setCurrentView] = useState("pos")
   const [isViewTransitioning, setIsViewTransitioning] = useState(false)
   const [transitionColorIndex, setTransitionColorIndex] = useState(0)
-  const [cartCheckoutData, setCartCheckoutData] = useState(null)
+  const [cartCheckoutData, setCartCheckoutData] = useState<Record<
+    string,
+    unknown
+  > | null>(null)
   const [showingInvoice, setShowingInvoice] = useState(false)
 
   // View transition handler
   const handleViewTransition = useCallback(
-    (newView) => {
+    (newView: string) => {
       if (newView === currentView || isViewTransitioning) return
 
       setTransitionColorIndex((prev) => (prev + 1) % SPINNER_COLORS.length)

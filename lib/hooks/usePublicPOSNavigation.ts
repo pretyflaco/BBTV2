@@ -1,4 +1,53 @@
 import { useRef, useEffect, useCallback } from "react"
+import type { RefObject, TouchEvent as ReactTouchEvent } from "react"
+
+/**
+ * Handle interface for POS component ref methods
+ */
+export interface PosRefHandle {
+  handleDigitPress: (d: string) => void
+  handleBackspace: () => void
+  handleClear: () => void
+  handleSubmit: () => void
+  hasValidAmount?: () => boolean
+  handlePlusPress: () => void
+}
+
+/**
+ * Handle interface for Cart component ref methods
+ */
+export interface CartRefHandle {
+  isCartNavActive?: () => boolean
+  handleCartKey: (key: string) => boolean
+  enterLocalNav?: () => void
+  resetNavigation?: () => void
+}
+
+/**
+ * Parameters for usePublicPOSNavigation hook
+ */
+export interface UsePublicPOSNavigationParams {
+  currentView: string
+  showingInvoice: boolean
+  paymentSuccess: boolean
+  sideMenuOpen: boolean
+  showCurrencySettings: boolean
+  showSoundSettings: boolean
+  showPaycode: boolean
+  handleViewTransition: (view: string) => void
+  handlePaymentAnimationHide: () => void
+  posRef: RefObject<PosRefHandle | null>
+  cartRef: RefObject<CartRefHandle | null>
+}
+
+/**
+ * Return type for usePublicPOSNavigation hook
+ */
+export interface UsePublicPOSNavigationReturn {
+  handleTouchStart: (e: ReactTouchEvent) => void
+  handleTouchMove: (e: ReactTouchEvent) => void
+  handleTouchEnd: (e: ReactTouchEvent) => void
+}
 
 /**
  * usePublicPOSNavigation - Touch swipe and keyboard navigation for PublicPOS
@@ -8,7 +57,7 @@ import { useRef, useEffect, useCallback } from "react"
  * - Keyboard navigation: arrow keys for view switching, numpad input for POS,
  *   cart keyboard delegation, escape for cancel/clear
  *
- * @param {Object} deps
+ * @param {UsePublicPOSNavigationParams} deps
  * @param {string} deps.currentView - Current active view ('cart' or 'pos')
  * @param {boolean} deps.showingInvoice - Whether an invoice is currently displayed
  * @param {boolean} deps.paymentSuccess - Whether payment success animation is showing
@@ -20,7 +69,7 @@ import { useRef, useEffect, useCallback } from "react"
  * @param {Function} deps.handlePaymentAnimationHide - Function to dismiss payment animation
  * @param {Object} deps.posRef - Ref to POS component (for numpad methods)
  * @param {Object} deps.cartRef - Ref to Cart component (for keyboard delegation)
- * @returns {Object} { touchStartX, touchStartY, handleTouchStart, handleTouchMove, handleTouchEnd }
+ * @returns {UsePublicPOSNavigationReturn} { handleTouchStart, handleTouchMove, handleTouchEnd }
  */
 export function usePublicPOSNavigation({
   currentView,
@@ -34,23 +83,23 @@ export function usePublicPOSNavigation({
   handlePaymentAnimationHide,
   posRef,
   cartRef,
-}) {
+}: UsePublicPOSNavigationParams): UsePublicPOSNavigationReturn {
   // Touch handling refs for swipe navigation
-  const touchStartX = useRef(0)
-  const touchStartY = useRef(0)
+  const touchStartX = useRef<number>(0)
+  const touchStartY = useRef<number>(0)
 
   // Touch handlers for swipe navigation
-  const handleTouchStart = useCallback((e) => {
+  const handleTouchStart = useCallback((e: ReactTouchEvent) => {
     touchStartX.current = e.touches[0].clientX
     touchStartY.current = e.touches[0].clientY
   }, [])
 
-  const handleTouchMove = useCallback((e) => {
+  const handleTouchMove = useCallback((_e: ReactTouchEvent) => {
     // Prevent default to avoid scrolling during swipe
   }, [])
 
   const handleTouchEnd = useCallback(
-    (e) => {
+    (e: ReactTouchEvent) => {
       const touchEndX = e.changedTouches[0].clientX
       const touchEndY = e.changedTouches[0].clientY
 
@@ -77,10 +126,11 @@ export function usePublicPOSNavigation({
 
   // Keyboard navigation
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       // Skip if menu is open or in input
       if (sideMenuOpen || showCurrencySettings || showSoundSettings || showPaycode) return
-      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return
+      const target = e.target as HTMLElement
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return
 
       // Check if cart is active and can handle keyboard navigation
       if (currentView === "cart" && cartRef.current?.isCartNavActive?.()) {

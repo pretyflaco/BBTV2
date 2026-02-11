@@ -1,5 +1,43 @@
-import { useState, useEffect, useCallback } from "react"
+import {
+  useState,
+  useEffect,
+  useCallback,
+  type Dispatch,
+  type SetStateAction,
+} from "react"
 import { getApiUrl } from "../config/api"
+
+// ─── Types ────────────────────────────────────────────────────────
+
+export interface CurrentInvoice {
+  paymentRequest?: string
+  satAmount?: number
+  amount?: number
+  memo?: string
+}
+
+export interface PaymentData {
+  amount: number
+  currency: string
+  memo?: string
+}
+
+export interface UsePublicPOSPaymentParams {
+  showingInvoice: boolean
+  soundEnabled: boolean
+  posPaymentReceivedRef: React.RefObject<(() => void) | null>
+}
+
+export interface UsePublicPOSPaymentReturn {
+  currentInvoice: CurrentInvoice | null
+  setCurrentInvoice: Dispatch<SetStateAction<CurrentInvoice | null>>
+  paymentSuccess: boolean
+  paymentData: PaymentData | null
+  handleInvoiceChange: (invoice: CurrentInvoice | null) => void
+  handlePaymentAnimationHide: () => void
+}
+
+// ─── Hook ─────────────────────────────────────────────────────────
 
 /**
  * usePublicPOSPayment - Manages payment state and polling for PublicPOSDashboard
@@ -15,10 +53,10 @@ export function usePublicPOSPayment({
   showingInvoice,
   soundEnabled,
   posPaymentReceivedRef,
-}) {
-  const [currentInvoice, setCurrentInvoice] = useState(null)
-  const [paymentSuccess, setPaymentSuccess] = useState(false)
-  const [paymentData, setPaymentData] = useState(null)
+}: UsePublicPOSPaymentParams): UsePublicPOSPaymentReturn {
+  const [currentInvoice, setCurrentInvoice] = useState<CurrentInvoice | null>(null)
+  const [paymentSuccess, setPaymentSuccess] = useState<boolean>(false)
+  const [paymentData, setPaymentData] = useState<PaymentData | null>(null)
 
   // Poll for payment status when showing invoice
   useEffect(() => {
@@ -28,7 +66,7 @@ export function usePublicPOSPayment({
     let pollCount = 0
     const maxPolls = 180 // 15 minutes at 5 second intervals
 
-    const pollPayment = async () => {
+    const pollPayment = async (): Promise<void> => {
       if (cancelled || pollCount >= maxPolls) {
         return
       }
@@ -53,14 +91,14 @@ export function usePublicPOSPayment({
         })
 
         const data = await response.json()
-        const status = data.data?.lnInvoicePaymentStatus?.status
+        const status: string | undefined = data.data?.lnInvoicePaymentStatus?.status
 
         if (status === "PAID") {
           console.log("✅ Public invoice payment received!")
 
           // Set payment data for animation
           setPaymentData({
-            amount: currentInvoice.satAmount || currentInvoice.amount,
+            amount: currentInvoice.satAmount || currentInvoice.amount || 0,
             currency: "BTC", // Always show sats
             memo: currentInvoice.memo,
           })
@@ -69,7 +107,7 @@ export function usePublicPOSPayment({
           // Note: Sound is handled by PaymentAnimation component
           return
         }
-      } catch (err) {
+      } catch (err: unknown) {
         console.warn("Payment poll error:", err)
       }
 
@@ -89,12 +127,12 @@ export function usePublicPOSPayment({
   }, [currentInvoice, showingInvoice, soundEnabled])
 
   // Handle invoice changes from POS
-  const handleInvoiceChange = useCallback((invoice) => {
+  const handleInvoiceChange = useCallback((invoice: CurrentInvoice | null): void => {
     setCurrentInvoice(invoice)
   }, [])
 
   // Handle payment animation dismiss
-  const handlePaymentAnimationHide = useCallback(() => {
+  const handlePaymentAnimationHide = useCallback((): void => {
     setPaymentSuccess(false)
     setPaymentData(null)
     setCurrentInvoice(null)

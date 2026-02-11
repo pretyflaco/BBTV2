@@ -1,15 +1,37 @@
 import { useEffect, useState, useCallback } from "react"
 
-// Theme constants
+// ─── Types ────────────────────────────────────────────────────────
+
+export type Theme = "dark" | "blink-classic-dark" | "light" | "blink-classic-light"
+
+type ThemeListener = (theme: Theme) => void
+
+export interface UseThemeReturn {
+  theme: Theme
+  setTheme: (newTheme: Theme) => void
+  cycleTheme: () => void
+  isDark: boolean
+  isLight: boolean
+  isBlinkClassic: boolean
+  isBlinkClassicDark: boolean
+  isBlinkClassicLight: boolean
+  /** Backward compatibility: true for both dark and blink-classic-dark */
+  darkMode: boolean
+  /** Alias for cycleTheme — for easier migration */
+  toggleDarkMode: () => void
+}
+
+// ─── Theme constants ──────────────────────────────────────────────
+
 export const THEMES = {
   DARK: "dark",
   BLINK_CLASSIC_DARK: "blink-classic-dark",
   LIGHT: "light",
   BLINK_CLASSIC_LIGHT: "blink-classic-light",
-}
+} as const
 
 // Theme order for cycling: dark → BC dark → light → BC light → dark
-const THEME_ORDER = [
+const THEME_ORDER: readonly Theme[] = [
   THEMES.DARK,
   THEMES.BLINK_CLASSIC_DARK,
   THEMES.LIGHT,
@@ -26,20 +48,22 @@ const LEGACY_STORAGE_KEY = "darkMode"
 // with the new value.
 // ───────────────────────────────────────────────────────────────────
 
-let _currentTheme = THEMES.DARK
+let _currentTheme: Theme = THEMES.DARK
 let _initialized = false
-const _listeners = new Set()
+const _listeners: Set<ThemeListener> = new Set()
 
-function _notify() {
+function _notify(): void {
   _listeners.forEach((fn) => fn(_currentTheme))
 }
 
-function _subscribe(fn) {
+function _subscribe(fn: ThemeListener): () => void {
   _listeners.add(fn)
-  return () => _listeners.delete(fn)
+  return () => {
+    _listeners.delete(fn)
+  }
 }
 
-function _setSharedTheme(theme) {
+function _setSharedTheme(theme: Theme): void {
   _currentTheme = theme
   _notify()
 }
@@ -49,10 +73,10 @@ function _setSharedTheme(theme) {
 /**
  * Migrate from old darkMode boolean storage to new theme string
  */
-function migrateFromLegacy() {
+function migrateFromLegacy(): Theme | null {
   const legacyValue = localStorage.getItem(LEGACY_STORAGE_KEY)
   if (legacyValue !== null) {
-    const newTheme = legacyValue === "true" ? THEMES.DARK : THEMES.LIGHT
+    const newTheme: Theme = legacyValue === "true" ? THEMES.DARK : THEMES.LIGHT
     localStorage.setItem(STORAGE_KEY, newTheme)
     localStorage.removeItem(LEGACY_STORAGE_KEY)
     return newTheme
@@ -63,7 +87,7 @@ function migrateFromLegacy() {
 /**
  * Migrate from old 'blink-classic' to new 'blink-classic-dark'
  */
-function migrateBlinkClassic(savedTheme) {
+function migrateBlinkClassic(savedTheme: string): Theme | string {
   if (savedTheme === "blink-classic") {
     localStorage.setItem(STORAGE_KEY, THEMES.BLINK_CLASSIC_DARK)
     return THEMES.BLINK_CLASSIC_DARK
@@ -74,7 +98,7 @@ function migrateBlinkClassic(savedTheme) {
 /**
  * Apply theme class to document
  */
-function applyTheme(theme) {
+function applyTheme(theme: Theme): void {
   const root = document.documentElement
   // Remove all theme classes
   Object.values(THEMES).forEach((t) => root.classList.remove(t))
@@ -96,7 +120,7 @@ function applyTheme(theme) {
  * One-time initialization: read from localStorage, run migrations,
  * set the shared theme value and apply DOM classes.
  */
-function _initTheme() {
+function _initTheme(): void {
   if (_initialized) return
   _initialized = true
 
@@ -109,16 +133,16 @@ function _initTheme() {
   }
 
   // Check for saved theme preference
-  let savedTheme = localStorage.getItem(STORAGE_KEY)
+  let savedTheme: string | null = localStorage.getItem(STORAGE_KEY)
 
   // Migrate old 'blink-classic' to 'blink-classic-dark'
   if (savedTheme) {
-    savedTheme = migrateBlinkClassic(savedTheme)
+    savedTheme = migrateBlinkClassic(savedTheme) as string
   }
 
-  if (savedTheme && THEME_ORDER.includes(savedTheme)) {
-    _currentTheme = savedTheme
-    applyTheme(savedTheme)
+  if (savedTheme && THEME_ORDER.includes(savedTheme as Theme)) {
+    _currentTheme = savedTheme as Theme
+    applyTheme(savedTheme as Theme)
   } else {
     _currentTheme = THEMES.DARK
     applyTheme(THEMES.DARK)
@@ -135,8 +159,8 @@ function _initTheme() {
  * Uses a module-level shared store so every component that calls useTheme()
  * sees the same theme value and re-renders together when it changes.
  */
-export function useTheme() {
-  const [theme, setThemeLocal] = useState(() => {
+export function useTheme(): UseThemeReturn {
+  const [theme, setThemeLocal] = useState<Theme>(() => {
     // Eagerly initialize on first useState call (SSR-safe: falls back to DARK)
     if (typeof window !== "undefined") {
       _initTheme()
@@ -156,7 +180,7 @@ export function useTheme() {
   /**
    * Set a specific theme
    */
-  const setTheme = useCallback((newTheme) => {
+  const setTheme = useCallback((newTheme: Theme): void => {
     if (!THEME_ORDER.includes(newTheme)) {
       console.warn(`Invalid theme: ${newTheme}. Valid themes: ${THEME_ORDER.join(", ")}`)
       return
@@ -169,7 +193,7 @@ export function useTheme() {
   /**
    * Cycle through themes: dark → blink-classic-dark → light → blink-classic-light → dark
    */
-  const cycleTheme = useCallback(() => {
+  const cycleTheme = useCallback((): void => {
     const currentIndex = THEME_ORDER.indexOf(_currentTheme)
     const nextIndex = (currentIndex + 1) % THEME_ORDER.length
     const nextTheme = THEME_ORDER[nextIndex]
@@ -205,7 +229,7 @@ export function useTheme() {
 }
 
 // For testing: reset shared state
-export function _resetThemeStore() {
+export function _resetThemeStore(): void {
   _currentTheme = THEMES.DARK
   _initialized = false
   _listeners.clear()

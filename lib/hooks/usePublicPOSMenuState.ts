@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, type Dispatch, type SetStateAction } from "react"
 
 /**
  * usePublicPOSMenuState - Manages menu/overlay visibility for PublicPOSDashboard
@@ -10,7 +10,28 @@ import { useState, useEffect } from "react"
  * - Sound settings overlay
  * - Paycode overlay + amount + PDF generation state
  */
-export function usePublicPOSMenuState() {
+
+interface UsePublicPOSMenuStateReturn {
+  sideMenuOpen: boolean
+  setSideMenuOpen: Dispatch<SetStateAction<boolean>>
+  showCurrencySettings: boolean
+  setShowCurrencySettings: Dispatch<SetStateAction<boolean>>
+  currencyFilter: string
+  setCurrencyFilter: Dispatch<SetStateAction<string>>
+  currencyFilterDebounced: string
+  showRegionalSettings: boolean
+  setShowRegionalSettings: Dispatch<SetStateAction<boolean>>
+  showSoundSettings: boolean
+  setShowSoundSettings: Dispatch<SetStateAction<boolean>>
+  showPaycode: boolean
+  setShowPaycode: Dispatch<SetStateAction<boolean>>
+  paycodeAmount: string
+  setPaycodeAmount: Dispatch<SetStateAction<string>>
+  paycodeGeneratingPdf: boolean
+  setPaycodeGeneratingPdf: Dispatch<SetStateAction<boolean>>
+}
+
+export function usePublicPOSMenuState(): UsePublicPOSMenuStateReturn {
   const [sideMenuOpen, setSideMenuOpen] = useState(false)
   const [showCurrencySettings, setShowCurrencySettings] = useState(false)
   const [currencyFilter, setCurrencyFilter] = useState("")

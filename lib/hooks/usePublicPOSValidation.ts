@@ -1,6 +1,23 @@
 import { useState, useEffect } from "react"
 import { getApiUrl, getEnvironment } from "../config/api"
 
+interface ValidationError {
+  message: string
+  suggestion: string
+  environment: string
+  canSwitchEnv: boolean
+}
+
+interface UsePublicPOSValidationParams {
+  username: string
+}
+
+interface UsePublicPOSValidationReturn {
+  validationError: ValidationError | null
+  validating: boolean
+  validatedWalletCurrency: string
+}
+
 /**
  * usePublicPOSValidation - Validates a Blink username against the current environment
  *
@@ -11,8 +28,10 @@ import { getApiUrl, getEnvironment } from "../config/api"
  * @param {string} deps.username - The Blink username to validate
  * @returns {Object} { validationError, validating, validatedWalletCurrency }
  */
-export function usePublicPOSValidation({ username }) {
-  const [validationError, setValidationError] = useState(null)
+export function usePublicPOSValidation({
+  username,
+}: UsePublicPOSValidationParams): UsePublicPOSValidationReturn {
+  const [validationError, setValidationError] = useState<ValidationError | null>(null)
   const [validating, setValidating] = useState(true) // Start true - validate on mount
   const [validatedWalletCurrency, setValidatedWalletCurrency] = useState("BTC")
 

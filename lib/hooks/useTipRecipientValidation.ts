@@ -1,6 +1,27 @@
 import { useEffect, useCallback } from "react"
 import { getApiUrl, getAllValidDomains } from "../config/api"
 
+// ─── Types ────────────────────────────────────────────────────────
+
+export interface UsernameValidation {
+  status: "success" | "error" | null
+  message: string
+  isValidating: boolean
+}
+
+export interface UseTipRecipientValidationParams {
+  tipRecipient: string
+  setUsernameValidation: (v: UsernameValidation) => void
+  setTipsEnabled: (v: boolean) => void
+  usernameValidation: UsernameValidation
+}
+
+export interface UseTipRecipientValidationReturn {
+  validateBlinkUsername: (username: string) => Promise<void>
+}
+
+// ─── Hook ─────────────────────────────────────────────────────────
+
 /**
  * Hook for validating tip recipient usernames against the Blink API.
  *
@@ -21,10 +42,10 @@ export function useTipRecipientValidation({
   setUsernameValidation,
   setTipsEnabled,
   usernameValidation,
-}) {
+}: UseTipRecipientValidationParams): UseTipRecipientValidationReturn {
   // Validate Blink username function
   const validateBlinkUsername = useCallback(
-    async (username) => {
+    async (username: string): Promise<void> => {
       if (!username || username.trim() === "") {
         setUsernameValidation({
           status: null,
@@ -37,7 +58,7 @@ export function useTipRecipientValidation({
       // Clean username input - strip @domain.sv if user enters full Lightning Address
       let cleanedUsername = username.trim()
       // Remove any Blink domain suffix (production or staging)
-      const allDomains = getAllValidDomains()
+      const allDomains: string[] = getAllValidDomains()
       for (const domain of allDomains) {
         if (cleanedUsername.toLowerCase().includes(`@${domain}`)) {
           cleanedUsername = cleanedUsername
@@ -85,7 +106,7 @@ export function useTipRecipientValidation({
         const data = await response.json()
 
         if (data.errors) {
-          const errorMessage = data.errors[0].message
+          const errorMessage: string = data.errors[0].message
           if (errorMessage.includes("Invalid value for Username")) {
             setUsernameValidation({
               status: "error",
@@ -99,7 +120,7 @@ export function useTipRecipientValidation({
 
         // usernameAvailable: true means username does NOT exist
         // usernameAvailable: false means username DOES exist
-        const usernameExists = !data.data.usernameAvailable
+        const usernameExists: boolean = !data.data.usernameAvailable
 
         if (usernameExists) {
           setUsernameValidation({
@@ -114,7 +135,7 @@ export function useTipRecipientValidation({
             isValidating: false,
           })
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error("Error checking username:", error)
         setUsernameValidation({
           status: "error",

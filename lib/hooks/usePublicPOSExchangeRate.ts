@@ -1,6 +1,21 @@
 import { useState, useEffect } from "react"
 import { isBitcoinCurrency } from "../currency-utils"
 
+interface ExchangeRate {
+  satPriceInCurrency: number
+  currency: string
+}
+
+interface UsePublicPOSExchangeRateParams {
+  displayCurrency: string
+}
+
+interface UsePublicPOSExchangeRateReturn {
+  exchangeRate: ExchangeRate | null
+  loadingRate: boolean
+  fetchExchangeRate: () => Promise<void>
+}
+
 /**
  * usePublicPOSExchangeRate - Fetches exchange rate for sats equivalent display
  *
@@ -11,11 +26,13 @@ import { isBitcoinCurrency } from "../currency-utils"
  * @param {string} deps.displayCurrency - The current display currency code
  * @returns {Object} { exchangeRate, loadingRate, fetchExchangeRate }
  */
-export function usePublicPOSExchangeRate({ displayCurrency }) {
-  const [exchangeRate, setExchangeRate] = useState(null)
+export function usePublicPOSExchangeRate({
+  displayCurrency,
+}: UsePublicPOSExchangeRateParams): UsePublicPOSExchangeRateReturn {
+  const [exchangeRate, setExchangeRate] = useState<ExchangeRate | null>(null)
   const [loadingRate, setLoadingRate] = useState(false)
 
-  const fetchExchangeRate = async () => {
+  const fetchExchangeRate = async (): Promise<void> => {
     if (isBitcoinCurrency(displayCurrency)) {
       setExchangeRate({ satPriceInCurrency: 1, currency: "BTC" })
       return

@@ -4,18 +4,19 @@
 
 /* Global Font - Source Sans Pro */
 * {
-  font-family: 'Source Sans Pro', sans-serif;
+  font-family: "Source Sans Pro", sans-serif;
   box-sizing: border-box;
 }
 
 /* Inter Tight font for payment amount displays */
 .font-inter-tight,
 .font-inter-tight * {
-  font-family: 'Inter Tight', sans-serif !important;
+  font-family: "Inter Tight", sans-serif !important;
 }
 
 /* Mobile responsiveness fixes */
-html, body {
+html,
+body {
   overflow-x: hidden;
   max-width: 100vw;
 }
@@ -65,92 +66,128 @@ html.light body {
   background-color: #ffffff;
 }
 
-/* Blink Classic theme - Based on Figma design guidelines */
-html.blink-classic {
+/* Blink Classic Dark theme - Based on Figma design guidelines */
+html.blink-classic-dark {
   background-color: #000000;
-  color: #FFFFFF;
+  color: #ffffff;
   --blink-classic-bg: #000000;
-  --blink-classic-surface: #1D1D1D;
+  --blink-classic-surface: #1d1d1d;
   --blink-classic-border: #393939;
-  --blink-classic-text: #FFFFFF;
-  --blink-classic-accent: #FFAD0D;
-  --blink-classic-accent-hover: #FFB82E;
+  --blink-classic-text: #ffffff;
+  --blink-classic-accent: #ffad0d;
+  --blink-classic-accent-hover: #ffb82e;
 }
 
-html.blink-classic body {
+html.blink-classic-dark body {
   background-color: #000000;
 }
 
-/* Blink Classic specific component styles */
-html.blink-classic .blink-classic-card {
+/* Blink Classic Light theme */
+html.blink-classic-light {
+  background-color: #ffffff;
+  color: #1f2937;
+  --blink-classic-bg: #ffffff;
+  --blink-classic-surface: #f2f2f4;
+  --blink-classic-border: #e2e2e4;
+  --blink-classic-text: #1f2937;
+  --blink-classic-accent: #ffad0d;
+  --blink-classic-accent-hover: #ffb82e;
+}
+
+html.blink-classic-light body {
+  background-color: #ffffff;
+}
+
+/* Blink Classic shared component styles (both dark and light) */
+html.blink-classic-dark .blink-classic-card,
+html.blink-classic-light .blink-classic-card {
   background-color: var(--blink-classic-surface);
   border: 1px solid var(--blink-classic-border);
   border-radius: 12px;
 }
 
-html.blink-classic .blink-classic-button {
+html.blink-classic-dark .blink-classic-button,
+html.blink-classic-light .blink-classic-button {
   background-color: transparent;
   border: 1px solid var(--blink-classic-border);
   border-radius: 12px;
   color: var(--blink-classic-text);
-  font-family: 'Source Sans Pro', sans-serif;
+  font-family: "Source Sans Pro", sans-serif;
   font-weight: 700;
 }
 
-html.blink-classic .blink-classic-button:hover {
+html.blink-classic-dark .blink-classic-button:hover {
   background-color: rgba(255, 255, 255, 0.05);
   border-color: var(--blink-classic-accent);
 }
 
-html.blink-classic .blink-classic-button-accent {
+html.blink-classic-light .blink-classic-button:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  border-color: var(--blink-classic-accent);
+}
+
+html.blink-classic-dark .blink-classic-button-accent,
+html.blink-classic-light .blink-classic-button-accent {
   color: var(--blink-classic-accent);
 }
 
-html.blink-classic .blink-classic-button-ok {
+html.blink-classic-dark .blink-classic-button-ok,
+html.blink-classic-light .blink-classic-button-ok {
   background-color: var(--blink-classic-surface);
   border: 1px solid var(--blink-classic-border);
 }
 
-html.blink-classic .blink-classic-button-ok:hover:not(:disabled) {
+html.blink-classic-dark .blink-classic-button-ok:hover:not(:disabled) {
   background-color: #2a2a2a;
   border-color: var(--blink-classic-accent);
 }
 
+html.blink-classic-light .blink-classic-button-ok:hover:not(:disabled) {
+  background-color: #e8e8ea;
+  border-color: var(--blink-classic-accent);
+}
+
 /* Blink Classic header styles */
-html.blink-classic .blink-classic-header {
+html.blink-classic-dark .blink-classic-header,
+html.blink-classic-light .blink-classic-header {
   background-color: var(--blink-classic-bg);
   border-bottom: 1px solid var(--blink-classic-border);
 }
 
 /* Blink Classic input styles */
-html.blink-classic .blink-classic-input {
+html.blink-classic-dark .blink-classic-input,
+html.blink-classic-light .blink-classic-input {
   background-color: var(--blink-classic-surface);
   border: 1px solid var(--blink-classic-border);
   color: var(--blink-classic-text);
   border-radius: 12px;
 }
 
-html.blink-classic .blink-classic-input:focus {
+html.blink-classic-dark .blink-classic-input:focus,
+html.blink-classic-light .blink-classic-input:focus {
   border-color: var(--blink-classic-accent);
   outline: none;
 }
 
 /* Ensure no elements exceed viewport width */
-.container, .max-w-7xl {
+.container,
+.max-w-7xl {
   max-width: 100vw;
   padding-left: 1rem;
   padding-right: 1rem;
 }
 
 @media (min-width: 640px) {
-  .container, .max-w-7xl {
+  .container,
+  .max-w-7xl {
     padding-left: 1.5rem;
     padding-right: 1.5rem;
   }
 }
 
 @media (min-width: 1024px) {
-  .container, .max-w-7xl {
+  .container,
+  .max-w-7xl {
     padding-left: 2rem;
     padding-right: 2rem;
   }
@@ -180,7 +217,9 @@ html.blink-classic .blink-classic-input:focus {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
-  animation: payment-celebration 4s ease-in-out, gradientShift 1s ease-in-out infinite;
+  animation:
+    payment-celebration 4s ease-in-out,
+    gradientShift 1s ease-in-out infinite;
   /* Prevent text selection and callouts but allow touch events */
   -webkit-touch-callout: none;
   -webkit-user-select: none;
@@ -200,14 +239,24 @@ html.blink-classic .blink-classic-input:focus {
 }
 
 @keyframes gradientShift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 @keyframes pulse {
-  from { transform: scale(1); }
-  to { transform: scale(1.05); }
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.05);
+  }
 }
 
 /* Side Menu Animation */
@@ -275,19 +324,19 @@ html.blink-classic .blink-classic-input:focus {
   .side-menu-panel {
     max-width: calc(100vw - 2rem);
   }
-  
+
   /* Reduce padding on mobile for more content space */
   .mobile-content {
     padding-left: 0.75rem;
     padding-right: 0.75rem;
   }
-  
+
   /* Make touch targets larger on mobile */
   .mobile-button {
     min-height: 44px;
     padding: 12px 16px;
   }
-  
+
   /* Month group headers should be larger on mobile */
   .month-group-header {
     min-height: 60px;
@@ -296,7 +345,9 @@ html.blink-classic .blink-classic-input:focus {
 
 /* Dark mode support */
 /* Prevent password managers from auto-triggering on buttons and clickable elements */
-button, .numpad-button, [role="button"] {
+button,
+.numpad-button,
+[role="button"] {
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;

@@ -1,0 +1,782 @@
+/**
+ * VoucherReceipt - High-level voucher layout builder for ESC/POS thermal printers
+ *
+ * Creates Blink voucher receipts that match the existing PDF design (VoucherPDF.js)
+ * but optimized for 58mm and 80mm thermal paper.
+ *
+ * Features:
+ * - Matches Blink voucher branding and layout
+ * - Native QR code printing with raster fallback
+ * - Support for both 58mm and 80mm paper widths
+ * - Logo printing (rasterized from SVG/PNG)
+ * - Configurable options for different use cases
+ */
+
+import ESCPOSBuilder from "./ESCPOSBuilder"
+import { loadLogoForPrint, getBlinkLogoUrl, bitmapToESCPOS } from "./LogoRasterizer"
+
+interface VoucherReceiptOptions {
+  paperWidth?: number
+  qrSize?: number
+  qrErrorCorrection?: string
+  useNativeQR?: boolean
+  showLogo?: boolean
+  logoUrl?: string | null
+  showCutLine?: boolean
+  autoCut?: boolean
+  partialCut?: boolean
+  feedLinesAfter?: number
+  compactMode?: boolean
+}
+
+interface VoucherData {
+  lnurl: string
+  satsAmount?: number
+  displayAmount?: number
+  displayCurrency?: string
+  voucherSecret?: string
+  identifierCode?: string
+  commissionPercent?: number
+  expiresAt?: number | string | Date
+  issuedBy?: string
+  walletCurrency?: string
+  usdAmountCents?: number
+  amount?: number
+}
+
+interface LogoData {
+  bitmap: Uint8Array
+  width: number
+  height: number
+  bytesPerRow: number
+}
+
+type RequiredVoucherReceiptOptions = Required<VoucherReceiptOptions>
+
+/**
+ * Default configuration for voucher receipts
+ */
+const DEFAULT_OPTIONS: RequiredVoucherReceiptOptions = {
+  paperWidth: 80, // Paper width in mm (58 or 80)
+  qrSize: 8, // QR code module size (1-16, higher = larger)
+  qrErrorCorrection: "M", // QR error correction level (L, M, Q, H)
+  useNativeQR: true, // Try native QR first, fallback to raster
+  showLogo: true, // Include Blink logo (rasterized from SVG)
+  logoUrl: null, // Custom logo URL (uses default Blink logo if null)
+  showCutLine: true, // Print cut line after receipt
+  autoCut: false, // Send cut command (for printers with auto-cutter)
+  partialCut: true, // Use partial cut instead of full cut
+  feedLinesAfter: 4, // Lines to feed after receipt (for tear-off)
+  compactMode: false, // Reduce spacing for 58mm paper
+}
+
+/**
+ * Format a voucher secret for display (e.g., "q6pv Y79E ftnZ")
+ * @param {string} secret - Raw voucher secret
+ * @returns {string} Formatted secret with spaces
+ */
+function formatVoucherSecret(secret: string): string {
+  if (!secret) return ""
+  // Clean and split into groups of 4 characters
+  const cleaned = secret.replace(/[^a-zA-Z0-9]/g, "")
+  const groups: string[] = []
+  for (let i = 0; i < cleaned.length && groups.length < 3; i += 4) {
+    groups.push(cleaned.slice(i, i + 4))
+  }
+  return groups.join(" ")
+}
+
+/**
+ * Format expiry date for thermal receipt
+ * @param {number|string|Date} expiresAt - Expiry timestamp or date
+ * @returns {string|null} Formatted date or null
+ */
+function formatExpiry(expiresAt: number | string | Date | undefined): string | null {
+  if (!expiresAt) return null
+  const date = new Date(expiresAt)
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  })
+}
+
+/**
+ * Format satoshi amount with thousands separators
+ * @param {number} sats - Satoshi amount
+ * @returns {string} Formatted amount
+ */
+function formatSats(sats: number | undefined): string {
+  if (typeof sats !== "number") return String(sats)
+  return sats.toLocaleString("en-US")
+}
+
+/**
+ * Format price amount with currency
+ * Uses $X.XX USD format for USD, otherwise CURRENCY X.XX
+ * @param {number|string} amount - Amount value
+ * @param {string} currency - Currency code (e.g., 'USD', 'EUR')
+ * @returns {string} Formatted price
+ */
+function formatPrice(
+  amount: number | string | undefined,
+  currency: string | undefined,
+): string {
+  if (!amount || !currency) return ""
+  const formattedAmount = typeof amount === "number" ? amount.toFixed(2) : amount
+  if (currency === "USD") {
+    return `$${formattedAmount} USD`
+  }
+  return `${currency} ${formattedAmount}`
+}
+
+/**
+ * VoucherReceipt class - builds ESC/POS commands for Blink voucher receipts
+ */
+class VoucherReceipt {
+  options: RequiredVoucherReceiptOptions
+  builder: ESCPOSBuilder
+  _logoData: LogoData | null
+
+  /**
+   * Create a standard voucher receipt
+   * @param {object} voucher - Voucher data
+   * @param {object} options - Receipt options
+   * @returns {Uint8Array} ESC/POS command bytes
+   */
+  static createStandard(
+    voucher: VoucherData,
+    options: VoucherReceiptOptions = {},
+  ): Uint8Array {
+    return new VoucherReceipt(options).build(voucher).getBytes()
+  }
+
+  /**
+   * Create a minimal voucher receipt
+   * @param {object} voucher - Voucher data
+   * @param {object} options - Receipt options
+   * @returns {Uint8Array} ESC/POS command bytes
+   */
+  static createMinimal(
+    voucher: VoucherData,
+    options: VoucherReceiptOptions = {},
+  ): Uint8Array {
+    return new VoucherReceipt(options).buildMinimal(voucher).getBytes()
+  }
+
+  /**
+   * Create a reissue voucher receipt
+   * @param {object} voucher - Voucher data
+   * @param {object} options - Receipt options
+   * @returns {Uint8Array} ESC/POS command bytes
+   */
+  static createReissue(
+    voucher: VoucherData,
+    options: VoucherReceiptOptions = {},
+  ): Uint8Array {
+    return new VoucherReceipt(options).buildReissue(voucher).getBytes()
+  }
+
+  /**
+   * Create receipt and return as Base64 for deep links
+   * @param {object} voucher - Voucher data
+   * @param {object} options - Receipt options
+   * @returns {string} Base64 encoded ESC/POS commands
+   */
+  static createBase64(voucher: VoucherData, options: VoucherReceiptOptions = {}): string {
+    return new VoucherReceipt(options).build(voucher).toBase64()
+  }
+
+  /**
+   * Create a voucher receipt builder
+   * @param {object} options - Receipt options (merged with defaults)
+   */
+  constructor(options: VoucherReceiptOptions = {}) {
+    this.options = { ...DEFAULT_OPTIONS, ...options }
+    this.builder = new ESCPOSBuilder({
+      paperWidth: this.options.paperWidth,
+    })
+    this._logoData = null // Cached logo bitmap
+  }
+
+  /**
+   * Pre-load the logo for faster build
+   * Call this before build() to avoid async in build
+   * @returns {Promise<void>}
+   */
+  async preloadLogo(): Promise<void> {
+    if (!this.options.showLogo) return
+
+    try {
+      const logoUrl = this.options.logoUrl || getBlinkLogoUrl()
+      this._logoData = await loadLogoForPrint(logoUrl, {
+        paperWidth: this.options.paperWidth,
+      })
+    } catch (err: unknown) {
+      console.warn("[VoucherReceipt] Failed to load logo:", (err as Error).message)
+      this._logoData = null
+    }
+  }
+
+  /**
+   * Build a complete voucher receipt
+   *
+   * @param {object} voucher - Voucher data
+   * @param {string} voucher.lnurl - LNURL for QR code
+   * @param {number} voucher.displayAmount - Price in display currency
+   * @param {string} voucher.displayCurrency - Display currency code (e.g., 'KES')
+   * @param {number} voucher.satsAmount - Value in satoshis
+   * @param {string} voucher.voucherSecret - 12-character voucher secret
+   * @param {string} voucher.identifierCode - 8-character identifier
+   * @param {number} voucher.commissionPercent - Commission percentage (optional)
+   * @param {number|string} voucher.expiresAt - Expiry timestamp (optional)
+   * @param {string} voucher.issuedBy - Username who issued voucher (optional)
+   * @param {object} options - Override options for this receipt
+   * @returns {VoucherReceipt} this (for chaining)
+   */
+  build(voucher: VoucherData, options: VoucherReceiptOptions = {}): VoucherReceipt {
+    const opts: RequiredVoucherReceiptOptions = { ...this.options, ...options }
+    const b = this.builder
+    const compact = opts.compactMode || opts.paperWidth === 58
+    const labelWidth = compact ? 12 : 14
+
+    // Initialize printer
+    b.initialize()
+
+    // ===== HEADER WITH LOGO =====
+    b.align("center")
+
+    // Print logo if available, otherwise text
+    if (opts.showLogo && this._logoData) {
+      this._printLogo(this._logoData)
+      b.emptyLines(1)
+    } else {
+      // Fallback to text header
+      b.bold(true)
+      b.textSize(2, 2)
+      b.line("blink")
+      b.textSize(1, 1)
+      b.bold(false)
+      b.emptyLines(1)
+    }
+
+    // ===== INFO SECTION =====
+    b.align("left")
+
+    // Check if this is a USD voucher
+    const isUsdVoucher = voucher.walletCurrency === "USD"
+
+    if (isUsdVoucher && voucher.usdAmountCents) {
+      // USD Voucher: Show USD value as primary, display currency as secondary, omit sats
+      const usdValue = `$${(voucher.usdAmountCents / 100).toFixed(2)} USD`
+      b.labelValue("Value:", usdValue, { labelWidth })
+
+      // Show display currency as "Price" if different from USD
+      if (
+        voucher.displayAmount &&
+        voucher.displayCurrency &&
+        voucher.displayCurrency !== "USD"
+      ) {
+        b.labelValue(
+          "Price:",
+          formatPrice(voucher.displayAmount, voucher.displayCurrency),
+          { labelWidth },
+        )
+      }
+    } else {
+      // BTC Voucher: Show fiat price first (if available), then sats as value
+      if (
+        voucher.displayAmount &&
+        voucher.displayCurrency &&
+        voucher.displayCurrency !== "BTC"
+      ) {
+        b.labelValue(
+          "Price:",
+          formatPrice(voucher.displayAmount, voucher.displayCurrency),
+          { labelWidth },
+        )
+      }
+
+      // Value in sats
+      if (voucher.satsAmount) {
+        b.labelValue("Value:", `${formatSats(voucher.satsAmount)} sats`, { labelWidth })
+      }
+    }
+
+    // Identifier
+    if (voucher.identifierCode) {
+      b.labelValue("Identifier:", voucher.identifierCode.toUpperCase(), { labelWidth })
+    }
+
+    // Commission (if applicable)
+    if (voucher.commissionPercent !== undefined) {
+      b.labelValue("Commission:", `${voucher.commissionPercent}%`, { labelWidth })
+    }
+
+    // Expires
+    if (voucher.expiresAt) {
+      b.labelValue("Expires:", formatExpiry(voucher.expiresAt)!, { labelWidth })
+    }
+
+    // Issued by
+    if (voucher.issuedBy) {
+      b.labelValue("Issued by:", voucher.issuedBy, { labelWidth })
+    }
+
+    b.emptyLines(1)
+
+    // ===== QR CODE =====
+    b.align("center")
+    this._buildQRSection(voucher.lnurl, opts, compact)
+    b.emptyLines(1)
+
+    // ===== VOUCHER SECRET =====
+    if (voucher.voucherSecret) {
+      b.align("center")
+      b.line("voucher secret")
+      b.bold(true)
+      b.line(formatVoucherSecret(voucher.voucherSecret))
+      b.bold(false)
+      b.emptyLines(1)
+    }
+
+    // ===== FOOTER =====
+    b.align("center")
+    b.line("blink.sv")
+
+    // Paper feed and optional auto-cut
+    if (opts.autoCut) {
+      if (opts.partialCut) {
+        b.partialCut()
+      } else {
+        b.cut()
+      }
+    } else {
+      b.feed(opts.feedLinesAfter)
+    }
+
+    return this
+  }
+
+  /**
+   * Print a rasterized logo image
+   * @private
+   * @param {object} logoData - Logo bitmap data from LogoRasterizer
+   */
+  _printLogo(logoData: LogoData): void {
+    if (!logoData || !logoData.bitmap) return
+
+    const { bitmap, width, height } = logoData
+
+    // Generate ESC/POS raster image commands
+    const escposData = bitmapToESCPOS(bitmap, width, height, 0)
+
+    // Append raw bytes to builder
+    this.builder.raw(...escposData)
+  }
+
+  /**
+   * Build header section with Blink branding
+   * @private
+   */
+  _buildHeader(opts: RequiredVoucherReceiptOptions, compact: boolean): void {
+    const b = this.builder
+
+    b.emptyLines(1)
+    b.align("center")
+
+    // Print logo if available
+    if (opts.showLogo && this._logoData) {
+      this._printLogo(this._logoData)
+    } else {
+      // Fallback to text header
+      b.bold(true)
+      b.textSize(2, 2)
+      b.line("BLINK")
+      b.textSize(1, 1)
+      b.bold(false)
+    }
+
+    b.emptyLines(compact ? 0 : 1)
+    b.font("B")
+    b.line("Bitcoin Voucher")
+    b.font("A")
+    b.align("left")
+
+    b.emptyLines(compact ? 0 : 1)
+  }
+
+  /**
+   * Build voucher information section
+   * @private
+   */
+  _buildInfoSection(
+    voucher: VoucherData,
+    opts: RequiredVoucherReceiptOptions,
+    compact: boolean,
+  ): void {
+    const b = this.builder
+    const labelWidth = opts.paperWidth === 58 ? 10 : 14
+    const isUsdVoucher = voucher.walletCurrency === "USD"
+    const isBtcDisplayCurrency =
+      !voucher.displayCurrency ||
+      voucher.displayCurrency === "BTC" ||
+      voucher.displayCurrency === "BTC-BIP177"
+
+    b.emptyLines(compact ? 0 : 1)
+
+    // Helper to format USD amount from cents
+    const formatUsdAmount = (cents: number): string | null => {
+      if (!cents) return null
+      return `$${(cents / 100).toFixed(2)} USD`
+    }
+
+    if (isUsdVoucher) {
+      // USD VOUCHER: Value is USD amount (commission already deducted in usdAmountCents)
+      if (voucher.usdAmountCents) {
+        const usdValue = formatUsdAmount(voucher.usdAmountCents)
+        b.labelValue("Value:", usdValue!, { labelWidth, valueBold: true })
+      }
+
+      // Price in display currency
+      if (isBtcDisplayCurrency) {
+        // Edge case: BTC display + USD voucher - show original USD as Price (before commission)
+        if (
+          voucher.usdAmountCents &&
+          voucher.commissionPercent &&
+          voucher.commissionPercent > 0
+        ) {
+          // Calculate original USD price before commission was deducted
+          const originalUsdCents = Math.round(
+            voucher.usdAmountCents / (1 - voucher.commissionPercent / 100),
+          )
+          const usdPrice = formatUsdAmount(originalUsdCents)
+          b.labelValue("Price:", usdPrice!, { labelWidth, valueBold: true })
+        }
+      } else if (voucher.displayAmount && voucher.displayCurrency) {
+        // Normal case: show display currency as Price (without commission subtracted)
+        const fiatAmount = formatPrice(voucher.displayAmount, voucher.displayCurrency)
+        b.labelValue("Price:", fiatAmount, { labelWidth, valueBold: true })
+      }
+    } else {
+      // BTC VOUCHER
+      if (isBtcDisplayCurrency) {
+        // BTC display + BTC voucher: only show Value (sats), no Price
+        if (voucher.satsAmount) {
+          const satsValue = `${formatSats(voucher.satsAmount)} sats`
+          b.labelValue("Value:", satsValue, { labelWidth, valueBold: true })
+        }
+      } else {
+        // Fiat display + BTC voucher: show Price (fiat) first, then Value (sats)
+        if (voucher.displayAmount && voucher.displayCurrency) {
+          const fiatAmount = formatPrice(voucher.displayAmount, voucher.displayCurrency)
+          b.labelValue("Price:", fiatAmount, { labelWidth, valueBold: true })
+        }
+        if (voucher.satsAmount) {
+          const satsValue = `${formatSats(voucher.satsAmount)} sats`
+          b.labelValue("Value:", satsValue, { labelWidth, valueBold: true })
+        }
+      }
+    }
+
+    // Identifier code
+    if (voucher.identifierCode) {
+      const id = voucher.identifierCode.toUpperCase()
+      b.labelValue("ID:", id, { labelWidth, valueBold: true })
+    }
+
+    // Commission (if applicable) - skip for BTC/BTC case (commission was skipped)
+    if (voucher.commissionPercent && voucher.commissionPercent > 0) {
+      b.labelValue("Commission:", `${voucher.commissionPercent}%`, { labelWidth })
+    }
+
+    // Expiry date
+    const formattedExpiry = formatExpiry(voucher.expiresAt)
+    if (formattedExpiry) {
+      b.labelValue("Valid until:", formattedExpiry, { labelWidth })
+    }
+
+    // Issued by
+    if (voucher.issuedBy) {
+      b.labelValue("Issued by:", voucher.issuedBy, { labelWidth })
+    }
+
+    b.emptyLines(compact ? 0 : 1)
+  }
+
+  /**
+   * Build QR code section
+   * @private
+   */
+  _buildQRSection(
+    lnurl: string,
+    opts: RequiredVoucherReceiptOptions,
+    compact: boolean,
+  ): void {
+    const b = this.builder
+
+    if (!lnurl) {
+      b.align("center")
+      b.line("[QR CODE MISSING]")
+      b.align("left")
+      return
+    }
+
+    b.emptyLines(compact ? 1 : 2)
+    b.align("center")
+
+    // Calculate QR size based on paper width and data length
+    let qrSize = opts.qrSize
+    if (opts.paperWidth === 58) {
+      qrSize = Math.min(qrSize, 6) // Smaller for 58mm
+    }
+
+    // Adjust for LNURL length (they can be long)
+    if (lnurl.length > 300) {
+      qrSize = Math.min(qrSize, 4)
+    } else if (lnurl.length > 150) {
+      qrSize = Math.min(qrSize, 5)
+    }
+
+    if (opts.useNativeQR) {
+      // Native QR code (preferred - smaller data, faster print)
+      b.qrCode(lnurl, {
+        size: qrSize,
+        errorCorrection: opts.qrErrorCorrection as "L" | "M" | "Q" | "H",
+      })
+    } else {
+      // Rasterized QR placeholder
+      // Note: Actual rasterization requires QRCodeRasterizer
+      b.line("[RASTER QR - Use QRCodeRasterizer]")
+    }
+
+    b.emptyLines(compact ? 1 : 2)
+    b.align("left")
+  }
+
+  /**
+   * Build voucher secret section
+   * @private
+   */
+  _buildSecretSection(secret: string, compact: boolean): void {
+    const b = this.builder
+    const formattedSecret = formatVoucherSecret(secret)
+
+    b.dashedLine()
+    b.emptyLines(compact ? 0 : 1)
+
+    b.align("center")
+    b.font("B")
+    b.line("voucher secret")
+    b.font("A")
+
+    b.bold(true)
+    b.textSize(compact ? 1 : 2, compact ? 1 : 2)
+    b.line(formattedSecret)
+    b.textSize(1, 1)
+    b.bold(false)
+
+    b.emptyLines(compact ? 0 : 1)
+    b.dashedLine()
+    b.align("left")
+  }
+
+  /**
+   * Build footer section
+   * @private
+   */
+  _buildFooter(opts: RequiredVoucherReceiptOptions, compact: boolean): void {
+    const b = this.builder
+
+    b.emptyLines(compact ? 1 : 2)
+    b.align("center")
+    b.line("blink.sv")
+    b.align("left")
+    b.emptyLines(1)
+  }
+
+  /**
+   * Build a minimal receipt (just QR and essential info)
+   * Useful for high-volume printing or when paper is limited
+   *
+   * @param {object} voucher - Voucher data
+   * @param {object} options - Override options
+   * @returns {VoucherReceipt}
+   */
+  buildMinimal(
+    voucher: VoucherData,
+    options: VoucherReceiptOptions = {},
+  ): VoucherReceipt {
+    const opts: RequiredVoucherReceiptOptions = {
+      ...this.options,
+      ...options,
+      compactMode: true,
+    }
+    const b = this.builder
+
+    b.initialize()
+
+    // Minimal header
+    b.align("center")
+    b.bold(true)
+    b.line("BLINK VOUCHER")
+    b.bold(false)
+
+    // Value only
+    if (voucher.satsAmount) {
+      b.line(`${formatSats(voucher.satsAmount)} sats`)
+    }
+
+    b.dashedLine()
+
+    // QR code
+    this._buildQRSection(voucher.lnurl, opts, true)
+
+    // Secret
+    if (voucher.voucherSecret) {
+      const formattedSecret = formatVoucherSecret(voucher.voucherSecret)
+      b.line(formattedSecret)
+    }
+
+    // ID for reference
+    if (voucher.identifierCode) {
+      b.font("B")
+      b.line(`ID: ${voucher.identifierCode.toUpperCase()}`)
+      b.font("A")
+    }
+
+    b.dashedLine()
+    b.line("blink.sv")
+    b.align("left")
+
+    b.feed(opts.feedLinesAfter)
+
+    return this
+  }
+
+  /**
+   * Build a reissue receipt with full LNURL text
+   * For replacement vouchers where user may need to manually enter LNURL
+   *
+   * @param {object} voucher - Voucher data
+   * @param {object} options - Override options
+   * @returns {VoucherReceipt}
+   */
+  buildReissue(
+    voucher: VoucherData,
+    options: VoucherReceiptOptions = {},
+  ): VoucherReceipt {
+    const opts: RequiredVoucherReceiptOptions = { ...this.options, ...options }
+    const b = this.builder
+    const compact = opts.compactMode || opts.paperWidth === 58
+
+    b.initialize()
+
+    // Header with logo or text
+    b.emptyLines(1)
+    b.align("center")
+
+    if (opts.showLogo && this._logoData) {
+      this._printLogo(this._logoData)
+    } else {
+      b.bold(true)
+      b.textSize(2, 2)
+      b.line("BLINK")
+      b.textSize(1, 1)
+      b.bold(false)
+    }
+
+    b.emptyLines(1)
+
+    // Inverted "REISSUED" label
+    b.invert(true)
+    b.line(" REISSUED VOUCHER ")
+    b.invert(false)
+    b.align("left")
+    b.emptyLines(1)
+
+    // Standard info and QR
+    b.dashedLine()
+    this._buildInfoSection(voucher, opts, compact)
+    b.dashedLine()
+    this._buildQRSection(voucher.lnurl, opts, compact)
+
+    // Secret
+    if (voucher.voucherSecret) {
+      this._buildSecretSection(voucher.voucherSecret, compact)
+    }
+
+    // Full LNURL text for manual entry
+    if (voucher.lnurl && opts.paperWidth === 80) {
+      b.emptyLines(1)
+      b.align("center")
+      b.font("B")
+      b.line("LNURL (for manual entry):")
+      b.font("A")
+      b.emptyLines(1)
+
+      // Print LNURL in chunks that fit the paper width
+      const chunkSize = this.builder.charsPerLine - 2
+      for (let i = 0; i < voucher.lnurl.length; i += chunkSize) {
+        b.line(voucher.lnurl.slice(i, i + chunkSize))
+      }
+      b.align("left")
+    }
+
+    // Footer
+    this._buildFooter(opts, compact)
+
+    if (opts.autoCut) {
+      opts.partialCut ? b.partialCut() : b.cut()
+    } else {
+      b.feed(opts.feedLinesAfter)
+    }
+
+    return this
+  }
+
+  /**
+   * Get the built ESC/POS commands as Uint8Array
+   * @returns {Uint8Array}
+   */
+  getBytes(): Uint8Array {
+    return this.builder.build()
+  }
+
+  /**
+   * Get the built ESC/POS commands as Base64 string
+   * Useful for deep links to companion app
+   * @returns {string}
+   */
+  toBase64(): string {
+    return this.builder.toBase64()
+  }
+
+  /**
+   * Get the underlying ESCPOSBuilder for advanced customization
+   * @returns {ESCPOSBuilder}
+   */
+  getBuilder(): ESCPOSBuilder {
+    return this.builder
+  }
+
+  /**
+   * Get the byte count of the built receipt
+   * @returns {number}
+   */
+  get byteCount(): number {
+    return this.builder.length
+  }
+
+  /**
+   * Create a new VoucherReceipt with the same options
+   * @returns {VoucherReceipt}
+   */
+  clone(): VoucherReceipt {
+    return new VoucherReceipt(this.options)
+  }
+}
+
+export default VoucherReceipt
+export { DEFAULT_OPTIONS, formatVoucherSecret, formatExpiry, formatSats }
+export type { VoucherReceiptOptions, VoucherData, LogoData }

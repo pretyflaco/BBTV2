@@ -222,12 +222,12 @@ describe('useDashboardState', () => {
       expect('hasRate' in result.current.exchangeRate).toBe(true);
     });
 
-    it('should expose conversion utilities', () => {
+    it('should expose exchange rate actions', () => {
       const { result } = renderHook(() => useDashboardState());
 
-      expect(typeof result.current.exchangeRate.satsToFiat).toBe('function');
-      expect(typeof result.current.exchangeRate.fiatToSats).toBe('function');
-      expect(typeof result.current.exchangeRate.formatFiatAmount).toBe('function');
+      expect(typeof result.current.exchangeRate.setExchangeRate).toBe('function');
+      expect(typeof result.current.exchangeRate.clearExchangeRate).toBe('function');
+      expect(typeof result.current.exchangeRate.setLoadingRate).toBe('function');
     });
 
     it('should start with no exchange rate', () => {
@@ -247,13 +247,13 @@ describe('useDashboardState', () => {
       const { result } = renderHook(() => useDashboardState());
 
       expect('currentInvoice' in result.current.invoice).toBe(true);
-      expect('isPolling' in result.current.invoice).toBe(true);
+      expect('hasInvoice' in result.current.invoice).toBe(true);
     });
 
     it('should expose invoice actions', () => {
       const { result } = renderHook(() => useDashboardState());
 
-      expect(typeof result.current.invoice.createInvoice).toBe('function');
+      expect(typeof result.current.invoice.setCurrentInvoice).toBe('function');
       expect(typeof result.current.invoice.clearInvoice).toBe('function');
     });
 

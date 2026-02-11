@@ -1,38 +1,15 @@
 /**
  * Tests for useWalletState hook
+ *
+ * Tests the simplified raw state hook that provides apiKey, wallets,
+ * and basic setters/clear actions. Fetch logic remains in Dashboard.js.
  */
 
-import { renderHook, act, waitFor } from '@testing-library/react';
-import { 
-  useWalletState, 
-  DEFAULT_WALLETS_ENDPOINT 
-} from '../../../lib/hooks/useWalletState';
+import { renderHook, act } from '@testing-library/react';
+import { useWalletState } from '../../../lib/hooks/useWalletState';
 import type { WalletInfo } from '../../../lib/hooks/useWalletState';
 
-// Mock fetch
-const mockFetch = jest.fn();
-global.fetch = mockFetch;
-
-// Suppress console logs during tests
-const originalConsoleLog = console.log;
-const originalConsoleWarn = console.warn;
-const originalConsoleError = console.error;
-
 describe('useWalletState', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    mockFetch.mockReset();
-    console.log = jest.fn();
-    console.warn = jest.fn();
-    console.error = jest.fn();
-  });
-
-  afterEach(() => {
-    console.log = originalConsoleLog;
-    console.warn = originalConsoleWarn;
-    console.error = originalConsoleError;
-  });
-
   // Helper to create mock wallets
   const createMockWallets = (): WalletInfo[] => [
     { id: 'btc-wallet-1', walletCurrency: 'BTC', balance: 100000 },
@@ -40,539 +17,157 @@ describe('useWalletState', () => {
   ];
 
   // ===========================================================================
-  // Constants Tests
-  // ===========================================================================
-  
-  describe('Constants', () => {
-    it('should export DEFAULT_WALLETS_ENDPOINT', () => {
-      expect(DEFAULT_WALLETS_ENDPOINT).toBe('/api/wallets');
-    });
-  });
-
-  // ===========================================================================
   // Initial State Tests
   // ===========================================================================
-  
-  describe('Initial State', () => {
-    it('should initialize with default values', () => {
-      const { result } = renderHook(() => useWalletState());
 
+  describe('Initial State', () => {
+    it('should initialize with null apiKey', () => {
+      const { result } = renderHook(() => useWalletState());
       expect(result.current.apiKey).toBeNull();
-      expect(result.current.wallets).toEqual([]);
-      expect(result.current.isLoadingApiKey).toBe(false);
-      expect(result.current.isLoadingWallets).toBe(false);
-      expect(result.current.apiKeyError).toBeNull();
-      expect(result.current.walletsError).toBeNull();
     });
 
-    it('should initialize derived state correctly', () => {
+    it('should initialize with empty wallets array', () => {
       const { result } = renderHook(() => useWalletState());
+      expect(result.current.wallets).toEqual([]);
+    });
 
+    it('should initialize hasApiKey as false', () => {
+      const { result } = renderHook(() => useWalletState());
       expect(result.current.hasApiKey).toBe(false);
+    });
+
+    it('should initialize hasWallets as false', () => {
+      const { result } = renderHook(() => useWalletState());
       expect(result.current.hasWallets).toBe(false);
-      expect(result.current.btcWallet).toBeNull();
-      expect(result.current.usdWallet).toBeNull();
-      expect(result.current.btcWalletId).toBeNull();
-      expect(result.current.usdWalletId).toBeNull();
-      expect(result.current.btcBalance).toBeNull();
-      expect(result.current.usdBalance).toBeNull();
     });
   });
 
   // ===========================================================================
-  // Core Setters Tests
+  // setApiKey Tests
   // ===========================================================================
-  
-  describe('Core Setters', () => {
+
+  describe('setApiKey', () => {
     it('should set API key', () => {
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
+      const { result } = renderHook(() => useWalletState());
 
       act(() => {
         result.current.setApiKey('test-api-key');
       });
 
       expect(result.current.apiKey).toBe('test-api-key');
+    });
+
+    it('should update hasApiKey to true when key is set', () => {
+      const { result } = renderHook(() => useWalletState());
+
+      act(() => {
+        result.current.setApiKey('test-api-key');
+      });
+
       expect(result.current.hasApiKey).toBe(true);
     });
 
-    it('should clear API key error when setting key', () => {
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
+    it('should set API key to null', () => {
+      const { result } = renderHook(() => useWalletState());
 
-      // Manually set an error state (simulating a failed fetch)
       act(() => {
         result.current.setApiKey('test-key');
       });
 
-      expect(result.current.apiKeyError).toBeNull();
-    });
-
-    it('should set wallets', () => {
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
-      const wallets = createMockWallets();
-
       act(() => {
-        result.current.setWallets(wallets);
+        result.current.setApiKey(null);
       });
 
-      expect(result.current.wallets).toEqual(wallets);
-      expect(result.current.hasWallets).toBe(true);
-    });
-
-    it('should clear wallets error when setting wallets', () => {
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
-
-      act(() => {
-        result.current.setWallets(createMockWallets());
-      });
-
-      expect(result.current.walletsError).toBeNull();
-    });
-  });
-
-  // ===========================================================================
-  // Derived State Tests
-  // ===========================================================================
-  
-  describe('Derived State', () => {
-    it('should compute hasApiKey correctly', () => {
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
-
+      expect(result.current.apiKey).toBeNull();
       expect(result.current.hasApiKey).toBe(false);
+    });
 
-      act(() => {
-        result.current.setApiKey('test-key');
-      });
-
-      expect(result.current.hasApiKey).toBe(true);
+    it('should handle empty string as falsy for hasApiKey', () => {
+      const { result } = renderHook(() => useWalletState());
 
       act(() => {
         result.current.setApiKey('');
       });
 
+      expect(result.current.apiKey).toBe('');
       expect(result.current.hasApiKey).toBe(false);
     });
+  });
 
-    it('should compute hasWallets correctly', () => {
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
+  // ===========================================================================
+  // setWallets Tests
+  // ===========================================================================
 
-      expect(result.current.hasWallets).toBe(false);
+  describe('setWallets', () => {
+    it('should set wallets', () => {
+      const { result } = renderHook(() => useWalletState());
+      const wallets = createMockWallets();
+
+      act(() => {
+        result.current.setWallets(wallets);
+      });
+
+      expect(result.current.wallets).toEqual(wallets);
+    });
+
+    it('should update hasWallets to true when wallets are set', () => {
+      const { result } = renderHook(() => useWalletState());
 
       act(() => {
         result.current.setWallets(createMockWallets());
       });
 
       expect(result.current.hasWallets).toBe(true);
+    });
+
+    it('should set wallets to empty array', () => {
+      const { result } = renderHook(() => useWalletState());
+
+      act(() => {
+        result.current.setWallets(createMockWallets());
+      });
 
       act(() => {
         result.current.setWallets([]);
       });
 
+      expect(result.current.wallets).toEqual([]);
       expect(result.current.hasWallets).toBe(false);
     });
 
-    it('should extract BTC wallet', () => {
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
-      const wallets = createMockWallets();
+    it('should handle single wallet', () => {
+      const { result } = renderHook(() => useWalletState());
 
       act(() => {
-        result.current.setWallets(wallets);
+        result.current.setWallets([
+          { id: 'btc-1', walletCurrency: 'BTC', balance: 50000 },
+        ]);
       });
 
-      expect(result.current.btcWallet).toEqual(wallets[0]);
-      expect(result.current.btcWalletId).toBe('btc-wallet-1');
-      expect(result.current.btcBalance).toBe(100000);
+      expect(result.current.wallets).toHaveLength(1);
+      expect(result.current.hasWallets).toBe(true);
     });
 
-    it('should extract USD wallet', () => {
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
-      const wallets = createMockWallets();
+    it('should handle wallets with pendingIncomingBalance', () => {
+      const { result } = renderHook(() => useWalletState());
 
       act(() => {
-        result.current.setWallets(wallets);
+        result.current.setWallets([
+          { id: 'btc-1', walletCurrency: 'BTC', balance: 50000, pendingIncomingBalance: 1000 },
+        ]);
       });
 
-      expect(result.current.usdWallet).toEqual(wallets[1]);
-      expect(result.current.usdWalletId).toBe('usd-wallet-1');
-      expect(result.current.usdBalance).toBe(5000);
-    });
-
-    it('should handle missing BTC wallet', () => {
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
-      const wallets: WalletInfo[] = [
-        { id: 'usd-only', walletCurrency: 'USD', balance: 1000 },
-      ];
-
-      act(() => {
-        result.current.setWallets(wallets);
-      });
-
-      expect(result.current.btcWallet).toBeNull();
-      expect(result.current.btcWalletId).toBeNull();
-      expect(result.current.btcBalance).toBeNull();
-    });
-
-    it('should handle missing USD wallet', () => {
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
-      const wallets: WalletInfo[] = [
-        { id: 'btc-only', walletCurrency: 'BTC', balance: 50000 },
-      ];
-
-      act(() => {
-        result.current.setWallets(wallets);
-      });
-
-      expect(result.current.usdWallet).toBeNull();
-      expect(result.current.usdWalletId).toBeNull();
-      expect(result.current.usdBalance).toBeNull();
+      expect(result.current.wallets[0].pendingIncomingBalance).toBe(1000);
     });
   });
 
   // ===========================================================================
-  // fetchApiKey Tests
+  // clearApiKey Tests
   // ===========================================================================
-  
-  describe('fetchApiKey', () => {
-    it('should fetch API key successfully', async () => {
-      const mockGetApiKey = jest.fn().mockResolvedValue('fetched-api-key');
-      const { result } = renderHook(() => useWalletState({
-        getApiKey: mockGetApiKey,
-        autoFetchWallets: false,
-      }));
 
-      let fetchedKey: string | null = null;
-      await act(async () => {
-        fetchedKey = await result.current.fetchApiKey();
-      });
-
-      expect(fetchedKey).toBe('fetched-api-key');
-      expect(result.current.apiKey).toBe('fetched-api-key');
-      expect(result.current.isLoadingApiKey).toBe(false);
-      expect(result.current.apiKeyError).toBeNull();
-    });
-
-    it('should handle null API key response', async () => {
-      const mockGetApiKey = jest.fn().mockResolvedValue(null);
-      const { result } = renderHook(() => useWalletState({
-        getApiKey: mockGetApiKey,
-        autoFetchWallets: false,
-      }));
-
-      let fetchedKey: string | null = null;
-      await act(async () => {
-        fetchedKey = await result.current.fetchApiKey();
-      });
-
-      expect(fetchedKey).toBeNull();
-      expect(result.current.apiKey).toBeNull();
-    });
-
-    it('should handle API key fetch error', async () => {
-      const mockGetApiKey = jest.fn().mockRejectedValue(new Error('Auth failed'));
-      const { result } = renderHook(() => useWalletState({
-        getApiKey: mockGetApiKey,
-        autoFetchWallets: false,
-      }));
-
-      await act(async () => {
-        await result.current.fetchApiKey();
-      });
-
-      expect(result.current.apiKey).toBeNull();
-      expect(result.current.apiKeyError).toBe('Auth failed');
-    });
-
-    it('should warn if no getApiKey function provided', async () => {
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
-
-      await act(async () => {
-        await result.current.fetchApiKey();
-      });
-
-      expect(console.warn).toHaveBeenCalledWith('useWalletState: No getApiKey function provided');
-    });
-
-    it('should set loading state during fetch', async () => {
-      let resolvePromise: (value: string) => void;
-      const mockGetApiKey = jest.fn().mockImplementation(() => 
-        new Promise<string>(resolve => { resolvePromise = resolve; })
-      );
-
-      const { result } = renderHook(() => useWalletState({
-        getApiKey: mockGetApiKey,
-        autoFetchWallets: false,
-      }));
-
-      expect(result.current.isLoadingApiKey).toBe(false);
-
-      let fetchPromise: Promise<string | null>;
-      act(() => {
-        fetchPromise = result.current.fetchApiKey();
-      });
-
-      expect(result.current.isLoadingApiKey).toBe(true);
-
-      await act(async () => {
-        resolvePromise!('key');
-        await fetchPromise;
-      });
-
-      expect(result.current.isLoadingApiKey).toBe(false);
-    });
-  });
-
-  // ===========================================================================
-  // fetchWallets Tests
-  // ===========================================================================
-  
-  describe('fetchWallets', () => {
-    it('should fetch wallets successfully', async () => {
-      const wallets = createMockWallets();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ wallets }),
-      });
-
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
-
-      act(() => {
-        result.current.setApiKey('test-key');
-      });
-
-      await act(async () => {
-        await result.current.fetchWallets();
-      });
-
-      expect(result.current.wallets).toEqual(wallets);
-      expect(result.current.isLoadingWallets).toBe(false);
-      expect(result.current.walletsError).toBeNull();
-    });
-
-    it('should use override API key', async () => {
-      const wallets = createMockWallets();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ wallets }),
-      });
-
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
-
-      await act(async () => {
-        await result.current.fetchWallets('override-key');
-      });
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        DEFAULT_WALLETS_ENDPOINT,
-        expect.objectContaining({
-          body: expect.stringContaining('override-key'),
-        })
-      );
-    });
-
-    it('should handle wallets as array response', async () => {
-      const wallets = createMockWallets();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve(wallets), // Direct array
-      });
-
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
-
-      act(() => {
-        result.current.setApiKey('test-key');
-      });
-
-      await act(async () => {
-        await result.current.fetchWallets();
-      });
-
-      expect(result.current.wallets).toEqual(wallets);
-    });
-
-    it('should handle empty response', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({}),
-      });
-
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
-
-      act(() => {
-        result.current.setApiKey('test-key');
-      });
-
-      await act(async () => {
-        await result.current.fetchWallets();
-      });
-
-      expect(result.current.wallets).toEqual([]);
-    });
-
-    it('should handle fetch error', async () => {
-      mockFetch.mockRejectedValue(new Error('Network error'));
-
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
-
-      act(() => {
-        result.current.setApiKey('test-key');
-      });
-
-      await act(async () => {
-        await result.current.fetchWallets();
-      });
-
-      expect(result.current.walletsError).toBe('Network error');
-    });
-
-    it('should handle non-ok response', async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 401,
-      });
-
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
-
-      act(() => {
-        result.current.setApiKey('test-key');
-      });
-
-      await act(async () => {
-        await result.current.fetchWallets();
-      });
-
-      expect(result.current.walletsError).toBe('HTTP 401');
-    });
-
-    it('should warn if no API key available', async () => {
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
-
-      await act(async () => {
-        await result.current.fetchWallets();
-      });
-
-      expect(console.warn).toHaveBeenCalledWith('useWalletState: No API key available to fetch wallets');
-    });
-
-    it('should use custom endpoint', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ wallets: [] }),
-      });
-
-      const { result } = renderHook(() => useWalletState({
-        walletsEndpoint: '/custom/wallets',
-        autoFetchWallets: false,
-      }));
-
-      act(() => {
-        result.current.setApiKey('test-key');
-      });
-
-      await act(async () => {
-        await result.current.fetchWallets();
-      });
-
-      expect(mockFetch).toHaveBeenCalledWith('/custom/wallets', expect.any(Object));
-    });
-
-    it('should use custom environment', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ wallets: [] }),
-      });
-
-      const { result } = renderHook(() => useWalletState({
-        environment: 'signet',
-        autoFetchWallets: false,
-      }));
-
-      act(() => {
-        result.current.setApiKey('test-key');
-      });
-
-      await act(async () => {
-        await result.current.fetchWallets();
-      });
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          body: expect.stringContaining('signet'),
-        })
-      );
-    });
-  });
-
-  // ===========================================================================
-  // Auto-fetch Tests
-  // ===========================================================================
-  
-  describe('Auto-fetch Wallets', () => {
-    it('should auto-fetch wallets when API key is set', async () => {
-      const wallets = createMockWallets();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ wallets }),
-      });
-
-      const { result } = renderHook(() => useWalletState({
-        autoFetchWallets: true,
-      }));
-
-      await act(async () => {
-        result.current.setApiKey('auto-fetch-key');
-        // Wait for useEffect to trigger
-        await new Promise(resolve => setTimeout(resolve, 0));
-      });
-
-      expect(mockFetch).toHaveBeenCalled();
-    });
-
-    it('should not auto-fetch when disabled', async () => {
-      const { result } = renderHook(() => useWalletState({
-        autoFetchWallets: false,
-      }));
-
-      await act(async () => {
-        result.current.setApiKey('no-auto-fetch-key');
-        await new Promise(resolve => setTimeout(resolve, 0));
-      });
-
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
-
-    it('should not auto-fetch if API key is same', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ wallets: [] }),
-      });
-
-      const { result } = renderHook(() => useWalletState({
-        autoFetchWallets: true,
-      }));
-
-      await act(async () => {
-        result.current.setApiKey('same-key');
-        await new Promise(resolve => setTimeout(resolve, 0));
-      });
-
-      const callCount = mockFetch.mock.calls.length;
-
-      await act(async () => {
-        result.current.setApiKey('same-key'); // Same key
-        await new Promise(resolve => setTimeout(resolve, 0));
-      });
-
-      expect(mockFetch).toHaveBeenCalledTimes(callCount);
-    });
-  });
-
-  // ===========================================================================
-  // Convenience Actions Tests
-  // ===========================================================================
-  
-  describe('Convenience Actions', () => {
-    it('should clear API key', () => {
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
+  describe('clearApiKey', () => {
+    it('should clear API key to null', () => {
+      const { result } = renderHook(() => useWalletState());
 
       act(() => {
         result.current.setApiKey('test-key');
@@ -583,10 +178,27 @@ describe('useWalletState', () => {
       });
 
       expect(result.current.apiKey).toBeNull();
+      expect(result.current.hasApiKey).toBe(false);
     });
 
-    it('should clear wallets', () => {
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
+    it('should be safe to call when already null', () => {
+      const { result } = renderHook(() => useWalletState());
+
+      act(() => {
+        result.current.clearApiKey();
+      });
+
+      expect(result.current.apiKey).toBeNull();
+    });
+  });
+
+  // ===========================================================================
+  // clearWallets Tests
+  // ===========================================================================
+
+  describe('clearWallets', () => {
+    it('should clear wallets to empty array', () => {
+      const { result } = renderHook(() => useWalletState());
 
       act(() => {
         result.current.setWallets(createMockWallets());
@@ -597,10 +209,27 @@ describe('useWalletState', () => {
       });
 
       expect(result.current.wallets).toEqual([]);
+      expect(result.current.hasWallets).toBe(false);
     });
 
-    it('should clear all state', () => {
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
+    it('should be safe to call when already empty', () => {
+      const { result } = renderHook(() => useWalletState());
+
+      act(() => {
+        result.current.clearWallets();
+      });
+
+      expect(result.current.wallets).toEqual([]);
+    });
+  });
+
+  // ===========================================================================
+  // clearAll Tests
+  // ===========================================================================
+
+  describe('clearAll', () => {
+    it('should clear both apiKey and wallets', () => {
+      const { result } = renderHook(() => useWalletState());
 
       act(() => {
         result.current.setApiKey('test-key');
@@ -613,70 +242,29 @@ describe('useWalletState', () => {
 
       expect(result.current.apiKey).toBeNull();
       expect(result.current.wallets).toEqual([]);
+      expect(result.current.hasApiKey).toBe(false);
+      expect(result.current.hasWallets).toBe(false);
     });
 
-    it('should refresh all', async () => {
-      const mockGetApiKey = jest.fn().mockResolvedValue('refreshed-key');
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ wallets: createMockWallets() }),
+    it('should be safe to call when already empty', () => {
+      const { result } = renderHook(() => useWalletState());
+
+      act(() => {
+        result.current.clearAll();
       });
 
-      const { result } = renderHook(() => useWalletState({
-        getApiKey: mockGetApiKey,
-        autoFetchWallets: false,
-      }));
-
-      await act(async () => {
-        await result.current.refreshAll();
-      });
-
-      expect(mockGetApiKey).toHaveBeenCalled();
-      expect(mockFetch).toHaveBeenCalled();
-      expect(result.current.apiKey).toBe('refreshed-key');
-    });
-
-    it('should not fetch wallets in refreshAll if no API key', async () => {
-      const mockGetApiKey = jest.fn().mockResolvedValue(null);
-
-      const { result } = renderHook(() => useWalletState({
-        getApiKey: mockGetApiKey,
-        autoFetchWallets: false,
-      }));
-
-      await act(async () => {
-        await result.current.refreshAll();
-      });
-
-      expect(mockFetch).not.toHaveBeenCalled();
+      expect(result.current.apiKey).toBeNull();
+      expect(result.current.wallets).toEqual([]);
     });
   });
 
   // ===========================================================================
   // Callback Stability Tests
   // ===========================================================================
-  
+
   describe('Callback Stability', () => {
-    it('should maintain stable setApiKey reference', () => {
-      const { result, rerender } = renderHook(() => useWalletState({ autoFetchWallets: false }));
-      const initial = result.current.setApiKey;
-
-      rerender();
-
-      expect(result.current.setApiKey).toBe(initial);
-    });
-
-    it('should maintain stable setWallets reference', () => {
-      const { result, rerender } = renderHook(() => useWalletState({ autoFetchWallets: false }));
-      const initial = result.current.setWallets;
-
-      rerender();
-
-      expect(result.current.setWallets).toBe(initial);
-    });
-
     it('should maintain stable clearApiKey reference', () => {
-      const { result, rerender } = renderHook(() => useWalletState({ autoFetchWallets: false }));
+      const { result, rerender } = renderHook(() => useWalletState());
       const initial = result.current.clearApiKey;
 
       rerender();
@@ -685,7 +273,7 @@ describe('useWalletState', () => {
     });
 
     it('should maintain stable clearWallets reference', () => {
-      const { result, rerender } = renderHook(() => useWalletState({ autoFetchWallets: false }));
+      const { result, rerender } = renderHook(() => useWalletState());
       const initial = result.current.clearWallets;
 
       rerender();
@@ -694,7 +282,7 @@ describe('useWalletState', () => {
     });
 
     it('should maintain stable clearAll reference', () => {
-      const { result, rerender } = renderHook(() => useWalletState({ autoFetchWallets: false }));
+      const { result, rerender } = renderHook(() => useWalletState());
       const initial = result.current.clearAll;
 
       rerender();
@@ -706,88 +294,73 @@ describe('useWalletState', () => {
   // ===========================================================================
   // Workflow Tests
   // ===========================================================================
-  
-  describe('Workflow: Initial load', () => {
-    it('should handle complete initialization flow', async () => {
-      const mockGetApiKey = jest.fn().mockResolvedValue('init-key');
-      const wallets = createMockWallets();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ wallets }),
+
+  describe('Workflow: Dashboard initialization', () => {
+    it('should handle setting apiKey then wallets (typical Dashboard flow)', () => {
+      const { result } = renderHook(() => useWalletState());
+
+      // Dashboard fetches API key and sets it
+      act(() => {
+        result.current.setApiKey('dashboard-api-key');
       });
 
-      const { result } = renderHook(() => useWalletState({
-        getApiKey: mockGetApiKey,
-        autoFetchWallets: true,
-      }));
+      expect(result.current.hasApiKey).toBe(true);
+      expect(result.current.hasWallets).toBe(false);
 
-      // Initially empty
-      expect(result.current.apiKey).toBeNull();
-      expect(result.current.wallets).toEqual([]);
-
-      // Fetch API key
-      await act(async () => {
-        await result.current.fetchApiKey();
-        // Wait for auto-fetch
-        await new Promise(resolve => setTimeout(resolve, 0));
+      // Dashboard fetches wallets and sets them
+      act(() => {
+        result.current.setWallets(createMockWallets());
       });
 
-      expect(result.current.apiKey).toBe('init-key');
-      expect(result.current.wallets).toEqual(wallets);
-      expect(result.current.btcWallet).not.toBeNull();
-      expect(result.current.usdWallet).not.toBeNull();
+      expect(result.current.hasApiKey).toBe(true);
+      expect(result.current.hasWallets).toBe(true);
     });
   });
 
   describe('Workflow: Account switch', () => {
-    it('should handle switching accounts', async () => {
-      const mockGetApiKey = jest.fn()
-        .mockResolvedValueOnce('account-1-key')
-        .mockResolvedValueOnce('account-2-key');
-
-      const wallets1 = [{ id: 'btc-1', walletCurrency: 'BTC' as const, balance: 10000 }];
-      const wallets2 = [{ id: 'btc-2', walletCurrency: 'BTC' as const, balance: 50000 }];
-
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ wallets: wallets1 }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ wallets: wallets2 }),
-        });
-
-      const { result } = renderHook(() => useWalletState({
-        getApiKey: mockGetApiKey,
-        autoFetchWallets: true,
-      }));
+    it('should handle clearing and resetting for account switch', () => {
+      const { result } = renderHook(() => useWalletState());
 
       // First account
-      await act(async () => {
-        await result.current.fetchApiKey();
-        await new Promise(resolve => setTimeout(resolve, 0));
+      act(() => {
+        result.current.setApiKey('account-1-key');
+        result.current.setWallets([
+          { id: 'btc-1', walletCurrency: 'BTC', balance: 10000 },
+        ]);
       });
 
-      expect(result.current.btcBalance).toBe(10000);
+      expect(result.current.apiKey).toBe('account-1-key');
+      expect(result.current.wallets).toHaveLength(1);
 
-      // Switch to second account
-      await act(async () => {
-        await result.current.fetchApiKey();
-        await new Promise(resolve => setTimeout(resolve, 0));
+      // Switch: clear and set new
+      act(() => {
+        result.current.clearAll();
       });
 
-      expect(result.current.btcBalance).toBe(50000);
+      expect(result.current.apiKey).toBeNull();
+      expect(result.current.wallets).toEqual([]);
+
+      // Second account
+      act(() => {
+        result.current.setApiKey('account-2-key');
+        result.current.setWallets([
+          { id: 'btc-2', walletCurrency: 'BTC', balance: 50000 },
+          { id: 'usd-2', walletCurrency: 'USD', balance: 2000 },
+        ]);
+      });
+
+      expect(result.current.apiKey).toBe('account-2-key');
+      expect(result.current.wallets).toHaveLength(2);
     });
   });
 
   // ===========================================================================
   // Edge Cases
   // ===========================================================================
-  
+
   describe('Edge Cases', () => {
     it('should handle wallet with zero balance', () => {
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
+      const { result } = renderHook(() => useWalletState());
 
       act(() => {
         result.current.setWallets([
@@ -795,30 +368,12 @@ describe('useWalletState', () => {
         ]);
       });
 
-      expect(result.current.btcBalance).toBe(0);
+      expect(result.current.wallets[0].balance).toBe(0);
+      expect(result.current.hasWallets).toBe(true);
     });
 
-    it('should handle multiple BTC wallets (uses first)', () => {
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
-
-      act(() => {
-        result.current.setWallets([
-          { id: 'btc-1', walletCurrency: 'BTC', balance: 1000 },
-          { id: 'btc-2', walletCurrency: 'BTC', balance: 2000 },
-        ]);
-      });
-
-      expect(result.current.btcWalletId).toBe('btc-1');
-      expect(result.current.btcBalance).toBe(1000);
-    });
-
-    it('should handle rapid API key changes', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ wallets: [] }),
-      });
-
-      const { result } = renderHook(() => useWalletState({ autoFetchWallets: false }));
+    it('should handle rapid API key changes', () => {
+      const { result } = renderHook(() => useWalletState());
 
       act(() => {
         result.current.setApiKey('key-1');
@@ -827,6 +382,26 @@ describe('useWalletState', () => {
       });
 
       expect(result.current.apiKey).toBe('key-3');
+    });
+
+    it('should handle overwriting wallets', () => {
+      const { result } = renderHook(() => useWalletState());
+
+      act(() => {
+        result.current.setWallets([
+          { id: 'btc-1', walletCurrency: 'BTC', balance: 1000 },
+        ]);
+      });
+
+      act(() => {
+        result.current.setWallets([
+          { id: 'btc-2', walletCurrency: 'BTC', balance: 2000 },
+          { id: 'usd-1', walletCurrency: 'USD', balance: 500 },
+        ]);
+      });
+
+      expect(result.current.wallets).toHaveLength(2);
+      expect(result.current.wallets[0].id).toBe('btc-2');
     });
   });
 });

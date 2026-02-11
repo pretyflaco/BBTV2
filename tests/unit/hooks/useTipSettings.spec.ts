@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { useTipSettings } from '../../../lib/hooks/useTipSettings';
-import type { TipPreset, TipProfile } from '../../../lib/hooks/useTipSettings';
+import type { TipProfile } from '../../../lib/hooks/useTipSettings';
 
 describe('useTipSettings', () => {
   // Mock localStorage
@@ -29,22 +29,11 @@ describe('useTipSettings', () => {
     jest.clearAllMocks();
   });
 
-  // Helper to create a mock tip preset
-  const createMockPreset = (overrides: Partial<TipPreset> = {}): TipPreset => ({
-    percent: 15,
-    enabled: true,
-    ...overrides,
-  });
-
-  // Helper to create a mock tip profile
+  // Helper to create a mock tip profile matching Dashboard.js TIP_PROFILES structure
   const createMockProfile = (overrides: Partial<TipProfile> = {}): TipProfile => ({
-    id: 'profile-1',
-    label: 'Default Profile',
-    presets: [
-      createMockPreset({ percent: 10 }),
-      createMockPreset({ percent: 15 }),
-      createMockPreset({ percent: 20 }),
-    ],
+    id: 'na',
+    name: 'North America (US/CA)',
+    tipOptions: [18, 20, 25],
     ...overrides,
   });
 
@@ -54,13 +43,9 @@ describe('useTipSettings', () => {
       expect(result.current.tipsEnabled).toBe(false);
     });
 
-    it('initializes with default tip presets', () => {
+    it('initializes with default tip presets as number array', () => {
       const { result } = renderHook(() => useTipSettings());
-      expect(result.current.tipPresets).toEqual([
-        { percent: 15, enabled: true },
-        { percent: 18, enabled: true },
-        { percent: 20, enabled: true },
-      ]);
+      expect(result.current.tipPresets).toEqual([7.5, 10, 12.5, 20]);
     });
 
     it('initializes with empty tip recipient', () => {
@@ -82,16 +67,6 @@ describe('useTipSettings', () => {
       expect(result.current.activeTipProfile).toBeNull();
     });
 
-    it('initializes with tip settings modal closed', () => {
-      const { result } = renderHook(() => useTipSettings());
-      expect(result.current.showTipSettings).toBe(false);
-    });
-
-    it('initializes with tip profile settings closed', () => {
-      const { result } = renderHook(() => useTipSettings());
-      expect(result.current.showTipProfileSettings).toBe(false);
-    });
-
     it('loads tipsEnabled from localStorage if set to true', () => {
       localStorageMock.getItem.mockReturnValueOnce('true');
       const { result } = renderHook(() => useTipSettings());
@@ -99,7 +74,7 @@ describe('useTipSettings', () => {
     });
 
     it('loads tipPresets from localStorage if set', () => {
-      const customPresets = [{ percent: 10, enabled: true }, { percent: 25, enabled: false }];
+      const customPresets = [5, 10, 15];
       localStorageMock.getItem
         .mockReturnValueOnce(null) // tipsEnabled
         .mockReturnValueOnce(JSON.stringify(customPresets)); // tipPresets
@@ -117,17 +92,28 @@ describe('useTipSettings', () => {
       expect(result.current.activeTipProfile).toEqual(profile);
     });
 
-    it('uses fallback if localStorage contains invalid JSON', () => {
+    it('uses fallback if localStorage contains invalid JSON for tipPresets', () => {
       localStorageMock.getItem
         .mockReturnValueOnce(null) // tipsEnabled
         .mockReturnValueOnce('invalid-json'); // tipPresets
       const { result } = renderHook(() => useTipSettings());
-      // Should use default presets
-      expect(result.current.tipPresets).toEqual([
-        { percent: 15, enabled: true },
-        { percent: 18, enabled: true },
-        { percent: 20, enabled: true },
-      ]);
+      expect(result.current.tipPresets).toEqual([7.5, 10, 12.5, 20]);
+    });
+
+    it('uses fallback if localStorage contains invalid JSON for activeTipProfile', () => {
+      localStorageMock.getItem
+        .mockReturnValueOnce(null) // tipsEnabled
+        .mockReturnValueOnce(null) // tipPresets
+        .mockReturnValueOnce('not-valid-json'); // activeTipProfile
+      const { result } = renderHook(() => useTipSettings());
+      expect(result.current.activeTipProfile).toBeNull();
+    });
+
+    it('reads from correct blinkpos- localStorage keys', () => {
+      renderHook(() => useTipSettings());
+      expect(localStorageMock.getItem).toHaveBeenCalledWith('blinkpos-tips-enabled');
+      expect(localStorageMock.getItem).toHaveBeenCalledWith('blinkpos-tip-presets');
+      expect(localStorageMock.getItem).toHaveBeenCalledWith('blinkpos-active-tip-profile');
     });
   });
 
@@ -140,7 +126,7 @@ describe('useTipSettings', () => {
       });
 
       expect(result.current.tipsEnabled).toBe(true);
-      expect(localStorageMock.setItem).toHaveBeenCalledWith('bbt_tips_enabled', 'true');
+      expect(localStorageMock.setItem).toHaveBeenCalledWith('blinkpos-tips-enabled', 'true');
     });
 
     it('setTipsEnabled disables tips', () => {
@@ -152,7 +138,7 @@ describe('useTipSettings', () => {
       });
 
       expect(result.current.tipsEnabled).toBe(false);
-      expect(localStorageMock.setItem).toHaveBeenCalledWith('bbt_tips_enabled', 'false');
+      expect(localStorageMock.setItem).toHaveBeenCalledWith('blinkpos-tips-enabled', 'false');
     });
 
     it('toggleTipsEnabled toggles the state', () => {
@@ -182,9 +168,9 @@ describe('useTipSettings', () => {
   });
 
   describe('tipPresets actions', () => {
-    it('setTipPresets updates presets', () => {
+    it('setTipPresets updates presets with number array', () => {
       const { result } = renderHook(() => useTipSettings());
-      const newPresets = [createMockPreset({ percent: 10 }), createMockPreset({ percent: 20 })];
+      const newPresets = [5, 15, 25];
 
       act(() => {
         result.current.setTipPresets(newPresets);
@@ -192,63 +178,52 @@ describe('useTipSettings', () => {
 
       expect(result.current.tipPresets).toEqual(newPresets);
       expect(localStorageMock.setItem).toHaveBeenCalledWith(
-        'bbt_tip_presets',
+        'blinkpos-tip-presets',
         JSON.stringify(newPresets)
       );
     });
 
-    it('updateTipPreset updates a specific preset', () => {
+    it('setTipPresets persists to localStorage with blinkpos key', () => {
       const { result } = renderHook(() => useTipSettings());
 
       act(() => {
-        result.current.updateTipPreset(0, { percent: 10 });
+        result.current.setTipPresets([18, 20, 25]);
       });
 
-      expect(result.current.tipPresets[0].percent).toBe(10);
-      expect(result.current.tipPresets[0].enabled).toBe(true);
-    });
-
-    it('updateTipPreset can disable a preset', () => {
-      const { result } = renderHook(() => useTipSettings());
-
-      act(() => {
-        result.current.updateTipPreset(1, { enabled: false });
-      });
-
-      expect(result.current.tipPresets[1].enabled).toBe(false);
-    });
-
-    it('updateTipPreset ignores invalid index (negative)', () => {
-      const { result } = renderHook(() => useTipSettings());
-      const originalPresets = [...result.current.tipPresets];
-
-      act(() => {
-        result.current.updateTipPreset(-1, { percent: 99 });
-      });
-
-      expect(result.current.tipPresets).toEqual(originalPresets);
-    });
-
-    it('updateTipPreset ignores invalid index (out of bounds)', () => {
-      const { result } = renderHook(() => useTipSettings());
-      const originalPresets = [...result.current.tipPresets];
-
-      act(() => {
-        result.current.updateTipPreset(10, { percent: 99 });
-      });
-
-      expect(result.current.tipPresets).toEqual(originalPresets);
+      expect(localStorageMock.setItem).toHaveBeenCalledWith(
+        'blinkpos-tip-presets',
+        '[18,20,25]'
+      );
     });
 
     it('setTipPresets accepts a function', () => {
       const { result } = renderHook(() => useTipSettings());
 
       act(() => {
-        result.current.setTipPresets((prev) => [...prev, createMockPreset({ percent: 25 })]);
+        result.current.setTipPresets((prev) => [...prev, 30]);
       });
 
-      expect(result.current.tipPresets).toHaveLength(4);
-      expect(result.current.tipPresets[3].percent).toBe(25);
+      expect(result.current.tipPresets).toEqual([7.5, 10, 12.5, 20, 30]);
+    });
+
+    it('setTipPresets can set empty array', () => {
+      const { result } = renderHook(() => useTipSettings());
+
+      act(() => {
+        result.current.setTipPresets([]);
+      });
+
+      expect(result.current.tipPresets).toEqual([]);
+    });
+
+    it('setTipPresets supports decimal percentages', () => {
+      const { result } = renderHook(() => useTipSettings());
+
+      act(() => {
+        result.current.setTipPresets([2.5, 5.0, 7.5]);
+      });
+
+      expect(result.current.tipPresets).toEqual([2.5, 5.0, 7.5]);
     });
   });
 
@@ -339,7 +314,7 @@ describe('useTipSettings', () => {
 
       expect(result.current.activeTipProfile).toEqual(profile);
       expect(localStorageMock.setItem).toHaveBeenCalledWith(
-        'bbt_active_tip_profile',
+        'blinkpos-active-tip-profile',
         JSON.stringify(profile)
       );
     });
@@ -356,7 +331,7 @@ describe('useTipSettings', () => {
       });
 
       expect(result.current.activeTipProfile).toBeNull();
-      expect(localStorageMock.removeItem).toHaveBeenCalledWith('bbt_active_tip_profile');
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith('blinkpos-active-tip-profile');
     });
 
     it('setActiveTipProfile accepts a function', () => {
@@ -369,47 +344,69 @@ describe('useTipSettings', () => {
 
       act(() => {
         result.current.setActiveTipProfile((prev) => 
-          prev ? { ...prev, label: 'Updated' } : null
+          prev ? { ...prev, name: 'Updated Name' } : null
         );
       });
 
-      expect(result.current.activeTipProfile?.label).toBe('Updated');
+      expect(result.current.activeTipProfile?.name).toBe('Updated Name');
+    });
+
+    it('profile structure matches Dashboard.js TIP_PROFILES format', () => {
+      const { result } = renderHook(() => useTipSettings());
+
+      // Matches: { id: 'na', name: 'North America (US/CA)', tipOptions: [18, 20, 25] }
+      const profile: TipProfile = {
+        id: 'eu',
+        name: 'Western Europe (Standard)',
+        tipOptions: [5, 10, 15],
+      };
+
+      act(() => {
+        result.current.setActiveTipProfile(profile);
+      });
+
+      expect(result.current.activeTipProfile).toEqual(profile);
+      expect(result.current.activeTipProfile?.id).toBe('eu');
+      expect(result.current.activeTipProfile?.name).toBe('Western Europe (Standard)');
+      expect(result.current.activeTipProfile?.tipOptions).toEqual([5, 10, 15]);
+    });
+
+    it('handles all predefined TIP_PROFILES from Dashboard.js', () => {
+      const { result } = renderHook(() => useTipSettings());
+
+      const tipProfiles: TipProfile[] = [
+        { id: 'na', name: 'North America (US/CA)', tipOptions: [18, 20, 25] },
+        { id: 'eu', name: 'Western Europe (Standard)', tipOptions: [5, 10, 15] },
+        { id: 'africa', name: 'Africa (Standard/South)', tipOptions: [10, 12, 15] },
+        { id: 'africa-low', name: 'Africa (Low/Round Up)', tipOptions: [5, 10] },
+        { id: 'asia', name: 'Asia & Oceania (Low)', tipOptions: [2, 5, 10] },
+        { id: 'latam', name: 'Latin America (Included)', tipOptions: [10, 12, 15] },
+        { id: 'mena', name: 'Middle East (Variable)', tipOptions: [5, 10, 15] },
+      ];
+
+      for (const profile of tipProfiles) {
+        act(() => {
+          result.current.setActiveTipProfile(profile);
+        });
+        expect(result.current.activeTipProfile).toEqual(profile);
+      }
     });
   });
 
-  describe('UI state actions', () => {
-    it('setShowTipSettings opens tip settings', () => {
+  describe('does not expose UI visibility states', () => {
+    it('does not have showTipSettings (managed by useUIVisibility)', () => {
       const { result } = renderHook(() => useTipSettings());
-
-      act(() => {
-        result.current.setShowTipSettings(true);
-      });
-
-      expect(result.current.showTipSettings).toBe(true);
+      expect((result.current as any).showTipSettings).toBeUndefined();
     });
 
-    it('setShowTipSettings closes tip settings', () => {
+    it('does not have showTipProfileSettings (managed by useUIVisibility)', () => {
       const { result } = renderHook(() => useTipSettings());
-
-      act(() => {
-        result.current.setShowTipSettings(true);
-      });
-
-      act(() => {
-        result.current.setShowTipSettings(false);
-      });
-
-      expect(result.current.showTipSettings).toBe(false);
+      expect((result.current as any).showTipProfileSettings).toBeUndefined();
     });
 
-    it('setShowTipProfileSettings opens profile settings', () => {
+    it('does not have updateTipPreset (not applicable to number[])', () => {
       const { result } = renderHook(() => useTipSettings());
-
-      act(() => {
-        result.current.setShowTipProfileSettings(true);
-      });
-
-      expect(result.current.showTipProfileSettings).toBe(true);
+      expect((result.current as any).updateTipPreset).toBeUndefined();
     });
   });
 
@@ -467,15 +464,6 @@ describe('useTipSettings', () => {
 
       expect(result.current.toggleTipsEnabled).toBe(firstRef);
     });
-
-    it('updateTipPreset maintains referential equality', () => {
-      const { result, rerender } = renderHook(() => useTipSettings());
-      const firstRef = result.current.updateTipPreset;
-
-      rerender();
-
-      expect(result.current.updateTipPreset).toBe(firstRef);
-    });
   });
 
   describe('typical workflow scenarios', () => {
@@ -515,76 +503,70 @@ describe('useTipSettings', () => {
       expect(result.current.usernameValidation.status).toBe('success');
     });
 
-    it('handles customize tip presets workflow', () => {
+    it('handles customize tip presets workflow with number array', () => {
       const { result } = renderHook(() => useTipSettings());
 
-      // Open settings
+      // Direct array replacement (how Dashboard.js works)
       act(() => {
-        result.current.setShowTipSettings(true);
+        result.current.setTipPresets([15, 18, 20, 25]);
       });
 
-      // Customize first preset
-      act(() => {
-        result.current.updateTipPreset(0, { percent: 10 });
-      });
-
-      // Disable second preset
-      act(() => {
-        result.current.updateTipPreset(1, { enabled: false });
-      });
-
-      // Customize third preset
-      act(() => {
-        result.current.updateTipPreset(2, { percent: 25 });
-      });
-
-      // Close settings
-      act(() => {
-        result.current.setShowTipSettings(false);
-      });
-
-      expect(result.current.tipPresets[0].percent).toBe(10);
-      expect(result.current.tipPresets[1].enabled).toBe(false);
-      expect(result.current.tipPresets[2].percent).toBe(25);
-      expect(result.current.showTipSettings).toBe(false);
+      expect(result.current.tipPresets).toEqual([15, 18, 20, 25]);
+      expect(localStorageMock.setItem).toHaveBeenCalledWith(
+        'blinkpos-tip-presets',
+        '[15,18,20,25]'
+      );
     });
 
     it('handles switch tip profile workflow', () => {
       const { result } = renderHook(() => useTipSettings());
 
-      const restaurantProfile = createMockProfile({
-        id: 'restaurant',
-        label: 'Restaurant',
-        presets: [
-          { percent: 15, enabled: true },
-          { percent: 18, enabled: true },
-          { percent: 20, enabled: true },
-        ],
+      const naProfile = createMockProfile({
+        id: 'na',
+        name: 'North America (US/CA)',
+        tipOptions: [18, 20, 25],
       });
 
-      const barProfile = createMockProfile({
-        id: 'bar',
-        label: 'Bar',
-        presets: [
-          { percent: 10, enabled: true },
-          { percent: 15, enabled: true },
-          { percent: 20, enabled: true },
-        ],
+      const euProfile = createMockProfile({
+        id: 'eu',
+        name: 'Western Europe (Standard)',
+        tipOptions: [5, 10, 15],
       });
 
-      // Set restaurant profile
+      // Set NA profile
       act(() => {
-        result.current.setActiveTipProfile(restaurantProfile);
+        result.current.setActiveTipProfile(naProfile);
       });
 
-      expect(result.current.activeTipProfile?.id).toBe('restaurant');
+      expect(result.current.activeTipProfile?.id).toBe('na');
 
-      // Switch to bar profile
+      // Switch to EU profile
       act(() => {
-        result.current.setActiveTipProfile(barProfile);
+        result.current.setActiveTipProfile(euProfile);
       });
 
-      expect(result.current.activeTipProfile?.id).toBe('bar');
+      expect(result.current.activeTipProfile?.id).toBe('eu');
+      expect(result.current.activeTipProfile?.tipOptions).toEqual([5, 10, 15]);
+    });
+
+    it('handles profile selection syncing tipPresets (Dashboard pattern)', () => {
+      const { result } = renderHook(() => useTipSettings());
+
+      // Simulate Dashboard.js pattern: when profile changes, sync tipPresets
+      const profile = createMockProfile({
+        id: 'asia',
+        name: 'Asia & Oceania (Low)',
+        tipOptions: [2, 5, 10],
+      });
+
+      act(() => {
+        result.current.setActiveTipProfile(profile);
+        // Dashboard.js does: setTipPresets(activeTipProfile.tipOptions)
+        result.current.setTipPresets(profile.tipOptions);
+      });
+
+      expect(result.current.activeTipProfile?.tipOptions).toEqual([2, 5, 10]);
+      expect(result.current.tipPresets).toEqual([2, 5, 10]);
     });
 
     it('handles validation error workflow', () => {
@@ -647,6 +629,25 @@ describe('useTipSettings', () => {
       // Tips should be disabled but recipient config preserved
       expect(result.current.tipsEnabled).toBe(false);
       expect(result.current.tipRecipient).toBe('waiter');
+    });
+
+    it('handles clear profile workflow', () => {
+      const { result } = renderHook(() => useTipSettings());
+
+      // Set a profile
+      act(() => {
+        result.current.setActiveTipProfile(createMockProfile());
+      });
+
+      expect(result.current.activeTipProfile).not.toBeNull();
+
+      // Clear the profile (like Dashboard line 569: localStorage.removeItem)
+      act(() => {
+        result.current.setActiveTipProfile(null);
+      });
+
+      expect(result.current.activeTipProfile).toBeNull();
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith('blinkpos-active-tip-profile');
     });
   });
 });

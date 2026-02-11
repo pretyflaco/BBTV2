@@ -135,8 +135,8 @@ export interface UseDashboardStateReturn {
  * // Navigate to a view
  * navigation.navigateToView('transactions');
  * 
- * // Create an invoice
- * invoice.createInvoice({
+ * // Set an invoice
+ * invoice.setCurrentInvoice({
  *   paymentRequest: 'lnbc...',
  *   paymentHash: 'abc123',
  *   satoshis: 1000
@@ -273,7 +273,7 @@ export type { InvoiceData, PaymentReceivedData } from './useInvoiceState';
 export type { WalletInfo } from './useWalletState';
 export type { AccountType, NwcValidation, LnAddressValidation, NpubCashValidation } from './useAccountManagement';
 export type { Transaction, TransactionState, TransactionActions, DateRange } from './useTransactionState';
-export type { TipPreset, TipProfile } from './useTipSettings';
+export type { TipProfile } from './useTipSettings';
 export type { SplitProfile, SplitRecipient } from './useSplitProfiles';
 
 export default useDashboardState;

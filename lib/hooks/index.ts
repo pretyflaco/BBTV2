@@ -66,7 +66,6 @@ export type {
 export { useTipSettings } from './useTipSettings';
 export type {
   UseTipSettingsReturn,
-  TipPreset,
   TipProfile,
 } from './useTipSettings';
 

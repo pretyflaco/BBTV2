@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useCombinedAuth } from '../lib/hooks/useCombinedAuth';
 import { useBlinkWebSocket } from '../lib/hooks/useBlinkWebSocket';
 import { useCurrencies } from '../lib/hooks/useCurrencies';
@@ -15,6 +15,10 @@ import { useVoucherWalletState } from '../lib/hooks/useVoucherWalletState';
 import { useTransactionState } from '../lib/hooks/useTransactionState';
 import { useSplitProfiles } from '../lib/hooks/useSplitProfiles';
 import { useUIVisibility } from '../lib/hooks/useUIVisibility';
+import { useTipSettings } from '../lib/hooks/useTipSettings';
+import { useExchangeRate } from '../lib/hooks/useExchangeRate';
+import { useWalletState } from '../lib/hooks/useWalletState';
+import { useInvoiceState } from '../lib/hooks/useInvoiceState';
 import { useNFC } from './NFCPayment';
 import { isBitcoinCurrency } from '../lib/currency-utils';
 import { getApiUrl, getLnAddressDomain, getPayUrl, getAllValidDomains, getEnvironment } from '../lib/config/api';
@@ -192,8 +196,13 @@ export default function Dashboard() {
     closeAllSettings,
   } = useUIVisibility();
   
-  const [apiKey, setApiKey] = useState(null);
-  const [wallets, setWallets] = useState([]);
+  // Wallet state (API key and wallet list) managed by useWalletState hook
+  const {
+    apiKey,
+    setApiKey,
+    wallets,
+    setWallets,
+  } = useWalletState();
   
   // Transaction state - extracted to useTransactionState hook
   const {
@@ -267,22 +276,22 @@ export default function Dashboard() {
     toggleSoundEnabled,
   } = useSoundSettings();
 
-  // Tip functionality state
-  const [tipsEnabled, setTipsEnabled] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('blinkpos-tips-enabled') === 'true';
-    }
-    return false;
-  });
-  const [tipPresets, setTipPresets] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('blinkpos-tip-presets');
-      return saved ? JSON.parse(saved) : [7.5, 10, 12.5, 20]; // Default tip percentages
-    }
-    return [7.5, 10, 12.5, 20];
-  });
-  const [tipRecipient, setTipRecipient] = useState('');
-  const [usernameValidation, setUsernameValidation] = useState({ status: null, message: '', isValidating: false });
+  // Tip functionality state - extracted to useTipSettings hook
+  const {
+    tipsEnabled,
+    setTipsEnabled,
+    tipPresets,
+    setTipPresets,
+    tipRecipient,
+    setTipRecipient,
+    usernameValidation,
+    setUsernameValidation,
+    activeTipProfile,
+    setActiveTipProfile,
+    clearUsernameValidation,
+    resetTipRecipient,
+    toggleTipsEnabled,
+  } = useTipSettings();
   
   // Account management state - extracted to useAccountManagement hook
   const {
@@ -385,13 +394,7 @@ export default function Dashboard() {
     setPaycodeGeneratingPdf,
   } = usePaycodeState();
   
-  const [activeTipProfile, setActiveTipProfile] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('blinkpos-active-tip-profile');
-      return saved ? JSON.parse(saved) : null;
-    }
-    return null;
-  });
+  // NOTE: activeTipProfile is now managed by useTipSettings hook above
   
   // Split Profiles state - extracted to useSplitProfiles hook
   const {
@@ -420,9 +423,13 @@ export default function Dashboard() {
     resetSplitProfileForm,
   } = useSplitProfiles();
   
-  // Exchange rate state for sats equivalent display in ItemCart
-  const [exchangeRate, setExchangeRate] = useState(null);
-  const [loadingRate, setLoadingRate] = useState(false);
+  // Exchange rate state for sats equivalent display in ItemCart (managed by useExchangeRate hook)
+  const {
+    exchangeRate,
+    setExchangeRate,
+    loadingRate,
+    setLoadingRate,
+  } = useExchangeRate();
 
   // Transaction search ref (state is in useTransactionState hook)
   const txSearchInputRef = useRef(null);
@@ -448,18 +455,7 @@ export default function Dashboard() {
     }
   }, [showCurrencySettings, clearCurrencyFilter]);
 
-  // Persist tip settings to localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('blinkpos-tips-enabled', tipsEnabled.toString());
-    }
-  }, [tipsEnabled]);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('blinkpos-tip-presets', JSON.stringify(tipPresets));
-    }
-  }, [tipPresets]);
+  // NOTE: Tip settings persistence (tipsEnabled, tipPresets) is now handled by useTipSettings hook
 
   // NOTE: Commission settings persistence is now handled by useCommissionSettings hook
   // NOTE: Number format, Bitcoin format, and Numpad layout persistence
@@ -558,23 +554,18 @@ export default function Dashboard() {
     };
   }, [voucherWallet?.apiKey]);
 
-  // Persist active tip profile and update tipPresets when profile changes
+  // NOTE: activeTipProfile localStorage persistence is now handled by useTipSettings hook
+  // But we still need to sync tipPresets when profile changes
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      if (activeTipProfile) {
-        localStorage.setItem('blinkpos-active-tip-profile', JSON.stringify(activeTipProfile));
-        // Update tipPresets to match the profile's tip options
-        setTipPresets(activeTipProfile.tipOptions);
-      } else {
-        localStorage.removeItem('blinkpos-active-tip-profile');
-      }
+    if (activeTipProfile) {
+      // Update tipPresets to match the profile's tip options
+      setTipPresets(activeTipProfile.tipOptions);
     }
   }, [activeTipProfile]);
 
   // Clear tip recipient when user changes (no persistence across sessions)
   useEffect(() => {
-    setTipRecipient('');
-    setUsernameValidation({ status: null, message: '', isValidating: false });
+    resetTipRecipient();
     // Also clear any existing localStorage value
     if (typeof window !== 'undefined') {
       localStorage.removeItem('blinkpos-tip-recipient');
@@ -1014,7 +1005,7 @@ export default function Dashboard() {
   
   // Track current invoice for NFC payments and payment hash for polling
   // Stores { paymentRequest, paymentHash, satoshis, memo } object
-  const [currentInvoice, setCurrentInvoice] = useState(null);
+  const { currentInvoice, setCurrentInvoice, clearInvoice, hasInvoice } = useInvoiceState();
 
   // Payment status polling for webhook-only payment detection (SECURITY FIX)
   // Replaced client-side WebSocket with server-side webhook + client polling

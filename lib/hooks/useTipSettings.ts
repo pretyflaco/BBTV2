@@ -15,20 +15,13 @@ export interface UsernameValidationState {
 }
 
 /**
- * Tip preset configuration
- */
-export interface TipPreset {
-  percent: number;
-  enabled: boolean;
-}
-
-/**
  * Tip profile for preset configurations
+ * Matches Dashboard.js TIP_PROFILES structure: { id, name, tipOptions }
  */
 export interface TipProfile {
   id: string;
-  label: string;
-  presets: TipPreset[];
+  name: string;
+  tipOptions: number[];
 }
 
 /**
@@ -38,8 +31,8 @@ export interface UseTipSettingsReturn {
   // Core tip settings
   tipsEnabled: boolean;
   setTipsEnabled: React.Dispatch<React.SetStateAction<boolean>>;
-  tipPresets: TipPreset[];
-  setTipPresets: React.Dispatch<React.SetStateAction<TipPreset[]>>;
+  tipPresets: number[];
+  setTipPresets: React.Dispatch<React.SetStateAction<number[]>>;
 
   // Tip recipient
   tipRecipient: string;
@@ -51,27 +44,17 @@ export interface UseTipSettingsReturn {
   activeTipProfile: TipProfile | null;
   setActiveTipProfile: React.Dispatch<React.SetStateAction<TipProfile | null>>;
 
-  // UI state
-  showTipSettings: boolean;
-  setShowTipSettings: React.Dispatch<React.SetStateAction<boolean>>;
-  showTipProfileSettings: boolean;
-  setShowTipProfileSettings: React.Dispatch<React.SetStateAction<boolean>>;
-
   // Utility functions
   clearUsernameValidation: () => void;
   resetTipRecipient: () => void;
   toggleTipsEnabled: () => void;
-  updateTipPreset: (index: number, updates: Partial<TipPreset>) => void;
 }
 
 /**
- * Default tip presets
+ * Default tip presets - array of percentage numbers
+ * Matches Dashboard.js: [7.5, 10, 12.5, 20]
  */
-const DEFAULT_TIP_PRESETS: TipPreset[] = [
-  { percent: 15, enabled: true },
-  { percent: 18, enabled: true },
-  { percent: 20, enabled: true },
-];
+const DEFAULT_TIP_PRESETS: number[] = [7.5, 10, 12.5, 20];
 
 /**
  * Default username validation state
@@ -83,12 +66,12 @@ const DEFAULT_USERNAME_VALIDATION: UsernameValidationState = {
 };
 
 /**
- * LocalStorage keys
+ * LocalStorage keys - using blinkpos-* prefix to match Dashboard.js
  */
 const STORAGE_KEYS = {
-  TIPS_ENABLED: 'bbt_tips_enabled',
-  TIP_PRESETS: 'bbt_tip_presets',
-  ACTIVE_TIP_PROFILE: 'bbt_active_tip_profile',
+  TIPS_ENABLED: 'blinkpos-tips-enabled',
+  TIP_PRESETS: 'blinkpos-tip-presets',
+  ACTIVE_TIP_PROFILE: 'blinkpos-active-tip-profile',
 } as const;
 
 /**
@@ -115,10 +98,13 @@ function isBrowser(): boolean {
  * 
  * Extracted from Dashboard.js to manage:
  * - Tips enabled/disabled toggle
- * - Tip percentage presets
+ * - Tip percentage presets (number[])
  * - Tip recipient configuration
  * - Username validation state
  * - Tip profiles for different preset configurations
+ * 
+ * Note: UI visibility states (showTipSettings, showTipProfileSettings)
+ * are managed by useUIVisibility hook.
  */
 export function useTipSettings(): UseTipSettingsReturn {
   // Core tip settings with localStorage persistence
@@ -128,7 +114,7 @@ export function useTipSettings(): UseTipSettingsReturn {
     return stored === 'true';
   });
 
-  const [tipPresets, setTipPresets] = useState<TipPreset[]>(() => {
+  const [tipPresets, setTipPresets] = useState<number[]>(() => {
     if (!isBrowser()) return DEFAULT_TIP_PRESETS;
     const stored = localStorage.getItem(STORAGE_KEYS.TIP_PRESETS);
     return safeParseJson(stored, DEFAULT_TIP_PRESETS);
@@ -147,10 +133,6 @@ export function useTipSettings(): UseTipSettingsReturn {
     return safeParseJson(stored, null);
   });
 
-  // UI state
-  const [showTipSettings, setShowTipSettings] = useState<boolean>(false);
-  const [showTipProfileSettings, setShowTipProfileSettings] = useState<boolean>(false);
-
   /**
    * Wrapper for setTipsEnabled that persists to localStorage
    */
@@ -167,7 +149,7 @@ export function useTipSettings(): UseTipSettingsReturn {
   /**
    * Wrapper for setTipPresets that persists to localStorage
    */
-  const setTipPresetsPersistent = useCallback((value: TipPreset[] | ((prev: TipPreset[]) => TipPreset[])) => {
+  const setTipPresetsPersistent = useCallback((value: number[] | ((prev: number[]) => number[])) => {
     setTipPresets((prev) => {
       const newValue = typeof value === 'function' ? value(prev) : value;
       if (isBrowser()) {
@@ -216,18 +198,6 @@ export function useTipSettings(): UseTipSettingsReturn {
     setTipsEnabledPersistent((prev) => !prev);
   }, [setTipsEnabledPersistent]);
 
-  /**
-   * Update a specific tip preset
-   */
-  const updateTipPreset = useCallback((index: number, updates: Partial<TipPreset>): void => {
-    setTipPresetsPersistent((prev) => {
-      if (index < 0 || index >= prev.length) return prev;
-      const updated = [...prev];
-      updated[index] = { ...updated[index], ...updates };
-      return updated;
-    });
-  }, [setTipPresetsPersistent]);
-
   return {
     // Core tip settings
     tipsEnabled,
@@ -245,17 +215,10 @@ export function useTipSettings(): UseTipSettingsReturn {
     activeTipProfile,
     setActiveTipProfile: setActiveTipProfilePersistent,
 
-    // UI state
-    showTipSettings,
-    setShowTipSettings,
-    showTipProfileSettings,
-    setShowTipProfileSettings,
-
     // Utility functions
     clearUsernameValidation,
     resetTipRecipient,
     toggleTipsEnabled,
-    updateTipPreset,
   };
 }
 

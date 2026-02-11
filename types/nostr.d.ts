@@ -97,9 +97,12 @@ interface NostrExtension {
 }
 
 // Extend the Window interface to include nostr
+// Note: We use our own NostrExtension type which is compatible with nostr-tools
+// but provides additional documentation and type safety
 declare global {
   interface Window {
-    nostr?: NostrExtension;
+    // Using intersection to merge with any existing nostr type from nostr-tools
+    nostr?: NostrExtension | undefined;
   }
 }
 

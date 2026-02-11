@@ -1,0 +1,87 @@
+/**
+ * Jest Configuration
+ *
+ * Following Blink conventions for test setup.
+ * Uses SWC for fast TypeScript compilation.
+ */
+
+/** @type {import('jest').Config} */
+const config = {
+  // Use SWC for fast TypeScript/JavaScript transformation
+  transform: {
+    "^.+\\.(t|j)sx?$": [
+      "@swc/jest",
+      {
+        jsc: {
+          parser: {
+            syntax: "typescript",
+            tsx: true,
+          },
+          transform: {
+            react: {
+              runtime: "automatic",
+            },
+          },
+        },
+      },
+    ],
+  },
+
+  // Test file patterns - using .spec.ts for new tests, .test.js for legacy
+  testRegex: "(/__tests__/.*|(\\.|/)(test|spec))\\.[jt]sx?$",
+
+  // File extensions to consider
+  moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
+
+  // Test environment
+  testEnvironment: "jsdom",
+
+  // Module path aliases (matching tsconfig.json)
+  moduleNameMapper: {
+    "^@/(.*)$": "<rootDir>/$1",
+    "^@/lib/(.*)$": "<rootDir>/lib/$1",
+    "^@/components/(.*)$": "<rootDir>/components/$1",
+    "^@/types/(.*)$": "<rootDir>/types/$1",
+  },
+
+  // Setup files
+  setupFilesAfterEnv: ["<rootDir>/tests/unit/setup.ts"],
+
+  // Test directories
+  roots: ["<rootDir>/tests/unit", "<rootDir>/lib", "<rootDir>/components"],
+
+  // Exclude patterns
+  testPathIgnorePatterns: ["/node_modules/", "/.next/", "/e2e/"],
+
+  // Coverage configuration
+  collectCoverageFrom: [
+    "lib/**/*.{js,ts}",
+    "components/**/*.{js,jsx,ts,tsx}",
+    "!**/*.d.ts",
+    "!**/node_modules/**",
+  ],
+  coverageDirectory: "coverage",
+  coverageReporters: ["text", "lcov", "html"],
+  coverageThreshold: {
+    global: {
+      statements: 50,
+      branches: 40,
+      functions: 60,
+      lines: 50,
+    },
+  },
+
+  // Timeouts
+  testTimeout: 10000,
+
+  // Verbose output
+  verbose: true,
+
+  // Clear mocks between tests
+  clearMocks: true,
+
+  // Restore mocks after each test
+  restoreMocks: true,
+}
+
+module.exports = config

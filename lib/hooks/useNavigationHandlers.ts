@@ -1,6 +1,94 @@
 import { useEffect, useRef } from "react"
 
 /**
+ * Imperative handle for the POS component ref.
+ */
+export interface PosRefHandle {
+  handleDigitPress: (digit: string) => void
+  handleBackspace: () => void
+  handleClear: () => void
+  handleSubmit: () => void
+  hasValidAmount?: () => boolean
+  handlePlusPress: () => void
+  isTipDialogOpen?: () => boolean
+  handleTipDialogKey: (key: string) => void
+}
+
+/**
+ * Imperative handle for the Voucher component ref.
+ */
+export interface VoucherRefHandle {
+  handleDigitPress: (digit: string) => void
+  handleBackspace: () => void
+  handleClear: () => void
+  handleSubmit: () => void
+  hasValidAmount?: () => boolean
+  isCommissionDialogOpen?: () => boolean
+  handleCommissionDialogKey: (key: string) => void
+  isRedeemed?: () => boolean
+}
+
+/**
+ * Imperative handle for the MultiVoucher component ref.
+ */
+export interface MultiVoucherRefHandle {
+  handleDigitPress: (digit: string) => void
+  handleBackspace: () => void
+  handleClear: () => void
+  handleSubmit: () => void
+  hasValidAmount?: () => boolean
+  isCommissionDialogOpen?: () => boolean
+  handleCommissionDialogKey: (key: string) => void
+  getCurrentStep?: () => string
+}
+
+/**
+ * Imperative handle for the Cart component ref.
+ */
+export interface CartRefHandle {
+  isCartNavActive?: () => boolean
+  handleCartKey: (key: string) => boolean
+  enterLocalNav?: () => void
+  resetNavigation?: () => void
+}
+
+/**
+ * VoucherWallet type used for null-check gating of voucher navigation.
+ */
+interface VoucherWalletRef {
+  apiKey: string
+  [key: string]: unknown
+}
+
+/**
+ * Parameters for the useNavigationHandlers hook.
+ */
+interface UseNavigationHandlersParams {
+  currentView: string
+  handleViewTransition: (view: string) => void
+  showingInvoice: boolean
+  showingVoucherQR: boolean
+  isViewTransitioning: boolean
+  voucherWallet: VoucherWalletRef | null
+  sideMenuOpen: boolean
+  showAnimation: boolean
+  hideAnimation: () => void
+  posRef: React.RefObject<PosRefHandle | null>
+  voucherRef: React.RefObject<VoucherRefHandle | null>
+  multiVoucherRef: React.RefObject<MultiVoucherRefHandle | null>
+  cartRef: React.RefObject<CartRefHandle | null>
+}
+
+/**
+ * Return type for the useNavigationHandlers hook.
+ */
+interface UseNavigationHandlersReturn {
+  handleTouchStart: (e: React.TouchEvent) => void
+  handleTouchMove: (e: React.TouchEvent) => void
+  handleTouchEnd: () => void
+}
+
+/**
  * useNavigationHandlers - Touch swipe and keyboard navigation for Dashboard
  *
  * Extracted from Dashboard.js to reduce file size.
@@ -39,25 +127,25 @@ export function useNavigationHandlers({
   voucherRef,
   multiVoucherRef,
   cartRef,
-}) {
+}: UseNavigationHandlersParams): UseNavigationHandlersReturn {
   // Touch refs - only used by swipe handlers
-  const touchStartX = useRef(0)
-  const touchEndX = useRef(0)
-  const touchStartY = useRef(0)
-  const touchEndY = useRef(0)
+  const touchStartX = useRef<number>(0)
+  const touchEndX = useRef<number>(0)
+  const touchStartY = useRef<number>(0)
+  const touchEndY = useRef<number>(0)
 
   // Handle touch events for swipe navigation
-  const handleTouchStart = (e) => {
+  const handleTouchStart = (e: React.TouchEvent): void => {
     touchStartX.current = e.targetTouches[0].clientX
     touchStartY.current = e.targetTouches[0].clientY
   }
 
-  const handleTouchMove = (e) => {
+  const handleTouchMove = (e: React.TouchEvent): void => {
     touchEndX.current = e.targetTouches[0].clientX
     touchEndY.current = e.targetTouches[0].clientY
   }
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = (): void => {
     if (!touchStartX.current || !touchEndX.current) return
 
     const distanceX = touchStartX.current - touchEndX.current
@@ -65,7 +153,7 @@ export function useNavigationHandlers({
     const isLeftSwipe = distanceX > 50 && Math.abs(distanceY) < 50
     const isRightSwipe = distanceX < -50 && Math.abs(distanceY) < 50
     const isUpSwipe = distanceY > 50 && Math.abs(distanceX) < 50
-    const isDownSwipe = distanceY < -50 && Math.abs(distanceX) < 50
+    const _isDownSwipe = distanceY < -50 && Math.abs(distanceX) < 50
 
     // Only allow swipe navigation when:
     // - On Cart screen (not showing any overlay)
@@ -138,7 +226,7 @@ export function useNavigationHandlers({
 
   // Keyboard navigation for desktop users
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
       // Skip if side menu is open
       if (sideMenuOpen) return
 
@@ -146,9 +234,9 @@ export function useNavigationHandlers({
       const activeElement = document.activeElement
       if (
         activeElement &&
-        (activeElement.tagName === "INPUT" ||
-          activeElement.tagName === "TEXTAREA" ||
-          activeElement.isContentEditable)
+        ((activeElement as HTMLElement).tagName === "INPUT" ||
+          (activeElement as HTMLElement).tagName === "TEXTAREA" ||
+          (activeElement as HTMLElement).isContentEditable)
       ) {
         return
       }

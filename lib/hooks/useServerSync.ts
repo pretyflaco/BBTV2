@@ -7,24 +7,87 @@ const VOUCHER_WALLET_OLD_KEY = "blinkpos-voucher-wallet" // Old global key (for 
 const VOUCHER_WALLET_PREFIX = "blinkpos-voucher-wallet"
 
 /**
+ * VoucherWallet represents a connected Blink voucher wallet.
+ */
+export interface VoucherWallet {
+  apiKey: string
+  label?: string
+  username?: string
+  [key: string]: unknown
+}
+
+/**
+ * Preferences object synced to the server.
+ */
+interface ServerPreferences {
+  soundEnabled: boolean
+  soundTheme: string
+  tipsEnabled: boolean
+  tipPresets: number[]
+  displayCurrency: string
+  numberFormat: string
+  numpadLayout: string
+  voucherCurrencyMode: string
+  voucherExpiry: string
+  [key: string]: unknown
+}
+
+/**
+ * Parameters for the useServerSync hook.
+ */
+interface UseServerSyncParams {
+  publicKey: string | null
+  soundEnabled: boolean
+  setSoundEnabled: (value: boolean) => void
+  soundTheme: string
+  setSoundTheme: (value: string) => void
+  tipsEnabled: boolean
+  setTipsEnabled: (value: boolean) => void
+  tipPresets: number[]
+  setTipPresets: (value: number[]) => void
+  displayCurrency: string
+  setDisplayCurrency: (value: string) => void
+  numberFormat: string
+  setNumberFormat: (value: string) => void
+  numpadLayout: string
+  setNumpadLayout: (value: string) => void
+  voucherCurrencyMode: string
+  setVoucherCurrencyMode: (value: string) => void
+  voucherExpiry: string
+  setVoucherExpiry: (value: string) => void
+  voucherWallet: VoucherWallet | null
+  setVoucherWallet: (value: VoucherWallet | null) => void
+  setVoucherWalletBalance: (value: number | null) => void
+  setVoucherWalletUsdBalance: (value: number | null) => void
+}
+
+/**
+ * Return type for the useServerSync hook.
+ */
+interface UseServerSyncReturn {
+  syncVoucherWalletToServer: (walletData: VoucherWallet | null) => Promise<void>
+  getVoucherWalletKey: (userPubkey: string | null) => string | null
+}
+
+/**
  * Get user-scoped storage key for voucher wallet
  * @param {string} userPubkey - User's public key
  * @returns {string|null} Storage key or null if no user
  */
-export const getVoucherWalletKey = (userPubkey) =>
+export const getVoucherWalletKey = (userPubkey: string | null): string | null =>
   userPubkey ? `${VOUCHER_WALLET_PREFIX}_${userPubkey}` : null
 
 /**
  * Clean up old global voucher wallet storage key
  * This prevents cross-user data leakage from old versions
  */
-const cleanupOldGlobalVoucherWalletStorage = () => {
+const cleanupOldGlobalVoucherWalletStorage = (): void => {
   try {
     if (localStorage.getItem(VOUCHER_WALLET_OLD_KEY)) {
       console.log("[Dashboard] Removing old global voucher wallet storage (security fix)")
       localStorage.removeItem(VOUCHER_WALLET_OLD_KEY)
     }
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("[Dashboard] Failed to cleanup old voucher wallet storage:", err)
   }
 }
@@ -68,13 +131,13 @@ export function useServerSync({
   setVoucherWallet,
   setVoucherWalletBalance,
   setVoucherWalletUsdBalance,
-}) {
-  const serverSyncTimerRef = useRef(null)
-  const lastSyncedPrefsRef = useRef(null)
+}: UseServerSyncParams): UseServerSyncReturn {
+  const serverSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastSyncedPrefsRef = useRef<string | null>(null)
 
   // Sync preferences to server (debounced)
   const syncPreferencesToServer = useCallback(
-    async (prefs) => {
+    async (prefs: ServerPreferences) => {
       if (!publicKey) return
 
       // Clear existing timer
@@ -102,7 +165,7 @@ export function useServerSync({
             console.log("[Dashboard] ✓ Preferences synced to server")
             lastSyncedPrefsRef.current = JSON.stringify(prefs)
           }
-        } catch (err) {
+        } catch (err: unknown) {
           console.error("[Dashboard] Server sync error:", err)
         }
       }, 2000)
@@ -112,7 +175,7 @@ export function useServerSync({
 
   // Sync voucher wallet to server
   const syncVoucherWalletToServer = useCallback(
-    async (walletData) => {
+    async (walletData: VoucherWallet | null) => {
       if (!publicKey) return
 
       try {
@@ -131,7 +194,7 @@ export function useServerSync({
         if (response.ok) {
           console.log("[Dashboard] ✓ Voucher wallet synced to server")
         }
-      } catch (err) {
+      } catch (err: unknown) {
         console.error("[Dashboard] Failed to sync voucher wallet:", err)
       }
     },
@@ -152,7 +215,7 @@ export function useServerSync({
         if (!response.ok) return
 
         const data = await response.json()
-        const serverPrefs = data.preferences
+        const serverPrefs = data.preferences as ServerPreferences | undefined
 
         if (serverPrefs) {
           console.log("[Dashboard] Loaded preferences from server")
@@ -214,7 +277,7 @@ export function useServerSync({
           lastSyncedPrefsRef.current = JSON.stringify(serverPrefs)
         } else {
           // No server preferences - sync current local to server
-          const currentPrefs = {
+          const currentPrefs: ServerPreferences = {
             soundEnabled,
             soundTheme,
             tipsEnabled,
@@ -266,14 +329,14 @@ export function useServerSync({
           if (voucherWalletStorageKey) {
             const localVoucherWallet = localStorage.getItem(voucherWalletStorageKey)
             if (localVoucherWallet) {
-              const parsed = JSON.parse(localVoucherWallet)
+              const parsed = JSON.parse(localVoucherWallet) as VoucherWallet
               console.log("[Dashboard] Syncing local voucher wallet to server")
               syncVoucherWalletToServer(parsed)
               setVoucherWallet(parsed)
             }
           }
         }
-      } catch (err) {
+      } catch (err: unknown) {
         console.error("[Dashboard] Failed to fetch server preferences:", err)
       }
     }
@@ -282,7 +345,7 @@ export function useServerSync({
   }, [publicKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Track previous user to detect user changes
-  const prevUserRef = useRef(publicKey)
+  const prevUserRef = useRef<string | null>(publicKey)
 
   // Clear voucher wallet state when user changes (logout/switch user)
   // This prevents cross-user data leakage
@@ -328,13 +391,13 @@ export function useServerSync({
         }
 
         const data = await response.json()
-        const username = data.data?.me?.username
+        const username = data.data?.me?.username as string | undefined
 
         if (username) {
           console.log("[Dashboard] ✓ Voucher wallet username fetched:", username)
 
           // Update wallet data with username
-          const updatedWallet = { ...voucherWallet, username }
+          const updatedWallet: VoucherWallet = { ...voucherWallet, username }
           setVoucherWallet(updatedWallet)
 
           // Save to localStorage (user-scoped)
@@ -348,7 +411,7 @@ export function useServerSync({
           // Sync to server
           syncVoucherWalletToServer(updatedWallet)
         }
-      } catch (err) {
+      } catch (err: unknown) {
         console.error("[Dashboard] Failed to migrate voucher wallet username:", err)
       }
     }
@@ -360,7 +423,7 @@ export function useServerSync({
   useEffect(() => {
     if (!publicKey) return
 
-    const currentPrefs = {
+    const currentPrefs: ServerPreferences = {
       soundEnabled,
       soundTheme,
       tipsEnabled,

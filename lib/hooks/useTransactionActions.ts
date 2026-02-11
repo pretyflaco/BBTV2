@@ -1,6 +1,226 @@
-import { useCallback } from "react"
+import {
+  useCallback,
+  Dispatch,
+  SetStateAction,
+  MutableRefObject,
+  KeyboardEvent,
+} from "react"
 import { getEnvironment } from "../config/api"
 import { SPINNER_COLORS } from "./useViewNavigation"
+import type { DashboardView } from "./useViewNavigation"
+
+// ============================================================================
+// Interfaces
+// ============================================================================
+
+/**
+ * Transaction object from Blink API
+ */
+export interface Transaction {
+  id?: string
+  paymentHash?: string
+  direction: string
+  settlementAmount: number
+  settlementCurrency?: string
+  settlementFee?: number
+  status: string
+  createdAt: string
+  memo?: string
+  cursor?: string
+  date?: string
+  amount?: string
+  isNwc?: boolean
+  settlementVia?: {
+    __typename?: string
+    counterPartyUsername?: string
+    [key: string]: unknown
+  }
+  initiationVia?: {
+    __typename?: string
+    counterPartyUsername?: string
+    [key: string]: unknown
+  }
+  [key: string]: unknown
+}
+
+/**
+ * Payment result from Blink or NWC
+ */
+export interface PaymentResult {
+  success: boolean
+  error?: string
+  paymentHash?: string
+  [key: string]: unknown
+}
+
+/**
+ * Invoice object
+ */
+export interface Invoice {
+  paymentRequest: string
+  paymentHash?: string
+  satoshis?: number
+  amount?: number
+  memo?: string
+  [key: string]: unknown
+}
+
+/**
+ * Split payment profile
+ */
+export interface SplitProfile {
+  recipients: Array<{ username: string; weight: number; type?: string }>
+}
+
+/**
+ * Date range preset for filtering
+ */
+export interface DateRangePreset {
+  id: string
+  label: string
+  start: Date
+  end: Date
+  type?: string
+}
+
+/**
+ * Filtered transaction stats
+ */
+export interface FilteredStats {
+  totalReceived: number
+  totalSent: number
+  receiveCount: number
+  sendCount: number
+  netAmount: number
+  transactionCount: number
+}
+
+/**
+ * Wallet object from Blink API
+ */
+export interface Wallet {
+  id: string
+  walletCurrency: string
+  balance: number
+  [key: string]: unknown
+}
+
+/**
+ * Month group for transaction grouping
+ */
+export interface MonthGroup {
+  label: string
+  transactions: Transaction[]
+  year: number
+  month: number
+}
+
+/**
+ * User object
+ */
+export interface User {
+  username: string
+  [key: string]: unknown
+}
+
+/**
+ * Cart ref handle
+ */
+interface CartRefHandle {
+  resetNavigation?: () => void
+  [key: string]: unknown
+}
+
+/**
+ * Params for useTransactionActions hook
+ */
+export interface UseTransactionActionsParams {
+  // From useWalletState
+  apiKey: string | null
+  wallets: Wallet[]
+  // From useCombinedAuth
+  user: User | null
+  // From useTransactionState
+  transactions: Transaction[]
+  setTransactions: Dispatch<SetStateAction<Transaction[]>>
+  loadingMore: boolean
+  setLoadingMore: Dispatch<SetStateAction<boolean>>
+  hasMoreTransactions: boolean
+  setHasMoreTransactions: Dispatch<SetStateAction<boolean>>
+  setPastTransactionsLoaded: Dispatch<SetStateAction<boolean>>
+  setDateFilterActive: Dispatch<SetStateAction<boolean>>
+  setSelectedDateRange: Dispatch<SetStateAction<DateRangePreset | null>>
+  setFilteredTransactions: Dispatch<SetStateAction<Transaction[]>>
+  setExportingData: Dispatch<SetStateAction<boolean>>
+  dateFilterActive: boolean
+  filteredTransactions: Transaction[]
+  clearDateFilter: () => void
+  txSearchQuery: string
+  txSearchInput: string
+  setIsSearchingTx: Dispatch<SetStateAction<boolean>>
+  setTxSearchInput: Dispatch<SetStateAction<string>>
+  setIsSearchLoading: Dispatch<SetStateAction<boolean>>
+  setTxSearchQuery: Dispatch<SetStateAction<string>>
+  expandedMonths: Set<string>
+  setExpandedMonths: Dispatch<SetStateAction<Set<string>>>
+  // From useUIVisibility
+  showTimeInputs: boolean
+  setShowTimeInputs: Dispatch<SetStateAction<boolean>>
+  setShowDateRangeSelector: Dispatch<SetStateAction<boolean>>
+  setShowExportOptions: Dispatch<SetStateAction<boolean>>
+  // From useViewNavigation
+  currentView: DashboardView | string
+  setCurrentView: (view: DashboardView) => void
+  setTransitionColorIndex: Dispatch<SetStateAction<number>>
+  setIsViewTransitioning: Dispatch<SetStateAction<boolean>>
+  // From useTransactionState (custom date range inputs)
+  customDateStart: string
+  customDateEnd: string
+  customTimeStart: string
+  customTimeEnd: string
+  // From useDashboardData
+  fetchData: (overrideApiKey?: string | null) => Promise<void>
+  // Refs
+  txSearchInputRef: MutableRefObject<HTMLInputElement | null>
+  cartRef: MutableRefObject<CartRefHandle | null>
+}
+
+/**
+ * Return type for useTransactionActions hook
+ */
+export interface UseTransactionActionsReturn {
+  // View transition
+  handleViewTransition: (newView: DashboardView) => void
+  // Transaction loading
+  loadMoreMonths: () => Promise<void>
+  loadPastTransactions: () => Promise<void>
+  // Date range filtering
+  getDateRangePresets: () => DateRangePreset[]
+  loadTransactionsForDateRange: (dateRange: DateRangePreset) => Promise<void>
+  handleCustomDateRange: () => void
+  handleClearDateFilter: () => void
+  // Transaction display/stats
+  getFilteredStats: () => FilteredStats
+  getDisplayTransactions: () => Transaction[]
+  filterTransactionsBySearch: (txList: Transaction[], query: string) => Transaction[]
+  // Transaction search
+  handleTxSearchClick: () => void
+  handleTxSearchSubmit: () => void
+  handleTxSearchKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void
+  handleTxSearchClose: () => void
+  // CSV export
+  convertTransactionsToBasicCSV: (txs: Transaction[]) => string
+  downloadCSV: (csvContent: string, filename: string) => void
+  exportBasicTransactions: () => Promise<void>
+  exportFullTransactions: () => Promise<void>
+  // Month grouping
+  groupTransactionsByMonth: (transactions: Transaction[]) => Record<string, MonthGroup>
+  getMonthGroups: () => Record<string, MonthGroup>
+  toggleMonth: (monthKey: string) => Promise<void>
+  loadMoreTransactionsForMonth: (monthKey: string) => Promise<void>
+  // Refresh
+  handleRefresh: () => void
+}
 
 /**
  * Hook for transaction operations: loading, filtering, searching, exporting,
@@ -8,8 +228,8 @@ import { SPINNER_COLORS } from "./useViewNavigation"
  *
  * Extracted from Dashboard.js — the largest extraction (~940 lines).
  *
- * @param {Object} params - All required state, setters, and refs
- * @returns {Object} Transaction action functions
+ * @param {UseTransactionActionsParams} params - All required state, setters, and refs
+ * @returns {UseTransactionActionsReturn} Transaction action functions
  */
 export function useTransactionActions({
   // From useWalletState
@@ -60,32 +280,35 @@ export function useTransactionActions({
   // Refs
   txSearchInputRef,
   cartRef,
-}) {
-  const loadMoreHistoricalTransactions = async (cursor, currentTransactions) => {
+}: UseTransactionActionsParams): UseTransactionActionsReturn {
+  const loadMoreHistoricalTransactions = async (
+    cursor: string,
+    currentTransactions: Transaction[],
+  ): Promise<boolean> => {
     try {
       // Load several batches to get a good historical view
-      let allTransactions = [...currentTransactions]
-      let nextCursor = cursor
+      let allTransactions: Transaction[] = [...currentTransactions]
+      let nextCursor: string | undefined = cursor
       let hasMore = true
       let batchCount = 0
       const maxBatches = 5 // Load up to 5 more batches (500 more transactions)
 
       // Build request headers
       // Always include API key to ensure correct account is used
-      const headers = {}
+      const headers: Record<string, string> = {}
       if (apiKey) {
         headers["X-API-KEY"] = apiKey
       }
 
       while (hasMore && batchCount < maxBatches) {
         const currentEnv = getEnvironment()
-        const response = await fetch(
+        const response: Response = await fetch(
           `/api/blink/transactions?first=100&after=${nextCursor}&environment=${currentEnv}`,
           { headers, credentials: "include" },
         )
 
         if (response.ok) {
-          const data = await response.json()
+          const data: any = await response.json()
           allTransactions = [...allTransactions, ...data.transactions]
 
           hasMore = data.pageInfo?.hasNextPage
@@ -103,14 +326,14 @@ export function useTransactionActions({
         `Loaded ${allTransactions.length} total transactions across ${batchCount + 1} batches`,
       )
       return hasMore // Return whether more transactions are available
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error loading historical transactions:", error)
       return false
     }
   }
 
   // Load past transactions (initial load of historical data)
-  const loadPastTransactions = async () => {
+  const loadPastTransactions = async (): Promise<void> => {
     if (loadingMore || !hasMoreTransactions) return
 
     setLoadingMore(true)
@@ -127,7 +350,7 @@ export function useTransactionActions({
         setHasMoreTransactions(finalHasMore)
         setPastTransactionsLoaded(true)
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error loading past transactions:", error)
     } finally {
       setLoadingMore(false)
@@ -135,13 +358,13 @@ export function useTransactionActions({
   }
 
   // Load more months on demand (after initial past transactions are loaded)
-  const loadMoreMonths = async () => {
+  const loadMoreMonths = async (): Promise<void> => {
     if (loadingMore || !hasMoreTransactions) return
 
     setLoadingMore(true)
     try {
       // Always include API key to ensure correct account is used
-      const headers = {}
+      const headers: Record<string, string> = {}
       if (apiKey) {
         headers["X-API-KEY"] = apiKey
       }
@@ -155,7 +378,7 @@ export function useTransactionActions({
 
       if (response.ok) {
         const data = await response.json()
-        const newTransactions = data.transactions
+        const newTransactions: Transaction[] = data.transactions
 
         if (newTransactions.length > 0) {
           setTransactions((prev) => [...prev, ...newTransactions])
@@ -164,7 +387,7 @@ export function useTransactionActions({
           setHasMoreTransactions(false)
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error loading more months:", error)
     } finally {
       setLoadingMore(false)
@@ -172,7 +395,7 @@ export function useTransactionActions({
   }
 
   // Date range presets for transaction filtering
-  const getDateRangePresets = () => {
+  const getDateRangePresets = (): DateRangePreset[] => {
     const now = new Date()
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const yesterday = new Date(today)
@@ -229,7 +452,7 @@ export function useTransactionActions({
   }
 
   // Parse createdAt value to Date object (handles various formats from Blink API)
-  const parseCreatedAt = (createdAt) => {
+  const parseCreatedAt = (createdAt: string | number | undefined | null): Date | null => {
     if (!createdAt) return null
 
     try {
@@ -266,29 +489,34 @@ export function useTransactionActions({
       }
 
       return null
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error parsing createdAt:", createdAt, error)
       return null
     }
   }
 
   // Parse transaction date string to Date object (for formatted display dates)
-  const parseTransactionDate = (dateString) => {
+  const parseTransactionDate = (dateString: string | undefined | null): Date | null => {
     try {
+      if (!dateString) return null
       // Handle format like "Dec 14, 2025, 10:30 AM"
       const date = new Date(dateString)
       if (!isNaN(date.getTime())) {
         return date
       }
       return null
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error parsing date:", dateString, error)
       return null
     }
   }
 
   // Filter transactions by date range
-  const filterTransactionsByDateRange = (txs, startDate, endDate) => {
+  const filterTransactionsByDateRange = (
+    txs: Transaction[],
+    startDate: Date,
+    endDate: Date,
+  ): Transaction[] => {
     console.log("Filtering transactions:", {
       count: txs.length,
       startDate: startDate.toISOString(),
@@ -325,7 +553,9 @@ export function useTransactionActions({
   }
 
   // Load and filter transactions by date range
-  const loadTransactionsForDateRange = async (dateRange) => {
+  const loadTransactionsForDateRange = async (
+    dateRange: DateRangePreset,
+  ): Promise<void> => {
     if (loadingMore) return
 
     setLoadingMore(true)
@@ -334,18 +564,18 @@ export function useTransactionActions({
 
     try {
       // Always include API key to ensure correct account is used
-      const headers = {}
+      const headers: Record<string, string> = {}
       if (apiKey) {
         headers["X-API-KEY"] = apiKey
       }
 
       // We need to load enough transactions to cover the date range
       // Start by loading initial batch, then load more if needed
-      let allTransactions = [...transactions]
-      let cursor =
+      let allTransactions: Transaction[] = [...transactions]
+      let cursor: string | undefined =
         allTransactions.length > 0
           ? allTransactions[allTransactions.length - 1]?.cursor
-          : null
+          : undefined
       let hasMore = hasMoreTransactions
       let batchCount = 0
       const maxBatches = 10 // Load up to 10 batches (1000 transactions)
@@ -360,7 +590,7 @@ export function useTransactionActions({
       // If we have existing transactions and the oldest one is older than our range start,
       // we might have enough data
       const oldestTx = allTransactions[allTransactions.length - 1]
-      let oldestDate =
+      let oldestDate: Date | null =
         parseCreatedAt(oldestTx?.createdAt) || parseTransactionDate(oldestTx?.date)
 
       // Load more if we don't have enough data covering the date range
@@ -418,7 +648,7 @@ export function useTransactionActions({
       console.log(
         `Date range filter: ${dateRange.label}, found ${filtered.length} transactions out of ${allTransactions.length} total`,
       )
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error loading transactions for date range:", error)
     } finally {
       setLoadingMore(false)
@@ -427,7 +657,7 @@ export function useTransactionActions({
   }
 
   // Handle custom date range selection
-  const handleCustomDateRange = () => {
+  const handleCustomDateRange = (): void => {
     if (!customDateStart || !customDateEnd) {
       return
     }
@@ -456,9 +686,9 @@ export function useTransactionActions({
     }
 
     // Format label based on whether time is included
-    let label
+    let label: string
     if (showTimeInputs) {
-      const formatDateTime = (d) => {
+      const formatDateTime = (d: Date): string => {
         return (
           d.toLocaleDateString() +
           " " +
@@ -470,7 +700,8 @@ export function useTransactionActions({
       label = `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`
     }
 
-    const dateRange = {
+    const dateRange: DateRangePreset = {
+      id: "custom",
       type: "custom",
       start,
       end,
@@ -481,13 +712,13 @@ export function useTransactionActions({
   }
 
   // Clear date filter - uses hook's clearDateFilter plus local UI state
-  const handleClearDateFilter = () => {
+  const handleClearDateFilter = (): void => {
     clearDateFilter() // From useTransactionState hook
     setShowTimeInputs(false)
   }
 
   // Calculate summary stats for filtered transactions
-  const getFilteredStats = () => {
+  const getFilteredStats = (): FilteredStats => {
     const txs = dateFilterActive ? filteredTransactions : transactions
 
     let totalReceived = 0
@@ -517,7 +748,10 @@ export function useTransactionActions({
   }
 
   // Filter transactions by search query (memo, username, amount)
-  const filterTransactionsBySearch = (txList, query) => {
+  const filterTransactionsBySearch = (
+    txList: Transaction[],
+    query: string,
+  ): Transaction[] => {
     if (!query || !query.trim()) return txList
     const lowerQuery = query.toLowerCase().trim()
     return txList.filter((tx) => {
@@ -534,13 +768,13 @@ export function useTransactionActions({
   }
 
   // Get display transactions (applies search filter on top of date filter)
-  const getDisplayTransactions = () => {
+  const getDisplayTransactions = (): Transaction[] => {
     const baseTxs = dateFilterActive ? filteredTransactions : transactions
     return filterTransactionsBySearch(baseTxs, txSearchQuery)
   }
 
   // Handle transaction search activation
-  const handleTxSearchClick = () => {
+  const handleTxSearchClick = (): void => {
     setIsSearchingTx(true)
     setTxSearchInput(txSearchQuery) // Pre-fill with current search if any
     setTimeout(() => {
@@ -549,7 +783,7 @@ export function useTransactionActions({
   }
 
   // Handle transaction search submit (lock in the search)
-  const handleTxSearchSubmit = () => {
+  const handleTxSearchSubmit = (): void => {
     if (!txSearchInput.trim()) {
       // If empty, just close the input
       setIsSearchingTx(false)
@@ -568,7 +802,7 @@ export function useTransactionActions({
   }
 
   // Handle Enter key in search input
-  const handleTxSearchKeyDown = (e) => {
+  const handleTxSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
     if (e.key === "Enter") {
       e.preventDefault()
       handleTxSearchSubmit()
@@ -579,14 +813,14 @@ export function useTransactionActions({
   }
 
   // Handle transaction search close/clear
-  const handleTxSearchClose = () => {
+  const handleTxSearchClose = (): void => {
     setIsSearchingTx(false)
     setTxSearchInput("")
     setTxSearchQuery("")
   }
 
   // Handle view transition with loading animation
-  const handleViewTransition = (newView) => {
+  const handleViewTransition = (newView: DashboardView): void => {
     if (newView === currentView) return
 
     // Rotate to next spinner color
@@ -607,12 +841,12 @@ export function useTransactionActions({
     }, 150)
   }
 
-  const handleRefresh = () => {
+  const handleRefresh = (): void => {
     fetchData()
   }
 
   // Export all transactions to CSV using official Blink CSV export
-  const exportFullTransactions = async () => {
+  const exportFullTransactions = async (): Promise<void> => {
     setExportingData(true)
     try {
       console.log("Starting full transaction export using Blink official CSV...")
@@ -627,7 +861,7 @@ export function useTransactionActions({
       console.log(`Exporting CSV for wallets: ${walletIds.join(", ")}`)
 
       // Build request headers
-      const headers = {
+      const headers: Record<string, string> = {
         "Content-Type": "application/json",
       }
       // Always include API key to ensure correct account is used
@@ -654,7 +888,7 @@ export function useTransactionActions({
         throw new Error("No CSV data received from API")
       }
 
-      const csv = data.csv
+      const csv: string = data.csv
       console.log(`CSV received, length: ${csv.length} characters`)
 
       // Generate filename with date and username
@@ -670,15 +904,15 @@ export function useTransactionActions({
       downloadCSV(csv, filename)
 
       setShowExportOptions(false)
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error exporting transactions:", error)
       console.error("Error details:", {
-        message: error.message,
-        stack: error.stack,
-        name: error.name,
+        message: (error as Error).message,
+        stack: (error as Error).stack,
+        name: (error as Error).name,
       })
       alert(
-        `Failed to export transactions: ${error.message || "Unknown error"}. Check console for details.`,
+        `Failed to export transactions: ${(error as Error).message || "Unknown error"}. Check console for details.`,
       )
     } finally {
       setExportingData(false)
@@ -686,27 +920,27 @@ export function useTransactionActions({
   }
 
   // Export basic transactions to CSV (simplified format)
-  const exportBasicTransactions = async () => {
+  const exportBasicTransactions = async (): Promise<void> => {
     setExportingData(true)
     try {
       console.log("Starting basic transaction export...")
 
       // Always include API key to ensure correct account is used
-      const headers = {}
+      const headers: Record<string, string> = {}
       if (apiKey) {
         headers["X-API-KEY"] = apiKey
       }
 
       // Fetch ALL transactions by paginating through all pages
-      let allTransactions = []
+      let allTransactions: Transaction[] = []
       let hasMore = true
-      let cursor = null
+      let cursor: string | null = null
       let pageCount = 0
 
       while (hasMore) {
         pageCount++
         const currentEnv = getEnvironment()
-        const url = cursor
+        const url: string = cursor
           ? `/api/blink/transactions?first=100&after=${cursor}&environment=${currentEnv}`
           : `/api/blink/transactions?first=100&environment=${currentEnv}`
 
@@ -714,7 +948,7 @@ export function useTransactionActions({
           `Fetching page ${pageCount}, cursor: ${cursor ? cursor.substring(0, 20) + "..." : "none"}`,
         )
 
-        const response = await fetch(url, { headers, credentials: "include" })
+        const response: Response = await fetch(url, { headers, credentials: "include" })
 
         if (!response.ok) {
           const errorText = await response.text()
@@ -724,7 +958,7 @@ export function useTransactionActions({
           )
         }
 
-        const data = await response.json()
+        const data: any = await response.json()
         console.log(`Received ${data.transactions?.length || 0} transactions`)
 
         if (!data.transactions || !Array.isArray(data.transactions)) {
@@ -761,15 +995,15 @@ export function useTransactionActions({
       downloadCSV(csv, filename)
 
       setShowExportOptions(false)
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error exporting basic transactions:", error)
       console.error("Error details:", {
-        message: error.message,
-        stack: error.stack,
-        name: error.name,
+        message: (error as Error).message,
+        stack: (error as Error).stack,
+        name: (error as Error).name,
       })
       alert(
-        `Failed to export transactions: ${error.message || "Unknown error"}. Check console for details.`,
+        `Failed to export transactions: ${(error as Error).message || "Unknown error"}. Check console for details.`,
       )
     } finally {
       setExportingData(false)
@@ -777,7 +1011,7 @@ export function useTransactionActions({
   }
 
   // Convert transactions to Basic CSV format (simplified)
-  const convertTransactionsToBasicCSV = (txs) => {
+  const convertTransactionsToBasicCSV = (txs: Transaction[]): string => {
     // CSV Header: timestamp, type, credit, debit, fee, currency, status, InMemo, username
     const header = "timestamp,type,credit,debit,fee,currency,status,InMemo,username"
 
@@ -842,7 +1076,7 @@ export function useTransactionActions({
         }
 
         // Escape commas and quotes in fields
-        const escape = (field) => {
+        const escape = (field: string | number): string => {
           const str = String(field)
           if (str.includes(",") || str.includes('"') || str.includes("\n")) {
             return `"${str.replace(/"/g, '""')}"`
@@ -861,10 +1095,12 @@ export function useTransactionActions({
           escape(inMemo),
           escape(username),
         ].join(",")
-      } catch (error) {
+      } catch (error: unknown) {
         console.error(`Error processing transaction ${index}:`, error)
         console.error("Transaction data:", tx)
-        throw new Error(`Failed to convert transaction ${index}: ${error.message}`)
+        throw new Error(
+          `Failed to convert transaction ${index}: ${(error as Error).message}`,
+        )
       }
     })
 
@@ -872,7 +1108,7 @@ export function useTransactionActions({
   }
 
   // Download CSV file
-  const downloadCSV = (csvContent, filename) => {
+  const downloadCSV = (csvContent: string, filename: string): void => {
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
 
     // Check if native share is available (for mobile)
@@ -886,7 +1122,7 @@ export function useTransactionActions({
           title: "Blink Transactions Export",
           text: "Transaction history from Blink",
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
           console.log("Share failed, falling back to download:", error)
           // Fallback to regular download
           triggerDownload(blob, filename)
@@ -898,7 +1134,7 @@ export function useTransactionActions({
   }
 
   // Trigger download via link
-  const triggerDownload = (blob, filename) => {
+  const triggerDownload = (blob: Blob, filename: string): void => {
     const link = document.createElement("a")
     if (link.download !== undefined) {
       const url = URL.createObjectURL(blob)
@@ -912,19 +1148,21 @@ export function useTransactionActions({
     }
   }
 
-  const groupTransactionsByMonth = (transactions) => {
-    const grouped = {}
+  const groupTransactionsByMonth = (
+    transactions: Transaction[],
+  ): Record<string, MonthGroup> => {
+    const grouped: Record<string, MonthGroup> = {}
 
     transactions.forEach((tx) => {
       try {
         // Parse the date string more robustly
-        let date
-        if (tx.date.includes(",")) {
+        let date: Date
+        if (tx.date && tx.date.includes(",")) {
           // Format like "Jan 15, 2024, 10:30 AM"
           date = new Date(tx.date)
         } else {
           // Try parsing as is
-          date = new Date(tx.date)
+          date = new Date(tx.date || tx.createdAt)
         }
 
         // Validate the date
@@ -949,7 +1187,7 @@ export function useTransactionActions({
         }
 
         grouped[monthKey].transactions.push(tx)
-      } catch (error) {
+      } catch (error: unknown) {
         console.error("Error processing transaction date:", tx.date, error)
       }
     })
@@ -961,13 +1199,13 @@ export function useTransactionActions({
   }
 
   // Get month groups from current transactions (excluding recent 5)
-  const getMonthGroups = () => {
+  const getMonthGroups = (): Record<string, MonthGroup> => {
     const pastTransactions = transactions.slice(5) // Skip the 5 most recent
     return groupTransactionsByMonth(pastTransactions)
   }
 
   // Toggle month expansion and load more transactions if needed
-  const toggleMonth = async (monthKey) => {
+  const toggleMonth = async (monthKey: string): Promise<void> => {
     const newExpanded = new Set(expandedMonths)
 
     if (newExpanded.has(monthKey)) {
@@ -986,7 +1224,7 @@ export function useTransactionActions({
   }
 
   // Load more transactions for a specific month
-  const loadMoreTransactionsForMonth = async (monthKey) => {
+  const loadMoreTransactionsForMonth = async (monthKey: string): Promise<void> => {
     try {
       // If we already have enough transactions for most months, don't load more
       const monthGroups = getMonthGroups()
@@ -1000,7 +1238,7 @@ export function useTransactionActions({
       if (hasMoreTransactions) {
         await loadMoreMonths()
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error loading more transactions for month:", error)
     }
   }

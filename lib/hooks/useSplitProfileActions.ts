@@ -7,6 +7,77 @@ import {
 } from "../lnurl"
 
 /**
+ * A single recipient in a split profile.
+ */
+export interface SplitRecipient {
+  username: string
+  validated?: boolean
+  type?: "blink" | "npub_cash"
+  weight: number
+}
+
+/**
+ * A split profile containing one or more recipients.
+ */
+export interface SplitProfile {
+  id: string
+  name?: string
+  recipients: SplitRecipient[]
+  [key: string]: unknown
+}
+
+/**
+ * Validation state for a recipient being added.
+ */
+export interface RecipientValidation {
+  status: "success" | "error" | null
+  message: string
+  isValidating: boolean
+  type?: "blink" | "npub_cash"
+  address?: string
+}
+
+/**
+ * Parameters for the useSplitProfileActions hook.
+ */
+interface UseSplitProfileActionsParams {
+  publicKey: string | null
+  authMode: string
+  splitProfiles: SplitProfile[]
+  setSplitProfiles: (value: SplitProfile[]) => void
+  setActiveSplitProfile: (value: SplitProfile | null) => void
+  setSplitProfilesLoading: (value: boolean) => void
+  setSplitProfileError: (value: string | null) => void
+  setTipsEnabled: (value: boolean) => void
+  setTipRecipient: (value: string) => void
+  setRecipientValidation: (value: RecipientValidation) => void
+  recipientValidation: RecipientValidation
+  newRecipientInput: string
+  setNewRecipientInput: (value: string) => void
+  newSplitProfileRecipients: SplitRecipient[]
+  setNewSplitProfileRecipients: (
+    value: SplitRecipient[] | ((prev: SplitRecipient[]) => SplitRecipient[]),
+  ) => void
+  useCustomWeights: boolean
+}
+
+/**
+ * Return type for the useSplitProfileActions hook.
+ */
+interface UseSplitProfileActionsReturn {
+  fetchSplitProfiles: () => Promise<void>
+  saveSplitProfile: (
+    profile: SplitProfile,
+    setActive?: boolean,
+  ) => Promise<SplitProfile | null>
+  deleteSplitProfile: (profileId: string) => Promise<boolean>
+  setActiveSplitProfileById: (profileId: string | null) => Promise<void>
+  validateRecipientUsername: (username: string) => Promise<void>
+  addRecipientToProfile: () => void
+  removeRecipientFromProfile: (username: string) => void
+}
+
+/**
  * Hook for split profile CRUD operations and recipient validation.
  *
  * Extracted from Dashboard.js — contains:
@@ -37,7 +108,7 @@ export function useSplitProfileActions({
   newSplitProfileRecipients,
   setNewSplitProfileRecipients,
   useCustomWeights,
-}) {
+}: UseSplitProfileActionsParams): UseSplitProfileActionsReturn {
   // Fetch split profiles from server
   const fetchSplitProfiles = useCallback(async () => {
     if (!publicKey) {
@@ -59,8 +130,8 @@ export function useSplitProfileActions({
 
         // Set active profile
         if (data.activeSplitProfileId && data.splitProfiles) {
-          const active = data.splitProfiles.find(
-            (p) => p.id === data.activeSplitProfileId,
+          const active = (data.splitProfiles as SplitProfile[]).find(
+            (p: SplitProfile) => p.id === data.activeSplitProfileId,
           )
           setActiveSplitProfile(active || null)
 
@@ -83,7 +154,7 @@ export function useSplitProfileActions({
       } else {
         console.error("[SplitProfiles] Failed to fetch:", response.status)
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("[SplitProfiles] Error:", err)
     } finally {
       setSplitProfilesLoading(false)
@@ -91,7 +162,10 @@ export function useSplitProfileActions({
   }, [publicKey])
 
   // Save split profile to server
-  const saveSplitProfile = async (profile, setActive = false) => {
+  const saveSplitProfile = async (
+    profile: SplitProfile,
+    setActive: boolean = false,
+  ): Promise<SplitProfile | null> => {
     if (!publicKey) return null
 
     setSplitProfileError(null)
@@ -109,7 +183,7 @@ export function useSplitProfileActions({
       if (response.ok) {
         const data = await response.json()
         await fetchSplitProfiles() // Refresh the list
-        return data.profile
+        return data.profile as SplitProfile
       } else if (response.status === 401) {
         setSplitProfileError("Please sign in again to save split profiles")
         return null
@@ -118,7 +192,7 @@ export function useSplitProfileActions({
         setSplitProfileError(error.error || "Failed to save profile")
         return null
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("[SplitProfiles] Save error:", err)
       setSplitProfileError("Failed to save profile")
       return null
@@ -126,7 +200,7 @@ export function useSplitProfileActions({
   }
 
   // Delete split profile
-  const deleteSplitProfile = async (profileId) => {
+  const deleteSplitProfile = async (profileId: string): Promise<boolean> => {
     if (!publicKey) return false
 
     try {
@@ -144,14 +218,14 @@ export function useSplitProfileActions({
         return true
       }
       return false
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("[SplitProfiles] Delete error:", err)
       return false
     }
   }
 
   // Set active split profile
-  const setActiveSplitProfileById = async (profileId) => {
+  const setActiveSplitProfileById = async (profileId: string | null): Promise<void> => {
     if (!publicKey) return
 
     if (!profileId) {
@@ -185,7 +259,7 @@ export function useSplitProfileActions({
   }
 
   // Validate recipient username (Blink username or npub.cash address)
-  const validateRecipientUsername = useCallback(async (username) => {
+  const validateRecipientUsername = useCallback(async (username: string) => {
     if (!username || username.trim() === "") {
       setRecipientValidation({ status: null, message: "", isValidating: false })
       return
@@ -203,7 +277,7 @@ export function useSplitProfileActions({
         if (!validation.valid) {
           setRecipientValidation({
             status: "error",
-            message: validation.error,
+            message: validation.error || "Invalid npub.cash address",
             isValidating: false,
           })
           return
@@ -227,11 +301,11 @@ export function useSplitProfileActions({
             isValidating: false,
           })
         }
-      } catch (err) {
+      } catch (err: unknown) {
         console.error("npub.cash validation error:", err)
         setRecipientValidation({
           status: "error",
-          message: err.message || "Failed to validate npub.cash address",
+          message: (err as Error).message || "Failed to validate npub.cash address",
           isValidating: false,
         })
       }
@@ -314,7 +388,7 @@ export function useSplitProfileActions({
           isValidating: false,
         })
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Recipient validation error:", err)
       setRecipientValidation({
         status: "error",
@@ -338,10 +412,10 @@ export function useSplitProfileActions({
     if (recipientValidation.status !== "success" || !newRecipientInput.trim()) return
 
     // Use the address from validation for npub.cash, or cleaned username for Blink
-    const recipientType = recipientValidation.type || "blink"
-    let recipientAddress =
+    const recipientType: "blink" | "npub_cash" = recipientValidation.type || "blink"
+    let recipientAddress: string =
       recipientType === "npub_cash"
-        ? recipientValidation.address
+        ? recipientValidation.address || newRecipientInput.trim().toLowerCase()
         : newRecipientInput.trim().toLowerCase()
 
     // Remove any Blink domain suffix for Blink users
@@ -358,8 +432,8 @@ export function useSplitProfileActions({
       return
     }
 
-    setNewSplitProfileRecipients((prev) => {
-      const newRecipients = [
+    setNewSplitProfileRecipients((prev: SplitRecipient[]) => {
+      const newRecipients: SplitRecipient[] = [
         ...prev,
         {
           username: recipientAddress,
@@ -389,8 +463,8 @@ export function useSplitProfileActions({
 
   // Remove a recipient from the list
   const removeRecipientFromProfile = useCallback(
-    (username) => {
-      setNewSplitProfileRecipients((prev) => {
+    (username: string) => {
+      setNewSplitProfileRecipients((prev: SplitRecipient[]) => {
         const filtered = prev.filter((r) => r.username !== username)
         // Redistribute weights evenly when not using custom weights
         if (!useCustomWeights && filtered.length > 0) {

@@ -20,10 +20,10 @@ import React, {
 } from "react"
 import NostrAuthService from "../nostr/NostrAuthService.js"
 import NostrProfileService from "../nostr/NostrProfileService.js"
-import ProfileStorage from "../storage/ProfileStorage.js"
-import CryptoUtils from "../storage/CryptoUtils.js"
+import ProfileStorage from "../storage/ProfileStorage"
+import CryptoUtils from "../storage/CryptoUtils"
 import NostrConnectService from "../nostr/NostrConnectService.js"
-import { AUTH_VERSION_FULL, logAuth, logAuthError, logAuthWarn } from "../version.js"
+import { AUTH_VERSION_FULL, logAuth, logAuthError, logAuthWarn } from "../version"
 
 // ============= Interfaces =============
 

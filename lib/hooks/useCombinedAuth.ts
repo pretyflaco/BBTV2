@@ -438,8 +438,7 @@ export function useCombinedAuth(): UseCombinedAuthReturn {
       if (result.success) {
         // Add the Blink account to the new Nostr profile
         try {
-          const ProfileStorage: any = (await import("../storage/ProfileStorage.js"))
-            .default
+          const ProfileStorage: any = (await import("../storage/ProfileStorage")).default
 
           // Ensure profile exists - use getProfileByPublicKey and createProfile with signInMethod
           let profileData: any = ProfileStorage.getProfileByPublicKey(nostrPublicKey)

@@ -26,8 +26,8 @@ import React, {
   useContext,
   useRef,
 } from "react"
-import ProfileStorage from "../storage/ProfileStorage.js"
-import CryptoUtils from "../storage/CryptoUtils.js"
+import ProfileStorage from "../storage/ProfileStorage"
+import CryptoUtils from "../storage/CryptoUtils"
 import { useNostrAuth } from "./useNostrAuth"
 
 // ============= Local Type Definitions =============

@@ -4,6 +4,7 @@ import {
   getCurrencyById,
   SAT_CURRENCY,
   STREET_RATE_CURRENCIES,
+  CurrencyMetadata,
 } from "../currency-utils"
 import {
   CITRUSRATE_EXCLUSIVE_CURRENCIES,
@@ -11,16 +12,10 @@ import {
 } from "../citrusrate-currencies-client"
 
 /**
- * Currency data structure
+ * Currency data structure — extends CurrencyMetadata with index signature
+ * for flexibility with arbitrary Blink API fields
  */
-export interface Currency {
-  id: string
-  symbol?: string
-  name?: string
-  flag?: string
-  fractionDigits?: number
-  baseId?: string
-  country?: string
+export interface Currency extends CurrencyMetadata {
   [key: string]: unknown
 }
 

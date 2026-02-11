@@ -16,11 +16,13 @@ import { useTransactionState } from "../lib/hooks/useTransactionState"
 import { useSplitProfiles } from "../lib/hooks/useSplitProfiles"
 import { useUIVisibility } from "../lib/hooks/useUIVisibility"
 import { useTipSettings } from "../lib/hooks/useTipSettings"
+import { useTipRecipientValidation } from "../lib/hooks/useTipRecipientValidation"
+import { useExchangeRateFetcher } from "../lib/hooks/useExchangeRateFetcher"
+import { useServerSync, getVoucherWalletKey } from "../lib/hooks/useServerSync"
+import { usePaymentPolling } from "../lib/hooks/usePaymentPolling"
 import { useExchangeRate } from "../lib/hooks/useExchangeRate"
 import { useWalletState } from "../lib/hooks/useWalletState"
 import { useInvoiceState } from "../lib/hooks/useInvoiceState"
-import { useNFC } from "./NFCPayment"
-import { isBitcoinCurrency } from "../lib/currency-utils"
 import { getApiUrl, getAllValidDomains, getEnvironment } from "../lib/config/api"
 import PaymentAnimation from "./PaymentAnimation"
 import POS from "./POS"
@@ -37,9 +39,7 @@ import {
   validateNpubCashAddress,
   probeNpubCashAddress,
 } from "../lib/lnurl"
-import TransactionDetail, {
-  initTransactionLabels,
-} from "./TransactionDetail"
+import TransactionDetail from "./TransactionDetail"
 import SoundThemesOverlay from "./Settings/SoundThemesOverlay"
 import PercentSettingsOverlay from "./Settings/PercentSettingsOverlay"
 import CommissionSettingsOverlay from "./Settings/CommissionSettingsOverlay"
@@ -58,32 +58,6 @@ import SideMenuOverlay from "./SideMenuOverlay"
 import OwnerAgentDisplay from "./OwnerAgentDisplay"
 import TransactionsView from "./TransactionsView"
 
-// Voucher Wallet storage key (user-scoped for security)
-const VOUCHER_WALLET_OLD_KEY = "blinkpos-voucher-wallet" // Old global key (for cleanup)
-const VOUCHER_WALLET_PREFIX = "blinkpos-voucher-wallet"
-
-/**
- * Get user-scoped storage key for voucher wallet
- * @param {string} userPubkey - User's public key
- * @returns {string|null} Storage key or null if no user
- */
-const getVoucherWalletKey = (userPubkey) =>
-  userPubkey ? `${VOUCHER_WALLET_PREFIX}_${userPubkey}` : null
-
-/**
- * Clean up old global voucher wallet storage key
- * This prevents cross-user data leakage from old versions
- */
-const cleanupOldGlobalVoucherWalletStorage = () => {
-  try {
-    if (localStorage.getItem(VOUCHER_WALLET_OLD_KEY)) {
-      console.log("[Dashboard] Removing old global voucher wallet storage (security fix)")
-      localStorage.removeItem(VOUCHER_WALLET_OLD_KEY)
-    }
-  } catch (err) {
-    console.error("[Dashboard] Failed to cleanup old voucher wallet storage:", err)
-  }
-}
 
 // Predefined Tip Profiles for different regions
 const TIP_PROFILES = [
@@ -338,6 +312,14 @@ export default function Dashboard() {
     toggleTipsEnabled,
   } = useTipSettings()
 
+  // Tip recipient validation - extracted to useTipRecipientValidation hook
+  const { validateBlinkUsername } = useTipRecipientValidation({
+    tipRecipient,
+    setUsernameValidation,
+    setTipsEnabled,
+    usernameValidation,
+  })
+
   // Account management state - extracted to useAccountManagement hook
   const {
     newAccountApiKey,
@@ -471,6 +453,47 @@ export default function Dashboard() {
   // Exchange rate state for sats equivalent display in ItemCart (managed by useExchangeRate hook)
   const { exchangeRate, setExchangeRate, loadingRate, setLoadingRate } = useExchangeRate()
 
+  // Exchange rate fetching & tip sync - extracted to useExchangeRateFetcher hook
+  useExchangeRateFetcher({
+    displayCurrency,
+    apiKey,
+    setExchangeRate,
+    setLoadingRate,
+    voucherWallet,
+    setUsdExchangeRate,
+    activeTipProfile,
+    setTipPresets,
+    resetTipRecipient,
+    user,
+  })
+
+  // Server sync for preferences & voucher wallet - extracted to useServerSync hook
+  const { syncVoucherWalletToServer } = useServerSync({
+    publicKey,
+    soundEnabled,
+    setSoundEnabled,
+    soundTheme,
+    setSoundTheme,
+    tipsEnabled,
+    setTipsEnabled,
+    tipPresets,
+    setTipPresets,
+    displayCurrency,
+    setDisplayCurrency,
+    numberFormat,
+    setNumberFormat,
+    numpadLayout,
+    setNumpadLayout,
+    voucherCurrencyMode,
+    setVoucherCurrencyMode,
+    voucherExpiry,
+    setVoucherExpiry,
+    voucherWallet,
+    setVoucherWallet,
+    setVoucherWalletBalance,
+    setVoucherWalletUsdBalance,
+  })
+
   // Transaction search ref (state is in useTransactionState hook)
   const txSearchInputRef = useRef(null)
 
@@ -503,559 +526,7 @@ export default function Dashboard() {
 
   // NOTE: voucherCurrencyMode and voucherExpiry persistence is now handled by useVoucherWalletState hook
 
-  // Fetch exchange rate when currency changes (for sats equivalent display in ItemCart)
-  useEffect(() => {
-    const fetchExchangeRate = async () => {
-      if (isBitcoinCurrency(displayCurrency)) {
-        setExchangeRate({ satPriceInCurrency: 1, currency: "BTC" })
-        return
-      }
 
-      setLoadingRate(true)
-      try {
-        const response = await fetch("/api/rates/exchange-rate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            apiKey: apiKey,
-            currency: displayCurrency,
-            // Use BlinkPOS credentials if no API key available
-            useBlinkpos: !apiKey,
-          }),
-        })
-
-        const data = await response.json()
-
-        if (data.success) {
-          setExchangeRate({
-            satPriceInCurrency: data.satPriceInCurrency,
-            currency: data.currency,
-          })
-          console.log(`Exchange rate for ${displayCurrency}:`, data.satPriceInCurrency)
-        } else {
-          console.error("Failed to fetch exchange rate:", data.error)
-        }
-      } catch (error) {
-        console.error("Exchange rate error:", error)
-      } finally {
-        setLoadingRate(false)
-      }
-    }
-
-    fetchExchangeRate()
-  }, [displayCurrency, apiKey])
-
-  // Fetch USD exchange rate for voucher creation (needed for USD/Stablesats vouchers)
-  useEffect(() => {
-    const fetchUsdExchangeRate = async () => {
-      // Only fetch if voucher wallet is connected
-      if (!voucherWallet?.apiKey) {
-        setUsdExchangeRate(null)
-        return
-      }
-
-      try {
-        const response = await fetch("/api/rates/exchange-rate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            apiKey: voucherWallet.apiKey,
-            currency: "USD",
-            // Use BlinkPOS credentials if no API key available
-            useBlinkpos: !voucherWallet.apiKey,
-          }),
-        })
-
-        const data = await response.json()
-
-        if (data.success) {
-          setUsdExchangeRate({
-            satPriceInCurrency: data.satPriceInCurrency,
-            currency: "USD",
-          })
-          console.log("[VoucherWallet] USD exchange rate:", data.satPriceInCurrency)
-        } else {
-          console.error("[VoucherWallet] Failed to fetch USD exchange rate:", data.error)
-          setUsdExchangeRate(null)
-        }
-      } catch (error) {
-        console.error("[VoucherWallet] USD exchange rate error:", error)
-        setUsdExchangeRate(null)
-      }
-    }
-
-    fetchUsdExchangeRate()
-
-    // Refresh USD rate every 5 minutes while voucher wallet is connected
-    const intervalId = voucherWallet?.apiKey
-      ? setInterval(fetchUsdExchangeRate, 5 * 60 * 1000)
-      : null
-
-    return () => {
-      if (intervalId) clearInterval(intervalId)
-    }
-  }, [voucherWallet?.apiKey])
-
-  // NOTE: activeTipProfile localStorage persistence is now handled by useTipSettings hook
-  // But we still need to sync tipPresets when profile changes
-  useEffect(() => {
-    if (activeTipProfile) {
-      // Update tipPresets to match the profile's tip options
-      setTipPresets(activeTipProfile.tipOptions)
-    }
-  }, [activeTipProfile])
-
-  // Clear tip recipient when user changes (no persistence across sessions)
-  useEffect(() => {
-    resetTipRecipient()
-    // Also clear any existing localStorage value
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("blinkpos-tip-recipient")
-    }
-  }, [user?.username])
-
-  // Server sync for preferences (cross-device sync)
-  // Fetch preferences from server on login and sync when changed
-  const serverSyncTimerRef = useRef(null)
-  const lastSyncedPrefsRef = useRef(null)
-
-  // Sync preferences to server (debounced)
-  const syncPreferencesToServer = useCallback(
-    async (prefs) => {
-      if (!publicKey) return
-
-      // Clear existing timer
-      if (serverSyncTimerRef.current) {
-        clearTimeout(serverSyncTimerRef.current)
-      }
-
-      // Debounce the sync (2 seconds)
-      serverSyncTimerRef.current = setTimeout(async () => {
-        try {
-          console.log("[Dashboard] Syncing preferences to server...")
-
-          const response = await fetch("/api/user/sync", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include", // Include session cookie for auth
-            body: JSON.stringify({
-              pubkey: publicKey,
-              field: "preferences",
-              data: prefs,
-            }),
-          })
-
-          if (response.ok) {
-            console.log("[Dashboard] ✓ Preferences synced to server")
-            lastSyncedPrefsRef.current = JSON.stringify(prefs)
-          }
-        } catch (err) {
-          console.error("[Dashboard] Server sync error:", err)
-        }
-      }, 2000)
-    },
-    [publicKey],
-  )
-
-  // Fetch preferences from server on login
-  useEffect(() => {
-    if (!publicKey) return
-
-    const fetchServerPreferences = async () => {
-      try {
-        console.log("[Dashboard] Fetching preferences from server...")
-        const response = await fetch(`/api/user/sync?pubkey=${publicKey}`, {
-          credentials: "include", // Include session cookie for auth
-        })
-
-        if (!response.ok) return
-
-        const data = await response.json()
-        const serverPrefs = data.preferences
-
-        if (serverPrefs) {
-          console.log("[Dashboard] Loaded preferences from server")
-
-          // Apply server preferences to local state
-          if (serverPrefs.soundEnabled !== undefined) {
-            setSoundEnabled(serverPrefs.soundEnabled)
-            localStorage.setItem("soundEnabled", JSON.stringify(serverPrefs.soundEnabled))
-          }
-          if (serverPrefs.soundTheme) {
-            setSoundTheme(serverPrefs.soundTheme)
-            localStorage.setItem("soundTheme", serverPrefs.soundTheme)
-          }
-          if (serverPrefs.tipsEnabled !== undefined) {
-            setTipsEnabled(serverPrefs.tipsEnabled)
-            localStorage.setItem(
-              "blinkpos-tips-enabled",
-              serverPrefs.tipsEnabled.toString(),
-            )
-          }
-          if (serverPrefs.tipPresets) {
-            setTipPresets(serverPrefs.tipPresets)
-            localStorage.setItem(
-              "blinkpos-tip-presets",
-              JSON.stringify(serverPrefs.tipPresets),
-            )
-          }
-          if (serverPrefs.displayCurrency) {
-            setDisplayCurrency(serverPrefs.displayCurrency)
-          }
-          if (serverPrefs.numberFormat) {
-            setNumberFormat(serverPrefs.numberFormat)
-            localStorage.setItem("blinkpos-number-format", serverPrefs.numberFormat)
-          }
-          if (serverPrefs.numpadLayout) {
-            setNumpadLayout(serverPrefs.numpadLayout)
-            localStorage.setItem("blinkpos-numpad-layout", serverPrefs.numpadLayout)
-          }
-          if (serverPrefs.voucherCurrencyMode) {
-            setVoucherCurrencyMode(serverPrefs.voucherCurrencyMode)
-            localStorage.setItem(
-              "blinkpos-voucher-currency-mode",
-              serverPrefs.voucherCurrencyMode,
-            )
-          }
-          // Handle voucherExpiry with migration from old default '7d' to new default '24h'
-          if (serverPrefs.voucherExpiry) {
-            // Migration: if server has '7d' or legacy values, migrate to '24h'
-            const migratedExpiry =
-              serverPrefs.voucherExpiry === "7d" ||
-              serverPrefs.voucherExpiry === "15m" ||
-              serverPrefs.voucherExpiry === "1h"
-                ? "24h"
-                : serverPrefs.voucherExpiry
-            setVoucherExpiry(migratedExpiry)
-            localStorage.setItem("blinkpos-voucher-expiry", migratedExpiry)
-          }
-
-          lastSyncedPrefsRef.current = JSON.stringify(serverPrefs)
-        } else {
-          // No server preferences - sync current local to server
-          const currentPrefs = {
-            soundEnabled,
-            soundTheme,
-            tipsEnabled,
-            tipPresets,
-            displayCurrency,
-            numberFormat,
-            numpadLayout,
-            voucherCurrencyMode,
-            voucherExpiry,
-          }
-          syncPreferencesToServer(currentPrefs)
-        }
-
-        // Initialize transaction labels from server
-        await initTransactionLabels()
-        console.log("[Dashboard] Transaction labels synced from server")
-
-        // Clean up old global voucher wallet key (security fix for cross-profile leakage)
-        cleanupOldGlobalVoucherWalletStorage()
-
-        // Sync voucher wallet from server (using user-scoped localStorage key)
-        const voucherWalletStorageKey = getVoucherWalletKey(publicKey)
-        console.log(
-          "[Dashboard] voucherWallet from server:",
-          data.voucherWallet
-            ? {
-                label: data.voucherWallet.label,
-                hasApiKey: !!data.voucherWallet.apiKey,
-                apiKeyLength: data.voucherWallet.apiKey?.length || 0,
-                apiKeyType: typeof data.voucherWallet.apiKey,
-              }
-            : "null/undefined",
-        )
-
-        if (data.voucherWallet && data.voucherWallet.apiKey) {
-          console.log(
-            "[Dashboard] Loaded voucher wallet from server:",
-            data.voucherWallet.label,
-          )
-          setVoucherWallet(data.voucherWallet)
-          if (voucherWalletStorageKey) {
-            localStorage.setItem(
-              voucherWalletStorageKey,
-              JSON.stringify(data.voucherWallet),
-            )
-          }
-        } else if (!data.voucherWallet) {
-          // Check if we have local voucher wallet (user-scoped) to sync to server
-          if (voucherWalletStorageKey) {
-            const localVoucherWallet = localStorage.getItem(voucherWalletStorageKey)
-            if (localVoucherWallet) {
-              const parsed = JSON.parse(localVoucherWallet)
-              console.log("[Dashboard] Syncing local voucher wallet to server")
-              syncVoucherWalletToServer(parsed)
-              setVoucherWallet(parsed)
-            }
-          }
-        }
-      } catch (err) {
-        console.error("[Dashboard] Failed to fetch server preferences:", err)
-      }
-    }
-
-    fetchServerPreferences()
-  }, [publicKey]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Sync voucher wallet to server
-  const syncVoucherWalletToServer = useCallback(
-    async (walletData) => {
-      if (!publicKey) return
-
-      try {
-        console.log("[Dashboard] Syncing voucher wallet to server...")
-        const response = await fetch("/api/user/sync", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include", // Include session cookie for auth
-          body: JSON.stringify({
-            pubkey: publicKey,
-            field: "voucherWallet",
-            data: walletData,
-          }),
-        })
-
-        if (response.ok) {
-          console.log("[Dashboard] ✓ Voucher wallet synced to server")
-        }
-      } catch (err) {
-        console.error("[Dashboard] Failed to sync voucher wallet:", err)
-      }
-    },
-    [publicKey],
-  )
-
-  // Track previous user to detect user changes
-  const prevUserRef = useRef(publicKey)
-
-  // Clear voucher wallet state when user changes (logout/switch user)
-  // This prevents cross-user data leakage
-  useEffect(() => {
-    const prevUser = prevUserRef.current
-
-    // User has changed (including logout where publicKey becomes null/undefined)
-    if (prevUser !== publicKey) {
-      console.log("[Dashboard] User changed, clearing voucher wallet state")
-      setVoucherWallet(null)
-      setVoucherWalletBalance(null)
-      setVoucherWalletUsdBalance(null)
-      prevUserRef.current = publicKey
-    }
-  }, [publicKey])
-
-  // Migration: Fetch missing username for voucher wallet (for wallets created before username was added)
-  useEffect(() => {
-    const migrateVoucherWalletUsername = async () => {
-      if (!voucherWallet || !voucherWallet.apiKey || voucherWallet.username) {
-        return // No wallet, no API key, or already has username
-      }
-
-      console.log("[Dashboard] Migrating voucher wallet: fetching username...")
-
-      try {
-        const response = await fetch(getApiUrl(), {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-API-KEY": voucherWallet.apiKey,
-          },
-          body: JSON.stringify({
-            query: "{ me { username } }",
-          }),
-        })
-
-        if (!response.ok) {
-          console.warn(
-            "[Dashboard] Failed to fetch username for voucher wallet migration",
-          )
-          return
-        }
-
-        const data = await response.json()
-        const username = data.data?.me?.username
-
-        if (username) {
-          console.log("[Dashboard] ✓ Voucher wallet username fetched:", username)
-
-          // Update wallet data with username
-          const updatedWallet = { ...voucherWallet, username }
-          setVoucherWallet(updatedWallet)
-
-          // Save to localStorage (user-scoped)
-          if (typeof window !== "undefined" && publicKey) {
-            const storageKey = getVoucherWalletKey(publicKey)
-            if (storageKey) {
-              localStorage.setItem(storageKey, JSON.stringify(updatedWallet))
-            }
-          }
-
-          // Sync to server
-          syncVoucherWalletToServer(updatedWallet)
-        }
-      } catch (err) {
-        console.error("[Dashboard] Failed to migrate voucher wallet username:", err)
-      }
-    }
-
-    migrateVoucherWalletUsername()
-  }, [voucherWallet?.apiKey]) // Only run when voucherWallet.apiKey changes (initial load)
-
-  // Sync preferences to server when they change
-  useEffect(() => {
-    if (!publicKey) return
-
-    const currentPrefs = {
-      soundEnabled,
-      soundTheme,
-      tipsEnabled,
-      tipPresets,
-      displayCurrency,
-      numberFormat,
-      numpadLayout,
-      voucherCurrencyMode,
-      voucherExpiry,
-    }
-
-    const currentPrefsStr = JSON.stringify(currentPrefs)
-
-    // Only sync if preferences actually changed (avoid initial sync loop)
-    if (lastSyncedPrefsRef.current && lastSyncedPrefsRef.current !== currentPrefsStr) {
-      syncPreferencesToServer(currentPrefs)
-    }
-  }, [
-    publicKey,
-    soundEnabled,
-    soundTheme,
-    tipsEnabled,
-    tipPresets,
-    displayCurrency,
-    numberFormat,
-    numpadLayout,
-    voucherCurrencyMode,
-    voucherExpiry,
-    syncPreferencesToServer,
-  ])
-
-  // Cleanup server sync timer on unmount
-  useEffect(() => {
-    return () => {
-      if (serverSyncTimerRef.current) {
-        clearTimeout(serverSyncTimerRef.current)
-      }
-    }
-  }, [])
-
-  // Validate Blink username function
-  const validateBlinkUsername = async (username) => {
-    if (!username || username.trim() === "") {
-      setUsernameValidation({ status: null, message: "", isValidating: false })
-      return
-    }
-
-    // Clean username input - strip @domain.sv if user enters full Lightning Address
-    let cleanedUsername = username.trim()
-    // Remove any Blink domain suffix (production or staging)
-    const allDomains = getAllValidDomains()
-    for (const domain of allDomains) {
-      if (cleanedUsername.toLowerCase().includes(`@${domain}`)) {
-        cleanedUsername = cleanedUsername
-          .replace(new RegExp(`@${domain}`, "i"), "")
-          .trim()
-        break
-      }
-    }
-    if (cleanedUsername.includes("@")) {
-      cleanedUsername = cleanedUsername.split("@")[0].trim()
-    }
-
-    setUsernameValidation({ status: null, message: "", isValidating: true })
-
-    const query = `
-      query Query($username: Username!) {
-        usernameAvailable(username: $username)
-      }
-    `
-
-    const variables = {
-      username: cleanedUsername,
-    }
-
-    try {
-      const response = await fetch(getApiUrl(), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          query: query,
-          variables: variables,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      if (data.errors) {
-        const errorMessage = data.errors[0].message
-        if (errorMessage.includes("Invalid value for Username")) {
-          setUsernameValidation({
-            status: "error",
-            message: "Invalid username format",
-            isValidating: false,
-          })
-          return
-        }
-        throw new Error(errorMessage)
-      }
-
-      // usernameAvailable: true means username does NOT exist
-      // usernameAvailable: false means username DOES exist
-      const usernameExists = !data.data.usernameAvailable
-
-      if (usernameExists) {
-        setUsernameValidation({
-          status: "success",
-          message: "Blink username found",
-          isValidating: false,
-        })
-      } else {
-        setUsernameValidation({
-          status: "error",
-          message: "This Blink username does not exist yet",
-          isValidating: false,
-        })
-      }
-    } catch (error) {
-      console.error("Error checking username:", error)
-      setUsernameValidation({
-        status: "error",
-        message: "Error checking username. Please try again.",
-        isValidating: false,
-      })
-    }
-  }
-
-  // Debounced username validation
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      validateBlinkUsername(tipRecipient)
-    }, 500) // 500ms delay
-
-    return () => clearTimeout(timeoutId)
-  }, [tipRecipient])
-
-  // Auto-enable tipsEnabled when a valid recipient is set
-  useEffect(() => {
-    if (tipRecipient && usernameValidation.status === "success") {
-      setTipsEnabled(true)
-    }
-  }, [tipRecipient, usernameValidation.status])
 
   // Get user's API key for direct WebSocket connection
   // Works with both legacy (API key) and Nostr (profile-based) auth
@@ -1100,113 +571,6 @@ export default function Dashboard() {
   // Stores { paymentRequest, paymentHash, satoshis, memo } object
   const { currentInvoice, setCurrentInvoice, clearInvoice, hasInvoice } =
     useInvoiceState()
-
-  // Payment status polling for webhook-only payment detection (SECURITY FIX)
-  // Replaced client-side WebSocket with server-side webhook + client polling
-  // This prevents exposing the BlinkPOS API key to the client
-  const pollingIntervalRef = useRef(null)
-  const pollingStartTimeRef = useRef(null)
-  const POLLING_INTERVAL_MS = 1000 // Poll every 1 second
-  const POLLING_TIMEOUT_MS = 15 * 60 * 1000 // Stop polling after 15 minutes
-
-  // Poll for payment status when we have a pending invoice
-  useEffect(() => {
-    // Clear any existing polling
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current)
-      pollingIntervalRef.current = null
-    }
-
-    // Start polling if we have a payment hash to watch
-    if (currentInvoice?.paymentHash) {
-      console.log(
-        "🔄 Starting payment status polling for:",
-        currentInvoice.paymentHash.substring(0, 16) + "...",
-      )
-      pollingStartTimeRef.current = Date.now()
-
-      const pollPaymentStatus = async () => {
-        // Check if we've exceeded the timeout
-        if (Date.now() - pollingStartTimeRef.current > POLLING_TIMEOUT_MS) {
-          console.log("⏱️ Payment polling timeout reached (15 min) - stopping")
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current)
-            pollingIntervalRef.current = null
-          }
-          return
-        }
-
-        try {
-          const response = await fetch(
-            `/api/payment-status/${currentInvoice.paymentHash}`,
-          )
-          const data = await response.json()
-
-          if (data.status === "completed") {
-            console.log("✅ Payment completed detected via polling!")
-
-            // Stop polling
-            if (pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current)
-              pollingIntervalRef.current = null
-            }
-
-            // Trigger payment animation
-            triggerPaymentAnimation({
-              amount: currentInvoice.satoshis || currentInvoice.amount,
-              currency: "BTC",
-              memo: currentInvoice.memo || `Payment received`,
-              isForwarded: true,
-            })
-
-            // Clear POS invoice
-            if (posPaymentReceivedRef.current) {
-              posPaymentReceivedRef.current()
-            }
-
-            // Refresh transaction data
-            fetchData()
-          } else if (data.status === "expired") {
-            console.log("⏰ Payment expired")
-            if (pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current)
-              pollingIntervalRef.current = null
-            }
-          }
-          // For 'pending', 'processing', 'not_found' - keep polling
-        } catch (error) {
-          console.error("Payment status poll error:", error)
-          // Continue polling despite errors
-        }
-      }
-
-      // Poll immediately, then on interval
-      pollPaymentStatus()
-      pollingIntervalRef.current = setInterval(pollPaymentStatus, POLLING_INTERVAL_MS)
-    }
-
-    // Cleanup on unmount or when invoice changes
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current)
-        pollingIntervalRef.current = null
-      }
-    }
-  }, [currentInvoice?.paymentHash])
-
-  // Setup NFC for Boltcard payments
-  const nfcState = useNFC({
-    paymentRequest: currentInvoice?.paymentRequest,
-    onPaymentSuccess: () => {
-      console.log("🎉 NFC Boltcard payment successful")
-      // Payment will be detected via webhook + polling
-    },
-    onPaymentError: (error) => {
-      console.error("NFC payment error:", error)
-    },
-    soundEnabled,
-    soundTheme,
-  })
 
   // NOTE: transactions, loading, error state now provided by useTransactionState hook
 
@@ -1594,6 +958,16 @@ export default function Dashboard() {
       setLoading(false)
     }
   }
+
+  // Payment status polling & NFC - extracted to usePaymentPolling hook
+  const { nfcState } = usePaymentPolling({
+    currentInvoice,
+    triggerPaymentAnimation,
+    posPaymentReceivedRef,
+    fetchData,
+    soundEnabled,
+    soundTheme,
+  })
 
   // Fetch wallet information for POS
   const fetchWallets = useCallback(async () => {

@@ -6,6 +6,7 @@ import { THEMES } from '../lib/hooks/useTheme';
  * 
  * @param {Object} props
  * @param {string} props.theme - Current theme ('dark' | 'blink-classic-dark' | 'light' | 'blink-classic-light')
+ * @param {string} props.layout - Numpad layout ('calculator' | 'telephone') - calculator has 7-8-9 top, telephone has 1-2-3 top
  * @param {Function} props.onDigitPress - Handler for digit presses (0-9, .)
  * @param {Function} props.onClear - Handler for clear button
  * @param {Function} props.onBackspace - Handler for backspace button
@@ -23,6 +24,7 @@ import { THEMES } from '../lib/hooks/useTheme';
  */
 export default function Numpad({
   theme = THEMES.DARK,
+  layout = 'calculator',
   onDigitPress,
   onClear,
   onBackspace,
@@ -169,34 +171,28 @@ export default function Numpad({
 
   const containerClasses = getContainerClasses();
 
+  // Get digit rows based on layout
+  // Calculator: 7-8-9 on top (standard calculator layout)
+  // Telephone: 1-2-3 on top (phone/ATM style)
+  const digitRows = layout === 'telephone'
+    ? [['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9']]
+    : [['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3']];
+
   return (
     <div className={containerClasses} data-testid="numpad">
       <div className="grid grid-cols-4 gap-3 max-w-sm md:max-w-md mx-auto" data-1p-ignore data-lpignore="true">
-        {/* Row 1: 7, 8, 9, + */}
-        <button
-          onClick={() => onDigitPress('7')}
-          className={getButtonClasses('digit')}
-          style={fontStyle}
-          data-testid="numpad-7"
-        >
-          7
-        </button>
-        <button
-          onClick={() => onDigitPress('8')}
-          className={getButtonClasses('digit')}
-          style={fontStyle}
-          data-testid="numpad-8"
-        >
-          8
-        </button>
-        <button
-          onClick={() => onDigitPress('9')}
-          className={getButtonClasses('digit')}
-          style={fontStyle}
-          data-testid="numpad-9"
-        >
-          9
-        </button>
+        {/* Row 1: First digit row + Plus/CurrencyToggle */}
+        {digitRows[0].map((digit) => (
+          <button
+            key={digit}
+            onClick={() => onDigitPress(digit)}
+            className={getButtonClasses('digit')}
+            style={fontStyle}
+            data-testid={`numpad-${digit}`}
+          >
+            {digit}
+          </button>
+        ))}
         {showPlus ? (
           <button
             onClick={onPlusPress}
@@ -225,31 +221,18 @@ export default function Numpad({
           <div></div> // Empty cell when showPlus is false and no toggle
         )}
 
-        {/* Row 2: 4, 5, 6, OK (starts) */}
-        <button
-          onClick={() => onDigitPress('4')}
-          className={getButtonClasses('digit')}
-          style={fontStyle}
-          data-testid="numpad-4"
-        >
-          4
-        </button>
-        <button
-          onClick={() => onDigitPress('5')}
-          className={getButtonClasses('digit')}
-          style={fontStyle}
-          data-testid="numpad-5"
-        >
-          5
-        </button>
-        <button
-          onClick={() => onDigitPress('6')}
-          className={getButtonClasses('digit')}
-          style={fontStyle}
-          data-testid="numpad-6"
-        >
-          6
-        </button>
+        {/* Row 2: Second digit row + OK (starts) */}
+        {digitRows[1].map((digit) => (
+          <button
+            key={digit}
+            onClick={() => onDigitPress(digit)}
+            className={getButtonClasses('digit')}
+            style={fontStyle}
+            data-testid={`numpad-${digit}`}
+          >
+            {digit}
+          </button>
+        ))}
         <button
           onClick={onOkPress}
           disabled={okDisabled}
@@ -260,33 +243,20 @@ export default function Numpad({
           {okLabel}
         </button>
 
-        {/* Row 3: 1, 2, 3, OK (continues via row-span-2) */}
-        <button
-          onClick={() => onDigitPress('1')}
-          className={getButtonClasses('digit')}
-          style={fontStyle}
-          data-testid="numpad-1"
-        >
-          1
-        </button>
-        <button
-          onClick={() => onDigitPress('2')}
-          className={getButtonClasses('digit')}
-          style={fontStyle}
-          data-testid="numpad-2"
-        >
-          2
-        </button>
-        <button
-          onClick={() => onDigitPress('3')}
-          className={getButtonClasses('digit')}
-          style={fontStyle}
-          data-testid="numpad-3"
-        >
-          3
-        </button>
+        {/* Row 3: Third digit row, OK (continues via row-span-2) */}
+        {digitRows[2].map((digit) => (
+          <button
+            key={digit}
+            onClick={() => onDigitPress(digit)}
+            className={getButtonClasses('digit')}
+            style={fontStyle}
+            data-testid={`numpad-${digit}`}
+          >
+            {digit}
+          </button>
+        ))}
 
-        {/* Row 4: C, 0, ., ⌫ */}
+        {/* Row 4: C, 0, ., Backspace */}
         <button
           onClick={onClear}
           className={getButtonClasses('clear')}

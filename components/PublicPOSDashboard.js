@@ -10,7 +10,7 @@ import ItemCart from './ItemCart';
 import QRCode from 'react-qr-code';
 import PaymentAnimation from './PaymentAnimation';
 import { bech32 } from 'bech32';
-import { FORMAT_OPTIONS, FORMAT_LABELS, FORMAT_DESCRIPTIONS, getFormatPreview, BITCOIN_FORMAT_OPTIONS, BITCOIN_FORMAT_LABELS, BITCOIN_FORMAT_DESCRIPTIONS, getBitcoinFormatPreview } from '../lib/number-format';
+import { FORMAT_OPTIONS, FORMAT_LABELS, FORMAT_DESCRIPTIONS, getFormatPreview, BITCOIN_FORMAT_OPTIONS, BITCOIN_FORMAT_LABELS, BITCOIN_FORMAT_DESCRIPTIONS, getBitcoinFormatPreview, NUMPAD_LAYOUT_OPTIONS, NUMPAD_LAYOUT_LABELS, NUMPAD_LAYOUT_DESCRIPTIONS } from '../lib/number-format';
 
 /**
  * PublicPOSDashboard - Public-facing POS for any Blink username
@@ -140,6 +140,12 @@ export default function PublicPOSDashboard({ username }) {
       return localStorage.getItem('publicpos-bitcoinFormat') || 'sats';
     }
     return 'bip177';
+  });
+  const [numpadLayout, setNumpadLayout] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('publicpos-numpadLayout') || 'calculator';
+    }
+    return 'calculator';
   });
   const [soundEnabled, setSoundEnabled] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -386,6 +392,13 @@ export default function PublicPOSDashboard({ username }) {
       localStorage.setItem('publicpos-bitcoinFormat', bitcoinFormat);
     }
   }, [bitcoinFormat]);
+
+  // Save numpad layout preference
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('publicpos-numpadLayout', numpadLayout);
+    }
+  }, [numpadLayout]);
 
   // Fetch exchange rate when currency changes (for sats equivalent display)
   const fetchExchangeRate = async () => {
@@ -1134,6 +1147,72 @@ export default function PublicPOSDashboard({ username }) {
                 </div>
               </div>
 
+              {/* Numpad Layout Section */}
+              <div>
+                <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Numpad Layout
+                </h3>
+                <div className="space-y-2">
+                  {NUMPAD_LAYOUT_OPTIONS.map((layout) => (
+                    <button
+                      key={layout}
+                      onClick={() => setNumpadLayout(layout)}
+                      className={`w-full p-3 rounded-lg text-left transition-all ${
+                        numpadLayout === layout
+                          ? 'bg-blink-accent/20 border-2 border-blink-accent'
+                          : darkMode
+                            ? 'bg-gray-900 hover:bg-gray-800 border-2 border-transparent'
+                            : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                            {NUMPAD_LAYOUT_LABELS[layout]}
+                          </span>
+                          <p className={`text-xs mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {NUMPAD_LAYOUT_DESCRIPTIONS[layout]}
+                          </p>
+                        </div>
+                        {numpadLayout === layout && (
+                          <svg className="w-5 h-5 text-blink-accent flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Numpad Layout Preview */}
+                <div className={`mt-4 p-4 rounded-lg ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                  <h4 className={`text-xs font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Preview
+                  </h4>
+                  <div className="flex justify-center">
+                    <div className="grid grid-cols-3 gap-1.5 text-center">
+                      {(numpadLayout === 'telephone' 
+                        ? [['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9'], ['', '0', '']]
+                        : [['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3'], ['', '0', '']]
+                      ).map((row, rowIdx) => (
+                        row.map((digit, colIdx) => (
+                          <div 
+                            key={`${rowIdx}-${colIdx}`}
+                            className={`w-8 h-8 flex items-center justify-center rounded text-sm font-medium ${
+                              digit 
+                                ? `${darkMode ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-900'}` 
+                                : ''
+                            }`}
+                          >
+                            {digit}
+                          </div>
+                        ))
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Language Section (Placeholder) */}
               <div>
                 <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -1634,6 +1713,7 @@ export default function PublicPOSDashboard({ username }) {
             displayCurrency={displayCurrency}
             numberFormat={numberFormat}
             bitcoinFormat={bitcoinFormat}
+            numpadLayout={numpadLayout}
             currencies={currencies}
             wallets={[]} // No wallets in public mode
             onPaymentReceived={posPaymentReceivedRef}

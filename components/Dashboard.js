@@ -22,7 +22,7 @@ import TransactionDetail, { getTransactionLabel, initTransactionLabels } from '.
 import ExpirySelector from './ExpirySelector';
 import QRCode from 'react-qr-code';
 import { bech32 } from 'bech32';
-import { FORMAT_OPTIONS, FORMAT_LABELS, FORMAT_DESCRIPTIONS, getFormatPreview, BITCOIN_FORMAT_OPTIONS, BITCOIN_FORMAT_LABELS, BITCOIN_FORMAT_DESCRIPTIONS, getBitcoinFormatPreview, formatNumber } from '../lib/number-format';
+import { FORMAT_OPTIONS, FORMAT_LABELS, FORMAT_DESCRIPTIONS, getFormatPreview, BITCOIN_FORMAT_OPTIONS, BITCOIN_FORMAT_LABELS, BITCOIN_FORMAT_DESCRIPTIONS, getBitcoinFormatPreview, formatNumber, NUMPAD_LAYOUT_OPTIONS, NUMPAD_LAYOUT_LABELS, NUMPAD_LAYOUT_DESCRIPTIONS } from '../lib/number-format';
 
 // Spinner colors matching the numpad buttons (rotates on each transition)
 const SPINNER_COLORS = [
@@ -359,6 +359,13 @@ export default function Dashboard() {
     }
     return 'bip177';
   });
+  const [numpadLayout, setNumpadLayout] = useState(() => {
+    // Load numpad layout preference from localStorage, default to 'calculator' (7-8-9 top)
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('blinkpos-numpad-layout') || 'calculator';
+    }
+    return 'calculator';
+  });
   const [wallets, setWallets] = useState([]);
   const [soundEnabled, setSoundEnabled] = useState(() => {
     // Load sound preference from localStorage, default to true
@@ -614,6 +621,13 @@ export default function Dashboard() {
     }
   }, [bitcoinFormat]);
 
+  // Persist numpad layout to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('blinkpos-numpad-layout', numpadLayout);
+    }
+  }, [numpadLayout]);
+
   // Persist voucher currency mode to localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -825,6 +839,10 @@ export default function Dashboard() {
             setNumberFormat(serverPrefs.numberFormat);
             localStorage.setItem('blinkpos-number-format', serverPrefs.numberFormat);
           }
+          if (serverPrefs.numpadLayout) {
+            setNumpadLayout(serverPrefs.numpadLayout);
+            localStorage.setItem('blinkpos-numpad-layout', serverPrefs.numpadLayout);
+          }
           if (serverPrefs.voucherCurrencyMode) {
             setVoucherCurrencyMode(serverPrefs.voucherCurrencyMode);
             localStorage.setItem('blinkpos-voucher-currency-mode', serverPrefs.voucherCurrencyMode);
@@ -849,6 +867,7 @@ export default function Dashboard() {
             tipPresets,
             displayCurrency,
             numberFormat,
+            numpadLayout,
             voucherCurrencyMode,
             voucherExpiry
           };
@@ -1007,6 +1026,7 @@ export default function Dashboard() {
       tipPresets,
       displayCurrency,
       numberFormat,
+      numpadLayout,
       voucherCurrencyMode,
       voucherExpiry
     };
@@ -1017,7 +1037,7 @@ export default function Dashboard() {
     if (lastSyncedPrefsRef.current && lastSyncedPrefsRef.current !== currentPrefsStr) {
       syncPreferencesToServer(currentPrefs);
     }
-  }, [publicKey, soundEnabled, soundTheme, tipsEnabled, tipPresets, displayCurrency, numberFormat, voucherCurrencyMode, voucherExpiry, syncPreferencesToServer]);
+  }, [publicKey, soundEnabled, soundTheme, tipsEnabled, tipPresets, displayCurrency, numberFormat, numpadLayout, voucherCurrencyMode, voucherExpiry, syncPreferencesToServer]);
 
   // Cleanup server sync timer on unmount
   useEffect(() => {
@@ -5513,6 +5533,70 @@ export default function Dashboard() {
                 </div>
               </div>
 
+              {/* Numpad Layout Section */}
+              <div>
+                <h3 className={`text-sm font-medium mb-3 ${getSectionLabelClasses()}`}>
+                  Numpad Layout
+                </h3>
+                <div className="space-y-2">
+                  {NUMPAD_LAYOUT_OPTIONS.map((layout) => (
+                    <button
+                      key={layout}
+                      onClick={() => setNumpadLayout(layout)}
+                      className={`w-full p-3 text-left transition-all ${
+                        numpadLayout === layout
+                          ? getSubmenuOptionActiveClasses()
+                          : getSubmenuOptionClasses()
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className={`text-sm font-medium ${getPrimaryTextClasses()}`}>
+                            {NUMPAD_LAYOUT_LABELS[layout]}
+                          </span>
+                          <p className={`text-xs mt-0.5 ${getSecondaryTextClasses()}`}>
+                            {NUMPAD_LAYOUT_DESCRIPTIONS[layout]}
+                          </p>
+                        </div>
+                        {numpadLayout === layout && (
+                          <svg className={`w-5 h-5 ${getCheckmarkClasses()} flex-shrink-0 ml-2`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Numpad Layout Preview */}
+                <div className={`mt-4 p-4 ${getPreviewBoxClasses()}`}>
+                  <h4 className={`text-xs font-medium mb-3 ${getSectionLabelClasses()}`}>
+                    Preview
+                  </h4>
+                  <div className="flex justify-center">
+                    <div className="grid grid-cols-3 gap-1.5 text-center">
+                      {(numpadLayout === 'telephone' 
+                        ? [['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9'], ['', '0', '']]
+                        : [['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3'], ['', '0', '']]
+                      ).map((row, rowIdx) => (
+                        row.map((digit, colIdx) => (
+                          <div 
+                            key={`${rowIdx}-${colIdx}`}
+                            className={`w-8 h-8 flex items-center justify-center rounded text-sm font-medium ${
+                              digit 
+                                ? `${getPreviewBoxClasses()} ${getPrimaryTextClasses()}` 
+                                : ''
+                            }`}
+                          >
+                            {digit}
+                          </div>
+                        ))
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Language Section (Placeholder) */}
               <div>
                 <h3 className={`text-sm font-medium mb-3 ${getSectionLabelClasses()}`}>
@@ -7699,6 +7783,7 @@ export default function Dashboard() {
             displayCurrency={displayCurrency}
             numberFormat={numberFormat}
             bitcoinFormat={bitcoinFormat}
+            numpadLayout={numpadLayout}
             currencies={currencies}
             wallets={wallets}
             onPaymentReceived={posPaymentReceivedRef}
@@ -7744,6 +7829,7 @@ export default function Dashboard() {
               displayCurrency={displayCurrency}
               numberFormat={numberFormat}
               bitcoinFormat={bitcoinFormat}
+              numpadLayout={numpadLayout}
               currencies={currencies}
               darkMode={darkMode}
               theme={theme}
@@ -7772,6 +7858,7 @@ export default function Dashboard() {
             displayCurrency={displayCurrency}
             numberFormat={numberFormat}
             bitcoinFormat={bitcoinFormat}
+            numpadLayout={numpadLayout}
             currencies={currencies}
             darkMode={darkMode}
             theme={theme}

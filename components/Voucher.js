@@ -10,7 +10,7 @@ import { THEMES } from '../lib/hooks/useTheme';
 import { unlockAudioContext, playSound } from '../lib/audio-utils';
 import { getEnvironment } from '../lib/config/api';
 
-const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, darkMode, theme = THEMES.DARK, cycleTheme, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3], voucherCurrencyMode = 'BTC', onVoucherCurrencyToggle, usdExchangeRate = null, usdWalletId = null, initialExpiry = DEFAULT_EXPIRY }, ref) => {
+const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', numpadLayout = 'calculator', currencies, darkMode, theme = THEMES.DARK, cycleTheme, soundEnabled, onInternalTransition, onVoucherStateChange, commissionEnabled, commissionPresets = [1, 2, 3], voucherCurrencyMode = 'BTC', onVoucherCurrencyToggle, usdExchangeRate = null, usdWalletId = null, initialExpiry = DEFAULT_EXPIRY }, ref) => {
   const [amount, setAmount] = useState('');
   const [voucher, setVoucher] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -1828,6 +1828,7 @@ const Voucher = forwardRef(({ voucherWallet, walletBalance = null, displayCurren
         <div className="h-16 mb-2"></div>
         <Numpad
           theme={theme}
+          layout={numpadLayout}
           onDigitPress={handleDigitPress}
           onClear={handleClear}
           onBackspace={handleBackspace}

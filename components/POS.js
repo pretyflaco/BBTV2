@@ -8,7 +8,7 @@ import { THEMES } from '../lib/hooks/useTheme';
 import { unlockAudioContext, playSound } from '../lib/audio-utils';
 import { getEnvironment } from '../lib/config/api';
 
-const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, theme = THEMES.DARK, cycleTheme, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation, isPublicPOS = false, publicUsername = null }, ref) => {
+const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', bitcoinFormat = 'sats', numpadLayout = 'calculator', currencies, wallets, onPaymentReceived, connected, manualReconnect, reconnectAttempts, tipsEnabled, tipPresets, tipRecipients = [], soundEnabled, onInvoiceStateChange, onInvoiceChange, darkMode, theme = THEMES.DARK, cycleTheme, nfcState, activeNWC, nwcClientReady, nwcMakeInvoice, nwcLookupInvoice, getActiveNWCUri, activeBlinkAccount, activeNpubCashWallet, cartCheckoutData, onCartCheckoutProcessed, onInternalTransition, triggerPaymentAnimation, isPublicPOS = false, publicUsername = null }, ref) => {
   const [amount, setAmount] = useState('');
   const [total, setTotal] = useState(0);
   const [items, setItems] = useState([]);
@@ -1432,6 +1432,7 @@ const POS = forwardRef(({ apiKey, user, displayCurrency, numberFormat = 'auto', 
         <div className="h-16 mb-2"></div>
         <Numpad
           theme={theme}
+          layout={numpadLayout}
           onDigitPress={handleDigitPress}
           onClear={handleClear}
           onBackspace={handleBackspace}

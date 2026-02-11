@@ -22,6 +22,7 @@ const MultiVoucher = forwardRef(({
   displayCurrency, 
   numberFormat = 'auto',
   bitcoinFormat = 'sats',
+  numpadLayout = 'calculator',
   currencies, 
   darkMode, 
   theme,
@@ -984,6 +985,7 @@ const MultiVoucher = forwardRef(({
         <div className="h-16 mb-2"></div>
         <Numpad
           theme={theme}
+          layout={numpadLayout}
           onDigitPress={handleDigitPress}
           onClear={handleClear}
           onBackspace={handleBackspace}

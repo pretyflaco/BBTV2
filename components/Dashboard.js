@@ -42,6 +42,10 @@ import TipProfileSettingsOverlay from './Settings/TipProfileSettingsOverlay';
 import PaycodesOverlay from './Settings/PaycodesOverlay';
 import CurrencySettingsOverlay from './Settings/CurrencySettingsOverlay';
 import RegionalSettingsOverlay from './Settings/RegionalSettingsOverlay';
+import SplitSettingsOverlay from './Settings/SplitSettingsOverlay';
+import CreateEditSplitProfileOverlay from './Settings/CreateEditSplitProfileOverlay';
+import ExportOptionsOverlay from './Settings/ExportOptionsOverlay';
+import DateRangeSelectorOverlay from './Settings/DateRangeSelectorOverlay';
 import ExpirySelector from './ExpirySelector';
 import { FORMAT_LABELS, formatNumber } from '../lib/number-format';
 
@@ -3864,523 +3868,62 @@ export default function Dashboard() {
 
       {/* Split Settings Overlay */}
       {showTipSettings && !showCreateSplitProfile && (
-        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-            {/* Header */}
-            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center h-16">
-                  <button
-                    onClick={() => setShowTipSettings(false)}
-                    className={`flex items-center ${getPrimaryTextClasses()} hover:text-blink-classic-amber`}
-                  >
-                    <span className="text-2xl mr-2">‹</span>
-                    <span className="text-lg">Back</span>
-                  </button>
-                  <h1 className={`text-xl font-bold ${getPrimaryTextClasses()}`}>
-                    Payment Splits
-                  </h1>
-                  <div className="w-16"></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="max-w-md mx-auto px-4 py-6">
-              <div className="space-y-4">
-                {/* Create New Profile Button */}
-                {authMode === 'nostr' && (
-                  <button
-                    onClick={() => {
-                      setEditingSplitProfile(null);
-                      setNewSplitProfileLabel('');
-                      setNewSplitProfileRecipients([]);
-                      setNewRecipientInput('');
-                      setRecipientValidation({ status: null, message: '', isValidating: false });
-                      setSplitProfileError(null);
-                      setUseCustomWeights(false);
-                      setShowCreateSplitProfile(true);
-                    }}
-                    className={`w-full py-3 text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 ${
-                      isBlinkClassic 
-                        ? 'bg-blink-classic-amber text-black hover:bg-blink-classic-amber/90' 
-                        : 'bg-blink-accent text-black hover:bg-blink-accent/90'
-                    }`}
-                  >
-                    <span className="text-lg">+</span>
-                    <span>New Split Profile</span>
-                  </button>
-                )}
-
-                {/* None Option */}
-                <button
-                  onClick={() => {
-                    setActiveSplitProfileById(null);
-                    setShowTipSettings(false);
-                  }}
-                  className={`w-full p-4 transition-all ${
-                    !activeSplitProfile
-                      ? getSubmenuOptionActiveClasses()
-                      : getSubmenuOptionClasses()
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-left">
-                      <h3 className={`text-lg font-semibold mb-1 ${getPrimaryTextClasses()}`}>
-                        None
-                      </h3>
-                      <p className={`text-sm ${getSecondaryTextClasses()}`}>
-                        Payment splits disabled
-                      </p>
-                    </div>
-                    {!activeSplitProfile && (
-                      <div className={`text-2xl ${getCheckmarkClasses()}`}>✓</div>
-                    )}
-                  </div>
-                </button>
-
-                {/* Loading State */}
-                {splitProfilesLoading && (
-                  <div className="flex justify-center py-8">
-                    <div className={`animate-spin rounded-full h-8 w-8 border-2 border-t-transparent ${isBlinkClassic ? 'border-blink-classic-amber' : 'border-blink-accent'}`}></div>
-                  </div>
-                )}
-
-                {/* Split Profiles List */}
-                {!splitProfilesLoading && splitProfiles.map((profile) => {
-                  // Check if profile uses custom weights (not evenly distributed)
-                  const evenShare = 100 / (profile.recipients?.length || 1);
-                  const hasCustomWeights = profile.recipients?.some(r => Math.abs((r.share || evenShare) - evenShare) > 0.01);
-                  
-                  return (
-                  <div
-                    key={profile.id}
-                    className={`w-full p-4 transition-all ${
-                      activeSplitProfile?.id === profile.id
-                        ? getSubmenuOptionActiveClasses()
-                        : getSubmenuOptionClasses()
-                    }`}
-                  >
-                    <button
-                      onClick={() => {
-                        setActiveSplitProfileById(profile.id);
-                        setShowTipSettings(false);
-                      }}
-                      className="w-full"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="text-left">
-                          <h3 className={`text-lg font-semibold mb-1 ${getPrimaryTextClasses()}`}>
-                            {profile.label}
-                          </h3>
-                          <p className={`text-sm ${getSecondaryTextClasses()}`}>
-                            {hasCustomWeights 
-                              ? profile.recipients.map(r => {
-                                  const name = r.type === 'npub_cash' ? r.username : `${r.username}@${getLnAddressDomain()}`;
-                                  return `${name} (${Math.round(r.share || evenShare)}%)`;
-                                }).join(', ')
-                              : profile.recipients.map(r => r.type === 'npub_cash' ? r.username : `${r.username}@${getLnAddressDomain()}`).join(', ')
-                            }
-                          </p>
-                        </div>
-                        {activeSplitProfile?.id === profile.id && (
-                          <div className={`text-2xl ${getCheckmarkClasses()}`}>✓</div>
-                        )}
-                      </div>
-                    </button>
-                    {/* Edit/Delete Actions */}
-                    <div className={`flex gap-2 mt-3 pt-3 border-t ${isBlinkClassic ? (isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light') : 'border-gray-200 dark:border-gray-700'}`}>
-                      <button
-                        onClick={() => {
-                          setEditingSplitProfile(profile);
-                          setNewSplitProfileLabel(profile.label);
-                          // Initialize recipients array from profile with weights
-                          const recipients = profile.recipients?.map(r => ({ 
-                            username: r.username, 
-                            validated: true, 
-                            type: r.type || 'blink',
-                            weight: r.share || (100 / (profile.recipients?.length || 1))
-                          })) || [];
-                          setNewSplitProfileRecipients(recipients);
-                          // Check if profile uses custom weights (not evenly distributed)
-                          const evenShare = 100 / (recipients.length || 1);
-                          const hasCustomWeights = recipients.some(r => Math.abs(r.weight - evenShare) > 0.01);
-                          setUseCustomWeights(hasCustomWeights);
-                          setNewRecipientInput('');
-                          setRecipientValidation({ status: null, message: '', isValidating: false });
-                          setSplitProfileError(null);
-                          setShowCreateSplitProfile(true);
-                        }}
-                        className={`flex-1 py-2 text-sm rounded-lg transition-colors ${
-                          isBlinkClassic 
-                            ? `${getSecondaryTextClasses()} hover:text-blink-classic-amber border ${isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light'}` 
-                            : 'text-gray-600 dark:text-gray-400 hover:text-blink-accent border border-gray-300 dark:border-gray-600'
-                        }`}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={async () => {
-                          if (confirm('Delete this split profile?')) {
-                            await deleteSplitProfile(profile.id);
-                          }
-                        }}
-                        className={`flex-1 py-2 text-sm rounded-lg text-red-500 hover:text-red-700 border transition-colors ${
-                          isBlinkClassic 
-                            ? (isBlinkClassicDark ? 'border-blink-classic-border' : 'border-blink-classic-border-light')
-                            : 'border-gray-300 dark:border-gray-600'
-                        }`}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                  );
-                })}
-
-                {/* No Profiles Yet Message */}
-                {!splitProfilesLoading && splitProfiles.length === 0 && authMode === 'nostr' && (
-                  <div className={`p-6 text-center ${getPreviewBoxClasses()}`}>
-                    <p className={`mb-2 ${getSecondaryTextClasses()}`}>
-                      No split profiles yet
-                    </p>
-                    <p className={`text-sm ${getSecondaryTextClasses()}`}>
-                      Create a split profile to automatically share a portion of payments with another Blink user.
-                    </p>
-                  </div>
-                )}
-
-                {/* Not Signed In Message */}
-                {authMode !== 'nostr' && (
-                  <div className={`p-6 text-center ${getPreviewBoxClasses()}`}>
-                    <p className={`mb-2 ${getSecondaryTextClasses()}`}>
-                      Sign in with Nostr to use split profiles
-                    </p>
-                    <p className={`text-sm ${getSecondaryTextClasses()}`}>
-                      Split profiles are synced across devices and require Nostr authentication.
-                    </p>
-                  </div>
-                )}
-
-              </div>
-            </div>
-          </div>
-        </div>
+        <SplitSettingsOverlay
+          authMode={authMode}
+          activeSplitProfile={activeSplitProfile}
+          splitProfiles={splitProfiles}
+          splitProfilesLoading={splitProfilesLoading}
+          isBlinkClassic={isBlinkClassic}
+          isBlinkClassicDark={isBlinkClassicDark}
+          isBlinkClassicLight={isBlinkClassicLight}
+          setShowTipSettings={setShowTipSettings}
+          setShowCreateSplitProfile={setShowCreateSplitProfile}
+          setActiveSplitProfileById={setActiveSplitProfileById}
+          setEditingSplitProfile={setEditingSplitProfile}
+          setNewSplitProfileLabel={setNewSplitProfileLabel}
+          setNewSplitProfileRecipients={setNewSplitProfileRecipients}
+          setNewRecipientInput={setNewRecipientInput}
+          setRecipientValidation={setRecipientValidation}
+          setSplitProfileError={setSplitProfileError}
+          setUseCustomWeights={setUseCustomWeights}
+          deleteSplitProfile={deleteSplitProfile}
+          getSubmenuBgClasses={getSubmenuBgClasses}
+          getSubmenuHeaderClasses={getSubmenuHeaderClasses}
+          getSubmenuOptionClasses={getSubmenuOptionClasses}
+          getSubmenuOptionActiveClasses={getSubmenuOptionActiveClasses}
+          getPrimaryTextClasses={getPrimaryTextClasses}
+          getSecondaryTextClasses={getSecondaryTextClasses}
+          getCheckmarkClasses={getCheckmarkClasses}
+          getPreviewBoxClasses={getPreviewBoxClasses}
+        />
       )}
 
       {/* Create/Edit Split Profile Overlay */}
       {showCreateSplitProfile && (
-        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-            {/* Header */}
-            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center h-16">
-                  <button
-                    onClick={() => {
-                      setShowCreateSplitProfile(false);
-                      setEditingSplitProfile(null);
-                    }}
-                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
-                  >
-                    <span className="text-2xl mr-2">‹</span>
-                    <span className="text-lg">Back</span>
-                  </button>
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                    {editingSplitProfile ? 'Edit Profile' : 'New Profile'}
-                  </h1>
-                  <div className="w-16"></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Form Content */}
-            <div className="max-w-md mx-auto px-4 py-6">
-              <div className="space-y-4">
-                {/* Error Message */}
-                {splitProfileError && (
-                  <div className="p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg">
-                    <p className="text-sm text-red-700 dark:text-red-400">{splitProfileError}</p>
-                  </div>
-                )}
-
-                {/* Profile Label */}
-                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-                  <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
-                    Profile Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newSplitProfileLabel}
-                    onChange={(e) => setNewSplitProfileLabel(e.target.value)}
-                    placeholder="e.g., Staff Tips, Partner Split"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent"
-                  />
-                </div>
-
-                {/* Recipients */}
-                <div className={`rounded-lg p-4 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-                  <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
-                    Recipients
-                  </label>
-                  
-                  {/* Added Recipients List */}
-                  {newSplitProfileRecipients.length > 0 && (
-                    <div className="mb-3 space-y-2">
-                      {newSplitProfileRecipients.map((recipient, index) => (
-                        <div key={recipient.username} className="flex items-center justify-between px-3 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
-                          <span className="text-sm text-green-700 dark:text-green-400 flex-1">
-                            {recipient.type === 'npub_cash' ? recipient.username : `${recipient.username}@${getLnAddressDomain()}`}
-                          </span>
-                          {useCustomWeights && (
-                            <div className="flex items-center mx-2">
-                              <input
-                                type="number"
-                                min="1"
-                                max="99"
-                                value={Math.round(recipient.weight || (100 / newSplitProfileRecipients.length))}
-                                onChange={(e) => {
-                                  const newWeight = Math.max(1, Math.min(99, parseInt(e.target.value) || 1));
-                                  setNewSplitProfileRecipients(prev => {
-                                    // Mark this recipient as locked (manually edited)
-                                    const updated = prev.map((r, i) => 
-                                      i === index ? { ...r, weight: newWeight, locked: true } : r
-                                    );
-                                    
-                                    // Calculate sum of locked weights (including the one just changed)
-                                    const lockedSum = updated
-                                      .filter(r => r.locked)
-                                      .reduce((sum, r) => sum + r.weight, 0);
-                                    
-                                    // Get unlocked recipients
-                                    const unlockedRecipients = updated.filter(r => !r.locked);
-                                    
-                                    // If there are unlocked recipients, distribute remaining weight among them
-                                    if (unlockedRecipients.length > 0) {
-                                      const remainingWeight = Math.max(0, 100 - lockedSum);
-                                      const weightPerUnlocked = remainingWeight / unlockedRecipients.length;
-                                      
-                                      return updated.map(r => 
-                                        r.locked ? r : { ...r, weight: weightPerUnlocked }
-                                      );
-                                    }
-                                    
-                                    // All recipients are locked, just return updated
-                                    return updated;
-                                  });
-                                }}
-                                className={`w-16 px-2 py-1 text-sm text-center border rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white ${
-                                  recipient.locked 
-                                    ? 'border-blink-accent ring-1 ring-blink-accent/30' 
-                                    : 'border-gray-300 dark:border-gray-600'
-                                }`}
-                              />
-                              <span className="ml-1 text-sm text-gray-500 dark:text-gray-400">%</span>
-                              {recipient.locked && (
-                                <button
-                                  onClick={() => {
-                                    // Unlock this recipient and redistribute
-                                    setNewSplitProfileRecipients(prev => {
-                                      const updated = prev.map((r, i) => 
-                                        i === index ? { ...r, locked: false } : r
-                                      );
-                                      
-                                      // Recalculate: get locked sum and redistribute among unlocked
-                                      const lockedSum = updated
-                                        .filter(r => r.locked)
-                                        .reduce((sum, r) => sum + r.weight, 0);
-                                      
-                                      const unlockedRecipients = updated.filter(r => !r.locked);
-                                      if (unlockedRecipients.length > 0) {
-                                        const remainingWeight = Math.max(0, 100 - lockedSum);
-                                        const weightPerUnlocked = remainingWeight / unlockedRecipients.length;
-                                        
-                                        return updated.map(r => 
-                                          r.locked ? r : { ...r, weight: weightPerUnlocked }
-                                        );
-                                      }
-                                      
-                                      return updated;
-                                    });
-                                  }}
-                                  className="ml-1 text-xs text-blink-accent hover:text-blink-accent/70"
-                                  title="Unlock - allow auto-adjustment"
-                                >
-                                  🔒
-                                </button>
-                              )}
-                            </div>
-                          )}
-                          <button
-                            onClick={() => removeRecipientFromProfile(recipient.username)}
-                            className="text-red-500 hover:text-red-700 text-lg font-bold ml-2"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                      
-                      {/* Custom Weights Toggle - only show when 2+ recipients */}
-                      {newSplitProfileRecipients.length > 1 && (
-                        <div className="flex items-center justify-between py-2 mt-2 border-t border-gray-200 dark:border-gray-700">
-                          <span className="text-sm text-gray-600 dark:text-gray-400">
-                            Custom split weights
-                          </span>
-                          <button
-                            onClick={() => {
-                              if (useCustomWeights) {
-                                // Switching to even split - reset all weights
-                                const evenWeight = 100 / newSplitProfileRecipients.length;
-                                setNewSplitProfileRecipients(prev => 
-                                  prev.map(r => ({ ...r, weight: evenWeight }))
-                                );
-                              }
-                              setUseCustomWeights(!useCustomWeights);
-                            }}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                              useCustomWeights ? 'bg-blink-accent' : 'bg-gray-300 dark:bg-gray-600'
-                            }`}
-                          >
-                            <span
-                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                useCustomWeights ? 'translate-x-6' : 'translate-x-1'
-                              }`}
-                            />
-                          </button>
-                        </div>
-                      )}
-                      
-                      {/* Weight Summary */}
-                      {useCustomWeights ? (
-                        <div className="text-xs mt-1">
-                          {(() => {
-                            const totalWeight = newSplitProfileRecipients.reduce((sum, r) => sum + (r.weight || 0), 0);
-                            const isValid = Math.abs(totalWeight - 100) < 0.01;
-                            return (
-                              <p className={isValid ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}>
-                                Total: {Math.round(totalWeight)}% {isValid ? '✓' : `(must equal 100%)`}
-                              </p>
-                            );
-                          })()}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          Split will be divided evenly ({(100 / newSplitProfileRecipients.length).toFixed(1)}% each)
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Add New Recipient Input */}
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={newRecipientInput}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/@blink\.sv$/, '');
-                        setNewRecipientInput(value);
-                      }}
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter' && recipientValidation.status === 'success') {
-                          e.preventDefault();
-                          addRecipientToProfile();
-                        }
-                      }}
-                      placeholder="Blink username or npub1...@npub.cash"
-                      className={`w-full px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent ${
-                        recipientValidation.status === 'success' ? 'border-green-500' :
-                        recipientValidation.status === 'error' ? 'border-red-500' :
-                        'border-gray-300 dark:border-gray-600'
-                      }`}
-                    />
-                    {recipientValidation.isValidating && (
-                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-blink-accent border-t-transparent"></div>
-                      </div>
-                    )}
-                    {recipientValidation.status === 'success' && (
-                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-green-500">✓</div>
-                    )}
-                  </div>
-                  {recipientValidation.message && recipientValidation.status === 'error' && (
-                    <p className="text-xs mt-1 text-red-500">{recipientValidation.message}</p>
-                  )}
-                  {recipientValidation.status === 'success' && newRecipientInput && (
-                    <button
-                      onClick={addRecipientToProfile}
-                      className="mt-2 w-full py-2 text-sm font-medium bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
-                    >
-                      Add {recipientValidation.type === 'npub_cash' ? recipientValidation.address : `${newRecipientInput}@${getLnAddressDomain()}`}
-                    </button>
-                  )}
-                  {newSplitProfileRecipients.length === 0 && (
-                    <p className="text-xs mt-2 text-gray-500 dark:text-gray-400">
-                      Add at least one recipient for the split
-                    </p>
-                  )}
-                </div>
-
-                {/* Save Button */}
-                <button
-                  onClick={async () => {
-                    if (!newSplitProfileLabel.trim()) {
-                      setSplitProfileError('Please enter a profile name');
-                      return;
-                    }
-                    if (newSplitProfileRecipients.length === 0) {
-                      setSplitProfileError('Please add at least one recipient');
-                      return;
-                    }
-                    
-                    // Calculate shares based on custom weights or even split
-                    let recipients;
-                    if (useCustomWeights && newSplitProfileRecipients.length > 1) {
-                      // Validate total weights equal 100%
-                      const totalWeight = newSplitProfileRecipients.reduce((sum, r) => sum + (r.weight || 0), 0);
-                      if (Math.abs(totalWeight - 100) > 0.01) {
-                        setSplitProfileError(`Total split weights must equal 100% (currently ${Math.round(totalWeight)}%)`);
-                        return;
-                      }
-                      
-                      recipients = newSplitProfileRecipients.map(r => ({
-                        username: r.username,
-                        type: r.type || 'blink',
-                        share: r.weight
-                      }));
-                    } else {
-                      // Even split
-                      const sharePerRecipient = 100 / newSplitProfileRecipients.length;
-                      recipients = newSplitProfileRecipients.map(r => ({
-                        username: r.username,
-                        type: r.type || 'blink',
-                        share: sharePerRecipient
-                      }));
-                    }
-                    
-                    const profile = {
-                      id: editingSplitProfile?.id,
-                      label: newSplitProfileLabel.trim(),
-                      recipients,
-                      useCustomWeights: useCustomWeights && newSplitProfileRecipients.length > 1
-                    };
-                    
-                    const saved = await saveSplitProfile(profile, true);
-                    if (saved) {
-                      setShowCreateSplitProfile(false);
-                      setEditingSplitProfile(null);
-                      setShowTipSettings(false);
-                      setUseCustomWeights(false);
-                    }
-                  }}
-                  disabled={!newSplitProfileLabel.trim() || newSplitProfileRecipients.length === 0}
-                  className="w-full py-3 text-sm font-medium bg-blink-accent text-black rounded-lg hover:bg-blink-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {editingSplitProfile ? 'Save Changes' : 'Create Profile'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <CreateEditSplitProfileOverlay
+          darkMode={darkMode}
+          editingSplitProfile={editingSplitProfile}
+          newSplitProfileLabel={newSplitProfileLabel}
+          newSplitProfileRecipients={newSplitProfileRecipients}
+          newRecipientInput={newRecipientInput}
+          recipientValidation={recipientValidation}
+          splitProfileError={splitProfileError}
+          useCustomWeights={useCustomWeights}
+          setShowCreateSplitProfile={setShowCreateSplitProfile}
+          setShowTipSettings={setShowTipSettings}
+          setEditingSplitProfile={setEditingSplitProfile}
+          setNewSplitProfileLabel={setNewSplitProfileLabel}
+          setNewSplitProfileRecipients={setNewSplitProfileRecipients}
+          setNewRecipientInput={setNewRecipientInput}
+          setRecipientValidation={setRecipientValidation}
+          setSplitProfileError={setSplitProfileError}
+          setUseCustomWeights={setUseCustomWeights}
+          addRecipientToProfile={addRecipientToProfile}
+          removeRecipientFromProfile={removeRecipientFromProfile}
+          saveSplitProfile={saveSplitProfile}
+          getSubmenuBgClasses={getSubmenuBgClasses}
+          getSubmenuHeaderClasses={getSubmenuHeaderClasses}
+        />
       )}
 
       {/* Currency Settings Overlay */}
@@ -6091,300 +5634,43 @@ export default function Dashboard() {
 
       {/* Export Options Overlay */}
       {showExportOptions && (
-        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen">
-            {/* Header */}
-            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center h-16">
-                  <button
-                    onClick={() => setShowExportOptions(false)}
-                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
-                  >
-                    <span className="text-2xl mr-2">‹</span>
-                    <span className="text-lg">Back</span>
-                  </button>
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-                    Export Options
-                  </h1>
-                  <div className="w-16"></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Export Options List */}
-            <div className="max-w-md mx-auto px-4 py-6">
-              <div className="space-y-3">
-                {/* Filtered Export - Show when date filter is active */}
-                {dateFilterActive && filteredTransactions.length > 0 && (
-                  <div className="mb-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                        Active Filter: {selectedDateRange?.label} ({filteredTransactions.length} transactions)
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        // Export filtered transactions
-                        const csv = convertTransactionsToBasicCSV(filteredTransactions);
-                        const date = new Date();
-                        const dateStr = date.getFullYear() + 
-                                        String(date.getMonth() + 1).padStart(2, '0') + 
-                                        String(date.getDate()).padStart(2, '0');
-                        const username = user?.username || 'user';
-                        const rangeLabel = selectedDateRange?.label?.replace(/[^a-zA-Z0-9]/g, '-') || 'filtered';
-                        const filename = `${dateStr}-${username}-${rangeLabel}-transactions.csv`;
-                        downloadCSV(csv, filename);
-                        setShowExportOptions(false);
-                      }}
-                      disabled={exportingData}
-                      className="w-full p-4 rounded-lg border-2 border-green-500 dark:border-green-400 bg-white dark:bg-blink-dark hover:border-green-600 dark:hover:border-green-300 hover:bg-green-50 dark:hover:bg-green-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="text-left">
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-                            Export Filtered
-                          </h3>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {selectedDateRange?.label} - {filteredTransactions.length} transactions (CSV)
-                          </p>
-                        </div>
-                        <div className="text-green-600 dark:text-green-400 text-xl">↓</div>
-                      </div>
-                    </button>
-                  </div>
-                )}
-
-                {dateFilterActive && filteredTransactions.length > 0 && (
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
-                    </div>
-                    <div className="relative flex justify-center text-sm">
-                      <span className="px-2 bg-white dark:bg-black text-gray-500">Or export all history</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Basic Export */}
-                <button
-                  onClick={exportBasicTransactions}
-                  disabled={exportingData}
-                  className="w-full p-4 rounded-lg border-2 border-blue-500 dark:border-blue-400 bg-white dark:bg-blink-dark hover:border-blue-600 dark:hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-left">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-                        Basic (All)
-                      </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {exportingData ? 'Exporting simplified transaction summary...' : 'All transactions - simplified format (CSV)'}
-                      </p>
-                    </div>
-                    {exportingData ? (
-                      <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-600 dark:border-blue-400 border-t-transparent"></div>
-                    ) : (
-                      <div className="text-blue-600 dark:text-blue-400 text-xl">↓</div>
-                    )}
-                  </div>
-                </button>
-
-                {/* Full Export */}
-                <button
-                  onClick={exportFullTransactions}
-                  disabled={exportingData}
-                  className="w-full p-4 rounded-lg border-2 border-yellow-500 dark:border-yellow-400 bg-white dark:bg-blink-dark hover:border-yellow-600 dark:hover:border-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-left">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-                        Full (All)
-                      </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {exportingData ? 'Exporting complete transaction history...' : 'All transactions - complete format (CSV)'}
-                      </p>
-                    </div>
-                    {exportingData ? (
-                      <div className="animate-spin rounded-full h-6 w-6 border-2 border-yellow-600 dark:border-yellow-400 border-t-transparent"></div>
-                    ) : (
-                      <div className="text-yellow-600 dark:text-yellow-400 text-xl">↓</div>
-                    )}
-                  </div>
-                </button>
-              </div>
-              
-              {/* Info Text */}
-              <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                {dateFilterActive && filteredTransactions.length > 0 && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    <strong>Filtered Export:</strong> Only transactions from {selectedDateRange?.label}.
-                  </p>
-                )}
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                  <strong>Basic Export:</strong> Simplified CSV with 9 essential columns (timestamp, type, credit, debit, fee, currency, status, memo, username).
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  <strong>Full Export:</strong> Complete transaction data with all 24 fields matching Blink's official format.
-                </p>
-                <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
-                  On mobile devices, you'll have the option to save or share the file with other apps.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ExportOptionsOverlay
+          exportingData={exportingData}
+          dateFilterActive={dateFilterActive}
+          filteredTransactions={filteredTransactions}
+          selectedDateRange={selectedDateRange}
+          user={user}
+          setShowExportOptions={setShowExportOptions}
+          convertTransactionsToBasicCSV={convertTransactionsToBasicCSV}
+          downloadCSV={downloadCSV}
+          exportBasicTransactions={exportBasicTransactions}
+          exportFullTransactions={exportFullTransactions}
+          getSubmenuBgClasses={getSubmenuBgClasses}
+          getSubmenuHeaderClasses={getSubmenuHeaderClasses}
+        />
       )}
 
       {/* Date Range Selector Modal */}
       {showDateRangeSelector && (
-        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen">
-            {/* Header */}
-            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center h-16">
-                  <button
-                    onClick={() => setShowDateRangeSelector(false)}
-                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
-                  >
-                    <span className="text-2xl mr-2">‹</span>
-                    <span className="text-lg">Back</span>
-                  </button>
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-                    Select Date Range
-                  </h1>
-                  <div className="w-16"></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Date Range Options */}
-            <div className="max-w-md mx-auto px-4 py-6">
-              <div className="space-y-3">
-                {/* Quick Options */}
-                <div className="mb-4">
-                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3 uppercase tracking-wide">
-                    Quick Options
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {getDateRangePresets().map((preset) => (
-                      <button
-                        key={preset.id}
-                        onClick={() => loadTransactionsForDateRange({ type: 'preset', ...preset })}
-                        disabled={loadingMore}
-                        className="p-4 rounded-lg border-2 border-blue-500 dark:border-blue-400 bg-white dark:bg-blink-dark hover:border-blue-600 dark:hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-left"
-                      >
-                        <h4 className="text-base font-semibold text-gray-900 dark:text-white" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-                          {preset.label}
-                        </h4>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          {preset.start.toLocaleDateString()} {preset.id !== 'today' && preset.id !== 'yesterday' && `- ${preset.end.toLocaleDateString()}`}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Custom Date Range */}
-                <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3 uppercase tracking-wide">
-                    Custom Range
-                  </h3>
-                  <div className="space-y-3">
-                    {/* Start Date/Time */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Start Date
-                      </label>
-                      <div className={`flex gap-2 ${showTimeInputs ? 'flex-col sm:flex-row' : ''}`}>
-                        <input
-                          type="date"
-                          value={customDateStart}
-                          onChange={(e) => setCustomDateStart(e.target.value)}
-                          max={customDateEnd || new Date().toISOString().split('T')[0]}
-                          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                        {showTimeInputs && (
-                          <input
-                            type="time"
-                            value={customTimeStart}
-                            onChange={(e) => setCustomTimeStart(e.target.value)}
-                            className="w-full sm:w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* End Date/Time */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        End Date
-                      </label>
-                      <div className={`flex gap-2 ${showTimeInputs ? 'flex-col sm:flex-row' : ''}`}>
-                        <input
-                          type="date"
-                          value={customDateEnd}
-                          onChange={(e) => setCustomDateEnd(e.target.value)}
-                          min={customDateStart}
-                          max={new Date().toISOString().split('T')[0]}
-                          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                        {showTimeInputs && (
-                          <input
-                            type="time"
-                            value={customTimeEnd}
-                            onChange={(e) => setCustomTimeEnd(e.target.value)}
-                            className="w-full sm:w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Toggle Time Inputs */}
-                    <button
-                      type="button"
-                      onClick={() => setShowTimeInputs(!showTimeInputs)}
-                      className={`flex items-center gap-2 text-sm font-medium transition-colors ${
-                        showTimeInputs 
-                          ? 'text-blue-600 dark:text-blue-400' 
-                          : 'text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400'
-                      }`}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      {showTimeInputs ? 'Hide time options' : 'Add specific times'}
-                    </button>
-
-                    {/* Apply Button */}
-                    <button
-                      onClick={handleCustomDateRange}
-                      disabled={!customDateStart || !customDateEnd || loadingMore}
-                      className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {loadingMore ? (
-                        <div className="flex items-center justify-center">
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                          Loading...
-                        </div>
-                      ) : (
-                        'Apply Custom Range'
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Info Text */}
-              <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Select a date range to filter and view transactions. You can then export the filtered data using the Export button.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <DateRangeSelectorOverlay
+          customDateStart={customDateStart}
+          customDateEnd={customDateEnd}
+          customTimeStart={customTimeStart}
+          customTimeEnd={customTimeEnd}
+          showTimeInputs={showTimeInputs}
+          loadingMore={loadingMore}
+          setShowDateRangeSelector={setShowDateRangeSelector}
+          setCustomDateStart={setCustomDateStart}
+          setCustomDateEnd={setCustomDateEnd}
+          setCustomTimeStart={setCustomTimeStart}
+          setCustomTimeEnd={setCustomTimeEnd}
+          setShowTimeInputs={setShowTimeInputs}
+          getDateRangePresets={getDateRangePresets}
+          loadTransactionsForDateRange={loadTransactionsForDateRange}
+          handleCustomDateRange={handleCustomDateRange}
+          getSubmenuBgClasses={getSubmenuBgClasses}
+          getSubmenuHeaderClasses={getSubmenuHeaderClasses}
+        />
       )}
 
       <main 

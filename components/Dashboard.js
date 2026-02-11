@@ -14,6 +14,7 @@ import { useAccountManagement } from '../lib/hooks/useAccountManagement';
 import { useVoucherWalletState } from '../lib/hooks/useVoucherWalletState';
 import { useTransactionState } from '../lib/hooks/useTransactionState';
 import { useSplitProfiles } from '../lib/hooks/useSplitProfiles';
+import { useUIVisibility } from '../lib/hooks/useUIVisibility';
 import { useNFC } from './NFCPayment';
 import { isBitcoinCurrency } from '../lib/currency-utils';
 import { getApiUrl, getLnAddressDomain, getPayUrl, getAllValidDomains, getEnvironment } from '../lib/config/api';
@@ -151,9 +152,48 @@ export default function Dashboard() {
     clearCurrencyFilter,
   } = useDisplaySettings();
   
+  // UI visibility states - extracted to useUIVisibility hook
+  const {
+    showAccountSettings,
+    setShowAccountSettings,
+    showVoucherWalletSettings,
+    setShowVoucherWalletSettings,
+    showCurrencySettings,
+    setShowCurrencySettings,
+    showRegionalSettings,
+    setShowRegionalSettings,
+    showTipSettings,
+    setShowTipSettings,
+    showTipProfileSettings,
+    setShowTipProfileSettings,
+    showPercentSettings,
+    setShowPercentSettings,
+    showKeyManagement,
+    setShowKeyManagement,
+    showBoltcards,
+    setShowBoltcards,
+    showBatchPayments,
+    setShowBatchPayments,
+    showNetworkOverlay,
+    setShowNetworkOverlay,
+    showAddAccountForm,
+    setShowAddAccountForm,
+    showDateRangeSelector,
+    setShowDateRangeSelector,
+    showExportOptions,
+    setShowExportOptions,
+    showTimeInputs,
+    setShowTimeInputs,
+    showingInvoice,
+    setShowingInvoice,
+    showingVoucherQR,
+    setShowingVoucherQR,
+    closeAllOverlays,
+    closeAllSettings,
+  } = useUIVisibility();
+  
   const [apiKey, setApiKey] = useState(null);
   const [wallets, setWallets] = useState([]);
-  const [showExportOptions, setShowExportOptions] = useState(false);
   
   // Transaction state - extracted to useTransactionState hook
   const {
@@ -243,17 +283,6 @@ export default function Dashboard() {
   });
   const [tipRecipient, setTipRecipient] = useState('');
   const [usernameValidation, setUsernameValidation] = useState({ status: null, message: '', isValidating: false });
-  const [showingInvoice, setShowingInvoice] = useState(false);
-  const [showingVoucherQR, setShowingVoucherQR] = useState(false);
-  const [showTipSettings, setShowTipSettings] = useState(false);
-  const [showAccountSettings, setShowAccountSettings] = useState(false);
-  const [showKeyManagement, setShowKeyManagement] = useState(false);
-  const [showBoltcards, setShowBoltcards] = useState(false);
-  const [showBatchPayments, setShowBatchPayments] = useState(false);
-  const [showNetworkOverlay, setShowNetworkOverlay] = useState(false);
-  const [showCurrencySettings, setShowCurrencySettings] = useState(false);
-  const [showRegionalSettings, setShowRegionalSettings] = useState(false);
-  const [showAddAccountForm, setShowAddAccountForm] = useState(false);
   
   // Account management state - extracted to useAccountManagement hook
   const {
@@ -296,7 +325,6 @@ export default function Dashboard() {
   
   // Voucher Wallet state - extracted to useVoucherWalletState hook
   // NOTE: Initial state is null - we load ONLY after authentication to ensure user-scoped storage
-  const [showVoucherWalletSettings, setShowVoucherWalletSettings] = useState(false);
   const {
     voucherWallet,
     setVoucherWallet,
@@ -335,11 +363,6 @@ export default function Dashboard() {
     currentVoucherCurrencyMode,
     setCurrentVoucherCurrencyMode,
   } = useVoucherWalletState();
-  
-  // Tip Profile state
-  const [showTipProfileSettings, setShowTipProfileSettings] = useState(false);
-  // % Settings submenu state (shows Tip % and Commission % options when voucher wallet connected)
-  const [showPercentSettings, setShowPercentSettings] = useState(false);
   
   // Commission settings - extracted to useCommissionSettings hook
   const {
@@ -397,10 +420,6 @@ export default function Dashboard() {
     resetSplitProfileForm,
   } = useSplitProfiles();
   
-  // Date Range Selection UI (visibility states kept in Dashboard, data state in useTransactionState)
-  const [showDateRangeSelector, setShowDateRangeSelector] = useState(false);
-  const [showTimeInputs, setShowTimeInputs] = useState(false);
-
   // Exchange rate state for sats equivalent display in ItemCart
   const [exchangeRate, setExchangeRate] = useState(null);
   const [loadingRate, setLoadingRate] = useState(false);

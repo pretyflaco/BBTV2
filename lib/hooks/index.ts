@@ -22,9 +22,13 @@
 export { useThemeStyles } from './useThemeStyles';
 export type { ThemeStylesReturn, ThemeType } from './useThemeStyles';
 
-// Dashboard UI visibility states
+// Dashboard UI visibility states (full version with navigation)
 export { useDashboardUI } from './useDashboardUI';
 export type { UseDashboardUIReturn } from './useDashboardUI';
+
+// UI visibility states (slim version without navigation)
+export { useUIVisibility } from './useUIVisibility';
+export type { UseUIVisibilityReturn, UIVisibilityState, UIVisibilityActions } from './useUIVisibility';
 
 // Account management
 export { useAccountManagement } from './useAccountManagement';

@@ -42,6 +42,23 @@ interface ValidationResult {
   recipient?: object
 }
 
+interface ValidateAllOptions {
+  concurrency?: number
+  delayMs?: number
+  onProgress?: (progress: { completed: number; total: number; percent: number }) => void
+}
+
+interface ValidateAllResult {
+  results: ValidationResult[]
+  summary: {
+    total: number
+    valid: number
+    invalid: number
+    byType: Record<string, number>
+    errorGroups: Record<string, ValidationResult[]>
+  }
+}
+
 const {
   decodeLnurl,
   ERROR_CODES,
@@ -50,6 +67,7 @@ const {
   validateBlinkUser,
   validateLnAddress,
   validateLnurl,
+  validateAllRecipients,
 } = recipientValidator as {
   decodeLnurl: (lnurl: string) => string
   ERROR_CODES: Record<string, string>
@@ -58,6 +76,7 @@ const {
   validateBlinkUser: (recipient: object) => Promise<ValidationResult>
   validateLnAddress: (recipient: object) => Promise<ValidationResult>
   validateLnurl: (recipient: object) => Promise<ValidationResult>
+  validateAllRecipients: (recipients: object[], options?: ValidateAllOptions) => Promise<ValidateAllResult>
 }
 
 const { RECIPIENT_TYPES } = csvParser as { RECIPIENT_TYPES: Record<string, string> }
@@ -588,8 +607,360 @@ describe("Recipient Validator", () => {
 
       const result = await validateRecipient(recipient)
       expect(result.valid).toBe(false)
-      expect(result.error.code).toBe(ERROR_CODES.INVALID_FORMAT)
-      expect(result.error.message).toContain("Unknown recipient type")
+      expect(result.error!.code).toBe(ERROR_CODES.INVALID_FORMAT)
+      expect(result.error!.message).toContain("Unknown recipient type")
+    })
+  })
+
+  describe("validateBlinkUser() - additional error paths", () => {
+    const mockRecipient = {
+      type: RECIPIENT_TYPES.BLINK,
+      normalized: "testuser",
+      amountSats: 1000,
+    }
+
+    it("should return INVALID_FORMAT for 'Invalid value for Username' error", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          errors: [{ message: "Invalid value for Username" }],
+        }),
+      })
+
+      const result = await validateBlinkUser(mockRecipient)
+      expect(result.valid).toBe(false)
+      expect(result.error!.code).toBe(ERROR_CODES.INVALID_FORMAT)
+      expect(result.error!.message).toContain("Invalid username format")
+    })
+
+    it("should return BLINK_USER_NOT_FOUND for CouldNotFindAccountFromUsername error", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          errors: [{ message: "CouldNotFindAccountFromUsername" }],
+        }),
+      })
+
+      const result = await validateBlinkUser(mockRecipient)
+      expect(result.valid).toBe(false)
+      expect(result.error!.code).toBe(ERROR_CODES.BLINK_USER_NOT_FOUND)
+    })
+
+    it("should return NETWORK_ERROR for unknown GraphQL errors", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          errors: [{ message: "Some other unexpected error" }],
+        }),
+      })
+
+      const result = await validateBlinkUser(mockRecipient)
+      expect(result.valid).toBe(false)
+      expect(result.error!.code).toBe(ERROR_CODES.NETWORK_ERROR)
+      expect(result.error!.message).toBe("Some other unexpected error")
+    })
+  })
+
+  describe("validateLnurl() - additional error paths", () => {
+    const validLnurl =
+      "lnurl1dp68gurn8ghj7um9wfmxjcm99e3k7mf0v9cxj0m385ekvcenxc6r2c35xvukxefcv5mkvv34x5ekzd3ev56nyd3hxqurzepexejxxepnxscrvwfnv9nxzcn9xq6xyefhvgcxxcmyxymnserxfq5fns"
+
+    const mockRecipient = {
+      type: RECIPIENT_TYPES.LNURL,
+      normalized: validLnurl,
+      amountSats: 1000,
+    }
+
+    it("should return LNURL_UNREACHABLE for HTTP errors", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      })
+
+      const result = await validateLnurl(mockRecipient)
+      expect(result.valid).toBe(false)
+      expect(result.error!.code).toBe(ERROR_CODES.LNURL_UNREACHABLE)
+      expect(result.error!.message).toContain("HTTP 500")
+    })
+
+    it("should return AMOUNT_ABOVE_MAX when amount exceeds maximum", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          callback: "https://example.com/callback",
+          minSendable: 1000, // 1 sat
+          maxSendable: 100000, // 100 sats
+          metadata: "[]",
+          tag: "payRequest",
+        }),
+      })
+
+      const highAmountRecipient = {
+        ...mockRecipient,
+        amountSats: 1000, // 1000 sats, above 100 sat max
+      }
+
+      const result = await validateLnurl(highAmountRecipient)
+      expect(result.valid).toBe(false)
+      expect(result.error!.code).toBe(ERROR_CODES.AMOUNT_ABOVE_MAX)
+      expect(result.error!.message).toContain("above maximum")
+    })
+
+    it("should return LNURL_UNREACHABLE for network errors", async () => {
+      mockFetch.mockRejectedValueOnce(new Error("Connection refused"))
+
+      const result = await validateLnurl(mockRecipient)
+      expect(result.valid).toBe(false)
+      expect(result.error!.code).toBe(ERROR_CODES.LNURL_UNREACHABLE)
+      expect(result.error!.message).toContain("Connection refused")
+    })
+
+    it("should return LNURL_INVALID_RESPONSE with default message when no reason provided", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: "ERROR",
+          // No 'reason' field
+        }),
+      })
+
+      const result = await validateLnurl(mockRecipient)
+      expect(result.valid).toBe(false)
+      expect(result.error!.code).toBe(ERROR_CODES.LNURL_INVALID_RESPONSE)
+      expect(result.error!.message).toBe("LNURL error")
+    })
+  })
+
+  describe("validateAllRecipients()", () => {
+    beforeEach(() => {
+      jest.useFakeTimers()
+    })
+
+    afterEach(() => {
+      jest.useRealTimers()
+    })
+
+    it("should validate multiple recipients in batches", async () => {
+      // Mock successful responses for 3 Blink users
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: { accountDefaultWallet: { id: "wallet-1" } },
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: { accountDefaultWallet: { id: "wallet-2" } },
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: { accountDefaultWallet: { id: "wallet-3" } },
+          }),
+        })
+
+      const recipients = [
+        { type: RECIPIENT_TYPES.BLINK, normalized: "user1", amountSats: 100 },
+        { type: RECIPIENT_TYPES.BLINK, normalized: "user2", amountSats: 200 },
+        { type: RECIPIENT_TYPES.BLINK, normalized: "user3", amountSats: 300 },
+      ]
+
+      const resultPromise = validateAllRecipients(recipients, { concurrency: 10, delayMs: 0 })
+      const result = await resultPromise
+
+      expect(result.results).toHaveLength(3)
+      expect(result.summary.total).toBe(3)
+      expect(result.summary.valid).toBe(3)
+      expect(result.summary.invalid).toBe(0)
+      expect(result.summary.byType[RECIPIENT_TYPES.BLINK]).toBe(3)
+    })
+
+    it("should handle mixed valid and invalid recipients", async () => {
+      // First user valid, second user not found
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: { accountDefaultWallet: { id: "wallet-1" } },
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            errors: [{ message: "Account does not exist" }],
+          }),
+        })
+
+      const recipients = [
+        { type: RECIPIENT_TYPES.BLINK, normalized: "validuser", amountSats: 100 },
+        { type: RECIPIENT_TYPES.BLINK, normalized: "invaliduser", amountSats: 200 },
+      ]
+
+      const result = await validateAllRecipients(recipients, { concurrency: 10, delayMs: 0 })
+
+      expect(result.summary.valid).toBe(1)
+      expect(result.summary.invalid).toBe(1)
+      expect(result.summary.errorGroups[ERROR_CODES.BLINK_USER_NOT_FOUND]).toHaveLength(1)
+    })
+
+    it("should call onProgress callback", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: { accountDefaultWallet: { id: "wallet-1" } },
+        }),
+      })
+
+      const recipients = [
+        { type: RECIPIENT_TYPES.BLINK, normalized: "user1", amountSats: 100 },
+        { type: RECIPIENT_TYPES.BLINK, normalized: "user2", amountSats: 200 },
+      ]
+
+      const progressCalls: Array<{ completed: number; total: number; percent: number }> = []
+      const onProgress = (progress: { completed: number; total: number; percent: number }) => {
+        progressCalls.push(progress)
+      }
+
+      await validateAllRecipients(recipients, { concurrency: 10, delayMs: 0, onProgress })
+
+      expect(progressCalls.length).toBeGreaterThan(0)
+      expect(progressCalls[progressCalls.length - 1].completed).toBe(2)
+      expect(progressCalls[progressCalls.length - 1].percent).toBe(100)
+    })
+
+    it("should handle rejected promises in batch", async () => {
+      // First succeeds, second throws
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: { accountDefaultWallet: { id: "wallet-1" } },
+          }),
+        })
+        .mockRejectedValueOnce(new Error("Network failure"))
+
+      const recipients = [
+        { type: RECIPIENT_TYPES.BLINK, normalized: "user1", amountSats: 100 },
+        { type: RECIPIENT_TYPES.BLINK, normalized: "user2", amountSats: 200 },
+      ]
+
+      const result = await validateAllRecipients(recipients, { concurrency: 10, delayMs: 0 })
+
+      expect(result.summary.valid).toBe(1)
+      expect(result.summary.invalid).toBe(1)
+    })
+
+    it("should respect concurrency limit and add delay between batches", async () => {
+      // Set up responses for 5 recipients
+      for (let i = 0; i < 5; i++) {
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: { accountDefaultWallet: { id: `wallet-${i}` } },
+          }),
+        })
+      }
+
+      const recipients = [
+        { type: RECIPIENT_TYPES.BLINK, normalized: "user1", amountSats: 100 },
+        { type: RECIPIENT_TYPES.BLINK, normalized: "user2", amountSats: 100 },
+        { type: RECIPIENT_TYPES.BLINK, normalized: "user3", amountSats: 100 },
+        { type: RECIPIENT_TYPES.BLINK, normalized: "user4", amountSats: 100 },
+        { type: RECIPIENT_TYPES.BLINK, normalized: "user5", amountSats: 100 },
+      ]
+
+      // Use real timers for this test since we need actual promise resolution
+      jest.useRealTimers()
+
+      const result = await validateAllRecipients(recipients, { concurrency: 2, delayMs: 10 })
+
+      expect(result.summary.total).toBe(5)
+      expect(result.summary.valid).toBe(5)
+    })
+
+    it("should group errors by error code in summary", async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            errors: [{ message: "Account does not exist" }],
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            errors: [{ message: "Account does not exist" }],
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            errors: [{ message: "Invalid value for Username" }],
+          }),
+        })
+
+      const recipients = [
+        { type: RECIPIENT_TYPES.BLINK, normalized: "notfound1", amountSats: 100 },
+        { type: RECIPIENT_TYPES.BLINK, normalized: "notfound2", amountSats: 100 },
+        { type: RECIPIENT_TYPES.BLINK, normalized: "badformat", amountSats: 100 },
+      ]
+
+      const result = await validateAllRecipients(recipients, { concurrency: 10, delayMs: 0 })
+
+      expect(result.summary.invalid).toBe(3)
+      expect(result.summary.errorGroups[ERROR_CODES.BLINK_USER_NOT_FOUND]).toHaveLength(2)
+      expect(result.summary.errorGroups[ERROR_CODES.INVALID_FORMAT]).toHaveLength(1)
+    })
+
+    it("should count recipients by type in summary", async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: { accountDefaultWallet: { id: "wallet-1" } },
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            callback: "https://example.com/callback",
+            minSendable: 1000,
+            maxSendable: 100000000000,
+            metadata: "[]",
+            tag: "payRequest",
+          }),
+        })
+
+      const recipients = [
+        { type: RECIPIENT_TYPES.BLINK, normalized: "blinkuser", amountSats: 100 },
+        { type: RECIPIENT_TYPES.LN_ADDRESS, normalized: "user@example.com", amountSats: 200 },
+      ]
+
+      const result = await validateAllRecipients(recipients, { concurrency: 10, delayMs: 0 })
+
+      expect(result.summary.valid).toBe(2)
+      expect(result.summary.byType[RECIPIENT_TYPES.BLINK]).toBe(1)
+      expect(result.summary.byType[RECIPIENT_TYPES.LN_ADDRESS]).toBe(1)
+    })
+
+    it("should use default options when not provided", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: { accountDefaultWallet: { id: "wallet-1" } },
+        }),
+      })
+
+      const recipients = [{ type: RECIPIENT_TYPES.BLINK, normalized: "user1", amountSats: 100 }]
+
+      // Call without options
+      const result = await validateAllRecipients(recipients)
+
+      expect(result.summary.total).toBe(1)
+      expect(result.summary.valid).toBe(1)
     })
   })
 })

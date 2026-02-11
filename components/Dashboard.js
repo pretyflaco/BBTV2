@@ -28,15 +28,11 @@ import { useExchangeRate } from "../lib/hooks/useExchangeRate"
 import { useWalletState } from "../lib/hooks/useWalletState"
 import { useInvoiceState } from "../lib/hooks/useInvoiceState"
 import PaymentAnimation from "./PaymentAnimation"
-import POS from "./POS"
-import Voucher from "./Voucher"
-import MultiVoucher from "./MultiVoucher"
-import VoucherManager from "./VoucherManager"
-import Network from "./Network"
-import ItemCart from "./ItemCart"
-import BatchPayments from "./BatchPayments"
-import KeyManagementSection from "./Settings/KeyManagementSection"
-import { BoltcardSection } from "./boltcard"
+import DashboardViewSwitcher from "./DashboardViewSwitcher"
+import KeyManagementOverlay from "./Settings/KeyManagementOverlay"
+import BoltcardsOverlay from "./Settings/BoltcardsOverlay"
+import BatchPaymentsOverlay from "./Settings/BatchPaymentsOverlay"
+import NetworkOverlay from "./Settings/NetworkOverlay"
 
 import TransactionDetail from "./TransactionDetail"
 import SoundThemesOverlay from "./Settings/SoundThemesOverlay"
@@ -55,7 +51,6 @@ import VoucherWalletOverlay from "./Settings/VoucherWalletOverlay"
 import MobileHeader from "./MobileHeader"
 import SideMenuOverlay from "./SideMenuOverlay"
 import OwnerAgentDisplay from "./OwnerAgentDisplay"
-import TransactionsView from "./TransactionsView"
 
 // Predefined Tip Profiles for different regions
 const TIP_PROFILES = [
@@ -828,188 +823,56 @@ export default function Dashboard() {
 
       {/* Key Management Overlay */}
       {showKeyManagement && (
-        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen">
-            {/* Header */}
-            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
-              <div className="max-w-md mx-auto px-4 py-4">
-                <div className="flex items-center justify-between">
-                  <button
-                    onClick={() => setShowKeyManagement(false)}
-                    className="flex items-center text-gray-600 dark:text-gray-400 text-base"
-                  >
-                    <svg
-                      className="w-6 h-6 mr-1"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M15 19l-7-7 7-7"
-                      />
-                    </svg>
-                    Back
-                  </button>
-                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                    Key Management
-                  </h2>
-                  <div className="w-16"></div>
-                </div>
-              </div>
-            </div>
-            {/* Content */}
-            <div className="max-w-md mx-auto px-4 py-6">
-              <KeyManagementSection />
-            </div>
-          </div>
-        </div>
+        <KeyManagementOverlay
+          setShowKeyManagement={setShowKeyManagement}
+          getSubmenuBgClasses={getSubmenuBgClasses}
+          getSubmenuHeaderClasses={getSubmenuHeaderClasses}
+        />
       )}
 
       {/* Boltcards Overlay */}
       {showBoltcards && (
-        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen">
-            {/* Header */}
-            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
-              <div className="max-w-md mx-auto px-4 py-4">
-                <div className="flex items-center justify-between">
-                  <button
-                    onClick={() => setShowBoltcards(false)}
-                    className="flex items-center text-gray-600 dark:text-gray-400 text-base"
-                  >
-                    <svg
-                      className="w-6 h-6 mr-1"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M15 19l-7-7 7-7"
-                      />
-                    </svg>
-                    Back
-                  </button>
-                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                    Boltcards
-                  </h2>
-                  <div className="w-16"></div>
-                </div>
-              </div>
-            </div>
-            {/* Content */}
-            <div className="max-w-md mx-auto px-4 py-6">
-              <BoltcardSection
-                voucherWallet={voucherWallet}
-                voucherWalletBtcId={voucherWalletBtcId}
-                voucherWalletUsdId={voucherWalletUsdId}
-                voucherWalletBtcBalance={voucherWalletBalance}
-                voucherWalletUsdBalance={voucherWalletUsdBalance}
-                exchangeRate={exchangeRate}
-                bitcoinFormat={bitcoinFormat}
-              />
-            </div>
-          </div>
-        </div>
+        <BoltcardsOverlay
+          voucherWallet={voucherWallet}
+          voucherWalletBtcId={voucherWalletBtcId}
+          voucherWalletUsdId={voucherWalletUsdId}
+          voucherWalletBalance={voucherWalletBalance}
+          voucherWalletUsdBalance={voucherWalletUsdBalance}
+          exchangeRate={exchangeRate}
+          bitcoinFormat={bitcoinFormat}
+          setShowBoltcards={setShowBoltcards}
+          getSubmenuBgClasses={getSubmenuBgClasses}
+          getSubmenuHeaderClasses={getSubmenuHeaderClasses}
+        />
       )}
 
-      {/* Batch Payments Overlay (uses Voucher wallet API key with WRITE permission) */}
       {/* Batch Payments Overlay */}
       {showBatchPayments && voucherWallet?.apiKey && (
-        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div
-            className="min-h-screen"
-            style={{ fontFamily: "'Source Sans Pro', sans-serif" }}
-          >
-            {/* Header */}
-            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center h-16">
-                  <button
-                    onClick={() => {
-                      setShowBatchPayments(false)
-                      setSideMenuOpen(true)
-                    }}
-                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
-                  >
-                    <span className="text-2xl mr-2">‹</span>
-                    <span className="text-lg">Back</span>
-                  </button>
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                    Batch Payments
-                  </h1>
-                  <div className="w-16"></div>
-                </div>
-              </div>
-            </div>
-            {/* Content */}
-            <div className="max-w-md mx-auto px-4 py-6">
-              <BatchPayments
-                apiKey={voucherWallet.apiKey}
-                walletId={voucherWallet.walletId}
-                darkMode={darkMode}
-                onClose={() => {
-                  setShowBatchPayments(false)
-                  setSideMenuOpen(true)
-                }}
-                hideHeader={true}
-              />
-            </div>
-          </div>
-        </div>
+        <BatchPaymentsOverlay
+          voucherWallet={voucherWallet}
+          darkMode={darkMode}
+          setShowBatchPayments={setShowBatchPayments}
+          setSideMenuOpen={setSideMenuOpen}
+          getSubmenuBgClasses={getSubmenuBgClasses}
+          getSubmenuHeaderClasses={getSubmenuHeaderClasses}
+        />
       )}
 
       {/* Circular Economy Network Overlay */}
       {showNetworkOverlay && (
-        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-hidden`}>
-          <div
-            className="h-full flex flex-col"
-            style={{ fontFamily: "'Source Sans Pro', sans-serif" }}
-          >
-            {/* Header */}
-            <div className={`flex-shrink-0 ${getSubmenuHeaderClasses()}`}>
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center h-16">
-                  <button
-                    onClick={() => {
-                      setShowNetworkOverlay(false)
-                      setSideMenuOpen(true)
-                    }}
-                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
-                  >
-                    <span className="text-2xl mr-2">‹</span>
-                    <span className="text-lg">Back</span>
-                  </button>
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                    Circular Economy Network
-                  </h1>
-                  <div className="w-16"></div>
-                </div>
-              </div>
-            </div>
-            {/* Content */}
-            <div className="flex-1 overflow-hidden">
-              <Network
-                publicKey={publicKey}
-                nostrProfile={nostrProfile}
-                darkMode={darkMode}
-                theme={theme}
-                cycleTheme={cycleTheme}
-                hideHeader={true}
-                onInternalTransition={() => {
-                  setTransitionColorIndex((prev) => (prev + 1) % SPINNER_COLORS.length)
-                  setIsViewTransitioning(true)
-                  setTimeout(() => setIsViewTransitioning(false), 120)
-                }}
-              />
-            </div>
-          </div>
-        </div>
+        <NetworkOverlay
+          publicKey={publicKey}
+          nostrProfile={nostrProfile}
+          darkMode={darkMode}
+          theme={theme}
+          cycleTheme={cycleTheme}
+          setShowNetworkOverlay={setShowNetworkOverlay}
+          setSideMenuOpen={setSideMenuOpen}
+          setTransitionColorIndex={setTransitionColorIndex}
+          setIsViewTransitioning={setIsViewTransitioning}
+          getSubmenuBgClasses={getSubmenuBgClasses}
+          getSubmenuHeaderClasses={getSubmenuHeaderClasses}
+        />
       )}
 
       {/* Paycodes Overlay */}
@@ -1398,204 +1261,92 @@ export default function Dashboard() {
         )}
 
         {/* Conditional Content Based on Current View */}
-        {currentView === "cart" ? (
-          <div className="h-[calc(100vh-180px)] min-h-[400px]">
-            <ItemCart
-              ref={cartRef}
-              displayCurrency={displayCurrency}
-              numberFormat={numberFormat}
-              bitcoinFormat={bitcoinFormat}
-              currencies={currencies}
-              publicKey={publicKey}
-              onCheckout={(checkoutData) => {
-                // Store checkout data and switch to POS
-                setCartCheckoutData(checkoutData)
-                handleViewTransition("pos")
-              }}
-              soundEnabled={soundEnabled}
-              darkMode={darkMode}
-              theme={theme}
-              cycleTheme={cycleTheme}
-              isViewTransitioning={isViewTransitioning}
-              exchangeRate={exchangeRate}
-            />
-          </div>
-        ) : currentView === "pos" ? (
-          <POS
-            ref={posRef}
-            apiKey={apiKey}
-            user={user}
-            displayCurrency={displayCurrency}
-            numberFormat={numberFormat}
-            bitcoinFormat={bitcoinFormat}
-            numpadLayout={numpadLayout}
-            currencies={currencies}
-            wallets={wallets}
-            onPaymentReceived={posPaymentReceivedRef}
-            connected={connected}
-            manualReconnect={manualReconnect}
-            reconnectAttempts={reconnectAttempts}
-            tipsEnabled={tipsEnabled}
-            tipPresets={tipPresets}
-            tipRecipients={activeSplitProfile?.recipients || []}
-            soundEnabled={soundEnabled}
-            onInvoiceStateChange={setShowingInvoice}
-            onInvoiceChange={(invoiceData) => {
-              // Set current invoice to trigger polling in Dashboard
-              setCurrentInvoice(invoiceData)
-            }}
-            darkMode={darkMode}
-            theme={theme}
-            cycleTheme={cycleTheme}
-            nfcState={nfcState}
-            activeNWC={activeNWC}
-            nwcClientReady={nwcClientReady}
-            nwcMakeInvoice={nwcMakeInvoice}
-            nwcLookupInvoice={nwcLookupInvoice}
-            getActiveNWCUri={getActiveNWCUri}
-            activeBlinkAccount={activeBlinkAccount}
-            activeNpubCashWallet={activeNpubCashWallet}
-            cartCheckoutData={cartCheckoutData}
-            onCartCheckoutProcessed={() => setCartCheckoutData(null)}
-            onInternalTransition={() => {
-              // Rotate spinner color and show brief transition
-              setTransitionColorIndex((prev) => (prev + 1) % SPINNER_COLORS.length)
-              setIsViewTransitioning(true)
-              setTimeout(() => setIsViewTransitioning(false), 120)
-            }}
-            triggerPaymentAnimation={triggerPaymentAnimation}
-          />
-        ) : currentView === "multivoucher" ? (
-          <div className="h-[calc(100vh-180px)] min-h-[400px]">
-            <MultiVoucher
-              ref={multiVoucherRef}
-              voucherWallet={voucherWallet}
-              walletBalance={
-                voucherCurrencyMode === "USD"
-                  ? voucherWalletUsdBalance
-                  : voucherWalletBalance
-              }
-              displayCurrency={displayCurrency}
-              numberFormat={numberFormat}
-              bitcoinFormat={bitcoinFormat}
-              numpadLayout={numpadLayout}
-              currencies={currencies}
-              darkMode={darkMode}
-              theme={theme}
-              cycleTheme={cycleTheme}
-              soundEnabled={soundEnabled}
-              commissionEnabled={commissionEnabled}
-              commissionPresets={commissionPresets}
-              voucherCurrencyMode={voucherCurrencyMode}
-              onVoucherCurrencyToggle={
-                voucherWalletUsdId
-                  ? () =>
-                      setVoucherCurrencyMode((prev) => (prev === "BTC" ? "USD" : "BTC"))
-                  : null
-              }
-              usdExchangeRate={usdExchangeRate}
-              usdWalletId={voucherWalletUsdId}
-              initialExpiry={voucherExpiry}
-              onInternalTransition={() => {
-                // Rotate spinner color and show brief transition
-                setTransitionColorIndex((prev) => (prev + 1) % SPINNER_COLORS.length)
-                setIsViewTransitioning(true)
-                setTimeout(() => setIsViewTransitioning(false), 120)
-              }}
-            />
-          </div>
-        ) : currentView === "voucher" ? (
-          <Voucher
-            ref={voucherRef}
-            voucherWallet={voucherWallet}
-            walletBalance={
-              voucherCurrencyMode === "USD"
-                ? voucherWalletUsdBalance
-                : voucherWalletBalance
-            }
-            displayCurrency={displayCurrency}
-            numberFormat={numberFormat}
-            bitcoinFormat={bitcoinFormat}
-            numpadLayout={numpadLayout}
-            currencies={currencies}
-            darkMode={darkMode}
-            theme={theme}
-            cycleTheme={cycleTheme}
-            soundEnabled={soundEnabled}
-            onVoucherStateChange={setShowingVoucherQR}
-            commissionEnabled={commissionEnabled}
-            commissionPresets={commissionPresets}
-            voucherCurrencyMode={voucherCurrencyMode}
-            onVoucherCurrencyToggle={
-              voucherWalletUsdId
-                ? () => setVoucherCurrencyMode((prev) => (prev === "BTC" ? "USD" : "BTC"))
-                : null
-            }
-            usdExchangeRate={usdExchangeRate}
-            usdWalletId={voucherWalletUsdId}
-            initialExpiry={voucherExpiry}
-            onInternalTransition={() => {
-              // Rotate spinner color and show brief transition
-              setTransitionColorIndex((prev) => (prev + 1) % SPINNER_COLORS.length)
-              setIsViewTransitioning(true)
-              setTimeout(() => setIsViewTransitioning(false), 120)
-            }}
-          />
-        ) : currentView === "vouchermanager" ? (
-          <div className="h-[calc(100vh-180px)] min-h-[400px]">
-            <VoucherManager
-              ref={voucherManagerRef}
-              voucherWallet={voucherWallet}
-              displayCurrency={displayCurrency}
-              currencies={currencies}
-              darkMode={darkMode}
-              theme={theme}
-              cycleTheme={cycleTheme}
-              soundEnabled={soundEnabled}
-              onInternalTransition={() => {
-                // Rotate spinner color and show brief transition
-                setTransitionColorIndex((prev) => (prev + 1) % SPINNER_COLORS.length)
-                setIsViewTransitioning(true)
-                setTimeout(() => setIsViewTransitioning(false), 120)
-              }}
-            />
-          </div>
-        ) : (
-          <TransactionsView
-            transactions={transactions}
-            filteredTransactions={filteredTransactions}
-            activeBlinkAccount={activeBlinkAccount}
-            activeNpubCashWallet={activeNpubCashWallet}
-            activeNWC={activeNWC}
-            dateFilterActive={dateFilterActive}
-            selectedDateRange={selectedDateRange}
-            pastTransactionsLoaded={pastTransactionsLoaded}
-            isSearchingTx={isSearchingTx}
-            isSearchLoading={isSearchLoading}
-            txSearchQuery={txSearchQuery}
-            txSearchInput={txSearchInput}
-            txSearchInputRef={txSearchInputRef}
-            loadingMore={loadingMore}
-            hasMoreTransactions={hasMoreTransactions}
-            expandedMonths={expandedMonths}
-            setSelectedTransaction={setSelectedTransaction}
-            setShowDateRangeSelector={setShowDateRangeSelector}
-            setShowExportOptions={setShowExportOptions}
-            setIsSearchingTx={setIsSearchingTx}
-            setTxSearchInput={setTxSearchInput}
-            handleClearDateFilter={handleClearDateFilter}
-            handleTxSearchClick={handleTxSearchClick}
-            handleTxSearchClose={handleTxSearchClose}
-            handleTxSearchKeyDown={handleTxSearchKeyDown}
-            handleTxSearchSubmit={handleTxSearchSubmit}
-            loadMoreMonths={loadMoreMonths}
-            toggleMonth={toggleMonth}
-            getFilteredStats={getFilteredStats}
-            getDisplayTransactions={getDisplayTransactions}
-            getMonthGroups={getMonthGroups}
-            filterTransactionsBySearch={filterTransactionsBySearch}
-          />
-        )}
+        <DashboardViewSwitcher
+          currentView={currentView}
+          displayCurrency={displayCurrency}
+          numberFormat={numberFormat}
+          bitcoinFormat={bitcoinFormat}
+          numpadLayout={numpadLayout}
+          currencies={currencies}
+          darkMode={darkMode}
+          theme={theme}
+          cycleTheme={cycleTheme}
+          soundEnabled={soundEnabled}
+          exchangeRate={exchangeRate}
+          isViewTransitioning={isViewTransitioning}
+          setTransitionColorIndex={setTransitionColorIndex}
+          setIsViewTransitioning={setIsViewTransitioning}
+          cartRef={cartRef}
+          publicKey={publicKey}
+          setCartCheckoutData={setCartCheckoutData}
+          handleViewTransition={handleViewTransition}
+          posRef={posRef}
+          apiKey={apiKey}
+          user={user}
+          wallets={wallets}
+          posPaymentReceivedRef={posPaymentReceivedRef}
+          connected={connected}
+          manualReconnect={manualReconnect}
+          reconnectAttempts={reconnectAttempts}
+          tipsEnabled={tipsEnabled}
+          tipPresets={tipPresets}
+          activeSplitProfile={activeSplitProfile}
+          setShowingInvoice={setShowingInvoice}
+          setCurrentInvoice={setCurrentInvoice}
+          nfcState={nfcState}
+          activeNWC={activeNWC}
+          nwcClientReady={nwcClientReady}
+          nwcMakeInvoice={nwcMakeInvoice}
+          nwcLookupInvoice={nwcLookupInvoice}
+          getActiveNWCUri={getActiveNWCUri}
+          activeBlinkAccount={activeBlinkAccount}
+          activeNpubCashWallet={activeNpubCashWallet}
+          cartCheckoutData={cartCheckoutData}
+          triggerPaymentAnimation={triggerPaymentAnimation}
+          voucherWallet={voucherWallet}
+          voucherCurrencyMode={voucherCurrencyMode}
+          voucherWalletBalance={voucherWalletBalance}
+          voucherWalletUsdBalance={voucherWalletUsdBalance}
+          commissionEnabled={commissionEnabled}
+          commissionPresets={commissionPresets}
+          voucherWalletUsdId={voucherWalletUsdId}
+          setVoucherCurrencyMode={setVoucherCurrencyMode}
+          usdExchangeRate={usdExchangeRate}
+          voucherExpiry={voucherExpiry}
+          voucherRef={voucherRef}
+          setShowingVoucherQR={setShowingVoucherQR}
+          multiVoucherRef={multiVoucherRef}
+          voucherManagerRef={voucherManagerRef}
+          transactions={transactions}
+          filteredTransactions={filteredTransactions}
+          dateFilterActive={dateFilterActive}
+          selectedDateRange={selectedDateRange}
+          pastTransactionsLoaded={pastTransactionsLoaded}
+          isSearchingTx={isSearchingTx}
+          isSearchLoading={isSearchLoading}
+          txSearchQuery={txSearchQuery}
+          txSearchInput={txSearchInput}
+          txSearchInputRef={txSearchInputRef}
+          loadingMore={loadingMore}
+          hasMoreTransactions={hasMoreTransactions}
+          expandedMonths={expandedMonths}
+          setSelectedTransaction={setSelectedTransaction}
+          setShowDateRangeSelector={setShowDateRangeSelector}
+          setShowExportOptions={setShowExportOptions}
+          setIsSearchingTx={setIsSearchingTx}
+          setTxSearchInput={setTxSearchInput}
+          handleClearDateFilter={handleClearDateFilter}
+          handleTxSearchClick={handleTxSearchClick}
+          handleTxSearchClose={handleTxSearchClose}
+          handleTxSearchKeyDown={handleTxSearchKeyDown}
+          handleTxSearchSubmit={handleTxSearchSubmit}
+          loadMoreMonths={loadMoreMonths}
+          toggleMonth={toggleMonth}
+          getFilteredStats={getFilteredStats}
+          getDisplayTransactions={getDisplayTransactions}
+          getMonthGroups={getMonthGroups}
+          filterTransactionsBySearch={filterTransactionsBySearch}
+        />
       </main>
 
       {/* Transaction Detail Modal */}

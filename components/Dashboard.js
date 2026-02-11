@@ -13,6 +13,7 @@ import { usePWAInstall } from '../lib/hooks/usePWAInstall';
 import { useAccountManagement } from '../lib/hooks/useAccountManagement';
 import { useVoucherWalletState } from '../lib/hooks/useVoucherWalletState';
 import { useTransactionState } from '../lib/hooks/useTransactionState';
+import { useSplitProfiles } from '../lib/hooks/useSplitProfiles';
 import { useNFC } from './NFCPayment';
 import { isBitcoinCurrency } from '../lib/currency-utils';
 import { getApiUrl, getLnAddressDomain, getPayUrl, getAllValidDomains, getEnvironment } from '../lib/config/api';
@@ -369,18 +370,32 @@ export default function Dashboard() {
     return null;
   });
   
-  // Split Profiles state
-  const [splitProfiles, setSplitProfiles] = useState([]);
-  const [activeSplitProfile, setActiveSplitProfile] = useState(null);
-  const [splitProfilesLoading, setSplitProfilesLoading] = useState(false);
-  const [showCreateSplitProfile, setShowCreateSplitProfile] = useState(false);
-  const [editingSplitProfile, setEditingSplitProfile] = useState(null);
-  const [newSplitProfileLabel, setNewSplitProfileLabel] = useState('');
-  const [newSplitProfileRecipients, setNewSplitProfileRecipients] = useState([]); // Array of { username, validated, type, weight, locked }
-  const [newRecipientInput, setNewRecipientInput] = useState(''); // Current input for adding a recipient
-  const [splitProfileError, setSplitProfileError] = useState(null);
-  const [recipientValidation, setRecipientValidation] = useState({ status: null, message: '', isValidating: false });
-  const [useCustomWeights, setUseCustomWeights] = useState(false); // Toggle for custom weight mode
+  // Split Profiles state - extracted to useSplitProfiles hook
+  const {
+    splitProfiles,
+    setSplitProfiles,
+    activeSplitProfile,
+    setActiveSplitProfile,
+    splitProfilesLoading,
+    setSplitProfilesLoading,
+    showCreateSplitProfile,
+    setShowCreateSplitProfile,
+    editingSplitProfile,
+    setEditingSplitProfile,
+    newSplitProfileLabel,
+    setNewSplitProfileLabel,
+    newSplitProfileRecipients,
+    setNewSplitProfileRecipients,
+    newRecipientInput,
+    setNewRecipientInput,
+    splitProfileError,
+    setSplitProfileError,
+    recipientValidation,
+    setRecipientValidation,
+    useCustomWeights,
+    setUseCustomWeights,
+    resetSplitProfileForm,
+  } = useSplitProfiles();
   
   // Date Range Selection UI (visibility states kept in Dashboard, data state in useTransactionState)
   const [showDateRangeSelector, setShowDateRangeSelector] = useState(false);

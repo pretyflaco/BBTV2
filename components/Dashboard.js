@@ -11,6 +11,7 @@ import { useCommissionSettings } from '../lib/hooks/useCommissionSettings';
 import { usePaycodeState } from '../lib/hooks/usePaycodeState';
 import { usePWAInstall } from '../lib/hooks/usePWAInstall';
 import { useAccountManagement } from '../lib/hooks/useAccountManagement';
+import { useVoucherWalletState } from '../lib/hooks/useVoucherWalletState';
 import { useNFC } from './NFCPayment';
 import { isBitcoinCurrency } from '../lib/currency-utils';
 import { getApiUrl, getLnAddressDomain, getPayUrl, getAllValidDomains, getEnvironment } from '../lib/config/api';
@@ -245,43 +246,47 @@ export default function Dashboard() {
     resetNewAccountForm,
   } = useAccountManagement();
   
-  // Voucher Wallet state (separate from regular wallet - for voucher feature)
+  // Voucher Wallet state - extracted to useVoucherWalletState hook
   // NOTE: Initial state is null - we load ONLY after authentication to ensure user-scoped storage
   const [showVoucherWalletSettings, setShowVoucherWalletSettings] = useState(false);
-  const [voucherWallet, setVoucherWallet] = useState(null);
-  const [voucherWalletApiKey, setVoucherWalletApiKey] = useState('');
-  const [voucherWalletLabel, setVoucherWalletLabel] = useState('');
-  const [voucherWalletLoading, setVoucherWalletLoading] = useState(false);
-  const [voucherWalletError, setVoucherWalletError] = useState(null);
-  const [voucherWalletValidating, setVoucherWalletValidating] = useState(false);
-  const [voucherWalletScopes, setVoucherWalletScopes] = useState(null); // Scopes returned from authorization query
-  const [voucherWalletBalance, setVoucherWalletBalance] = useState(null); // BTC balance in sats
-  const [voucherWalletUsdBalance, setVoucherWalletUsdBalance] = useState(null); // USD balance in cents (for Stablesats feature)
-  const [voucherWalletBalanceLoading, setVoucherWalletBalanceLoading] = useState(false);
-  const [voucherWalletBtcId, setVoucherWalletBtcId] = useState(null); // BTC wallet ID for voucher creation
-  const [voucherWalletUsdId, setVoucherWalletUsdId] = useState(null); // USD wallet ID for Stablesats vouchers
-  const [voucherCurrencyMode, setVoucherCurrencyMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('blinkpos-voucher-currency-mode');
-      return saved === 'USD' ? 'USD' : 'BTC'; // Default to BTC if not set or invalid
-    }
-    return 'BTC';
-  }); // 'BTC' or 'USD' - which wallet to use for vouchers
-  const [voucherExpiry, setVoucherExpiry] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('blinkpos-voucher-expiry');
-      // Migration: if saved is '7d' or legacy values, migrate to '24h'
-      if (!saved || saved === '7d' || saved === '15m' || saved === '1h') {
-        return '24h';
-      }
-      return saved;
-    }
-    return '24h';
-  }); // Voucher expiry preference (synced cross-device)
-  const [usdExchangeRate, setUsdExchangeRate] = useState(null); // USD exchange rate for voucher conversion
-  const [currentAmountInSats, setCurrentAmountInSats] = useState(0); // For capacity indicator polling
-  const [currentAmountInUsdCents, setCurrentAmountInUsdCents] = useState(0); // For capacity indicator in USD mode
-  const [currentVoucherCurrencyMode, setCurrentVoucherCurrencyMode] = useState('BTC'); // Track child's currency mode
+  const {
+    voucherWallet,
+    setVoucherWallet,
+    voucherWalletApiKey,
+    setVoucherWalletApiKey,
+    voucherWalletLabel,
+    setVoucherWalletLabel,
+    voucherWalletLoading,
+    setVoucherWalletLoading,
+    voucherWalletError,
+    setVoucherWalletError,
+    voucherWalletValidating,
+    setVoucherWalletValidating,
+    voucherWalletScopes,
+    setVoucherWalletScopes,
+    voucherWalletBalance,
+    setVoucherWalletBalance,
+    voucherWalletUsdBalance,
+    setVoucherWalletUsdBalance,
+    voucherWalletBalanceLoading,
+    setVoucherWalletBalanceLoading,
+    voucherWalletBtcId,
+    setVoucherWalletBtcId,
+    voucherWalletUsdId,
+    setVoucherWalletUsdId,
+    voucherCurrencyMode,
+    setVoucherCurrencyMode,
+    voucherExpiry,
+    setVoucherExpiry,
+    usdExchangeRate,
+    setUsdExchangeRate,
+    currentAmountInSats,
+    setCurrentAmountInSats,
+    currentAmountInUsdCents,
+    setCurrentAmountInUsdCents,
+    currentVoucherCurrencyMode,
+    setCurrentVoucherCurrencyMode,
+  } = useVoucherWalletState();
   
   // Tip Profile state
   const [showTipProfileSettings, setShowTipProfileSettings] = useState(false);
@@ -392,19 +397,7 @@ export default function Dashboard() {
   // NOTE: Number format, Bitcoin format, and Numpad layout persistence
   // are now handled by useDisplaySettings hook
 
-  // Persist voucher currency mode to localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('blinkpos-voucher-currency-mode', voucherCurrencyMode);
-    }
-  }, [voucherCurrencyMode]);
-
-  // Persist voucher expiry to localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('blinkpos-voucher-expiry', voucherExpiry);
-    }
-  }, [voucherExpiry]);
+  // NOTE: voucherCurrencyMode and voucherExpiry persistence is now handled by useVoucherWalletState hook
 
   // Fetch exchange rate when currency changes (for sats equivalent display in ItemCart)
   useEffect(() => {

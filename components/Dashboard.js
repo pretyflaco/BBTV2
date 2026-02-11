@@ -12,6 +12,7 @@ import { usePaycodeState } from '../lib/hooks/usePaycodeState';
 import { usePWAInstall } from '../lib/hooks/usePWAInstall';
 import { useAccountManagement } from '../lib/hooks/useAccountManagement';
 import { useVoucherWalletState } from '../lib/hooks/useVoucherWalletState';
+import { useTransactionState } from '../lib/hooks/useTransactionState';
 import { useNFC } from './NFCPayment';
 import { isBitcoinCurrency } from '../lib/currency-utils';
 import { getApiUrl, getLnAddressDomain, getPayUrl, getAllValidDomains, getEnvironment } from '../lib/config/api';
@@ -150,14 +151,60 @@ export default function Dashboard() {
   } = useDisplaySettings();
   
   const [apiKey, setApiKey] = useState(null);
-  const [expandedMonths, setExpandedMonths] = useState(new Set());
-  const [monthlyTransactions, setMonthlyTransactions] = useState({});
-  const [hasMoreTransactions, setHasMoreTransactions] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [pastTransactionsLoaded, setPastTransactionsLoaded] = useState(false);
-  const [showExportOptions, setShowExportOptions] = useState(false);
-  const [exportingData, setExportingData] = useState(false);
   const [wallets, setWallets] = useState([]);
+  const [showExportOptions, setShowExportOptions] = useState(false);
+  
+  // Transaction state - extracted to useTransactionState hook
+  const {
+    transactions,
+    setTransactions,
+    loading,
+    setLoading,
+    error,
+    setError,
+    expandedMonths,
+    setExpandedMonths,
+    toggleExpandedMonth,
+    monthlyTransactions,
+    setMonthlyTransactions,
+    hasMoreTransactions,
+    setHasMoreTransactions,
+    loadingMore,
+    setLoadingMore,
+    pastTransactionsLoaded,
+    setPastTransactionsLoaded,
+    exportingData,
+    setExportingData,
+    selectedDateRange,
+    setSelectedDateRange,
+    customDateStart,
+    setCustomDateStart,
+    customDateEnd,
+    setCustomDateEnd,
+    customTimeStart,
+    setCustomTimeStart,
+    customTimeEnd,
+    setCustomTimeEnd,
+    filteredTransactions,
+    setFilteredTransactions,
+    dateFilterActive,
+    setDateFilterActive,
+    selectedTransaction,
+    setSelectedTransaction,
+    labelUpdateTrigger,
+    triggerLabelUpdate,
+    isSearchingTx,
+    setIsSearchingTx,
+    txSearchInput,
+    setTxSearchInput,
+    txSearchQuery,
+    setTxSearchQuery,
+    isSearchLoading,
+    setIsSearchLoading,
+    clearTransactions,
+    clearDateFilter,
+    clearSearch,
+  } = useTransactionState();
   
   // PWA install state - extracted to usePWAInstall hook
   const {
@@ -335,30 +382,17 @@ export default function Dashboard() {
   const [recipientValidation, setRecipientValidation] = useState({ status: null, message: '', isValidating: false });
   const [useCustomWeights, setUseCustomWeights] = useState(false); // Toggle for custom weight mode
   
-  // Date Range Selection for Transaction History
+  // Date Range Selection UI (visibility states kept in Dashboard, data state in useTransactionState)
   const [showDateRangeSelector, setShowDateRangeSelector] = useState(false);
-  const [selectedDateRange, setSelectedDateRange] = useState(null); // { type: 'preset' | 'custom', start: Date, end: Date, label: string }
-  const [customDateStart, setCustomDateStart] = useState('');
-  const [customDateEnd, setCustomDateEnd] = useState('');
-  const [customTimeStart, setCustomTimeStart] = useState('00:00');
-  const [customTimeEnd, setCustomTimeEnd] = useState('23:59');
   const [showTimeInputs, setShowTimeInputs] = useState(false);
-  const [filteredTransactions, setFilteredTransactions] = useState([]);
-  const [dateFilterActive, setDateFilterActive] = useState(false);
-  const [selectedTransaction, setSelectedTransaction] = useState(null); // Transaction detail modal
-  const [labelUpdateTrigger, setLabelUpdateTrigger] = useState(0); // Trigger re-render when labels change
 
   // Exchange rate state for sats equivalent display in ItemCart
   const [exchangeRate, setExchangeRate] = useState(null);
   const [loadingRate, setLoadingRate] = useState(false);
 
-  // Transaction search state
-  const [isSearchingTx, setIsSearchingTx] = useState(false);
-  const [txSearchInput, setTxSearchInput] = useState(''); // Input field value
-  const [txSearchQuery, setTxSearchQuery] = useState(''); // Locked/active search query
-  const [isSearchLoading, setIsSearchLoading] = useState(false);
+  // Transaction search ref (state is in useTransactionState hook)
   const txSearchInputRef = useRef(null);
-
+  
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
   const touchStartY = useRef(0);
@@ -1050,9 +1084,7 @@ export default function Dashboard() {
     soundTheme,
   });
   
-  const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(false); // ✅ Changed: Start as not loading
-  const [error, setError] = useState('');
+  // NOTE: transactions, loading, error state now provided by useTransactionState hook
 
   // Ref for POS payment received callback
   const posPaymentReceivedRef = useRef(null);
@@ -2230,15 +2262,9 @@ export default function Dashboard() {
     loadTransactionsForDateRange(dateRange);
   };
 
-  // Clear date filter
-  const clearDateFilter = () => {
-    setDateFilterActive(false);
-    setSelectedDateRange(null);
-    setFilteredTransactions([]);
-    setCustomDateStart('');
-    setCustomDateEnd('');
-    setCustomTimeStart('00:00');
-    setCustomTimeEnd('23:59');
+  // Clear date filter - uses hook's clearDateFilter plus local UI state
+  const handleClearDateFilter = () => {
+    clearDateFilter(); // From useTransactionState hook
     setShowTimeInputs(false);
   };
 
@@ -7727,7 +7753,7 @@ export default function Dashboard() {
           {dateFilterActive && selectedDateRange && (
             <div className="mb-4">
               <button
-                onClick={clearDateFilter}
+                onClick={handleClearDateFilter}
                 className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
               >
                 <span>{selectedDateRange.label}</span>
@@ -8373,7 +8399,7 @@ export default function Dashboard() {
           transaction={selectedTransaction}
           onClose={() => setSelectedTransaction(null)}
           darkMode={darkMode}
-          onLabelChange={() => setLabelUpdateTrigger(prev => prev + 1)}
+          onLabelChange={triggerLabelUpdate}
         />
       )}
 

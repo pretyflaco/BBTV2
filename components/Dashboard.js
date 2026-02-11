@@ -39,10 +39,11 @@ import SoundThemesOverlay from './Settings/SoundThemesOverlay';
 import PercentSettingsOverlay from './Settings/PercentSettingsOverlay';
 import CommissionSettingsOverlay from './Settings/CommissionSettingsOverlay';
 import TipProfileSettingsOverlay from './Settings/TipProfileSettingsOverlay';
+import PaycodesOverlay from './Settings/PaycodesOverlay';
+import CurrencySettingsOverlay from './Settings/CurrencySettingsOverlay';
+import RegionalSettingsOverlay from './Settings/RegionalSettingsOverlay';
 import ExpirySelector from './ExpirySelector';
-import QRCode from 'react-qr-code';
-import { bech32 } from 'bech32';
-import { FORMAT_OPTIONS, FORMAT_LABELS, FORMAT_DESCRIPTIONS, getFormatPreview, BITCOIN_FORMAT_OPTIONS, BITCOIN_FORMAT_LABELS, BITCOIN_FORMAT_DESCRIPTIONS, getBitcoinFormatPreview, formatNumber, NUMPAD_LAYOUT_OPTIONS, NUMPAD_LAYOUT_LABELS, NUMPAD_LAYOUT_DESCRIPTIONS } from '../lib/number-format';
+import { FORMAT_LABELS, formatNumber } from '../lib/number-format';
 
 // Voucher Wallet storage key (user-scoped for security)
 const VOUCHER_WALLET_OLD_KEY = 'blinkpos-voucher-wallet'; // Old global key (for cleanup)
@@ -3783,235 +3784,19 @@ export default function Dashboard() {
       )}
 
       {/* Paycodes Overlay */}
-      {showPaycode && activeBlinkAccount?.username && (() => {
-        // Generate LNURL for the paycode
-        const username = activeBlinkAccount.username;
-        const hasFixedAmount = paycodeAmount && parseInt(paycodeAmount) > 0;
-        const payUrlBase = getPayUrl();
-        const lnAddressDomain = getLnAddressDomain();
-        
-        // Use our custom LNURL-pay endpoint for fixed amounts (sets min=max)
-        // Use Blink's endpoint for variable amounts
-        const lnurlPayEndpoint = hasFixedAmount
-          ? `https://track.twentyone.ist/api/paycode/lnurlp/${username}?amount=${paycodeAmount}`
-          : `${payUrlBase}/.well-known/lnurlp/${username}`;
-        
-        // Encode to LNURL using bech32
-        const words = bech32.toWords(Buffer.from(lnurlPayEndpoint, 'utf8'));
-        const lnurl = bech32.encode('lnurl', words, 1500);
-        
-        // Web fallback URL - for wallets that don't support LNURL, camera apps open this page
-        const webURL = `${payUrlBase}/${username}`;
-        
-        // INTERIM FIX: Use raw LNURL for Blink mobile compatibility
-        // Blink mobile has a bug where it doesn't properly handle URLs with ?lightning= param
-        // See: https://github.com/blinkbitcoin/blink-mobile/issues/3583
-        // Once fixed, we can restore the web fallback: (webURL + '?lightning=' + lnurl).toUpperCase()
-        const paycodeURL = lnurl.toUpperCase();
-        const lightningAddress = `${username}@${lnAddressDomain}`;
-
-        // Generate PDF function
-        const generatePaycodePdf = async () => {
-          setPaycodeGeneratingPdf(true);
-          try {
-            // Create a canvas from the QR code to get data URL
-            const qrCanvas = document.createElement('canvas');
-            const QRCodeLib = await import('qrcode');
-            await QRCodeLib.toCanvas(qrCanvas, paycodeURL, {
-              width: 400,
-              margin: 2,
-              errorCorrectionLevel: 'H'
-            });
-            const qrDataUrl = qrCanvas.toDataURL('image/png');
-
-            // Call the PDF API
-            const response = await fetch('/api/paycode/pdf', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                lightningAddress,
-                qrDataUrl,
-                amount: paycodeAmount ? parseInt(paycodeAmount) : null,
-                displayAmount: paycodeAmount ? `${parseInt(paycodeAmount).toLocaleString()} sats` : null,
-                webUrl: webURL
-              })
-            });
-
-            if (!response.ok) {
-              throw new Error('Failed to generate PDF');
-            }
-
-            const { pdf } = await response.json();
-            
-            // Download the PDF
-            const link = document.createElement('a');
-            link.href = `data:application/pdf;base64,${pdf}`;
-            link.download = `paycode-${username}${paycodeAmount ? `-${paycodeAmount}sats` : ''}.pdf`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-          } catch (error) {
-            console.error('Error generating PDF:', error);
-            alert('Failed to generate PDF. Please try again.');
-          } finally {
-            setPaycodeGeneratingPdf(false);
-          }
-        };
-
-        return (
-          <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-            <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-              {/* Header */}
-              <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                  <div className="flex justify-between items-center h-16">
-                    <button
-                      onClick={() => {
-                        setShowPaycode(false);
-                        setPaycodeAmount('');
-                      }}
-                      className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
-                    >
-                      <span className="text-2xl mr-2">‹</span>
-                      <span className="text-lg">Back</span>
-                    </button>
-                    <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                      Paycodes
-                    </h1>
-                    <div className="w-16"></div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Paycode Content */}
-              <div className="max-w-md mx-auto px-4 py-6">
-                <div className="text-center space-y-6">
-                  {/* Lightning Address Header */}
-                  <div>
-                    <p className="text-lg font-semibold text-blink-accent">
-                      Pay {lightningAddress}
-                    </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                      Display this static QR code to accept Lightning payments.
-                    </p>
-                  </div>
-
-                  {/* Amount Configuration */}
-                  <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Fixed Amount (optional)
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        value={paycodeAmount}
-                        onChange={(e) => setPaycodeAmount(e.target.value)}
-                        placeholder="Any amount"
-                        min="1"
-                        className={`flex-1 px-3 py-2 rounded-lg border text-center ${
-                          darkMode 
-                            ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
-                        } focus:outline-none focus:ring-2 focus:ring-purple-500`}
-                      />
-                      <span className="text-sm text-gray-500 dark:text-gray-400">sats</span>
-                    </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                      {paycodeAmount && parseInt(paycodeAmount) > 0 
-                        ? `QR will request exactly ${parseInt(paycodeAmount).toLocaleString()} sats`
-                        : 'Leave empty to allow payer to choose any amount'}
-                    </p>
-                  </div>
-
-                  {/* QR Code */}
-                  <div className="flex justify-center">
-                    <div className="bg-white p-4 rounded-lg shadow-lg border-2 border-gray-200 dark:border-gray-600">
-                      <QRCode
-                        value={paycodeURL}
-                        size={256}
-                        bgColor="#ffffff"
-                        fgColor="#000000"
-                        level="H"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Amount Display (if set) */}
-                  {paycodeAmount && parseInt(paycodeAmount) > 0 && (
-                    <div className="bg-purple-100 dark:bg-purple-900/30 px-4 py-2 rounded-lg">
-                      <p className="text-lg font-bold text-purple-700 dark:text-purple-300">
-                        {parseInt(paycodeAmount).toLocaleString()} sats
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Troubleshooting Note */}
-                  <div className={`p-4 rounded-lg ${darkMode ? 'bg-yellow-900/30' : 'bg-yellow-50'}`}>
-                    <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                      <strong>Having trouble scanning?</strong>{' '}
-                      Some wallets don't support static QR codes. Scan with your phone's camera app to open a webpage for creating a fresh invoice.
-                    </p>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="space-y-3">
-                    {/* Download PDF Button */}
-                    <button
-                      onClick={generatePaycodePdf}
-                      disabled={paycodeGeneratingPdf}
-                      className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg text-base font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                      {paycodeGeneratingPdf ? (
-                        <>
-                          <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                          Generating PDF...
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                          Download PDF
-                        </>
-                      )}
-                    </button>
-
-                    {/* Copy Lightning Address */}
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(lightningAddress);
-                      }}
-                      className="w-full py-3 bg-blink-accent hover:bg-blue-600 text-white rounded-lg text-base font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                      Copy Lightning Address
-                    </button>
-
-                    {/* Copy Paycode LNURL */}
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(paycodeURL);
-                      }}
-                      className={`w-full py-3 rounded-lg text-base font-medium transition-colors flex items-center justify-center gap-2 ${
-                        darkMode 
-                          ? 'bg-gray-800 hover:bg-gray-700 text-white' 
-                          : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
-                      }`}
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                      </svg>
-                      Copy Paycode LNURL
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {showPaycode && activeBlinkAccount?.username && (
+        <PaycodesOverlay
+          activeBlinkAccount={activeBlinkAccount}
+          paycodeAmount={paycodeAmount}
+          paycodeGeneratingPdf={paycodeGeneratingPdf}
+          darkMode={darkMode}
+          setShowPaycode={setShowPaycode}
+          setPaycodeAmount={setPaycodeAmount}
+          setPaycodeGeneratingPdf={setPaycodeGeneratingPdf}
+          getSubmenuBgClasses={getSubmenuBgClasses}
+          getSubmenuHeaderClasses={getSubmenuHeaderClasses}
+        />
+      )}
 
       {/* Themes Overlay */}
       {showSoundThemes && (
@@ -4600,386 +4385,52 @@ export default function Dashboard() {
 
       {/* Currency Settings Overlay */}
       {showCurrencySettings && (
-        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-            {/* Header */}
-            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center h-16">
-                  <button
-                    onClick={() => setShowCurrencySettings(false)}
-                    className={`flex items-center ${getPrimaryTextClasses()} hover:text-blink-classic-amber`}
-                  >
-                    <span className="text-2xl mr-2">‹</span>
-                    <span className="text-lg">Back</span>
-                  </button>
-                  <h1 className={`text-xl font-bold ${getPrimaryTextClasses()}`}>
-                    Currency
-                  </h1>
-                  <div className="w-16"></div>
-                </div>
-              </div>
-              
-              {/* Search Input - Sticky below header */}
-              <div className="max-w-md mx-auto px-4 pb-3">
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={currencyFilter}
-                    onChange={(e) => setCurrencyFilter(e.target.value)}
-                    placeholder="Search currency, country..."
-                    className={`w-full px-4 py-2.5 pl-10 rounded-lg text-sm ${
-                      isBlinkClassicDark 
-                        ? 'bg-black border border-blink-classic-border text-white placeholder-gray-500 focus:border-blink-classic-amber' 
-                        : isBlinkClassicLight
-                          ? 'bg-white border border-blink-classic-border-light text-black placeholder-gray-400 focus:border-blink-classic-amber'
-                          : darkMode
-                            ? 'bg-gray-900 border border-gray-700 text-white placeholder-gray-500 focus:border-blue-500'
-                            : 'bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-500'
-                    } focus:outline-none focus:ring-1 ${
-                      isBlinkClassic ? 'focus:ring-blink-classic-amber' : 'focus:ring-blue-500'
-                    }`}
-                  />
-                  <svg className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${getSecondaryTextClasses()}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  {currencyFilter && (
-                    <button
-                      onClick={() => setCurrencyFilter('')}
-                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 ${getSecondaryTextClasses()} hover:${getPrimaryTextClasses()}`}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Currency List */}
-            <div className="max-w-md mx-auto px-4 py-4">
-              {currenciesLoading ? (
-                <div className={`text-center py-4 ${getSecondaryTextClasses()}`}>Loading...</div>
-              ) : (() => {
-                const { popular, all } = getAllCurrencies();
-                const filterLower = currencyFilterDebounced.toLowerCase().trim();
-                
-                // Filter function for currencies
-                const matchesCurrency = (currency) => {
-                  if (!filterLower) return true;
-                  const id = (currency.baseId || currency.id || '').toLowerCase();
-                  const name = (currency.name || '').toLowerCase();
-                  const country = (currency.country || '').toLowerCase();
-                  return id.includes(filterLower) || name.includes(filterLower) || country.includes(filterLower);
-                };
-                
-                const filteredPopular = popular.filter(matchesCurrency);
-                const filteredAll = all.filter(matchesCurrency);
-                
-                // Render a currency button
-                const renderCurrencyButton = (currency) => (
-                  <button
-                    key={currency.id}
-                    onClick={() => {
-                      setDisplayCurrency(currency.id);
-                      setShowCurrencySettings(false);
-                    }}
-                    className={`w-full p-3 text-left transition-all ${
-                      displayCurrency === currency.id
-                        ? getSubmenuOptionActiveClasses()
-                        : getSubmenuOptionClasses()
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className={`text-sm font-medium ${getPrimaryTextClasses()}`}>
-                        {currency.flag ? `${currency.flag} ` : ''}{currency.baseId || currency.id} - {currency.name}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        {/* Star button for popular toggle */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (isPopularCurrency(currency.id)) {
-                              removeFromPopular(currency.id);
-                            } else {
-                              addToPopular(currency.id);
-                            }
-                          }}
-                          className={`p-1 rounded transition-colors ${
-                            isPopularCurrency(currency.id) 
-                              ? 'text-yellow-500 hover:text-yellow-400' 
-                              : `${getSecondaryTextClasses()} hover:text-yellow-500`
-                          }`}
-                          title={isPopularCurrency(currency.id) ? 'Remove from favorites' : 'Add to favorites'}
-                        >
-                          <svg className="w-4 h-4" fill={isPopularCurrency(currency.id) ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                          </svg>
-                        </button>
-                        {displayCurrency === currency.id && (
-                          <svg className={`w-5 h-5 ${getCheckmarkClasses()}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                );
-                
-                // If filtering, show flat list
-                if (filterLower) {
-                  const allFiltered = [...filteredPopular, ...filteredAll];
-                  if (allFiltered.length === 0) {
-                    return (
-                      <div className={`text-center py-8 ${getSecondaryTextClasses()}`}>
-                        No currencies match "{currencyFilterDebounced}"
-                      </div>
-                    );
-                  }
-                  return (
-                    <div className="space-y-2">
-                      {allFiltered.map(renderCurrencyButton)}
-                    </div>
-                  );
-                }
-                
-                // Normal view with sections
-                return (
-                  <div className="space-y-2">
-                    {/* Popular Section */}
-                    {filteredPopular.length > 0 && (
-                      <>
-                        {filteredPopular.map(renderCurrencyButton)}
-                        
-                        {/* Visual divider between popular and all */}
-                        <div className={`my-4 border-t ${
-                          isBlinkClassicDark ? 'border-blink-classic-border' :
-                          isBlinkClassicLight ? 'border-blink-classic-border-light' :
-                          darkMode ? 'border-gray-700' : 'border-gray-200'
-                        }`} />
-                      </>
-                    )}
-                    
-                    {/* All Other Currencies */}
-                    {filteredAll.map(renderCurrencyButton)}
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
-        </div>
+        <CurrencySettingsOverlay
+          displayCurrency={displayCurrency}
+          currencyFilter={currencyFilter}
+          currencyFilterDebounced={currencyFilterDebounced}
+          currenciesLoading={currenciesLoading}
+          darkMode={darkMode}
+          isBlinkClassic={isBlinkClassic}
+          isBlinkClassicDark={isBlinkClassicDark}
+          isBlinkClassicLight={isBlinkClassicLight}
+          setDisplayCurrency={setDisplayCurrency}
+          setShowCurrencySettings={setShowCurrencySettings}
+          setCurrencyFilter={setCurrencyFilter}
+          getAllCurrencies={getAllCurrencies}
+          isPopularCurrency={isPopularCurrency}
+          addToPopular={addToPopular}
+          removeFromPopular={removeFromPopular}
+          getSubmenuBgClasses={getSubmenuBgClasses}
+          getSubmenuHeaderClasses={getSubmenuHeaderClasses}
+          getSubmenuOptionClasses={getSubmenuOptionClasses}
+          getSubmenuOptionActiveClasses={getSubmenuOptionActiveClasses}
+          getPrimaryTextClasses={getPrimaryTextClasses}
+          getSecondaryTextClasses={getSecondaryTextClasses}
+          getCheckmarkClasses={getCheckmarkClasses}
+        />
       )}
 
       {/* Regional Settings Overlay */}
       {showRegionalSettings && (
-        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-            {/* Header */}
-            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center h-16">
-                  <button
-                    onClick={() => setShowRegionalSettings(false)}
-                    className={`flex items-center ${getPrimaryTextClasses()} hover:text-blink-classic-amber`}
-                  >
-                    <span className="text-2xl mr-2">‹</span>
-                    <span className="text-lg">Back</span>
-                  </button>
-                  <h1 className={`text-xl font-bold ${getPrimaryTextClasses()}`}>
-                    Regional
-                  </h1>
-                  <div className="w-16"></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Regional Settings Content */}
-            <div className="max-w-md mx-auto px-4 py-6 space-y-6">
-              {/* Number Format Section */}
-              <div>
-                <h3 className={`text-sm font-medium mb-3 ${getSectionLabelClasses()}`}>
-                  Number Format
-                </h3>
-                <div className="space-y-2">
-                  {FORMAT_OPTIONS.map((format) => (
-                    <button
-                      key={format}
-                      onClick={() => setNumberFormat(format)}
-                      className={`w-full p-3 text-left transition-all ${
-                        numberFormat === format
-                          ? getSubmenuOptionActiveClasses()
-                          : getSubmenuOptionClasses()
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className={`text-sm font-medium ${getPrimaryTextClasses()}`}>
-                            {FORMAT_LABELS[format]}
-                          </span>
-                          <p className={`text-xs mt-0.5 ${getSecondaryTextClasses()}`}>
-                            {FORMAT_DESCRIPTIONS[format]}
-                          </p>
-                        </div>
-                        {numberFormat === format && (
-                          <svg className={`w-5 h-5 ${getCheckmarkClasses()} flex-shrink-0 ml-2`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Live Preview */}
-                <div className={`mt-4 p-4 ${getPreviewBoxClasses()}`}>
-                  <h4 className={`text-xs font-medium mb-2 ${getSectionLabelClasses()}`}>
-                    Preview
-                  </h4>
-                  <div className={`space-y-1 ${getPrimaryTextClasses()}`}>
-                    <div className="flex justify-between text-sm">
-                      <span>Bitcoin:</span>
-                      <span className="font-mono">{getBitcoinFormatPreview(bitcoinFormat, numberFormat)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>USD:</span>
-                      <span className="font-mono">${getFormatPreview(numberFormat).decimal}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bitcoin Format Section */}
-              <div>
-                <h3 className={`text-sm font-medium mb-3 ${getSectionLabelClasses()}`}>
-                  Bitcoin Format
-                </h3>
-                <div className="space-y-2">
-                  {BITCOIN_FORMAT_OPTIONS.map((format) => (
-                    <button
-                      key={format}
-                      onClick={() => setBitcoinFormat(format)}
-                      className={`w-full p-3 text-left transition-all ${
-                        bitcoinFormat === format
-                          ? getSubmenuOptionActiveClasses()
-                          : getSubmenuOptionClasses()
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="flex items-center gap-3">
-                            <span className={`text-sm font-medium ${getPrimaryTextClasses()}`}>
-                              {BITCOIN_FORMAT_LABELS[format]}
-                            </span>
-                            <span className={`text-sm font-mono ${getSecondaryTextClasses()}`}>
-                              {getBitcoinFormatPreview(format, numberFormat)}
-                            </span>
-                          </div>
-                          <p className={`text-xs mt-0.5 ${getSecondaryTextClasses()}`}>
-                            {BITCOIN_FORMAT_DESCRIPTIONS[format]}
-                          </p>
-                        </div>
-                        {bitcoinFormat === format && (
-                          <svg className={`w-5 h-5 ${getCheckmarkClasses()} flex-shrink-0 ml-2`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Numpad Layout Section */}
-              <div>
-                <h3 className={`text-sm font-medium mb-3 ${getSectionLabelClasses()}`}>
-                  Numpad Layout
-                </h3>
-                <div className="space-y-2">
-                  {NUMPAD_LAYOUT_OPTIONS.map((layout) => (
-                    <button
-                      key={layout}
-                      onClick={() => setNumpadLayout(layout)}
-                      className={`w-full p-3 text-left transition-all ${
-                        numpadLayout === layout
-                          ? getSubmenuOptionActiveClasses()
-                          : getSubmenuOptionClasses()
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className={`text-sm font-medium ${getPrimaryTextClasses()}`}>
-                            {NUMPAD_LAYOUT_LABELS[layout]}
-                          </span>
-                          <p className={`text-xs mt-0.5 ${getSecondaryTextClasses()}`}>
-                            {NUMPAD_LAYOUT_DESCRIPTIONS[layout]}
-                          </p>
-                        </div>
-                        {numpadLayout === layout && (
-                          <svg className={`w-5 h-5 ${getCheckmarkClasses()} flex-shrink-0 ml-2`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Numpad Layout Preview */}
-                <div className={`mt-4 p-4 ${getPreviewBoxClasses()}`}>
-                  <h4 className={`text-xs font-medium mb-3 ${getSectionLabelClasses()}`}>
-                    Preview
-                  </h4>
-                  <div className="flex justify-center">
-                    <div className="grid grid-cols-3 gap-1.5 text-center">
-                      {(numpadLayout === 'telephone' 
-                        ? [['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9'], ['', '0', '']]
-                        : [['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3'], ['', '0', '']]
-                      ).map((row, rowIdx) => (
-                        row.map((digit, colIdx) => (
-                          <div 
-                            key={`${rowIdx}-${colIdx}`}
-                            className={`w-8 h-8 flex items-center justify-center rounded text-sm font-medium ${
-                              digit 
-                                ? `${getPreviewBoxClasses()} ${getPrimaryTextClasses()}` 
-                                : ''
-                            }`}
-                          >
-                            {digit}
-                          </div>
-                        ))
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Language Section (Placeholder) */}
-              <div>
-                <h3 className={`text-sm font-medium mb-3 ${getSectionLabelClasses()}`}>
-                  Language
-                </h3>
-                <div 
-                  className={`p-3 ${getSubmenuOptionActiveClasses()} opacity-60 cursor-not-allowed`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className={`text-sm font-medium ${getPrimaryTextClasses()}`}>
-                        English
-                      </span>
-                      <p className={`text-xs mt-0.5 ${getSecondaryTextClasses()}`}>
-                        More languages coming soon
-                      </p>
-                    </div>
-                    <svg className={`w-5 h-5 ${getCheckmarkClasses()}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <RegionalSettingsOverlay
+          numberFormat={numberFormat}
+          bitcoinFormat={bitcoinFormat}
+          numpadLayout={numpadLayout}
+          setNumberFormat={setNumberFormat}
+          setBitcoinFormat={setBitcoinFormat}
+          setNumpadLayout={setNumpadLayout}
+          setShowRegionalSettings={setShowRegionalSettings}
+          getSubmenuBgClasses={getSubmenuBgClasses}
+          getSubmenuHeaderClasses={getSubmenuHeaderClasses}
+          getSubmenuOptionClasses={getSubmenuOptionClasses}
+          getSubmenuOptionActiveClasses={getSubmenuOptionActiveClasses}
+          getPrimaryTextClasses={getPrimaryTextClasses}
+          getSecondaryTextClasses={getSecondaryTextClasses}
+          getSectionLabelClasses={getSectionLabelClasses}
+          getCheckmarkClasses={getCheckmarkClasses}
+          getPreviewBoxClasses={getPreviewBoxClasses}
+        />
       )}
 
       {/* Wallets Overlay */}

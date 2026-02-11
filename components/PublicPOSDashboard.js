@@ -1,4 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { usePublicPOSSettings } from '../lib/hooks/usePublicPOSSettings';
+import { usePublicPOSViewState } from '../lib/hooks/usePublicPOSViewState';
+import { usePublicPOSPayment } from '../lib/hooks/usePublicPOSPayment';
+import { usePublicPOSMenuState } from '../lib/hooks/usePublicPOSMenuState';
 import { useCurrencies } from '../lib/hooks/useCurrencies';
 import { useTheme, THEMES } from '../lib/hooks/useTheme';
 import { useNFC } from './NFCPayment';
@@ -23,18 +27,6 @@ import { FORMAT_OPTIONS, FORMAT_LABELS, FORMAT_DESCRIPTIONS, getFormatPreview, B
  * - 150% zoom on desktop
  * - Polls for payment status (no webhook)
  */
-
-// Spinner colors for transitions
-const SPINNER_COLORS = [
-  'border-blue-600',
-  'border-green-600',
-  'border-orange-500',
-  'border-red-600',
-  'border-yellow-500',
-  'border-purple-600',
-  'border-cyan-500',
-  'border-pink-500',
-];
 
 export default function PublicPOSDashboard({ username }) {
   const { currencies, loading: currenciesLoading, getAllCurrencies, popularCurrencyIds, addToPopular, removeFromPopular, isPopularCurrency } = useCurrencies();
@@ -111,56 +103,39 @@ export default function PublicPOSDashboard({ username }) {
     }
   };
   
-  // View state
-  const [currentView, setCurrentView] = useState('pos'); // 'cart' or 'pos' only
-  const [isViewTransitioning, setIsViewTransitioning] = useState(false);
-  const [transitionColorIndex, setTransitionColorIndex] = useState(0);
-  const [cartCheckoutData, setCartCheckoutData] = useState(null);
-  const [showingInvoice, setShowingInvoice] = useState(false);
+  // Refs (declared before hooks that need them)
+  const posRef = useRef(null);
+  const cartRef = useRef(null);
+  const posPaymentReceivedRef = useRef(null);
+
+  // View navigation state
+  const {
+    currentView, isViewTransitioning, transitionColorIndex,
+    cartCheckoutData, setCartCheckoutData,
+    showingInvoice, setShowingInvoice,
+    handleViewTransition, handleInternalTransition,
+    SPINNER_COLORS,
+  } = usePublicPOSViewState({ cartRef });
   
-  // Payment state for polling
-  const [currentInvoice, setCurrentInvoice] = useState(null);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
-  const [paymentData, setPaymentData] = useState(null); // For PaymentAnimation
+  // Payment state and polling
+  const {
+    currentInvoice, paymentSuccess, paymentData,
+    handleInvoiceChange, handlePaymentAnimationHide,
+  } = usePublicPOSPayment({ showingInvoice, soundEnabled, posPaymentReceivedRef });
   
   // Exchange rate state for sats equivalent display
   const [exchangeRate, setExchangeRate] = useState(null);
   const [loadingRate, setLoadingRate] = useState(false);
   
-  // Settings state (must be declared before useNFC which uses soundEnabled/soundTheme)
-  const [displayCurrency, setDisplayCurrency] = useState('USD');
-  const [numberFormat, setNumberFormat] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('publicpos-numberFormat') || 'auto';
-    }
-    return 'auto';
-  });
-  const [bitcoinFormat, setBitcoinFormat] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('publicpos-bitcoinFormat') || 'sats';
-    }
-    return 'bip177';
-  });
-  const [numpadLayout, setNumpadLayout] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('publicpos-numpadLayout') || 'calculator';
-    }
-    return 'calculator';
-  });
-  const [soundEnabled, setSoundEnabled] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('publicpos-soundEnabled');
-      return saved !== null ? JSON.parse(saved) : true;
-    }
-    return true;
-  });
-  const [soundTheme, setSoundTheme] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('publicpos-soundTheme');
-      return saved || 'success';
-    }
-    return 'success';
-  });
+  // Settings (display currency, number/bitcoin format, numpad layout, sound)
+  const {
+    displayCurrency, setDisplayCurrency,
+    numberFormat, setNumberFormat,
+    bitcoinFormat, setBitcoinFormat,
+    numpadLayout, setNumpadLayout,
+    soundEnabled, setSoundEnabled,
+    soundTheme, setSoundTheme,
+  } = usePublicPOSSettings();
   
   // Setup NFC for Boltcard payments (after soundEnabled/soundTheme are declared)
   const nfcState = useNFC({
@@ -176,42 +151,23 @@ export default function PublicPOSDashboard({ username }) {
     soundTheme,
   });
   
-  // Menu state
-  const [sideMenuOpen, setSideMenuOpen] = useState(false);
-  const [showCurrencySettings, setShowCurrencySettings] = useState(false);
-  const [currencyFilter, setCurrencyFilter] = useState('');
-  const [currencyFilterDebounced, setCurrencyFilterDebounced] = useState('');
-  const [showRegionalSettings, setShowRegionalSettings] = useState(false);
-  const [showSoundSettings, setShowSoundSettings] = useState(false);
-  const [showPaycode, setShowPaycode] = useState(false);
-  const [paycodeAmount, setPaycodeAmount] = useState('');
-  const [paycodeGeneratingPdf, setPaycodeGeneratingPdf] = useState(false);
+  // Menu/overlay visibility state
+  const {
+    sideMenuOpen, setSideMenuOpen,
+    showCurrencySettings, setShowCurrencySettings,
+    currencyFilter, setCurrencyFilter, currencyFilterDebounced,
+    showRegionalSettings, setShowRegionalSettings,
+    showSoundSettings, setShowSoundSettings,
+    showPaycode, setShowPaycode,
+    paycodeAmount, setPaycodeAmount,
+    paycodeGeneratingPdf, setPaycodeGeneratingPdf,
+  } = usePublicPOSMenuState();
   
-  // Refs
-  const posRef = useRef(null);
-  const cartRef = useRef(null);
-  const posPaymentReceivedRef = useRef(null);
-  
-  // Touch handling for swipe navigation
+  // Touch handling refs for swipe navigation
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   
-  // Debounce currency filter (150ms delay)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setCurrencyFilterDebounced(currencyFilter);
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [currencyFilter]);
-  
-  // Reset currency filter when closing the currency settings overlay
-  useEffect(() => {
-    if (!showCurrencySettings) {
-      setCurrencyFilter('');
-      setCurrencyFilterDebounced('');
-    }
-  }, [showCurrencySettings]);
-  
+
   // Username validation - validates against current environment (production or staging)
   // SSR only checks username format, actual Blink API validation happens here
   // This allows staging-only users to work when staging is enabled
@@ -279,126 +235,8 @@ export default function PublicPOSDashboard({ username }) {
     validateUser();
   }, [username]);
   
-  // Poll for payment status when showing invoice
-  useEffect(() => {
-    if (!currentInvoice?.paymentRequest || !showingInvoice) return;
-    
-    let cancelled = false;
-    let pollCount = 0;
-    const maxPolls = 180; // 15 minutes at 5 second intervals
-    
-    const pollPayment = async () => {
-      if (cancelled || pollCount >= maxPolls) {
-        return;
-      }
-      
-      try {
-        // Query Blink API directly for payment status (public query)
-        const response = await fetch(getApiUrl(), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: `
-              query LnInvoicePaymentStatus($input: LnInvoicePaymentStatusInput!) {
-                lnInvoicePaymentStatus(input: $input) {
-                  status
-                }
-              }
-            `,
-            variables: {
-              input: { paymentRequest: currentInvoice.paymentRequest }
-            }
-          })
-        });
-        
-        const data = await response.json();
-        const status = data.data?.lnInvoicePaymentStatus?.status;
-        
-        if (status === 'PAID') {
-          console.log('✅ Public invoice payment received!');
-          
-          // Set payment data for animation
-          setPaymentData({
-            amount: currentInvoice.satAmount || currentInvoice.amount,
-            currency: 'BTC', // Always show sats
-            memo: currentInvoice.memo
-          });
-          setPaymentSuccess(true);
-          
-          // Note: Sound is handled by PaymentAnimation component
-          return;
-        }
-      } catch (err) {
-        console.warn('Payment poll error:', err);
-      }
-      
-      pollCount++;
-      if (!cancelled) {
-        setTimeout(pollPayment, 5000); // Poll every 5 seconds
-      }
-    };
-    
-    // Start polling after a short delay
-    const initialDelay = setTimeout(pollPayment, 2000);
-    
-    return () => {
-      cancelled = true;
-      clearTimeout(initialDelay);
-    };
-  }, [currentInvoice, showingInvoice, soundEnabled]);
-  
-  // Handle invoice changes from POS
-  const handleInvoiceChange = useCallback((invoice) => {
-    setCurrentInvoice(invoice);
-  }, []);
-  
-  // Handle payment animation dismiss
-  const handlePaymentAnimationHide = useCallback(() => {
-    setPaymentSuccess(false);
-    setPaymentData(null);
-    setCurrentInvoice(null);
-    if (posPaymentReceivedRef.current) {
-      posPaymentReceivedRef.current();
-    }
-  }, []);
-  
-  // NOTE: CSS zoom removed - it caused C/OK button visibility issues
-  // Instead, we scale up elements natively using larger Tailwind classes
-  
-  // Save sound preference
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('publicpos-soundEnabled', JSON.stringify(soundEnabled));
-    }
-  }, [soundEnabled]);
-  
-  // Save sound theme preference
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('publicpos-soundTheme', soundTheme);
-    }
-  }, [soundTheme]);
 
-  // Save number format preference
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('publicpos-numberFormat', numberFormat);
-    }
-  }, [numberFormat]);
-
-  // Save Bitcoin format preference
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('publicpos-bitcoinFormat', bitcoinFormat);
-    }
-  }, [bitcoinFormat]);
-
-  // Save numpad layout preference
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('publicpos-numpadLayout', numpadLayout);
-    }
-  }, [numpadLayout]);
+  
 
   // Fetch exchange rate when currency changes (for sats equivalent display)
   const fetchExchangeRate = async () => {
@@ -441,23 +279,6 @@ export default function PublicPOSDashboard({ username }) {
     fetchExchangeRate();
   }, [displayCurrency]);
 
-  // View transition handler
-  const handleViewTransition = useCallback((newView) => {
-    if (newView === currentView || isViewTransitioning) return;
-    
-    setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);
-    setIsViewTransitioning(true);
-    
-    setTimeout(() => {
-      setCurrentView(newView);
-      setIsViewTransitioning(false);
-      
-      // Reset cart navigation when entering cart view
-      if (newView === 'cart' && cartRef.current) {
-        cartRef.current.resetNavigation?.();
-      }
-    }, 150);
-  }, [currentView, isViewTransitioning]);
 
   // Touch handlers for swipe navigation
   const handleTouchStart = useCallback((e) => {
@@ -1731,11 +1552,7 @@ export default function PublicPOSDashboard({ username }) {
             activeBlinkAccount={{ username, type: 'public' }}
             cartCheckoutData={cartCheckoutData}
             onCartCheckoutProcessed={() => setCartCheckoutData(null)}
-            onInternalTransition={() => {
-              setTransitionColorIndex(prev => (prev + 1) % SPINNER_COLORS.length);
-              setIsViewTransitioning(true);
-              setTimeout(() => setIsViewTransitioning(false), 120);
-            }}
+            onInternalTransition={handleInternalTransition}
             // Public POS specific props
             isPublicPOS={true}
             publicUsername={username}

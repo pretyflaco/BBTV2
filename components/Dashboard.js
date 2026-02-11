@@ -35,6 +35,10 @@ import { BoltcardSection } from './boltcard';
 import NWCClient from '../lib/nwc/NWCClient';
 import { isNpubCashAddress, validateNpubCashAddress, probeNpubCashAddress } from '../lib/lnurl';
 import TransactionDetail, { getTransactionLabel, initTransactionLabels } from './TransactionDetail';
+import SoundThemesOverlay from './Settings/SoundThemesOverlay';
+import PercentSettingsOverlay from './Settings/PercentSettingsOverlay';
+import CommissionSettingsOverlay from './Settings/CommissionSettingsOverlay';
+import TipProfileSettingsOverlay from './Settings/TipProfileSettingsOverlay';
 import ExpirySelector from './ExpirySelector';
 import QRCode from 'react-qr-code';
 import { bech32 } from 'bech32';
@@ -4011,506 +4015,66 @@ export default function Dashboard() {
 
       {/* Themes Overlay */}
       {showSoundThemes && (
-        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen">
-            {/* Header */}
-            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center h-16">
-                  <button
-                    onClick={() => setShowSoundThemes(false)}
-                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
-                  >
-                    <span className="text-2xl mr-2">‹</span>
-                    <span className="text-lg">Back</span>
-                  </button>
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-                    Themes
-                  </h1>
-                  <div className="w-16"></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Themes List */}
-            <div className="max-w-md mx-auto px-4 py-6">
-              <div className="space-y-3">
-                {/* None Option */}
-                <button
-                  onClick={() => {
-                    setSoundEnabled(false);
-                    setShowSoundThemes(false);
-                  }}
-                  className={`w-full p-4 rounded-lg border-2 transition-all ${
-                    !soundEnabled
-                      ? getSelectionTileActiveClasses()
-                      : getSelectionTileClasses()
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-left">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-                        None
-                      </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Sound effects disabled
-                      </p>
-                    </div>
-                    {!soundEnabled && (
-                      <div className="text-blue-600 dark:text-blue-400 text-2xl">✓</div>
-                    )}
-                  </div>
-                </button>
-
-                {/* Success Theme */}
-                <button
-                  onClick={() => {
-                    setSoundEnabled(true);
-                    setSoundTheme('success');
-                    setShowSoundThemes(false);
-                  }}
-                  className={`w-full p-4 rounded-lg border-2 transition-all ${
-                    soundEnabled && soundTheme === 'success'
-                      ? getSelectionTileActiveClasses()
-                      : getSelectionTileClasses()
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-left">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-                        Success
-                      </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Classic payment sounds
-                      </p>
-                    </div>
-                    {soundEnabled && soundTheme === 'success' && (
-                      <div className="text-blue-600 dark:text-blue-400 text-2xl">✓</div>
-                    )}
-                  </div>
-                </button>
-
-                {/* Zelda Theme */}
-                <button
-                  onClick={() => {
-                    setSoundEnabled(true);
-                    setSoundTheme('zelda');
-                    setShowSoundThemes(false);
-                  }}
-                  className={`w-full p-4 rounded-lg border-2 transition-all ${
-                    soundEnabled && soundTheme === 'zelda'
-                      ? getSelectionTileActiveClasses()
-                      : getSelectionTileClasses()
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-left">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-                        Zelda
-                      </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Breath of the Wild sounds
-                      </p>
-                    </div>
-                    {soundEnabled && soundTheme === 'zelda' && (
-                      <div className="text-blue-600 dark:text-blue-400 text-2xl">✓</div>
-                    )}
-                  </div>
-                </button>
-
-                {/* Free Theme */}
-                <button
-                  onClick={() => {
-                    setSoundEnabled(true);
-                    setSoundTheme('free');
-                    setShowSoundThemes(false);
-                  }}
-                  className={`w-full p-4 rounded-lg border-2 transition-all ${
-                    soundEnabled && soundTheme === 'free'
-                      ? getSelectionTileActiveClasses()
-                      : getSelectionTileClasses()
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-left">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-                        Free
-                      </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Freedom sounds
-                      </p>
-                    </div>
-                    {soundEnabled && soundTheme === 'free' && (
-                      <div className="text-blue-600 dark:text-blue-400 text-2xl">✓</div>
-                    )}
-                  </div>
-                </button>
-
-                {/* Retro Theme */}
-                <button
-                  onClick={() => {
-                    setSoundEnabled(true);
-                    setSoundTheme('retro');
-                    setShowSoundThemes(false);
-                  }}
-                  className={`w-full p-4 rounded-lg border-2 transition-all ${
-                    soundEnabled && soundTheme === 'retro'
-                      ? getSelectionTileActiveClasses()
-                      : getSelectionTileClasses()
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-left">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-                        Retro
-                      </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Classic 8-bit sounds
-                      </p>
-                    </div>
-                    {soundEnabled && soundTheme === 'retro' && (
-                      <div className="text-blue-600 dark:text-blue-400 text-2xl">✓</div>
-                    )}
-                  </div>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <SoundThemesOverlay
+          soundEnabled={soundEnabled}
+          soundTheme={soundTheme}
+          setSoundEnabled={setSoundEnabled}
+          setSoundTheme={setSoundTheme}
+          setShowSoundThemes={setShowSoundThemes}
+          getSubmenuBgClasses={getSubmenuBgClasses}
+          getSubmenuHeaderClasses={getSubmenuHeaderClasses}
+          getSelectionTileClasses={getSelectionTileClasses}
+          getSelectionTileActiveClasses={getSelectionTileActiveClasses}
+        />
       )}
 
       {/* % Settings Submenu Overlay (Tip % and Commission % when voucher wallet connected) */}
       {showPercentSettings && (
-        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-            {/* Header */}
-            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center h-16">
-                  <button
-                    onClick={() => setShowPercentSettings(false)}
-                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
-                  >
-                    <span className="text-2xl mr-2">‹</span>
-                    <span className="text-lg">Back</span>
-                  </button>
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                    % Settings
-                  </h1>
-                  <div className="w-16"></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="max-w-md mx-auto px-4 py-6">
-              <div className="space-y-4">
-                {/* Tip % Settings */}
-                <button
-                  onClick={() => {
-                    setShowPercentSettings(false);
-                    setShowTipProfileSettings(true);
-                  }}
-                  className={`w-full p-4 rounded-lg border-2 transition-all ${getSelectionTileClasses()}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-left">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                        Tip % Settings
-                      </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Configure tip percentages for POS payments
-                      </p>
-                    </div>
-                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                      <span>{activeTipProfile?.name || 'Custom'}</span>
-                      <span className="ml-1">›</span>
-                    </div>
-                  </div>
-                </button>
-
-                {/* Commission % Settings */}
-                <button
-                  onClick={() => {
-                    setShowPercentSettings(false);
-                    setShowCommissionSettings(true);
-                  }}
-                  className={`w-full p-4 rounded-lg border-2 transition-all ${getSelectionTileClasses()}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-left">
-                      <h3 className="text-lg font-semibold text-purple-600 dark:text-purple-400 mb-1">
-                        Commission % Settings
-                      </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Configure commission for voucher creation
-                      </p>
-                    </div>
-                    <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                      <span>{commissionEnabled ? `${commissionPresets.join('%, ')}%` : 'Disabled'}</span>
-                      <span className="ml-1">›</span>
-                    </div>
-                  </div>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <PercentSettingsOverlay
+          activeTipProfile={activeTipProfile}
+          commissionEnabled={commissionEnabled}
+          commissionPresets={commissionPresets}
+          setShowPercentSettings={setShowPercentSettings}
+          setShowTipProfileSettings={setShowTipProfileSettings}
+          setShowCommissionSettings={setShowCommissionSettings}
+          getSubmenuBgClasses={getSubmenuBgClasses}
+          getSubmenuHeaderClasses={getSubmenuHeaderClasses}
+          getSelectionTileClasses={getSelectionTileClasses}
+        />
       )}
 
       {/* Commission % Settings Overlay */}
       {showCommissionSettings && (
-        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-            {/* Header */}
-            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center h-16">
-                  <button
-                    onClick={() => {
-                      setShowCommissionSettings(false);
-                      setShowPercentSettings(true);
-                    }}
-                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
-                  >
-                    <span className="text-2xl mr-2">‹</span>
-                    <span className="text-lg">Back</span>
-                  </button>
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                    Commission % Settings
-                  </h1>
-                  <div className="w-16"></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="max-w-md mx-auto px-4 py-6">
-              <div className="space-y-4">
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                  When enabled, a commission selection screen will appear after entering a voucher amount. The commission percentage is deducted from the voucher value - for example, a $100 voucher with 2% commission creates a voucher worth $98 in sats.
-                </p>
-
-                {/* Enable/Disable Commission */}
-                <div className={`p-4 rounded-lg border-2 transition-all ${
-                  commissionEnabled
-                    ? (isBlinkClassic ? 'border-blink-classic-amber bg-blink-classic-bg' : 'border-purple-600 dark:border-purple-500 bg-purple-50 dark:bg-purple-900/20')
-                    : getSelectionTileClasses()
-                }`}>
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                        Enable Commission
-                      </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Show commission options when creating vouchers
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setCommissionEnabled(!commissionEnabled)}
-                      className="inline-flex gap-0.5 cursor-pointer focus:outline-none"
-                    >
-                      <span className={`w-5 h-5 transition-colors ${
-                        commissionEnabled ? 'bg-purple-600 dark:bg-purple-500' : 'bg-gray-300 dark:bg-gray-600'
-                      }`} />
-                      <span className={`w-5 h-5 transition-colors ${
-                        commissionEnabled ? 'bg-gray-300 dark:bg-gray-600' : 'bg-purple-600 dark:bg-purple-500'
-                      }`} />
-                    </button>
-                  </div>
-
-                  {commissionEnabled && (
-                    <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                        Commission Percentage Options (1-3 presets)
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {commissionPresets.map((preset, index) => (
-                          <div key={index} className="flex items-center">
-                            <input
-                              type="number"
-                              value={preset}
-                              onChange={(e) => {
-                                const newPresets = [...commissionPresets];
-                                newPresets[index] = parseFloat(e.target.value) || 0;
-                                setCommissionPresets(newPresets);
-                              }}
-                              className="w-16 px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-center"
-                              min="0"
-                              max="100"
-                              step="0.5"
-                            />
-                            <span className="ml-1 text-gray-500 dark:text-gray-400">%</span>
-                            {commissionPresets.length > 1 && (
-                              <button
-                                onClick={() => setCommissionPresets(commissionPresets.filter((_, i) => i !== index))}
-                                className="ml-2 text-red-500 hover:text-red-700"
-                              >
-                                ×
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      {commissionPresets.length < 3 && (
-                        <button
-                          onClick={() => setCommissionPresets([...commissionPresets, commissionPresets.length === 1 ? 2 : 3])}
-                          className="mt-3 px-4 py-2 text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded transition-colors"
-                        >
-                          Add Option
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <CommissionSettingsOverlay
+          commissionEnabled={commissionEnabled}
+          commissionPresets={commissionPresets}
+          setCommissionEnabled={setCommissionEnabled}
+          setCommissionPresets={setCommissionPresets}
+          setShowCommissionSettings={setShowCommissionSettings}
+          setShowPercentSettings={setShowPercentSettings}
+          isBlinkClassic={isBlinkClassic}
+          getSubmenuBgClasses={getSubmenuBgClasses}
+          getSubmenuHeaderClasses={getSubmenuHeaderClasses}
+          getSelectionTileClasses={getSelectionTileClasses}
+        />
       )}
 
       {/* Tip Profile Settings Overlay */}
       {showTipProfileSettings && (
-        <div className={`fixed inset-0 ${getSubmenuBgClasses()} z-50 overflow-y-auto`}>
-          <div className="min-h-screen" style={{fontFamily: "'Source Sans Pro', sans-serif"}}>
-            {/* Header */}
-            <div className={`${getSubmenuHeaderClasses()} sticky top-0 z-10`}>
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center h-16">
-                  <button
-                    onClick={() => {
-                      setShowTipProfileSettings(false);
-                      // If voucher wallet is connected, go back to % Settings menu
-                      if (voucherWallet) {
-                        setShowPercentSettings(true);
-                      }
-                    }}
-                    className="flex items-center text-gray-700 dark:text-white hover:text-blink-accent dark:hover:text-blink-accent"
-                  >
-                    <span className="text-2xl mr-2">‹</span>
-                    <span className="text-lg">Back</span>
-                  </button>
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                    Tip % Settings
-                  </h1>
-                  <div className="w-16"></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="max-w-md mx-auto px-4 py-6">
-              <div className="space-y-4">
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                  Select a tip profile based on your region. This determines the tip percentages shown to customers.
-                </p>
-
-                {/* Custom Option (No Profile) */}
-                <div
-                  className={`w-full p-4 rounded-lg border-2 transition-all ${
-                    !activeTipProfile
-                      ? getSelectionTileActiveClasses()
-                      : getSelectionTileClasses()
-                  }`}
-                >
-                  <button
-                    onClick={() => {
-                      setActiveTipProfile(null);
-                    }}
-                    className="w-full"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="text-left">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                          Custom
-                        </h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Set your own tip percentages
-                        </p>
-                      </div>
-                      {!activeTipProfile && (
-                        <div className="text-blink-accent text-2xl">✓</div>
-                      )}
-                    </div>
-                  </button>
-
-                  {/* Custom Tip Percentages Editor (only visible when Custom is selected) */}
-                  {!activeTipProfile && (
-                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                        Custom Tip Percentages
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {tipPresets.map((preset, index) => (
-                          <div key={index} className="flex items-center">
-                            <input
-                              type="number"
-                              value={preset}
-                              onChange={(e) => {
-                                const newPresets = [...tipPresets];
-                                newPresets[index] = parseFloat(e.target.value) || 0;
-                                setTipPresets(newPresets);
-                              }}
-                              className="w-16 px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-center"
-                              min="0"
-                              max="100"
-                              step="0.5"
-                            />
-                            <span className="ml-1 text-gray-500 dark:text-gray-400">%</span>
-                            {tipPresets.length > 1 && (
-                              <button
-                                onClick={() => setTipPresets(tipPresets.filter((_, i) => i !== index))}
-                                className="ml-2 text-red-500 hover:text-red-700"
-                              >
-                                ×
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      <button
-                        onClick={() => setTipPresets([...tipPresets, 5])}
-                        className="mt-3 px-4 py-2 text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded transition-colors"
-                      >
-                        Add Option
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Predefined Profiles */}
-                {TIP_PROFILES.map((profile) => (
-                  <button
-                    key={profile.id}
-                    onClick={() => {
-                      setActiveTipProfile(profile);
-                      setShowTipProfileSettings(false);
-                    }}
-                    className={`w-full p-4 rounded-lg border-2 transition-all ${
-                      activeTipProfile?.id === profile.id
-                        ? getSelectionTileActiveClasses()
-                        : getSelectionTileClasses()
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="text-left">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                          {profile.name}
-                        </h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {profile.tipOptions.join('%, ')}%
-                        </p>
-                      </div>
-                      {activeTipProfile?.id === profile.id && (
-                        <div className="text-blink-accent text-2xl">✓</div>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+        <TipProfileSettingsOverlay
+          tipPresets={tipPresets}
+          activeTipProfile={activeTipProfile}
+          voucherWallet={voucherWallet}
+          setTipPresets={setTipPresets}
+          setActiveTipProfile={setActiveTipProfile}
+          setShowTipProfileSettings={setShowTipProfileSettings}
+          setShowPercentSettings={setShowPercentSettings}
+          TIP_PROFILES={TIP_PROFILES}
+          getSubmenuBgClasses={getSubmenuBgClasses}
+          getSubmenuHeaderClasses={getSubmenuHeaderClasses}
+          getSelectionTileClasses={getSelectionTileClasses}
+          getSelectionTileActiveClasses={getSelectionTileActiveClasses}
+        />
       )}
 
       {/* Split Settings Overlay */}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react"
+import { useEffect, useRef } from "react"
 import { useCombinedAuth } from "../lib/hooks/useCombinedAuth"
 import { useBlinkWebSocket } from "../lib/hooks/useBlinkWebSocket"
 import { useCurrencies } from "../lib/hooks/useCurrencies"
@@ -23,6 +23,7 @@ import { usePaymentPolling } from "../lib/hooks/usePaymentPolling"
 import { useSplitProfileActions } from "../lib/hooks/useSplitProfileActions"
 import { useDashboardData } from "../lib/hooks/useDashboardData"
 import { useTransactionActions } from "../lib/hooks/useTransactionActions"
+import { useNavigationHandlers } from "../lib/hooks/useNavigationHandlers"
 import { useExchangeRate } from "../lib/hooks/useExchangeRate"
 import { useWalletState } from "../lib/hooks/useWalletState"
 import { useInvoiceState } from "../lib/hooks/useInvoiceState"
@@ -522,11 +523,6 @@ export default function Dashboard() {
   // Transaction search ref (state is in useTransactionState hook)
   const txSearchInputRef = useRef(null)
 
-  const touchStartX = useRef(0)
-  const touchEndX = useRef(0)
-  const touchStartY = useRef(0)
-  const touchEndY = useRef(0)
-
   // Refs for keyboard navigation
   const posRef = useRef(null)
   const voucherRef = useRef(null)
@@ -575,11 +571,7 @@ export default function Dashboard() {
   const posPaymentReceivedRef = useRef(null)
 
   // Dashboard data fetching - extracted to useDashboardData hook
-  const {
-    fetchData,
-    fetchVoucherWalletBalance,
-    getCapacityColor,
-  } = useDashboardData({
+  const { fetchData, fetchVoucherWalletBalance, getCapacityColor } = useDashboardData({
     // From useCombinedAuth
     user,
     getApiKey,
@@ -721,6 +713,22 @@ export default function Dashboard() {
     soundTheme,
   })
 
+  // Navigation handlers (touch swipe + keyboard) - extracted to useNavigationHandlers hook
+  const { handleTouchStart, handleTouchMove, handleTouchEnd } = useNavigationHandlers({
+    currentView,
+    handleViewTransition,
+    showingInvoice,
+    showingVoucherQR,
+    isViewTransitioning,
+    voucherWallet,
+    sideMenuOpen,
+    showAnimation,
+    hideAnimation,
+    posRef,
+    voucherRef,
+    multiVoucherRef,
+    cartRef,
+  })
 
   const handleLogout = () => {
     logout()
@@ -731,410 +739,6 @@ export default function Dashboard() {
     await triggerInstall()
   }
 
-  // Handle touch events for swipe navigation
-  const handleTouchStart = (e) => {
-    touchStartX.current = e.targetTouches[0].clientX
-    touchStartY.current = e.targetTouches[0].clientY
-  }
-
-  const handleTouchMove = (e) => {
-    touchEndX.current = e.targetTouches[0].clientX
-    touchEndY.current = e.targetTouches[0].clientY
-  }
-
-  const handleTouchEnd = () => {
-    if (!touchStartX.current || !touchEndX.current) return
-
-    const distanceX = touchStartX.current - touchEndX.current
-    const distanceY = touchStartY.current - touchEndY.current
-    const isLeftSwipe = distanceX > 50 && Math.abs(distanceY) < 50
-    const isRightSwipe = distanceX < -50 && Math.abs(distanceY) < 50
-    const isUpSwipe = distanceY > 50 && Math.abs(distanceX) < 50
-    const isDownSwipe = distanceY < -50 && Math.abs(distanceX) < 50
-
-    // Only allow swipe navigation when:
-    // - On Cart screen (not showing any overlay)
-    // - On POS numpad screen (not showing invoice/tips)
-    // - On Voucher numpad screen (not showing voucher QR)
-    // - On MultiVoucher screen
-    // - On transactions screen
-    // Navigation order (horizontal): Cart ← → POS ← → Transactions
-    // Navigation order (vertical): POS ↕ Voucher ↔ MultiVoucher
-    // Navigation order (voucher row): MultiVoucher ← → Voucher
-
-    // Horizontal swipes (left/right) - for cart, pos, transactions, and voucher row
-    // Direction convention: Swipe LEFT moves to the RIGHT item (finger drags content left, next item appears from right)
-    // Top row (left to right): Cart - POS - Transactions
-    // Bottom row (left to right): MultiVoucher - Voucher - VoucherManager
-    // IMPORTANT: Disable swipes when showing invoice (POS checkout) or voucher QR (voucher checkout)
-    if (isLeftSwipe && !showingInvoice && !showingVoucherQR && !isViewTransitioning) {
-      if (currentView === "cart") {
-        handleViewTransition("pos")
-      } else if (currentView === "pos") {
-        handleViewTransition("transactions")
-      } else if (currentView === "multivoucher" && voucherWallet) {
-        // Left swipe from multivoucher goes to voucher (same as cart→pos)
-        handleViewTransition("voucher")
-      } else if (currentView === "voucher" && voucherWallet) {
-        // Left swipe from voucher goes to vouchermanager (same as pos→transactions)
-        handleViewTransition("vouchermanager")
-      }
-    } else if (isRightSwipe && !showingVoucherQR && !isViewTransitioning) {
-      if (currentView === "transactions") {
-        handleViewTransition("pos")
-      } else if (currentView === "pos" && !showingInvoice) {
-        handleViewTransition("cart")
-      } else if (currentView === "vouchermanager" && voucherWallet) {
-        // Right swipe from vouchermanager goes to voucher (same as transactions→pos)
-        handleViewTransition("voucher")
-      } else if (currentView === "voucher" && voucherWallet) {
-        // Right swipe from voucher goes to multivoucher (same as pos→cart)
-        handleViewTransition("multivoucher")
-      }
-    }
-    // Vertical swipes (up) - between POS and Single Voucher only
-    // From POS: swipe up → Voucher
-    // From Voucher (Single): swipe up → POS (return to POS)
-    // NOTE: MultiVoucher and VoucherManager have scrollable content,
-    // so swipe UP is disabled to avoid conflicts with scrolling.
-    // Users can navigate horizontally to Single Voucher, then swipe up to POS.
-    // IMPORTANT: Disable swipes when showing voucher QR (voucher checkout)
-    else if (
-      isUpSwipe &&
-      !showingInvoice &&
-      !showingVoucherQR &&
-      !isViewTransitioning &&
-      voucherWallet
-    ) {
-      if (currentView === "pos") {
-        handleViewTransition("voucher")
-      } else if (currentView === "voucher") {
-        // Only Single Voucher can swipe up to POS
-        handleViewTransition("pos")
-      }
-    }
-
-    // Reset touch positions
-    touchStartX.current = 0
-    touchEndX.current = 0
-    touchStartY.current = 0
-    touchEndY.current = 0
-  }
-
-  // Keyboard navigation for desktop users
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // Skip if side menu is open
-      if (sideMenuOpen) return
-
-      // Skip if focused on input/textarea elements
-      const activeElement = document.activeElement
-      if (
-        activeElement &&
-        (activeElement.tagName === "INPUT" ||
-          activeElement.tagName === "TEXTAREA" ||
-          activeElement.isContentEditable)
-      ) {
-        return
-      }
-
-      // Check if tip dialog is open - delegate keyboard to POS
-      if (currentView === "pos" && posRef.current?.isTipDialogOpen?.()) {
-        if (
-          ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Enter", "Escape"].includes(
-            e.key,
-          )
-        ) {
-          e.preventDefault()
-          posRef.current.handleTipDialogKey(e.key)
-          return
-        }
-      }
-
-      // Check if commission dialog is open - delegate keyboard to Voucher
-      if (currentView === "voucher" && voucherRef.current?.isCommissionDialogOpen?.()) {
-        if (
-          ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Enter", "Escape"].includes(
-            e.key,
-          )
-        ) {
-          e.preventDefault()
-          voucherRef.current.handleCommissionDialogKey(e.key)
-          return
-        }
-      }
-
-      // Check if commission dialog is open on MultiVoucher - delegate keyboard
-      if (
-        currentView === "multivoucher" &&
-        multiVoucherRef.current?.isCommissionDialogOpen?.()
-      ) {
-        if (
-          ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Enter", "Escape"].includes(
-            e.key,
-          )
-        ) {
-          e.preventDefault()
-          multiVoucherRef.current.handleCommissionDialogKey(e.key)
-          return
-        }
-      }
-
-      // Check if cart is active and can handle keyboard navigation
-      if (currentView === "cart" && cartRef.current?.isCartNavActive?.()) {
-        if (
-          [
-            "ArrowLeft",
-            "ArrowRight",
-            "ArrowUp",
-            "ArrowDown",
-            "Enter",
-            "Escape",
-            "Backspace",
-            " ",
-          ].includes(e.key)
-        ) {
-          const handled = cartRef.current.handleCartKey(e.key)
-          if (handled) {
-            e.preventDefault()
-            return
-          }
-          // If not handled (e.g., ArrowUp from Search), fall through to global navigation
-        }
-      }
-
-      // If cart view but exited to global nav, DOWN arrow re-enters local cart navigation
-      if (
-        currentView === "cart" &&
-        e.key === "ArrowDown" &&
-        cartRef.current?.enterLocalNav
-      ) {
-        if (!cartRef.current.isCartNavActive?.()) {
-          e.preventDefault()
-          cartRef.current.enterLocalNav()
-          return
-        }
-      }
-
-      // Escape key for checkout screens and success animations
-      if (e.key === "Escape") {
-        // Payment success animation - Done
-        if (showAnimation) {
-          e.preventDefault()
-          hideAnimation()
-          return
-        }
-
-        // Voucher success (redeemed) - Done
-        if (currentView === "voucher" && voucherRef.current?.isRedeemed?.()) {
-          e.preventDefault()
-          voucherRef.current.handleClear()
-          return
-        }
-
-        // POS checkout screen - Cancel
-        if (currentView === "pos" && showingInvoice) {
-          e.preventDefault()
-          posRef.current?.handleClear?.()
-          return
-        }
-
-        // Voucher checkout screen - Cancel (only if not redeemed)
-        if (
-          currentView === "voucher" &&
-          showingVoucherQR &&
-          !voucherRef.current?.isRedeemed?.()
-        ) {
-          e.preventDefault()
-          voucherRef.current?.handleClear?.()
-          return
-        }
-      }
-
-      // Arrow key navigation between views (only when not in checkout or modal states)
-      if (
-        e.key === "ArrowLeft" ||
-        e.key === "ArrowRight" ||
-        e.key === "ArrowUp" ||
-        e.key === "ArrowDown"
-      ) {
-        e.preventDefault() // Prevent page scroll
-
-        // Block navigation during checkout states
-        if (showingInvoice || showingVoucherQR || isViewTransitioning) return
-
-        if (e.key === "ArrowLeft") {
-          // Navigate left: Transactions → POS → Cart, VoucherManager → Voucher → MultiVoucher
-          if (currentView === "transactions") {
-            handleViewTransition("pos")
-          } else if (currentView === "pos") {
-            handleViewTransition("cart")
-          } else if (currentView === "vouchermanager" && voucherWallet) {
-            handleViewTransition("voucher")
-          } else if (currentView === "voucher" && voucherWallet) {
-            handleViewTransition("multivoucher")
-          }
-        } else if (e.key === "ArrowRight") {
-          // Navigate right: Cart → POS → Transactions, MultiVoucher → Voucher → VoucherManager
-          if (currentView === "cart") {
-            handleViewTransition("pos")
-          } else if (currentView === "pos") {
-            handleViewTransition("transactions")
-          } else if (currentView === "multivoucher" && voucherWallet) {
-            handleViewTransition("voucher")
-          } else if (currentView === "voucher" && voucherWallet) {
-            handleViewTransition("vouchermanager")
-          }
-        } else if ((e.key === "ArrowUp" || e.key === "ArrowDown") && voucherWallet) {
-          // Navigate up/down: POS ↔ Voucher row
-          if (currentView === "pos") {
-            handleViewTransition("voucher")
-          } else if (
-            currentView === "voucher" ||
-            currentView === "multivoucher" ||
-            currentView === "vouchermanager"
-          ) {
-            handleViewTransition("pos")
-          }
-        }
-        return
-      }
-
-      // Numpad input (only on POS and Voucher views, only when showing numpad)
-      if (currentView === "pos" && !showingInvoice && posRef.current) {
-        // Digit keys (top row and numpad)
-        if (/^[0-9]$/.test(e.key)) {
-          e.preventDefault()
-          posRef.current.handleDigitPress(e.key)
-          return
-        }
-        // Decimal point
-        if (e.key === "." || e.key === ",") {
-          e.preventDefault()
-          posRef.current.handleDigitPress(".")
-          return
-        }
-        // Backspace
-        if (e.key === "Backspace") {
-          e.preventDefault()
-          posRef.current.handleBackspace()
-          return
-        }
-        // Escape = Clear
-        if (e.key === "Escape") {
-          e.preventDefault()
-          posRef.current.handleClear()
-          return
-        }
-        // Enter = Submit (OK) - only if there's a valid amount
-        if (e.key === "Enter") {
-          e.preventDefault()
-          if (posRef.current.hasValidAmount?.()) {
-            posRef.current.handleSubmit()
-          }
-          return
-        }
-        // Plus key = add to stack
-        if (e.key === "+") {
-          e.preventDefault()
-          posRef.current.handlePlusPress()
-          return
-        }
-      } else if (currentView === "voucher" && !showingVoucherQR && voucherRef.current) {
-        // Digit keys (top row and numpad)
-        if (/^[0-9]$/.test(e.key)) {
-          e.preventDefault()
-          voucherRef.current.handleDigitPress(e.key)
-          return
-        }
-        // Decimal point
-        if (e.key === "." || e.key === ",") {
-          e.preventDefault()
-          voucherRef.current.handleDigitPress(".")
-          return
-        }
-        // Backspace
-        if (e.key === "Backspace") {
-          e.preventDefault()
-          voucherRef.current.handleBackspace()
-          return
-        }
-        // Escape = Clear
-        if (e.key === "Escape") {
-          e.preventDefault()
-          voucherRef.current.handleClear()
-          return
-        }
-        // Enter = Submit (Create Voucher) - only if there's a valid amount
-        if (e.key === "Enter") {
-          e.preventDefault()
-          if (voucherRef.current.hasValidAmount?.()) {
-            voucherRef.current.handleSubmit()
-          }
-          return
-        }
-      } else if (currentView === "multivoucher" && multiVoucherRef.current) {
-        // MultiVoucher keyboard handling - only on amount step
-        const step = multiVoucherRef.current.getCurrentStep?.()
-        if (step === "amount") {
-          // Digit keys
-          if (/^[0-9]$/.test(e.key)) {
-            e.preventDefault()
-            multiVoucherRef.current.handleDigitPress(e.key)
-            return
-          }
-          // Decimal point
-          if (e.key === "." || e.key === ",") {
-            e.preventDefault()
-            multiVoucherRef.current.handleDigitPress(".")
-            return
-          }
-          // Backspace
-          if (e.key === "Backspace") {
-            e.preventDefault()
-            multiVoucherRef.current.handleBackspace()
-            return
-          }
-          // Escape = Clear
-          if (e.key === "Escape") {
-            e.preventDefault()
-            multiVoucherRef.current.handleClear()
-            return
-          }
-          // Enter = Submit (proceed to config)
-          if (e.key === "Enter") {
-            e.preventDefault()
-            if (multiVoucherRef.current.hasValidAmount?.()) {
-              multiVoucherRef.current.handleSubmit()
-            }
-            return
-          }
-        } else if (step === "config" || step === "preview") {
-          // On config/preview, Escape goes back, Enter proceeds
-          if (e.key === "Escape") {
-            e.preventDefault()
-            multiVoucherRef.current.handleClear()
-            return
-          }
-          if (e.key === "Enter") {
-            e.preventDefault()
-            multiVoucherRef.current.handleSubmit()
-            return
-          }
-        }
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [
-    currentView,
-    sideMenuOpen,
-    showingInvoice,
-    showingVoucherQR,
-    isViewTransitioning,
-    voucherWallet,
-  ])
   if (loading && transactions.length === 0 && !isViewTransitioning) {
     return (
       <div className="min-h-screen flex items-center justify-center">

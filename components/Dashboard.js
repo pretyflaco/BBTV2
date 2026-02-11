@@ -8,6 +8,8 @@ import { useViewNavigation, SPINNER_COLORS } from '../lib/hooks/useViewNavigatio
 import { useDisplaySettings } from '../lib/hooks/useDisplaySettings';
 import { useSoundSettings } from '../lib/hooks/useSoundSettings';
 import { useCommissionSettings } from '../lib/hooks/useCommissionSettings';
+import { usePaycodeState } from '../lib/hooks/usePaycodeState';
+import { usePWAInstall } from '../lib/hooks/usePWAInstall';
 import { useNFC } from './NFCPayment';
 import { isBitcoinCurrency } from '../lib/currency-utils';
 import { getApiUrl, getLnAddressDomain, getPayUrl, getAllValidDomains, getEnvironment } from '../lib/config/api';
@@ -153,9 +155,16 @@ export default function Dashboard() {
   const [pastTransactionsLoaded, setPastTransactionsLoaded] = useState(false);
   const [showExportOptions, setShowExportOptions] = useState(false);
   const [exportingData, setExportingData] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [wallets, setWallets] = useState([]);
+  
+  // PWA install state - extracted to usePWAInstall hook
+  const {
+    deferredPrompt,
+    setDeferredPrompt,
+    showInstallPrompt,
+    setShowInstallPrompt,
+    triggerInstall,
+  } = usePWAInstall();
   
   // Sound settings - extracted to useSoundSettings hook
   const {
@@ -267,10 +276,16 @@ export default function Dashboard() {
     toggleCommissionEnabled,
   } = useCommissionSettings();
   
-  // Paycode state
-  const [showPaycode, setShowPaycode] = useState(false);
-  const [paycodeAmount, setPaycodeAmount] = useState(''); // Amount in sats (empty = any amount)
-  const [paycodeGeneratingPdf, setPaycodeGeneratingPdf] = useState(false);
+  // Paycode state - extracted to usePaycodeState hook
+  const {
+    showPaycode,
+    setShowPaycode,
+    paycodeAmount,
+    setPaycodeAmount,
+    paycodeGeneratingPdf,
+    setPaycodeGeneratingPdf,
+  } = usePaycodeState();
+  
   const [activeTipProfile, setActiveTipProfile] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('blinkpos-active-tip-profile');
@@ -2624,24 +2639,9 @@ export default function Dashboard() {
     logout();
   };
 
+  // PWA install handler - delegates to usePWAInstall hook
   const handleInstallApp = async () => {
-    if (deferredPrompt) {
-      // Show the install prompt
-      deferredPrompt.prompt();
-      
-      // Wait for the user to respond to the prompt
-      const { outcome } = await deferredPrompt.userChoice;
-      
-      if (outcome === 'accepted') {
-        console.log('User accepted the install prompt');
-      } else {
-        console.log('User dismissed the install prompt');
-      }
-      
-      // Clear the deferred prompt
-      setDeferredPrompt(null);
-      setShowInstallPrompt(false);
-    }
+    await triggerInstall();
   };
 
   // Handle touch events for swipe navigation

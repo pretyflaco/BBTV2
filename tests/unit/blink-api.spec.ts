@@ -474,5 +474,572 @@ describe("BlinkAPI", () => {
       const [url] = (global.fetch as jest.Mock).mock.calls[0]
       expect(url).toBe("https://api.blink.sv/graphql")
     })
+
+    it("should throw on HTTP error", async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        text: jest.fn().mockResolvedValue("Server Error"),
+      })
+
+      await expect(BlinkAPI.getExchangeRatePublic("USD")).rejects.toThrow("500")
+    })
+
+    it("should throw on GraphQL errors", async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          errors: [{ message: "Invalid currency" }],
+        }),
+      })
+
+      await expect(BlinkAPI.getExchangeRatePublic("XYZ")).rejects.toThrow(
+        "Invalid currency",
+      )
+    })
+
+    it("should throw when rate data is missing", async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          data: { realtimePrice: null },
+        }),
+      })
+
+      await expect(BlinkAPI.getExchangeRatePublic("USD")).rejects.toThrow(
+        "not available",
+      )
+    })
+  })
+
+  describe("getMe()", () => {
+    it("should return user info", async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          data: {
+            me: {
+              username: "testuser",
+              defaultAccount: {
+                displayCurrency: "USD",
+              },
+            },
+          },
+        }),
+        headers: { get: () => "application/json" },
+      })
+
+      const result = await api.getMe()
+
+      expect(result.username).toBe("testuser")
+      expect(result.defaultAccount.displayCurrency).toBe("USD")
+    })
+  })
+
+  describe("getTransactions()", () => {
+    it("should return transactions with pagination", async () => {
+      const mockTx = {
+        id: "tx-123",
+        direction: "RECEIVE",
+        status: "SUCCESS",
+        settlementAmount: 1000,
+        settlementCurrency: "BTC",
+        createdAt: "2024-01-15T10:00:00Z",
+      }
+
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          data: {
+            me: {
+              defaultAccount: {
+                id: "account-123",
+                transactions: {
+                  edges: [{ cursor: "cursor1", node: mockTx }],
+                  pageInfo: { hasNextPage: true, endCursor: "cursor1" },
+                },
+              },
+            },
+          },
+        }),
+        headers: { get: () => "application/json" },
+      })
+
+      const result = await api.getTransactions(10, null)
+
+      expect(result.edges).toHaveLength(1)
+      expect(result.edges[0].node.id).toBe("tx-123")
+      expect(result.edges[0].node.walletId).toBe("account-123")
+      expect(result.pageInfo.hasNextPage).toBe(true)
+    })
+
+    it("should return empty transactions when no account", async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          data: { me: null },
+        }),
+        headers: { get: () => "application/json" },
+      })
+
+      const result = await api.getTransactions()
+
+      expect(result.edges).toEqual([])
+    })
+  })
+
+  describe("getUserInfo()", () => {
+    it("should return user info with account ID", async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          data: {
+            me: {
+              id: "user-123",
+              username: "testuser",
+              defaultAccount: { id: "account-123" },
+            },
+          },
+        }),
+        headers: { get: () => "application/json" },
+      })
+
+      const result = await api.getUserInfo()
+
+      expect(result.me.id).toBe("user-123")
+      expect(result.me.username).toBe("testuser")
+    })
+  })
+
+  describe("getCsvTransactions()", () => {
+    it("should return CSV data for wallet IDs", async () => {
+      const csvData = "id,amount,currency\ntx1,1000,BTC"
+
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          data: {
+            me: {
+              id: "user-123",
+              defaultAccount: {
+                id: "account-123",
+                csvTransactions: csvData,
+              },
+            },
+          },
+        }),
+        headers: { get: () => "application/json" },
+      })
+
+      const result = await api.getCsvTransactions(["wallet-1", "wallet-2"])
+
+      expect(result).toBe(csvData)
+    })
+  })
+
+  describe("createLnUsdInvoice()", () => {
+    it("should throw on invoice creation error", async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          data: {
+            lnUsdInvoiceCreate: {
+              invoice: null,
+              errors: [{ message: "Invalid amount" }],
+            },
+          },
+        }),
+        headers: { get: () => "application/json" },
+      })
+
+      await expect(
+        api.createLnUsdInvoice("usd-wallet", 0, "Test"),
+      ).rejects.toThrow("Invalid amount")
+    })
+  })
+
+  describe("intraLedgerPaymentSend()", () => {
+    it("should send intra-ledger payment", async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          data: {
+            intraLedgerPaymentSend: {
+              status: "SUCCESS",
+              errors: [],
+            },
+          },
+        }),
+        headers: { get: () => "application/json" },
+      })
+
+      const result = await api.intraLedgerPaymentSend(
+        "btc-wallet",
+        "usd-wallet",
+        1000,
+        "Transfer memo",
+      )
+
+      expect(result.status).toBe("SUCCESS")
+
+      const [, options] = (global.fetch as jest.Mock).mock.calls[0]
+      const body = JSON.parse(options.body)
+      expect(body.variables.input.walletId).toBe("btc-wallet")
+      expect(body.variables.input.recipientWalletId).toBe("usd-wallet")
+      expect(body.variables.input.amount).toBe(1000)
+      expect(body.variables.input.memo).toBe("Transfer memo")
+    })
+
+    it("should send without memo when empty", async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          data: {
+            intraLedgerPaymentSend: {
+              status: "SUCCESS",
+              errors: [],
+            },
+          },
+        }),
+        headers: { get: () => "application/json" },
+      })
+
+      await api.intraLedgerPaymentSend("btc-wallet", "usd-wallet", 1000)
+
+      const [, options] = (global.fetch as jest.Mock).mock.calls[0]
+      const body = JSON.parse(options.body)
+      expect(body.variables.input.memo).toBeUndefined()
+    })
+
+    it("should throw on payment error", async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          data: {
+            intraLedgerPaymentSend: {
+              status: "FAILURE",
+              errors: [{ message: "Insufficient balance" }],
+            },
+          },
+        }),
+        headers: { get: () => "application/json" },
+      })
+
+      await expect(
+        api.intraLedgerPaymentSend("btc-wallet", "usd-wallet", 1000000000),
+      ).rejects.toThrow("Insufficient balance")
+    })
+  })
+
+  describe("payLnInvoice()", () => {
+    it("should throw on payment error", async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          data: {
+            lnInvoicePaymentSend: {
+              status: "FAILURE",
+              errors: [{ message: "Invoice expired" }],
+            },
+          },
+        }),
+        headers: { get: () => "application/json" },
+      })
+
+      await expect(
+        api.payLnInvoice("wallet-id", "lnbc1expired..."),
+      ).rejects.toThrow("Invoice expired")
+    })
+  })
+
+  describe("static getWalletByUsername()", () => {
+    it("should return wallet info for username", async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          data: {
+            accountDefaultWallet: {
+              id: "wallet-123",
+              currency: "BTC",
+            },
+          },
+        }),
+      })
+
+      const result = await BlinkAPI.getWalletByUsername("testuser")
+
+      expect(result.id).toBe("wallet-123")
+      expect(result.currency).toBe("BTC")
+    })
+
+    it("should throw on GraphQL errors", async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          errors: [{ message: "User not found" }],
+        }),
+      })
+
+      await expect(BlinkAPI.getWalletByUsername("nonexistent")).rejects.toThrow(
+        "User not found",
+      )
+    })
+  })
+
+  describe("static getBtcWalletByUsername()", () => {
+    it("should return BTC wallet for username", async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          data: {
+            accountDefaultWallet: {
+              id: "btc-wallet-123",
+              currency: "BTC",
+            },
+          },
+        }),
+      })
+
+      const result = await BlinkAPI.getBtcWalletByUsername("testuser")
+
+      expect(result.id).toBe("btc-wallet-123")
+      expect(result.currency).toBe("BTC")
+
+      const [, options] = (global.fetch as jest.Mock).mock.calls[0]
+      const body = JSON.parse(options.body)
+      expect(body.variables.walletCurrency).toBe("BTC")
+    })
+
+    it("should throw when no wallet found", async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          data: {
+            accountDefaultWallet: null,
+          },
+        }),
+      })
+
+      await expect(
+        BlinkAPI.getBtcWalletByUsername("nowalletuser"),
+      ).rejects.toThrow("No BTC wallet found")
+    })
+
+    it("should throw when wallet is not BTC", async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          data: {
+            accountDefaultWallet: {
+              id: "usd-wallet-123",
+              currency: "USD",
+            },
+          },
+        }),
+      })
+
+      await expect(BlinkAPI.getBtcWalletByUsername("usduser")).rejects.toThrow(
+        "Expected BTC wallet but got USD",
+      )
+    })
+
+    it("should throw on GraphQL errors", async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          errors: [{ message: "Account not found" }],
+        }),
+      })
+
+      await expect(
+        BlinkAPI.getBtcWalletByUsername("nonexistent"),
+      ).rejects.toThrow("Account not found")
+    })
+  })
+
+  describe("static createInvoiceOnBehalfOfRecipient()", () => {
+    it("should create invoice for recipient", async () => {
+      const mockInvoice = {
+        paymentRequest: "lnbc1000n1...",
+        paymentHash: "hash123",
+        satoshis: 1000,
+      }
+
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          data: {
+            lnInvoiceCreateOnBehalfOfRecipient: {
+              invoice: mockInvoice,
+            },
+          },
+        }),
+      })
+
+      const result = await BlinkAPI.createInvoiceOnBehalfOfRecipient(
+        "wallet-123",
+        1000,
+        "Tip from user",
+        15,
+      )
+
+      expect(result).toEqual(mockInvoice)
+
+      const [, options] = (global.fetch as jest.Mock).mock.calls[0]
+      const body = JSON.parse(options.body)
+      expect(body.variables.input.recipientWalletId).toBe("wallet-123")
+      expect(body.variables.input.amount).toBe("1000")
+      expect(body.variables.input.memo).toBe("Tip from user")
+      expect(body.variables.input.expiresIn).toBe("15")
+    })
+
+    it("should throw on GraphQL errors", async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          errors: [{ message: "Invalid wallet" }],
+        }),
+      })
+
+      await expect(
+        BlinkAPI.createInvoiceOnBehalfOfRecipient("bad-wallet", 1000, "Test"),
+      ).rejects.toThrow("Invalid wallet")
+    })
+  })
+
+  describe("sendTipViaInvoice()", () => {
+    it("should send tip via invoice creation", async () => {
+      // Mock getBtcWalletByUsername
+      global.fetch = jest
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            data: {
+              accountDefaultWallet: {
+                id: "recipient-wallet",
+                currency: "BTC",
+              },
+            },
+          }),
+        })
+        // Mock createInvoiceOnBehalfOfRecipient
+        .mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            data: {
+              lnInvoiceCreateOnBehalfOfRecipient: {
+                invoice: {
+                  paymentRequest: "lnbc1000n1...",
+                  paymentHash: "hash123",
+                  satoshis: 1000,
+                },
+              },
+            },
+          }),
+        })
+        // Mock payLnInvoice
+        .mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            data: {
+              lnInvoicePaymentSend: {
+                status: "SUCCESS",
+                errors: [],
+              },
+            },
+          }),
+          headers: { get: () => "application/json" },
+        })
+
+      const result = await api.sendTipViaInvoice(
+        "sender-wallet",
+        "recipient",
+        1000,
+        "Tip memo",
+      )
+
+      expect(result.status).toBe("SUCCESS")
+      expect(result.paymentHash).toBe("hash123")
+      expect(result.satoshis).toBe(1000)
+      expect(result.memo).toBe("Tip memo")
+    })
+
+    it("should throw when recipient has no BTC wallet", async () => {
+      global.fetch = jest.fn().mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          data: {
+            accountDefaultWallet: null,
+          },
+        }),
+      })
+
+      await expect(
+        api.sendTipViaInvoice("sender-wallet", "nowalletuser", 1000, "Tip"),
+      ).rejects.toThrow("No BTC wallet found")
+    })
+
+    it("should throw when invoice creation fails", async () => {
+      global.fetch = jest
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            data: {
+              accountDefaultWallet: {
+                id: "recipient-wallet",
+                currency: "BTC",
+              },
+            },
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            data: {
+              lnInvoiceCreateOnBehalfOfRecipient: {
+                invoice: null,
+              },
+            },
+          }),
+        })
+
+      await expect(
+        api.sendTipViaInvoice("sender-wallet", "recipient", 1000, "Tip"),
+      ).rejects.toThrow("Failed to create invoice")
+    })
+  })
+
+  describe("query() error handling", () => {
+    it("should handle JSON error responses", async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        headers: { get: () => "application/json" },
+        json: jest.fn().mockResolvedValue({
+          message: "Bad request: invalid API key",
+        }),
+      })
+
+      await expect(api.query("query { test }")).rejects.toThrow(
+        "Bad request: invalid API key",
+      )
+    })
+
+    it("should handle JSON error with error field", async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        headers: { get: () => "application/json" },
+        json: jest.fn().mockResolvedValue({
+          error: "Unauthorized access",
+        }),
+      })
+
+      await expect(api.query("query { test }")).rejects.toThrow(
+        "Unauthorized access",
+      )
+    })
   })
 })

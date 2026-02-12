@@ -4,9 +4,7 @@
  * Tests CSV parsing, recipient type detection, and validation.
  */
 
-/* eslint-disable @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires */
-
-const {
+import {
   parseCSV,
   parseCSVLine,
   detectRecipientType,
@@ -14,7 +12,7 @@ const {
   generateTemplate,
   quickValidate,
   RECIPIENT_TYPES,
-} = require("../../lib/batch-payments/csv-parser.js")
+} from "../../lib/batch-payments/csv-parser"
 
 describe("CSV Parser", () => {
   describe("RECIPIENT_TYPES", () => {
@@ -33,30 +31,18 @@ describe("CSV Parser", () => {
     })
 
     it("should detect Lightning Address", () => {
-      expect(detectRecipientType("user@getalby.com")).toBe(
-        RECIPIENT_TYPES.LN_ADDRESS,
-      )
-      expect(detectRecipientType("satoshi@blink.sv")).toBe(
-        RECIPIENT_TYPES.LN_ADDRESS,
-      )
-      expect(detectRecipientType("test@8333.mobi")).toBe(
-        RECIPIENT_TYPES.LN_ADDRESS,
-      )
+      expect(detectRecipientType("user@getalby.com")).toBe(RECIPIENT_TYPES.LN_ADDRESS)
+      expect(detectRecipientType("satoshi@blink.sv")).toBe(RECIPIENT_TYPES.LN_ADDRESS)
+      expect(detectRecipientType("test@8333.mobi")).toBe(RECIPIENT_TYPES.LN_ADDRESS)
     })
 
     it("should detect LNURL", () => {
-      expect(detectRecipientType("lnurl1dp68gurn...")).toBe(
-        RECIPIENT_TYPES.LNURL,
-      )
-      expect(detectRecipientType("LNURL1DP68GURN...")).toBe(
-        RECIPIENT_TYPES.LNURL,
-      )
+      expect(detectRecipientType("lnurl1dp68gurn...")).toBe(RECIPIENT_TYPES.LNURL)
+      expect(detectRecipientType("LNURL1DP68GURN...")).toBe(RECIPIENT_TYPES.LNURL)
     })
 
     it("should handle UTF-7 encoded @ symbol", () => {
-      expect(detectRecipientType("user+AEA-domain.com")).toBe(
-        RECIPIENT_TYPES.LN_ADDRESS,
-      )
+      expect(detectRecipientType("user+AEA-domain.com")).toBe(RECIPIENT_TYPES.LN_ADDRESS)
     })
 
     it("should treat incomplete email-like strings as Blink users", () => {
@@ -69,16 +55,14 @@ describe("CSV Parser", () => {
 
   describe("normalizeRecipient()", () => {
     it("should normalize Blink usernames to lowercase", () => {
-      expect(normalizeRecipient("HERMANN", RECIPIENT_TYPES.BLINK)).toBe(
-        "hermann",
-      )
+      expect(normalizeRecipient("HERMANN", RECIPIENT_TYPES.BLINK)).toBe("hermann")
       expect(normalizeRecipient("@user", RECIPIENT_TYPES.BLINK)).toBe("user")
     })
 
     it("should normalize Lightning addresses to lowercase", () => {
-      expect(
-        normalizeRecipient("User@Domain.COM", RECIPIENT_TYPES.LN_ADDRESS),
-      ).toBe("user@domain.com")
+      expect(normalizeRecipient("User@Domain.COM", RECIPIENT_TYPES.LN_ADDRESS)).toBe(
+        "user@domain.com",
+      )
     })
 
     it("should preserve LNURL case", () => {
@@ -87,9 +71,9 @@ describe("CSV Parser", () => {
     })
 
     it("should decode UTF-7 encoded strings", () => {
-      expect(
-        normalizeRecipient("user+AEA-domain.com", RECIPIENT_TYPES.LN_ADDRESS),
-      ).toBe("user@domain.com")
+      expect(normalizeRecipient("user+AEA-domain.com", RECIPIENT_TYPES.LN_ADDRESS)).toBe(
+        "user@domain.com",
+      )
     })
   })
 
@@ -200,7 +184,9 @@ alice,500`
       const result = parseCSV(csv)
 
       expect(result.success).toBe(false)
-      expect(result.errors.some((e: string) => e.includes("Missing recipient"))).toBe(true)
+      expect(result.errors.some((e: string) => e.includes("Missing recipient"))).toBe(
+        true,
+      )
       expect(result.records).toHaveLength(1) // Only valid row
     })
 

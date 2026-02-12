@@ -8,10 +8,7 @@
  * - PICCData decryption
  */
 
-/* eslint-disable @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires */
-
-// Import the crypto module (CommonJS)
-const boltcardCrypto = require("../../lib/boltcard/crypto.js")
+import * as boltcardCrypto from "../../lib/boltcard/crypto"
 
 describe("Boltcard Crypto", () => {
   // Test vectors from DETERMINISTIC.md
@@ -172,10 +169,7 @@ describe("Boltcard Crypto", () => {
       const sv2 = Buffer.concat([sv2Prefix, uidBuf, counterBuf])
 
       // Step 2: Derive session key
-      const sessionKey = boltcardCrypto.calculateCMAC(
-        Buffer.from(k2, "hex"),
-        sv2,
-      )
+      const sessionKey = boltcardCrypto.calculateCMAC(Buffer.from(k2, "hex"), sv2)
 
       // Step 3: CMAC with empty message
       const fullMac = boltcardCrypto.calculateCMAC(sessionKey, Buffer.alloc(0))
@@ -238,10 +232,7 @@ describe("Boltcard Crypto", () => {
       counterBuf[0] = correctCounter & 0xff
 
       const sv2 = Buffer.concat([sv2Prefix, uidBuf, counterBuf])
-      const sessionKey = boltcardCrypto.calculateCMAC(
-        Buffer.from(k2, "hex"),
-        sv2,
-      )
+      const sessionKey = boltcardCrypto.calculateCMAC(Buffer.from(k2, "hex"), sv2)
       const fullMac = boltcardCrypto.calculateCMAC(sessionKey, Buffer.alloc(0))
       const sunMac = Buffer.from([
         fullMac[1],
@@ -298,16 +289,9 @@ describe("Boltcard Crypto", () => {
       const sv2 = Buffer.concat([
         Buffer.from("3cc300010080", "hex"),
         Buffer.from(uid, "hex"),
-        Buffer.from([
-          counter & 0xff,
-          (counter >> 8) & 0xff,
-          (counter >> 16) & 0xff,
-        ]),
+        Buffer.from([counter & 0xff, (counter >> 8) & 0xff, (counter >> 16) & 0xff]),
       ])
-      const sessionKey = boltcardCrypto.calculateCMAC(
-        Buffer.from(keys.k2, "hex"),
-        sv2,
-      )
+      const sessionKey = boltcardCrypto.calculateCMAC(Buffer.from(keys.k2, "hex"), sv2)
       const fullMac = boltcardCrypto.calculateCMAC(sessionKey, Buffer.alloc(0))
       const sunMac = Buffer.from([
         fullMac[1],
@@ -404,10 +388,7 @@ describe("Boltcard Crypto", () => {
         Buffer.from(uid, "hex"),
         Buffer.from([counter & 0xff, 0, 0]),
       ])
-      const sessionKey = boltcardCrypto.calculateCMAC(
-        Buffer.from(keys.k2, "hex"),
-        sv2,
-      )
+      const sessionKey = boltcardCrypto.calculateCMAC(Buffer.from(keys.k2, "hex"), sv2)
       const fullMac = boltcardCrypto.calculateCMAC(sessionKey, Buffer.alloc(0))
       const sunMac = Buffer.from([
         fullMac[1],

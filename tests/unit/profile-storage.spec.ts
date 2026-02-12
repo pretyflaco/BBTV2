@@ -11,7 +11,7 @@ let ProfileStorage: typeof ProfileStorageClass
 
 beforeAll(async () => {
   // Dynamically import to avoid module system conflicts
-  const mod = await import("../../lib/storage/ProfileStorage.js")
+  const mod = await import("../../lib/storage/ProfileStorage")
   ProfileStorage = (mod.default ||
     mod.ProfileStorage ||
     mod) as typeof ProfileStorageClass

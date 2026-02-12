@@ -4,7 +4,7 @@
  * Tests the Blink API client class.
  */
 
-const BlinkAPI = require("../../lib/blink-api.js")
+import BlinkAPI from "../../lib/blink-api"
 
 describe("BlinkAPI", () => {
   let api: InstanceType<typeof BlinkAPI>

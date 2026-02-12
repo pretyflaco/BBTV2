@@ -18,91 +18,91 @@ describe("API Configuration", () => {
 
   describe("getEnvironment()", () => {
     it("should default to production when localStorage is empty", async () => {
-      const { getEnvironment } = await import("../../lib/config/api.js")
+      const { getEnvironment } = await import("../../lib/config/api")
       expect(getEnvironment()).toBe("production")
     })
 
     it("should return staging when set in localStorage", async () => {
       localStorage.setItem("blink_environment", "staging")
-      const { getEnvironment } = await import("../../lib/config/api.js")
+      const { getEnvironment } = await import("../../lib/config/api")
       expect(getEnvironment()).toBe("staging")
     })
 
     it("should return production when invalid value in localStorage", async () => {
       localStorage.setItem("blink_environment", "invalid")
-      const { getEnvironment } = await import("../../lib/config/api.js")
+      const { getEnvironment } = await import("../../lib/config/api")
       expect(getEnvironment()).toBe("production")
     })
   })
 
   describe("getApiUrl()", () => {
     it("should return production URL by default", async () => {
-      const { getApiUrl } = await import("../../lib/config/api.js")
+      const { getApiUrl } = await import("../../lib/config/api")
       expect(getApiUrl()).toBe("https://api.blink.sv/graphql")
     })
 
     it("should return staging URL when in staging environment", async () => {
       localStorage.setItem("blink_environment", "staging")
-      const { getApiUrl } = await import("../../lib/config/api.js")
+      const { getApiUrl } = await import("../../lib/config/api")
       expect(getApiUrl()).toBe("https://api.staging.blink.sv/graphql")
     })
   })
 
   describe("getDashboardUrl()", () => {
     it("should return production dashboard URL by default", async () => {
-      const { getDashboardUrl } = await import("../../lib/config/api.js")
+      const { getDashboardUrl } = await import("../../lib/config/api")
       expect(getDashboardUrl()).toBe("https://dashboard.blink.sv")
     })
 
     it("should return staging dashboard URL when in staging", async () => {
       localStorage.setItem("blink_environment", "staging")
-      const { getDashboardUrl } = await import("../../lib/config/api.js")
+      const { getDashboardUrl } = await import("../../lib/config/api")
       expect(getDashboardUrl()).toBe("https://dashboard.staging.blink.sv")
     })
   })
 
   describe("getPayUrl()", () => {
     it("should return production pay URL by default", async () => {
-      const { getPayUrl } = await import("../../lib/config/api.js")
+      const { getPayUrl } = await import("../../lib/config/api")
       expect(getPayUrl()).toBe("https://pay.blink.sv")
     })
 
     it("should return staging pay URL when in staging", async () => {
       localStorage.setItem("blink_environment", "staging")
-      const { getPayUrl } = await import("../../lib/config/api.js")
+      const { getPayUrl } = await import("../../lib/config/api")
       expect(getPayUrl()).toBe("https://pay.staging.blink.sv")
     })
   })
 
   describe("isStaging()", () => {
     it("should return false by default", async () => {
-      const { isStaging } = await import("../../lib/config/api.js")
+      const { isStaging } = await import("../../lib/config/api")
       expect(isStaging()).toBe(false)
     })
 
     it("should return true when in staging environment", async () => {
       localStorage.setItem("blink_environment", "staging")
-      const { isStaging } = await import("../../lib/config/api.js")
+      const { isStaging } = await import("../../lib/config/api")
       expect(isStaging()).toBe(true)
     })
   })
 
   describe("isProduction()", () => {
     it("should return true by default", async () => {
-      const { isProduction } = await import("../../lib/config/api.js")
+      const { isProduction } = await import("../../lib/config/api")
       expect(isProduction()).toBe(true)
     })
 
     it("should return false when in staging environment", async () => {
       localStorage.setItem("blink_environment", "staging")
-      const { isProduction } = await import("../../lib/config/api.js")
+      const { isProduction } = await import("../../lib/config/api")
       expect(isProduction()).toBe(false)
     })
   })
 
   describe("setEnvironment()", () => {
     it("should update localStorage when switching environments", async () => {
-      const { setEnvironment } = await import("../../lib/config/api.js")
+      const { setEnvironment } = await import("../../lib/config/api")
 
       // Use reload=false to avoid jsdom navigation errors
       setEnvironment("staging", false)
@@ -111,7 +111,7 @@ describe("API Configuration", () => {
     })
 
     it("should not reload when reload=false", async () => {
-      const { setEnvironment } = await import("../../lib/config/api.js")
+      const { setEnvironment } = await import("../../lib/config/api")
 
       // This should not throw since we pass reload=false
       setEnvironment("staging", false)
@@ -120,9 +120,7 @@ describe("API Configuration", () => {
     })
 
     it("should not change anything for invalid environment", async () => {
-      const { setEnvironment, getEnvironment } = await import(
-        "../../lib/config/api.js"
-      )
+      const { setEnvironment, getEnvironment } = await import("../../lib/config/api")
 
       const consoleSpy = jest.spyOn(console, "error").mockImplementation()
 
@@ -142,7 +140,7 @@ describe("API Configuration", () => {
       localStorage.setItem("blinkpos_wallet_id", "test-wallet")
       localStorage.setItem("blinkpos_blink_account", "test-account")
 
-      const { setEnvironment } = await import("../../lib/config/api.js")
+      const { setEnvironment } = await import("../../lib/config/api")
 
       setEnvironment("staging", false)
 
@@ -155,7 +153,7 @@ describe("API Configuration", () => {
 
   describe("getAllEnvironments()", () => {
     it("should return all environment configurations", async () => {
-      const { getAllEnvironments } = await import("../../lib/config/api.js")
+      const { getAllEnvironments } = await import("../../lib/config/api")
 
       const envs = getAllEnvironments() as Record<
         string,
@@ -171,9 +169,7 @@ describe("API Configuration", () => {
 
   describe("getEnvironmentDisplayInfo()", () => {
     it("should return display info for current environment", async () => {
-      const { getEnvironmentDisplayInfo } = await import(
-        "../../lib/config/api.js"
-      )
+      const { getEnvironmentDisplayInfo } = await import("../../lib/config/api")
 
       const info = getEnvironmentDisplayInfo()
 
@@ -185,9 +181,7 @@ describe("API Configuration", () => {
 
     it("should return staging info when in staging", async () => {
       localStorage.setItem("blink_environment", "staging")
-      const { getEnvironmentDisplayInfo } = await import(
-        "../../lib/config/api.js"
-      )
+      const { getEnvironmentDisplayInfo } = await import("../../lib/config/api")
 
       const info = getEnvironmentDisplayInfo()
 

@@ -15,7 +15,7 @@ let CryptoUtils: typeof CryptoUtilsClass
 
 beforeAll(async () => {
   // Dynamically import to avoid module system conflicts
-  const mod = await import("../../lib/storage/CryptoUtils.js")
+  const mod = await import("../../lib/storage/CryptoUtils")
   CryptoUtils = (mod.default || mod.CryptoUtils || mod) as typeof CryptoUtilsClass
 })
 

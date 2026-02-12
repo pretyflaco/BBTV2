@@ -35,7 +35,7 @@ ENV NEXT_PUBLIC_GIT_COMMIT=${GIT_COMMIT}
 
 # Limit Node.js memory to avoid OOM on low-memory servers
 # Disable webpack cache to save disk space during build
-ENV NODE_OPTIONS="--max-old-space-size=512"
+ENV NODE_OPTIONS="--max-old-space-size=1024"
 
 RUN npm run build
 

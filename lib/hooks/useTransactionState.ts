@@ -8,6 +8,7 @@
  */
 
 import { useState, useCallback } from "react"
+import type { TransactionRecord } from "../../components/TransactionDetail"
 
 export interface DateRange {
   type: "preset" | "custom"
@@ -16,16 +17,10 @@ export interface DateRange {
   label: string
 }
 
-export interface Transaction {
-  id: string
-  createdAt: string
-  direction: "RECEIVE" | "SEND"
-  settlementAmount: number
-  settlementCurrency: string
-  status: string
-  memo?: string
-  [key: string]: unknown
-}
+/**
+ * @deprecated Use TransactionRecord from TransactionDetail instead
+ */
+export type Transaction = TransactionRecord
 
 export interface TransactionState {
   // Core transaction data
@@ -155,21 +150,16 @@ export function useTransactionState(): UseTransactionStateReturn {
   const [exportingData, setExportingData] = useState(false)
 
   // Date range filtering
-  const [selectedDateRange, setSelectedDateRange] = useState<DateRange | null>(
-    null
-  )
+  const [selectedDateRange, setSelectedDateRange] = useState<DateRange | null>(null)
   const [customDateStart, setCustomDateStart] = useState("")
   const [customDateEnd, setCustomDateEnd] = useState("")
   const [customTimeStart, setCustomTimeStart] = useState("00:00")
   const [customTimeEnd, setCustomTimeEnd] = useState("23:59")
-  const [filteredTransactions, setFilteredTransactions] = useState<
-    Transaction[]
-  >([])
+  const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([])
   const [dateFilterActive, setDateFilterActive] = useState(false)
 
   // Transaction detail
-  const [selectedTransaction, setSelectedTransaction] =
-    useState<Transaction | null>(null)
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
   const [labelUpdateTrigger, setLabelUpdateTrigger] = useState(0)
 
   // Search

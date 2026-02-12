@@ -30,12 +30,16 @@ import type { ListTransactionsParams } from "../../lib/nwc/NWCClient"
 import type { NostrProfile } from "../nostr/NostrProfileService"
 import type { StoredTippingSettings, StoredPreferences } from "../storage/ProfileStorage"
 // eslint-disable-next-line @typescript-eslint/no-var-requires
+const MigrationServiceModule = require("../migration/MigrationService")
 const MigrationService: {
   getPendingMigration: () => PendingMigration | null
   startMigration: (username: string) => boolean
   completeMigration: (pubkey: string) => Promise<CompleteMigrationResult>
   clearMigration: () => void
-} = require("../migration/MigrationService")
+} =
+  MigrationServiceModule.default ||
+  MigrationServiceModule.MigrationService ||
+  MigrationServiceModule
 
 // ============================================================================
 // Interfaces

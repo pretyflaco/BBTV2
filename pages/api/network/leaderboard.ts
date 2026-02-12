@@ -11,6 +11,45 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 const db = require("../../../lib/network/db")
 
+/** Community data from database */
+interface CommunityData {
+  id: string
+  name: string
+  slug: string
+  country_code: string
+  city: string
+  leader_npub: string
+}
+
+/** Milestone badge */
+interface MilestoneBadge {
+  type: string
+  threshold: number
+  badge: string
+  label: string
+}
+
+/** Leaderboard entry with computed metrics */
+interface LeaderboardEntry {
+  id: string
+  name: string
+  slug: string
+  country_code: string
+  city: string
+  leader_npub: string
+  member_count: number
+  data_sharing_count: number
+  transaction_count: number
+  transaction_volume_sats: number
+  intra_community_count: number
+  closed_loop_ratio: number
+  velocity: number
+  avg_tx_size: number
+  btc_preference_pct: number
+  milestones?: MilestoneBadge[]
+  rank?: number
+}
+
 // Milestone definitions
 const MILESTONES = {
   members: [
@@ -37,8 +76,8 @@ const MILESTONES = {
   ],
 }
 
-function getMilestones(community: any) {
-  const badges: any[] = []
+function getMilestones(community: LeaderboardEntry) {
+  const badges: MilestoneBadge[] = []
 
   // Check member milestones
   for (const m of MILESTONES.members) {
@@ -89,8 +128,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const periodRange = db.getDateRange(period)
 
     // Build leaderboard with real metrics from database
-    const leaderboard: any[] = await Promise.all(
-      communitiesData.map(async (community: any) => {
+    const leaderboard: LeaderboardEntry[] = await Promise.all(
+      communitiesData.map(async (community: CommunityData) => {
         // Get member count from database
         const memberCount = await db.getMemberCount(community.id)
 
@@ -131,12 +170,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     )
 
     // Add milestones
-    leaderboard.forEach((c: any) => {
+    leaderboard.forEach((c: LeaderboardEntry) => {
       c.milestones = getMilestones(c)
     })
 
     // Sort based on sortBy parameter
-    const sortFunctions: Record<string, (a: any, b: any) => number> = {
+    const sortFunctions: Record<
+      string,
+      (a: LeaderboardEntry, b: LeaderboardEntry) => number
+    > = {
       volume: (a, b) => b.transaction_volume_sats - a.transaction_volume_sats,
       transactions: (a, b) => b.transaction_count - a.transaction_count,
       members: (a, b) => b.member_count - a.member_count,
@@ -154,7 +196,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     leaderboard.sort(sortFn)
 
     // Add rank
-    leaderboard.forEach((c: any, index: number) => {
+    leaderboard.forEach((c: LeaderboardEntry, index: number) => {
       c.rank = index + 1
     })
 

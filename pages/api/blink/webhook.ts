@@ -25,6 +25,8 @@ import BlinkAPI from "../../../lib/blink-api"
 import { verifyWebhookSignature } from "../../../lib/webhook-verify"
 import { getInvoiceFromLightningAddress } from "../../../lib/lnurl"
 import NWCClient from "../../../lib/nwc/NWCClient"
+import type { NWCResponse, MakeInvoiceResult } from "../../../lib/nwc/NWCClient"
+import type { HybridStore } from "../../../lib/storage/hybrid-store"
 const AuthManager = require("../../../lib/auth")
 const { getHybridStore } = require("../../../lib/storage/hybrid-store")
 const {
@@ -35,6 +37,16 @@ import type { EnvironmentName } from "../../../lib/config/api"
 const { getApiUrlForEnvironment } = require("../../../lib/config/api")
 // Import boltcard LNURL-pay for top-up processing
 const boltcardLnurlp = require("../../../lib/boltcard/lnurlp")
+
+/** Result of forwarding a payment */
+interface ForwardResult {
+  type: string
+  recipientUsername?: string | null
+  recipientAddress?: string | null
+  baseAmount?: number
+  tipAmount?: number
+  tipResult?: TipResult | null
+}
 
 interface TipRecipient {
   username: string
@@ -59,7 +71,7 @@ interface ForwardingData {
   tipAmount?: number
   tipRecipients?: TipRecipient[]
   memo?: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 interface TipResult {
@@ -133,7 +145,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const startTime = Date.now()
   let paymentHash: string | null = null
-  let hybridStore: any = null
+  let hybridStore: HybridStore | null = null
 
   try {
     // Step 1: Verify webhook signature (try both production and staging secrets)
@@ -258,7 +270,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Step 3b: Try to claim the payment for BlinkPOS forwarding (atomic deduplication)
     // This prevents duplicate forwarding if both webhook and client try to process
     hybridStore = await getHybridStore()
-    const claimResult = await hybridStore.claimPaymentForProcessing(paymentHash)
+    const claimResult = await hybridStore!.claimPaymentForProcessing(paymentHash)
 
     if (!claimResult.claimed) {
       console.log(`[Webhook] Payment not claimed: ${claimResult.reason}`)
@@ -268,24 +280,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })
     }
 
-    const forwardingData: ForwardingData = claimResult.paymentData
+    const forwardingData = claimResult.paymentData as ForwardingData
 
     // Extract additional fields from metadata (they're stored in JSONB)
     if (forwardingData.metadata) {
-      forwardingData.nwcActive = forwardingData.metadata.nwcActive || false
-      forwardingData.nwcConnectionUri = forwardingData.metadata.nwcConnectionUri || null
-      forwardingData.blinkLnAddress = forwardingData.metadata.blinkLnAddress || false
+      const md = forwardingData.metadata
+      forwardingData.nwcActive = (md.nwcActive as boolean) || false
+      forwardingData.nwcConnectionUri = (md.nwcConnectionUri as string) || null
+      forwardingData.blinkLnAddress = (md.blinkLnAddress as boolean) || false
       forwardingData.blinkLnAddressWalletId =
-        forwardingData.metadata.blinkLnAddressWalletId || null
+        (md.blinkLnAddressWalletId as string) || null
       forwardingData.blinkLnAddressUsername =
-        forwardingData.metadata.blinkLnAddressUsername || null
-      forwardingData.npubCashActive = forwardingData.metadata.npubCashActive || false
+        (md.blinkLnAddressUsername as string) || null
+      forwardingData.npubCashActive = (md.npubCashActive as boolean) || false
       forwardingData.npubCashLightningAddress =
-        forwardingData.metadata.npubCashLightningAddress || null
-      forwardingData.displayCurrency = forwardingData.metadata.displayCurrency || "BTC"
-      forwardingData.tipAmountDisplay = forwardingData.metadata.tipAmountDisplay || null
+        (md.npubCashLightningAddress as string) || null
+      forwardingData.displayCurrency = (md.displayCurrency as string) || "BTC"
+      forwardingData.tipAmountDisplay = (md.tipAmountDisplay as number) || null
       // Environment for staging/production API calls
-      forwardingData.environment = forwardingData.metadata.environment || "production"
+      forwardingData.environment = (md.environment as EnvironmentName) || "production"
     }
 
     console.log("[Webhook] Forwarding data found:", {
@@ -303,7 +316,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log("[Webhook] Payment claimed for forwarding")
 
     // Step 5: Forward the payment based on the forwarding type
-    let forwardResult: any
+    let forwardResult: ForwardResult
     const amount = transaction.settlementAmount
 
     try {
@@ -317,7 +330,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           paymentHash,
           amount,
           forwardingData,
-          hybridStore,
+          hybridStore!,
         )
       } else if (
         forwardingData.npubCashActive &&
@@ -332,7 +345,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           paymentHash,
           amount,
           forwardingData,
-          hybridStore,
+          hybridStore!,
         )
       } else if (forwardingData.nwcActive && forwardingData.nwcConnectionUri) {
         // Forward to NWC wallet using stored encrypted connection URI
@@ -341,13 +354,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           paymentHash,
           amount,
           forwardingData,
-          hybridStore,
+          hybridStore!,
         )
       } else if (forwardingData.nwcActive) {
         // NWC active but no URI stored (legacy invoice or error)
         console.log("[Webhook] NWC payment but no connection URI - client must handle")
         // Release the claim so client can try
-        await hybridStore.releaseFailedClaim(
+        await hybridStore!.releaseFailedClaim(
           paymentHash,
           "NWC requires client-side forwarding (no URI stored)",
         )
@@ -362,11 +375,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           paymentHash,
           amount,
           forwardingData,
-          hybridStore,
+          hybridStore!,
         )
       } else {
         console.warn("[Webhook] No valid forwarding destination found")
-        await hybridStore.releaseFailedClaim(
+        await hybridStore!.releaseFailedClaim(
           paymentHash,
           "No valid forwarding destination",
         )
@@ -379,7 +392,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.log(`[Webhook] Forwarding completed in ${elapsed}ms:`, forwardResult)
 
       // Log success event
-      await hybridStore.logEvent(paymentHash, "webhook_forward", "success", {
+      await hybridStore!.logEvent(paymentHash, "webhook_forward", "success", {
         forwardType: forwardResult.type,
         amount,
         elapsed,
@@ -396,10 +409,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         forwardError instanceof Error ? forwardError.message : "Unknown error"
 
       // Release the claim so it can be retried
-      await hybridStore.releaseFailedClaim(paymentHash, errorMessage)
+      await hybridStore!.releaseFailedClaim(paymentHash, errorMessage)
 
       // Log failure event
-      await hybridStore.logEvent(paymentHash, "webhook_forward", "failed", {
+      await hybridStore!.logEvent(paymentHash, "webhook_forward", "failed", {
         error: errorMessage,
       })
 
@@ -438,7 +451,7 @@ async function forwardToLnAddress(
   paymentHash: string,
   amount: number,
   forwardingData: ForwardingData,
-  hybridStore: any,
+  hybridStore: HybridStore,
 ) {
   // Get the environment-specific API URL and credentials from stored forwarding data
   const environment = forwardingData.environment || "production"
@@ -585,7 +598,7 @@ async function forwardToNpubCash(
   paymentHash: string,
   amount: number,
   forwardingData: ForwardingData,
-  hybridStore: any,
+  hybridStore: HybridStore,
 ) {
   // Get the environment-specific API URL and credentials from stored forwarding data
   const environment = forwardingData.environment || "production"
@@ -679,7 +692,7 @@ async function forwardToNWCWallet(
   paymentHash: string,
   amount: number,
   forwardingData: ForwardingData,
-  hybridStore: any,
+  hybridStore: HybridStore,
 ) {
   // Get the environment-specific API URL and credentials from stored forwarding data
   const environment = forwardingData.environment || "production"
@@ -729,7 +742,7 @@ async function forwardToNWCWallet(
   // Create NWC client and invoice
   const nwcClient = new NWCClient(nwcUri)
 
-  let invoiceResult: any
+  let invoiceResult: NWCResponse<MakeInvoiceResult>
   try {
     invoiceResult = await nwcClient.makeInvoice({
       amount: baseAmount * 1000, // NWC uses millisats
@@ -801,7 +814,7 @@ async function forwardToUserWallet(
   paymentHash: string,
   amount: number,
   forwardingData: ForwardingData,
-  hybridStore: any,
+  hybridStore: HybridStore,
 ) {
   // Get the environment-specific API URL and credentials from stored forwarding data
   const environment = forwardingData.environment || "production"
@@ -884,7 +897,7 @@ async function forwardToUserWallet(
  * Supports both Blink usernames and npub.cash addresses
  */
 async function sendTips(
-  blinkposAPI: any,
+  blinkposAPI: BlinkAPI,
   blinkposBtcWalletId: string | undefined,
   tipAmount: number,
   tipRecipients: TipRecipient[],
@@ -970,7 +983,7 @@ async function sendTips(
         )
 
         const tipPaymentResult = await blinkposAPI.payLnInvoice(
-          blinkposBtcWalletId,
+          blinkposBtcWalletId!,
           tipInvoiceData.paymentRequest,
           tipMemo,
         )
@@ -994,7 +1007,7 @@ async function sendTips(
       } else {
         // Send tip to Blink user (existing method)
         const tipPaymentResult = await blinkposAPI.sendTipViaInvoice(
-          blinkposBtcWalletId,
+          blinkposBtcWalletId!,
           recipient.username,
           recipientTipAmount,
           tipMemo,

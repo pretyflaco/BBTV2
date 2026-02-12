@@ -1,4 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next"
+import type { HybridStore } from "../../../lib/storage/hybrid-store"
+import type { LnurlFullInvoiceResponse } from "../../../lib/lnurl"
 
 /**
  * API endpoint to forward payment to an npub.cash wallet
@@ -21,12 +23,39 @@ const {
   isBitcoinCurrency,
 } = require("../../../lib/currency-formatter-server")
 
+interface ApiTipRecipient {
+  username: string
+  share?: number
+  type?: string
+}
+
+interface TipResultEntry {
+  success: boolean
+  skipped?: boolean
+  amount?: number
+  recipient: string
+  error?: string
+  reason?: string
+  status?: string
+  type?: string
+}
+
+interface TipDistributionResult {
+  success: boolean
+  partialSuccess?: boolean
+  totalAmount?: number
+  recipients?: TipResultEntry[]
+  successCount?: number
+  totalCount?: number
+  error?: string
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" })
   }
 
-  let hybridStore: any = null
+  let hybridStore: HybridStore | null = null
   let paymentHash: string | null = null
   let claimSucceeded = false
 
@@ -69,10 +98,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Check stored tip data for environment
     hybridStore = await getHybridStore()
+    if (!hybridStore) {
+      return res.status(500).json({ error: "Storage unavailable" })
+    }
     if (paymentHash) {
       const tipData = await hybridStore.getTipData(paymentHash)
       if (tipData?.environment) {
-        environment = tipData.environment
+        environment = tipData.environment as EnvironmentName
       }
     }
 
@@ -142,7 +174,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Check for tip data if we have a payment hash
     let baseAmount = totalAmount
     let tipAmount = 0
-    let tipRecipients: any[] = []
+    let tipRecipients: ApiTipRecipient[] = []
     let displayCurrency = "BTC"
     let baseAmountDisplay = totalAmount
     let tipAmountDisplay = 0
@@ -155,8 +187,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         tipAmount = tipData.tipAmount || 0
         tipRecipients = tipData.tipRecipients || []
         displayCurrency = tipData.displayCurrency || "BTC"
-        baseAmountDisplay = tipData.baseAmountDisplay || baseAmount
-        tipAmountDisplay = tipData.tipAmountDisplay || tipAmount
+        baseAmountDisplay = Number(tipData.baseAmountDisplay) || baseAmount
+        tipAmountDisplay = Number(tipData.tipAmountDisplay) || tipAmount
         storedMemo = tipData.memo || memo
 
         console.log("📄 Tip data found:", {
@@ -170,7 +202,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Format the forwarding memo with tip recipient information
     let forwardingMemo: string
-    const recipientNames = tipRecipients.map((r: any) => r.username).join(", ")
+    const recipientNames = tipRecipients
+      .map((r: ApiTipRecipient) => r.username)
+      .join(", ")
 
     if (storedMemo && tipAmount > 0 && tipRecipients.length > 0) {
       // Generate enhanced memo with tip info
@@ -216,7 +250,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Step 1: Get invoice from npub.cash via LNURL-pay
     console.log("🔍 Resolving npub.cash LNURL for:", recipientAddress)
 
-    let invoiceData: any
+    let invoiceData: LnurlFullInvoiceResponse
     try {
       invoiceData = await getInvoiceFromLightningAddress(
         recipientAddress,
@@ -273,33 +307,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Step 3: Send tips AFTER base amount
-    let tipResult: any = null
+    let tipResult: TipDistributionResult | null = null
     if (tipAmount > 0 && tipRecipients.length > 0) {
       console.log("💡 Sending tips to recipients...")
 
       // Calculate weighted tip amounts based on share percentages
       let distributedSats = 0
-      const recipientAmounts = tipRecipients.map((recipient: any, index: number) => {
-        const sharePercent = recipient.share || 100 / tipRecipients.length
-        // For the last recipient, give them whatever is left to avoid rounding issues
-        if (index === tipRecipients.length - 1) {
-          return tipAmount - distributedSats
-        }
-        const amount = Math.floor((tipAmount * sharePercent) / 100)
-        distributedSats += amount
-        return amount
-      })
+      const recipientAmounts = tipRecipients.map(
+        (recipient: ApiTipRecipient, index: number) => {
+          const sharePercent = recipient.share || 100 / tipRecipients.length
+          // For the last recipient, give them whatever is left to avoid rounding issues
+          if (index === tipRecipients.length - 1) {
+            return tipAmount - distributedSats
+          }
+          const amount = Math.floor((tipAmount * sharePercent) / 100)
+          distributedSats += amount
+          return amount
+        },
+      )
 
       console.log("💡 [npub.cash] Processing tips with weighted shares:", {
         totalTipSats: tipAmount,
         recipientCount: tipRecipients.length,
         distribution: tipRecipients.map(
-          (r: any, i: number) =>
+          (r: ApiTipRecipient, i: number) =>
             `${r.username}: ${r.share || 100 / tipRecipients.length}% = ${recipientAmounts[i]} sats`,
         ),
       })
 
-      const tipResults: any[] = []
+      const tipResults: TipResultEntry[] = []
       const isMultiple = tipRecipients.length > 1
 
       for (let i = 0; i < tipRecipients.length; i++) {
@@ -411,7 +447,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
 
-      const successCount = tipResults.filter((r: any) => r.success).length
+      const successCount = tipResults.filter((r: TipResultEntry) => r.success).length
       tipResult = {
         success: successCount === tipRecipients.length,
         partialSuccess: successCount > 0 && successCount < tipRecipients.length,

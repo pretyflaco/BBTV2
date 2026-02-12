@@ -27,9 +27,54 @@ import React, {
   useRef,
 } from "react"
 import ProfileStorage from "../storage/ProfileStorage"
-import type { StoredBlinkAccount } from "../storage/ProfileStorage"
+import type {
+  StoredBlinkAccount,
+  StoredNWCConnection,
+  StoredTippingSettings,
+  StoredPreferences,
+  StoredProfile,
+  ProfileExportData,
+} from "../storage/ProfileStorage"
 import CryptoUtils from "../storage/CryptoUtils"
+import type { EncryptedData } from "../storage/CryptoUtils"
 import { useNostrAuth } from "./useNostrAuth"
+
+// ============= Server Response Types =============
+
+interface ServerBlinkApiAccount {
+  id: string
+  label: string
+  username?: string
+  apiKey?: string
+  defaultCurrency?: string
+  isActive: boolean
+  createdAt: string
+  lastUsed?: string
+}
+
+interface ServerLnAddressWallet {
+  id: string
+  label: string
+  username?: string
+  lightningAddress?: string
+  walletId?: string
+  isActive: boolean
+  createdAt: string
+  lastUsed?: string
+}
+
+interface ServerNpubCashWallet {
+  id: string
+  label: string
+  address?: string
+  lightningAddress?: string
+  localpart?: string
+  isNpub?: boolean
+  pubkey?: string
+  isActive: boolean
+  createdAt?: string
+  lastUsed?: string
+}
 
 // ============= Local Type Definitions =============
 
@@ -41,12 +86,12 @@ import { useNostrAuth } from "./useNostrAuth"
 export interface LocalBlinkAccount {
   id: string
   label: string
-  apiKey?: any // Encrypted blob from CryptoUtils
+  apiKey?: EncryptedData // Encrypted blob from CryptoUtils
   username?: string
   defaultCurrency?: string
   isActive: boolean
   createdAt?: number | string
-  lastUsed?: number
+  lastUsed?: number | null
   type?: string // 'ln-address' | 'npub-cash' | undefined (for API key accounts)
   lightningAddress?: string
   walletId?: string
@@ -63,9 +108,9 @@ interface ProfileState {
   loading: boolean
   error: string | null
   blinkAccounts: LocalBlinkAccount[]
-  nwcConnections: any[]
-  tippingSettings: any
-  preferences: any
+  nwcConnections: StoredNWCConnection[]
+  tippingSettings: StoredTippingSettings | null
+  preferences: StoredPreferences | null
   serverSynced: boolean
 }
 
@@ -80,13 +125,13 @@ export interface ProfileContextValue {
 
   // Profile data
   blinkAccounts: LocalBlinkAccount[]
-  nwcConnections: any[]
-  tippingSettings: any
-  preferences: any
+  nwcConnections: StoredNWCConnection[]
+  tippingSettings: StoredTippingSettings | null
+  preferences: StoredPreferences | null
 
   // Computed
   activeBlinkAccount: LocalBlinkAccount | null
-  activeNWCConnection: any
+  activeNWCConnection: StoredNWCConnection | null
   hasBlinkAccount: boolean
   hasNWCConnection: boolean
   hasNpubCashWallet: boolean
@@ -99,46 +144,55 @@ export interface ProfileContextValue {
     apiKey: string
     username: string
     defaultCurrency?: string
-  }) => Promise<any>
+  }) => Promise<{ success: boolean; account?: StoredBlinkAccount; error?: string }>
   addBlinkLnAddressAccount: (params: {
     label: string
     username: string
     walletId: string
     walletCurrency?: string
     lightningAddress: string
-  }) => Promise<any>
+  }) => Promise<{ success: boolean; account?: StoredBlinkAccount; error?: string }>
   addNpubCashAccount: (params: {
     lightningAddress: string
     label?: string
-  }) => Promise<any>
-  getBlinkApiKey: (accountId: string) => Promise<any>
-  getActiveBlinkApiKey: () => Promise<any>
+  }) => Promise<{ success: boolean; wallet?: StoredBlinkAccount; error?: string }>
+  getBlinkApiKey: (accountId: string) => Promise<string | null>
+  getActiveBlinkApiKey: () => Promise<string | null>
   setActiveBlinkAccount: (accountId: string) => void
   updateBlinkAccount: (
     accountId: string,
     updates: Partial<LocalBlinkAccount>,
-  ) => Promise<any>
-  removeBlinkAccount: (accountId: string) => Promise<any>
+  ) => Promise<{ success: boolean; error?: string }>
+  removeBlinkAccount: (accountId: string) => Promise<{ success: boolean; error?: string }>
 
   // NWC connection actions
   addNWCConnection: (params: {
     label: string
     uri: string
     capabilities?: string[]
-  }) => Promise<any>
-  getNWCUri: (connectionId: string) => Promise<any>
-  getActiveNWCUri: () => Promise<any>
+  }) => Promise<{ success: boolean; connection?: StoredNWCConnection; error?: string }>
+  getNWCUri: (connectionId: string) => Promise<string>
+  getActiveNWCUri: () => Promise<string | null>
   setActiveNWCConnection: (connectionId: string) => void
-  removeNWCConnection: (connectionId: string) => any
+  removeNWCConnection: (connectionId: string) => { success: boolean; error?: string }
 
   // Settings actions
-  updateTippingSettings: (settings: any) => any
-  updatePreferences: (preferences: any) => any
+  updateTippingSettings: (settings: Partial<StoredTippingSettings>) => {
+    success: boolean
+    error?: string
+  }
+  updatePreferences: (preferences: Partial<StoredPreferences>) => {
+    success: boolean
+    error?: string
+  }
 
   // Export/Import
-  exportProfile: () => any
-  exportAllProfiles: () => any
-  importProfiles: (data: any, merge?: boolean) => any
+  exportProfile: () => ProfileExportData
+  exportAllProfiles: () => ProfileExportData
+  importProfiles: (
+    data: ProfileExportData,
+    merge?: boolean,
+  ) => { success: boolean; error?: string }
 
   // Refresh
   refreshProfile: () => Promise<void>
@@ -166,7 +220,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
   } = useNostrAuth() as {
     isAuthenticated: boolean
     publicKey: string | null
-    profile: any
+    profile: StoredProfile | null
     refreshProfile: () => void
     hasServerSession: boolean
   }
@@ -225,10 +279,10 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
           // Decrypt API keys before sending to server (server will re-encrypt)
           const accountsWithDecryptedKeys = await Promise.all(
             apiAccounts.map(async (account: LocalBlinkAccount) => {
-              let apiKey: any = null
+              let apiKey: string | null = null
               try {
                 // API key is stored encrypted locally - decrypt it
-                apiKey = await CryptoUtils.decryptWithDeviceKey(account.apiKey)
+                apiKey = await CryptoUtils.decryptWithDeviceKey(account.apiKey!)
               } catch (err: unknown) {
                 console.error(
                   "[useProfile] Failed to decrypt API key for account:",
@@ -253,9 +307,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
           )
 
           // Filter out accounts where decryption failed
-          const validAccounts = accountsWithDecryptedKeys.filter(
-            (a: { apiKey: any }) => a.apiKey,
-          )
+          const validAccounts = accountsWithDecryptedKeys.filter((a) => a.apiKey)
 
           if (validAccounts.length === 0) {
             console.log("[useProfile] No valid Blink API accounts after decryption")
@@ -540,9 +592,9 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
 
         const accountsWithDecryptedKeys = await Promise.all(
           apiAccounts.map(async (account: LocalBlinkAccount) => {
-            let apiKey: any = null
+            let apiKey: string | null = null
             try {
-              apiKey = await CryptoUtils.decryptWithDeviceKey(account.apiKey)
+              apiKey = await CryptoUtils.decryptWithDeviceKey(account.apiKey!)
             } catch (decryptErr: unknown) {
               console.warn("[useProfile] Could not decrypt API key for", account.username)
             }
@@ -561,9 +613,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
           }),
         )
 
-        const validAccounts = accountsWithDecryptedKeys.filter(
-          (a: { apiKey: any }) => a.apiKey,
-        )
+        const validAccounts = accountsWithDecryptedKeys.filter((a) => a.apiKey)
 
         const response = await fetch("/api/user/sync", {
           method: "PATCH",
@@ -591,9 +641,9 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
    * NOTE: This requires hasServerSession to be true - caller must check
    */
   const fetchBlinkDataFromServer = useCallback(async (): Promise<{
-    blinkApiAccounts: any[]
-    blinkLnAddressWallets: any[]
-    npubCashWallets: any[]
+    blinkApiAccounts: ServerBlinkApiAccount[]
+    blinkLnAddressWallets: ServerLnAddressWallet[]
+    npubCashWallets: ServerNpubCashWallet[]
   }> => {
     if (!publicKey)
       return { blinkApiAccounts: [], blinkLnAddressWallets: [], npubCashWallets: [] }
@@ -639,7 +689,9 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
   /**
    * Fetch LN Address wallets from server (backwards compatibility)
    */
-  const fetchLnAddressWalletsFromServer = useCallback(async (): Promise<any[]> => {
+  const fetchLnAddressWalletsFromServer = useCallback(async (): Promise<
+    ServerLnAddressWallet[]
+  > => {
     const data = await fetchBlinkDataFromServer()
     return data.blinkLnAddressWallets
   }, [fetchBlinkDataFromServer])
@@ -670,9 +722,10 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
 
     // Fetch all Blink data from server for cross-device sync
     const serverData = await fetchBlinkDataFromServer()
-    const serverApiAccounts: any[] = serverData.blinkApiAccounts || []
-    const serverLnAddressWallets: any[] = serverData.blinkLnAddressWallets || []
-    const serverNpubCashWallets: any[] = serverData.npubCashWallets || []
+    const serverApiAccounts: ServerBlinkApiAccount[] = serverData.blinkApiAccounts || []
+    const serverLnAddressWallets: ServerLnAddressWallet[] =
+      serverData.blinkLnAddressWallets || []
+    const serverNpubCashWallets: ServerNpubCashWallet[] = serverData.npubCashWallets || []
 
     // Separate local accounts by type
     const localApiKeyAccounts = localAccounts.filter(
@@ -739,7 +792,8 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
       // Add any local-only API accounts
       for (const localAccount of localApiKeyAccounts) {
         const existsOnServer = serverApiAccounts.find(
-          (s: any) => s.id === localAccount.id || s.username === localAccount.username,
+          (s: ServerBlinkApiAccount) =>
+            s.id === localAccount.id || s.username === localAccount.username,
         )
         if (!existsOnServer) {
           mergedApiAccounts.push(localAccount)
@@ -807,7 +861,11 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
 
       // Add any local-only LN Address wallets
       for (const localWallet of localLnAddressWallets) {
-        if (!serverLnAddressWallets.find((s: any) => s.id === localWallet.id)) {
+        if (
+          !serverLnAddressWallets.find(
+            (s: ServerLnAddressWallet) => s.id === localWallet.id,
+          )
+        ) {
           mergedLnAddressWallets.push(localWallet)
           needsServerSyncLnAddr = true
         }
@@ -875,7 +933,11 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
 
       // Add any local-only npub.cash wallets
       for (const localWallet of localNpubCashWallets) {
-        if (!serverNpubCashWallets.find((s: any) => s.id === localWallet.id)) {
+        if (
+          !serverNpubCashWallets.find(
+            (s: ServerNpubCashWallet) => s.id === localWallet.id,
+          )
+        ) {
           mergedNpubCashWallets.push(localWallet)
           needsServerSyncNpubCash = true
         }
@@ -899,9 +961,9 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
     // Update localStorage with merged data if needed
     if (needsLocalUpdate && authProfile.id) {
       console.log("[useProfile] Updating localStorage with merged accounts")
-      const profile: any = ProfileStorage.getProfileById(authProfile.id)
+      const profile = ProfileStorage.getProfileById(authProfile.id)
       if (profile) {
-        profile.blinkAccounts = mergedAccounts
+        profile.blinkAccounts = mergedAccounts as StoredBlinkAccount[]
         ProfileStorage.updateProfile(profile)
       }
     }
@@ -961,7 +1023,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
       apiKey: string
       username: string
       defaultCurrency?: string
-    }): Promise<any> => {
+    }): Promise<{ success: boolean; account?: StoredBlinkAccount; error?: string }> => {
       if (!authProfile) throw new Error("Not authenticated")
 
       const profileId: string = authProfile.id
@@ -980,10 +1042,10 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
         refreshAuthProfile()
 
         // Load data directly from storage to avoid stale closure issues
-        const freshProfile: any = ProfileStorage.getProfileById(profileId)
+        const freshProfile = ProfileStorage.getProfileById(profileId)
         if (freshProfile) {
-          const activeAccount: LocalBlinkAccount | undefined =
-            freshProfile.blinkAccounts.find((a: LocalBlinkAccount) => a.isActive) || null
+          const activeAccount: StoredBlinkAccount | null =
+            freshProfile.blinkAccounts.find((a: StoredBlinkAccount) => a.isActive) || null
           updateState({
             loading: false,
             blinkAccounts: freshProfile.blinkAccounts,
@@ -1022,7 +1084,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
       walletId: string
       walletCurrency?: string
       lightningAddress: string
-    }): Promise<any> => {
+    }): Promise<{ success: boolean; account?: StoredBlinkAccount; error?: string }> => {
       if (!authProfile) throw new Error("Not authenticated")
 
       const profileId: string = authProfile.id
@@ -1041,10 +1103,10 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
         refreshAuthProfile()
 
         // Load data directly from storage to avoid stale closure issues
-        const freshProfile: any = ProfileStorage.getProfileById(profileId)
+        const freshProfile = ProfileStorage.getProfileById(profileId)
         if (freshProfile) {
-          const activeAccount: LocalBlinkAccount | undefined =
-            freshProfile.blinkAccounts.find((a: LocalBlinkAccount) => a.isActive) || null
+          const activeAccount: StoredBlinkAccount | null =
+            freshProfile.blinkAccounts.find((a: StoredBlinkAccount) => a.isActive) || null
           updateState({
             loading: false,
             blinkAccounts: freshProfile.blinkAccounts,
@@ -1078,7 +1140,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
     }: {
       lightningAddress: string
       label?: string
-    }): Promise<any> => {
+    }): Promise<{ success: boolean; wallet?: StoredBlinkAccount; error?: string }> => {
       if (!authProfile) throw new Error("Not authenticated")
 
       const profileId: string = authProfile.id
@@ -1094,10 +1156,10 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
         refreshAuthProfile()
 
         // Load data directly from storage to avoid stale closure issues
-        const freshProfile: any = ProfileStorage.getProfileById(profileId)
+        const freshProfile = ProfileStorage.getProfileById(profileId)
         if (freshProfile) {
-          const activeAccount: LocalBlinkAccount | undefined =
-            freshProfile.blinkAccounts.find((a: LocalBlinkAccount) => a.isActive) || null
+          const activeAccount: StoredBlinkAccount | null =
+            freshProfile.blinkAccounts.find((a: StoredBlinkAccount) => a.isActive) || null
           updateState({
             loading: false,
             blinkAccounts: freshProfile.blinkAccounts,
@@ -1124,7 +1186,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
    * Get decrypted API key for an account
    */
   const getBlinkApiKey = useCallback(
-    async (accountId: string): Promise<any> => {
+    async (accountId: string): Promise<string | null> => {
       if (!authProfile) throw new Error("Not authenticated")
 
       try {
@@ -1140,7 +1202,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
   /**
    * Get API key for active Blink account
    */
-  const getActiveBlinkApiKey = useCallback(async (): Promise<any> => {
+  const getActiveBlinkApiKey = useCallback(async (): Promise<string | null> => {
     if (!authProfile) return null
 
     try {
@@ -1167,10 +1229,10 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
         refreshAuthProfile()
 
         // Load data directly from storage to avoid stale closure issues
-        const freshProfile: any = ProfileStorage.getProfileById(profileId)
+        const freshProfile = ProfileStorage.getProfileById(profileId)
         if (freshProfile) {
-          const activeAccount: LocalBlinkAccount | undefined =
-            freshProfile.blinkAccounts.find((a: LocalBlinkAccount) => a.isActive) || null
+          const activeAccount: StoredBlinkAccount | null =
+            freshProfile.blinkAccounts.find((a: StoredBlinkAccount) => a.isActive) || null
           updateState({
             blinkAccounts: freshProfile.blinkAccounts,
           })
@@ -1187,7 +1249,10 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
    * Update a Blink account
    */
   const updateBlinkAccount = useCallback(
-    async (accountId: string, updates: Partial<LocalBlinkAccount>): Promise<any> => {
+    async (
+      accountId: string,
+      updates: Partial<LocalBlinkAccount>,
+    ): Promise<{ success: boolean; error?: string }> => {
       if (!authProfile) throw new Error("Not authenticated")
 
       const profileId: string = authProfile.id
@@ -1204,10 +1269,10 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
         refreshAuthProfile()
 
         // Load data directly from storage to avoid stale closure issues
-        const freshProfile: any = ProfileStorage.getProfileById(profileId)
+        const freshProfile = ProfileStorage.getProfileById(profileId)
         if (freshProfile) {
-          const activeAccount: LocalBlinkAccount | undefined =
-            freshProfile.blinkAccounts.find((a: LocalBlinkAccount) => a.isActive) || null
+          const activeAccount: StoredBlinkAccount | null =
+            freshProfile.blinkAccounts.find((a: StoredBlinkAccount) => a.isActive) || null
           updateState({
             loading: false,
             blinkAccounts: freshProfile.blinkAccounts,
@@ -1231,7 +1296,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
    * Remove a Blink account
    */
   const removeBlinkAccount = useCallback(
-    async (accountId: string): Promise<any> => {
+    async (accountId: string): Promise<{ success: boolean; error?: string }> => {
       if (!authProfile) throw new Error("Not authenticated")
 
       try {
@@ -1245,7 +1310,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
         refreshAuthProfile()
 
         // Get the updated profile and sync to server IMMEDIATELY to persist the deletion
-        const freshProfile: any = ProfileStorage.getProfileById(authProfile.id)
+        const freshProfile = ProfileStorage.getProfileById(authProfile.id)
         if (freshProfile) {
           // Sync the appropriate wallet type to server IMMEDIATELY (not debounced)
           // This prevents the deleted wallet from being re-added on next load
@@ -1295,7 +1360,11 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
       label: string
       uri: string
       capabilities?: string[]
-    }): Promise<any> => {
+    }): Promise<{
+      success: boolean
+      connection?: StoredNWCConnection
+      error?: string
+    }> => {
       if (!authProfile) throw new Error("Not authenticated")
 
       updateState({ loading: true, error: null })
@@ -1327,7 +1396,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
    * Get decrypted NWC URI
    */
   const getNWCUri = useCallback(
-    async (connectionId: string): Promise<any> => {
+    async (connectionId: string): Promise<string> => {
       if (!authProfile) throw new Error("Not authenticated")
 
       try {
@@ -1343,7 +1412,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
   /**
    * Get active NWC URI
    */
-  const getActiveNWCUri = useCallback(async (): Promise<any> => {
+  const getActiveNWCUri = useCallback(async (): Promise<string | null> => {
     if (!authProfile) return null
 
     try {
@@ -1400,7 +1469,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
    * Update tipping settings
    */
   const updateTippingSettings = useCallback(
-    (settings: any): { success: boolean; error?: string } => {
+    (settings: Partial<StoredTippingSettings>): { success: boolean; error?: string } => {
       if (!authProfile) throw new Error("Not authenticated")
 
       try {
@@ -1421,7 +1490,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
    * Update preferences
    */
   const updatePreferences = useCallback(
-    (preferences: any): { success: boolean; error?: string } => {
+    (preferences: Partial<StoredPreferences>): { success: boolean; error?: string } => {
       if (!authProfile) throw new Error("Not authenticated")
 
       try {
@@ -1443,7 +1512,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
   /**
    * Export profile data
    */
-  const exportProfile = useCallback((): any => {
+  const exportProfile = useCallback((): ProfileExportData => {
     if (!authProfile) throw new Error("Not authenticated")
 
     try {
@@ -1457,7 +1526,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
   /**
    * Export all profiles
    */
-  const exportAllProfiles = useCallback((): any => {
+  const exportAllProfiles = useCallback((): ProfileExportData => {
     return ProfileStorage.exportAllProfiles()
   }, [])
 
@@ -1465,7 +1534,10 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
    * Import profiles
    */
   const importProfiles = useCallback(
-    (data: any, merge: boolean = true): { success: boolean; error?: string } => {
+    (
+      data: ProfileExportData,
+      merge: boolean = true,
+    ): { success: boolean; error?: string } => {
       try {
         ProfileStorage.importProfiles(data, merge)
         refreshAuthProfile()
@@ -1492,7 +1564,8 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
     [state.blinkAccounts],
   )
   const activeNWCConnection = useMemo(
-    (): any => state.nwcConnections.find((c: any) => c.isActive) || null,
+    (): StoredNWCConnection | null =>
+      state.nwcConnections.find((c: StoredNWCConnection) => c.isActive) || null,
     [state.nwcConnections],
   )
   const hasBlinkAccount: boolean = state.blinkAccounts.length > 0

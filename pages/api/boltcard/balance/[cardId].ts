@@ -176,7 +176,27 @@ async function handleBalanceGet(
     console.log(`[BALANCE] Card ${cardId} balance: ${displayBalance}`)
 
     // Return balance response (no sensitive data)
-    const response: any = {
+    const response: {
+      card: {
+        name: string
+        balance: number
+        currency: string
+        displayBalance: string
+        dailyLimit: number | null
+        dailyRemaining: number | null
+        dailySpent: number
+        status: string
+        lastUsedAt: string | null
+      }
+      transactions: {
+        type: string
+        amount: number
+        description: string
+        createdAt: string
+      }[]
+      topUp: { lnurl: string; url: string }
+      pendingTopUps?: { processed: number; total: number }
+    } = {
       card: {
         name: updatedCard.name || "Boltcard",
         balance: updatedCard.balance,
@@ -188,12 +208,19 @@ async function handleBalanceGet(
         status: updatedCard.status,
         lastUsedAt: updatedCard.lastUsedAt,
       },
-      transactions: transactions.map((tx: any) => ({
-        type: tx.type,
-        amount: tx.amount,
-        description: tx.description,
-        createdAt: tx.createdAt,
-      })),
+      transactions: transactions.map(
+        (tx: {
+          type: string
+          amount: number
+          description: string
+          createdAt: string
+        }) => ({
+          type: tx.type,
+          amount: tx.amount,
+          description: tx.description,
+          createdAt: tx.createdAt,
+        }),
+      ),
       topUp: {
         lnurl: topUpData.qrData,
         url: topUpData.url,

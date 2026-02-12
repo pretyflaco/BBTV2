@@ -8,11 +8,48 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 const db = require("../../../lib/network/db")
 
+/** Community data from database */
+interface CommunityData {
+  id: string
+  name: string
+  slug: string
+  latitude: string
+  longitude: string
+  country_code: string
+  city: string
+  region?: string
+}
+
+/** Metrics for a community over a time period */
+interface CommunityMetrics {
+  transaction_count: number
+  total_volume_sats: number
+  closed_loop_ratio: number
+}
+
+/** Heatmap community entry */
+interface HeatmapCommunity {
+  id: string
+  name: string
+  slug: string
+  latitude: number
+  longitude: number
+  country_code: string
+  city: string
+  region?: string
+  member_count: number
+  data_sharing_count: number
+  transaction_count: number
+  volume_sats: number
+  closed_loop_ratio: number
+  intensity_score: number
+}
+
 /**
  * Calculate intensity score based on activity
  * Score from 0-100, used for marker size/color
  */
-function calculateIntensity(metrics: any, memberCount: number): number {
+function calculateIntensity(metrics: CommunityMetrics, memberCount: number): number {
   let score = 0
 
   // Base score for having members (0-20)
@@ -50,7 +87,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Build community data with real metrics
     const communities = await Promise.all(
-      communitiesData.map(async (community: any) => {
+      communitiesData.map(async (community: CommunityData) => {
         // Get member count from database
         const memberCount = await db.getMemberCount(community.id)
 
@@ -84,13 +121,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Filter out communities without valid coordinates
     const validCommunities = communities.filter(
-      (c: any) => c.latitude !== 0 && c.longitude !== 0,
+      (c: HeatmapCommunity) => c.latitude !== 0 && c.longitude !== 0,
     )
 
     // Calculate bounds to fit all communities
     if (validCommunities.length > 0) {
-      const lats = validCommunities.map((c: any) => c.latitude)
-      const lngs = validCommunities.map((c: any) => c.longitude)
+      const lats = validCommunities.map((c: HeatmapCommunity) => c.latitude)
+      const lngs = validCommunities.map((c: HeatmapCommunity) => c.longitude)
 
       const bounds = {
         north: Math.max(...lats) + 5,

@@ -90,7 +90,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const metadataArray = JSON.parse(blinkData.metadata)
         // Remove text/identifier entries to prevent Blink intraledger detection
         const filteredMetadata = metadataArray.filter(
-          (item: any) => item[0] !== "text/identifier",
+          (item: [string, string]) => item[0] !== "text/identifier",
         )
         metadata = JSON.stringify(filteredMetadata)
         console.log(
@@ -103,7 +103,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Return LNURL-pay response with our callback
     // Match LNbits format: only include optional fields when they have meaningful values
-    const response: any = {
+    const response: {
+      tag: string
+      callback: string
+      minSendable: number
+      maxSendable: number
+      metadata: string
+      commentAllowed?: number
+      allowsNostr?: boolean
+      nostrPubkey?: string
+    } = {
       tag: "payRequest", // LNbits puts tag first
       callback: callbackUrl,
       minSendable,

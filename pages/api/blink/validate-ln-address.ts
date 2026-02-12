@@ -92,7 +92,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.error("Blink GraphQL errors:", btcData.errors)
 
       const notFoundError = btcData.errors.find(
-        (e: any) =>
+        (e: { message?: string }) =>
           e.message?.toLowerCase().includes("not found") ||
           e.message?.toLowerCase().includes("no account") ||
           e.message?.toLowerCase().includes("no user"),

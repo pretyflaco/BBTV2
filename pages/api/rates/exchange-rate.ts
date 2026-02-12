@@ -69,7 +69,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })
     }
 
-    let rateData: any
+    let rateData: { satPriceInCurrency: number; currency?: string; provider?: string }
 
     if (providerId === "citrusrate_street") {
       // Use Citrusrate for street/black market rate currencies (e.g., MZN_STREET)

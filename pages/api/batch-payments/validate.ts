@@ -20,6 +20,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 import { parseCSV, quickValidate } from "../../../lib/batch-payments/csv-parser"
+import type { ValidationResult } from "../../../lib/batch-payments/recipient-validator"
 import { validateAllRecipients } from "../../../lib/batch-payments/recipient-validator"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -83,8 +84,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
 
     // Calculate totals
-    const validRecipients = validationResult.results.filter((r: any) => r.valid)
-    const totalAmountSats = validRecipients.reduce((sum: number, r: any) => {
+    const validRecipients = validationResult.results.filter(
+      (r: ValidationResult) => r.valid,
+    )
+    const totalAmountSats = validRecipients.reduce((sum: number, r: ValidationResult) => {
       return sum + (r.recipient.amountSats || 0)
     }, 0)
 
@@ -98,7 +101,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         byType: validationResult.summary.byType,
         totalAmountSats,
       },
-      results: validationResult.results.map((r: any) => ({
+      results: validationResult.results.map((r: ValidationResult) => ({
         rowNumber: r.recipient.rowNumber,
         recipient: r.recipient.original,
         type: r.recipient.type,

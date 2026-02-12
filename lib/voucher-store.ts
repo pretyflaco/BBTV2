@@ -65,7 +65,6 @@ interface VoucherStats {
   expiringSoon: number
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface VoucherRow {
   id: string
   amount_sats: string

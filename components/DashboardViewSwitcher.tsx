@@ -37,6 +37,8 @@ import type {
 import type { SplitProfile } from "../lib/hooks/useSplitProfiles"
 import type { InvoiceData } from "../lib/hooks/useInvoiceState"
 import type { PaymentData } from "../lib/hooks/useBlinkWebSocket"
+import type { Wallet } from "../lib/blink-api"
+import type { UseNFCReturn } from "./NFCPayment"
 
 // ============================================================================
 // Component Props
@@ -69,7 +71,7 @@ interface DashboardViewSwitcherProps {
   posRef: React.RefObject<POSRef>
   apiKey: string | null
   user: CombinedUser | null
-  wallets: unknown[]
+  wallets: Wallet[]
   posPaymentReceivedRef: React.MutableRefObject<(() => void) | null>
   connected: boolean
   manualReconnect: () => void
@@ -79,7 +81,7 @@ interface DashboardViewSwitcherProps {
   activeSplitProfile: SplitProfile | null
   setShowingInvoice: (showing: boolean) => void
   setCurrentInvoice: (invoice: InvoiceData | null) => void
-  nfcState: unknown
+  nfcState: UseNFCReturn | null
   activeNWC: LocalNWCConnection | null
   nwcClientReady: boolean
   nwcMakeInvoice: (params: {

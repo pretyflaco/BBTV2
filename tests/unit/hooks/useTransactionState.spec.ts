@@ -16,6 +16,7 @@ const mockTransaction: Transaction = {
   id: "tx-123",
   createdAt: "2024-01-15T10:30:00Z",
   direction: "RECEIVE",
+  amount: "100000",
   settlementAmount: 100000,
   settlementCurrency: "BTC",
   status: "SUCCESS",
@@ -28,6 +29,7 @@ const mockTransactions: Transaction[] = [
     id: "tx-456",
     createdAt: "2024-01-14T15:00:00Z",
     direction: "SEND",
+    amount: "50000",
     settlementAmount: 50000,
     settlementCurrency: "BTC",
     status: "SUCCESS",
@@ -624,10 +626,7 @@ describe("useTransactionState", () => {
       expect(result.current.loadingMore).toBe(true)
 
       // More transactions loaded
-      const moreTransactions = [
-        ...mockTransactions,
-        { ...mockTransaction, id: "tx-789" },
-      ]
+      const moreTransactions = [...mockTransactions, { ...mockTransaction, id: "tx-789" }]
 
       act(() => {
         result.current.setTransactions(moreTransactions)

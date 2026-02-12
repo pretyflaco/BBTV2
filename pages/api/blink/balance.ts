@@ -36,12 +36,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const wallets = await blink.getBalance()
 
     // Format response
-    const formattedWallets = wallets.map((wallet: any) => ({
-      id: wallet.id,
-      currency: wallet.walletCurrency,
-      balance: wallet.balance,
-      formattedBalance: BlinkAPI.formatAmount(wallet.balance, wallet.walletCurrency),
-    }))
+    const formattedWallets = wallets.map(
+      (wallet: { id: string; walletCurrency: string; balance: number }) => ({
+        id: wallet.id,
+        currency: wallet.walletCurrency,
+        balance: wallet.balance,
+        formattedBalance: BlinkAPI.formatAmount(wallet.balance, wallet.walletCurrency),
+      }),
+    )
 
     res.status(200).json({
       success: true,

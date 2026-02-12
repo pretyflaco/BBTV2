@@ -24,6 +24,21 @@ import type { NextApiRequest, NextApiResponse } from "next"
 const AuthManager = require("../../lib/auth")
 const StorageManager = require("../../lib/storage")
 
+/** Recipient in a split profile */
+interface SplitRecipient {
+  username: string
+  share?: number
+}
+
+/** Split profile shape */
+interface SplitProfile {
+  id: string
+  label: string
+  recipients: SplitRecipient[]
+  createdAt?: string
+  updatedAt?: string
+}
+
 /**
  * Verify request has valid NIP-98 session
  * SECURITY: No longer accepts pubkey-only authentication
@@ -134,7 +149,7 @@ async function handlePost(
   console.log("[split-profiles] POST for user:", username)
 
   const { profile, setActive } = req.body as {
-    profile: { id?: string; label: string; recipients: any[] }
+    profile: { id?: string; label: string; recipients: SplitRecipient[] }
     setActive?: boolean
   }
 
@@ -180,12 +195,12 @@ async function handlePost(
   const profileId = profile.id || require("crypto").randomUUID()
 
   // Check if updating existing or creating new
-  const existingIndex = splitProfiles.findIndex((p: any) => p.id === profileId)
+  const existingIndex = splitProfiles.findIndex((p: SplitProfile) => p.id === profileId)
 
   const savedProfile = {
     id: profileId,
     label: profile.label.trim(),
-    recipients: profile.recipients.map((r: any) => ({
+    recipients: profile.recipients.map((r: SplitRecipient) => ({
       username: r.username
         .trim()
         .toLowerCase()
@@ -257,7 +272,9 @@ async function handleDelete(
     return res.status(404).json({ error: "No profiles found" })
   }
 
-  const splitProfiles = userData.splitProfiles.filter((p: any) => p.id !== profileId)
+  const splitProfiles = userData.splitProfiles.filter(
+    (p: SplitProfile) => p.id !== profileId,
+  )
 
   if (splitProfiles.length === userData.splitProfiles.length) {
     return res.status(404).json({ error: "Profile not found" })

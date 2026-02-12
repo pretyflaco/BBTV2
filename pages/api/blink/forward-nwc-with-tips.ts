@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next"
+import type { HybridStore } from "../../../lib/storage/hybrid-store"
 
 import BlinkAPI from "../../../lib/blink-api"
 import { getInvoiceFromLightningAddress, isNpubCashAddress } from "../../../lib/lnurl"
@@ -8,6 +9,39 @@ const {
   formatCurrencyServer,
   isBitcoinCurrency,
 } = require("../../../lib/currency-formatter-server")
+
+interface ApiTipRecipient {
+  username: string
+  share?: number
+  type?: string
+}
+
+interface TipResultEntry {
+  success: boolean
+  skipped?: boolean
+  amount?: number
+  recipient: string
+  error?: string
+  reason?: string
+  status?: string
+  type?: string
+}
+
+interface TipPaymentResult {
+  status: string
+  paymentHash?: string
+  errors?: Array<{ message: string; code?: string; path?: string[] }>
+}
+
+interface TipDistributionResult {
+  success: boolean
+  partialSuccess?: boolean
+  totalAmount?: number
+  recipients?: TipResultEntry[]
+  successCount?: number
+  totalCount?: number
+  error?: string
+}
 
 /**
  * API endpoint for NWC tip-aware forwarding
@@ -32,7 +66,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" })
   }
 
-  let hybridStore: any = null
+  let hybridStore: HybridStore | null = null
   let paymentHash: string | null = null
   let claimSucceeded = false
 
@@ -69,6 +103,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Try to claim the payment for processing
     hybridStore = await getHybridStore()
+    if (!hybridStore) {
+      return res.status(500).json({ error: "Storage unavailable" })
+    }
     const claimResult = await hybridStore.claimPaymentForProcessing(paymentHash)
 
     if (!claimResult.claimed) {
@@ -123,26 +160,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     claimSucceeded = true
     const tipData = claimResult.paymentData
 
+    if (!tipData) {
+      await hybridStore.releaseFailedClaim(paymentHash, "No payment data in claim")
+      claimSucceeded = false
+      return res.status(400).json({ error: "No payment data found in claim" })
+    }
+
     console.log(
       `✅ CLAIMED payment ${paymentHash?.substring(0, 16)}... for NWC tip processing`,
     )
 
     // Support both old single tipRecipient and new tipRecipients array
-    const tipRecipients =
-      tipData.tipRecipients ||
+    const tipRecipients: ApiTipRecipient[] =
+      (tipData.tipRecipients as ApiTipRecipient[]) ||
       (tipData.tipRecipient ? [{ username: tipData.tipRecipient, share: 100 }] : [])
 
     console.log("🔍 NWC TIP FORWARDING CONTEXT:", {
       paymentHash: paymentHash?.substring(0, 16) + "...",
       tipAmount: tipData.tipAmount,
       tipRecipientsCount: tipRecipients.length,
-      tipRecipients: tipRecipients.map((r: any) => r.username),
+      tipRecipients: tipRecipients.map((r: ApiTipRecipient) => r.username),
       timestamp: new Date().toISOString(),
     })
 
     // Get BlinkPOS credentials from environment based on staging/production
     // Get environment from tip data (stored when invoice was created) or from request body
-    const environment = tipData.environment || reqEnvironment || "production"
+    const environment = (tipData.environment ||
+      reqEnvironment ||
+      "production") as EnvironmentName
     const isStaging = environment === "staging"
     const blinkposApiKey = isStaging
       ? process.env.BLINKPOS_STAGING_API_KEY
@@ -165,7 +210,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Generate enhanced memo
     let enhancedMemo: string
-    const recipientNames = tipRecipients.map((r: any) => r.username).join(", ")
+    const recipientNames = tipRecipients
+      .map((r: ApiTipRecipient) => r.username)
+      .join(", ")
 
     if (memo && tipAmountNum > 0 && tipRecipients.length > 0) {
       const displayCurrency = tipData.displayCurrency || "BTC"
@@ -222,7 +269,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           tipData: {
             paymentHash,
             tipAmount: tipAmountNum,
-            tipRecipients: tipRecipients.map((r: any) => ({
+            tipRecipients: tipRecipients.map((r: ApiTipRecipient) => ({
               username: r.username,
               share: r.share,
             })),
@@ -251,7 +298,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Send tips to recipients if there are any (when deferTips=false)
-    let tipResult: any = null
+    let tipResult: TipDistributionResult | null = null
 
     if (tipAmountNum > 0 && tipRecipients.length > 0) {
       const blinkposAPI = new BlinkAPI(blinkposApiKey, apiUrl)
@@ -261,22 +308,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Calculate weighted tip amounts based on share percentages
         let distributedSats = 0
-        const recipientAmounts = tipRecipients.map((recipient: any, index: number) => {
-          const sharePercent = recipient.share || 100 / tipRecipients.length
-          // For the last recipient, give them whatever is left to avoid rounding issues
-          if (index === tipRecipients.length - 1) {
-            return totalTipSats - distributedSats
-          }
-          const amount = Math.floor((totalTipSats * sharePercent) / 100)
-          distributedSats += amount
-          return amount
-        })
+        const recipientAmounts = tipRecipients.map(
+          (recipient: ApiTipRecipient, index: number) => {
+            const sharePercent = recipient.share || 100 / tipRecipients.length
+            // For the last recipient, give them whatever is left to avoid rounding issues
+            if (index === tipRecipients.length - 1) {
+              return totalTipSats - distributedSats
+            }
+            const amount = Math.floor((totalTipSats * sharePercent) / 100)
+            distributedSats += amount
+            return amount
+          },
+        )
 
         console.log("💡 Processing tips for NWC payment with weighted shares:", {
           totalTipSats,
           recipientCount: tipRecipients.length,
           distribution: tipRecipients.map(
-            (r: any, i: number) =>
+            (r: ApiTipRecipient, i: number) =>
               `${r.username}: ${r.share || 100 / tipRecipients.length}% = ${recipientAmounts[i]} sats`,
           ),
         })
@@ -285,7 +334,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const tipAmountInDisplayCurrency =
           Number(tipData.tipAmountDisplay) || totalTipSats
 
-        const tipResults: any[] = []
+        const tipResults: TipResultEntry[] = []
         const isMultiple = tipRecipients.length > 1
 
         for (let i = 0; i < tipRecipients.length; i++) {
@@ -335,7 +384,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             const recipientType =
               recipient.type ||
               (isNpubCashAddress(recipient.username) ? "npub_cash" : "blink")
-            let tipPaymentResult: any
+            let tipPaymentResult: TipPaymentResult
 
             if (recipientType === "npub_cash") {
               // Send tip to npub.cash address via LNURL-pay
@@ -419,7 +468,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         }
 
-        const successCount = tipResults.filter((r: any) => r.success).length
+        const successCount = tipResults.filter((r: TipResultEntry) => r.success).length
         tipResult = {
           success: successCount === tipRecipients.length,
           partialSuccess: successCount > 0 && successCount < tipRecipients.length,
@@ -447,7 +496,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await hybridStore.logEvent(paymentHash, "nwc_forwarded", "success", {
       baseAmount,
       tipAmount: tipAmountNum,
-      tipRecipients: tipRecipients.map((r: any) => r.username),
+      tipRecipients: tipRecipients.map((r: ApiTipRecipient) => r.username),
     })
 
     // Mark as completed

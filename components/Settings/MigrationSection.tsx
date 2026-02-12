@@ -8,8 +8,14 @@
 import { useState, useEffect } from "react"
 import { useCombinedAuth } from "../../lib/hooks/useCombinedAuth"
 import type { StoredProfile, StoredPreferences } from "../../lib/storage/ProfileStorage"
+import type {
+  MigrationResult as MigrationResultType,
+  MigrationService as MigrationServiceType,
+} from "../../lib/migration/MigrationService"
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const MigrationService: any = require("../../lib/migration/MigrationService")
+const MigrationService: typeof MigrationServiceType =
+  require("../../lib/migration/MigrationService").default ||
+  require("../../lib/migration/MigrationService").MigrationService
 
 interface MigrationResult {
   success: boolean
@@ -69,7 +75,8 @@ export default function MigrationSection() {
       }
 
       // Step 3: Complete migration (transfers credentials)
-      const result: MigrationResult = await MigrationService.completeMigration(publicKey)
+      const result: MigrationResultType =
+        await MigrationService.completeMigration(publicKey)
 
       if (!result.success) {
         throw new Error(result.error || "Migration failed")
@@ -90,17 +97,17 @@ export default function MigrationSection() {
       // addBlinkAccount(profileId, label, apiKey, username, defaultCurrency)
       await ProfileStorage.addBlinkAccount(
         profile!.id,
-        `Migrated from ${result.blinkUsername}`,
-        result.apiKey,
-        result.blinkUsername,
-        result.preferences?.preferredCurrency || "BTC",
+        `Migrated from ${result.blinkUsername || "unknown"}`,
+        result.apiKey || "",
+        result.blinkUsername || "",
+        (result.preferences?.preferredCurrency as string) || "BTC",
       )
 
       // Update preferences using profile.id, not publicKey
       if (result.preferences) {
         const prefs: Partial<StoredPreferences> = {}
         if (result.preferences.preferredCurrency) {
-          prefs.defaultCurrency = result.preferences.preferredCurrency
+          prefs.defaultCurrency = result.preferences.preferredCurrency as string
         }
         ProfileStorage.updatePreferences(profile!.id, prefs)
       }

@@ -240,10 +240,13 @@ export function useTransactionActions({
         )
 
         if (response.ok) {
-          const data: any = await response.json()
+          const data = (await response.json()) as {
+            transactions: Transaction[]
+            pageInfo?: { hasNextPage: boolean; endCursor?: string }
+          }
           allTransactions = [...allTransactions, ...data.transactions]
 
-          hasMore = data.pageInfo?.hasNextPage
+          hasMore = data.pageInfo?.hasNextPage ?? false
           nextCursor = data.pageInfo?.endCursor
           batchCount++
 
@@ -896,7 +899,10 @@ export function useTransactionActions({
           )
         }
 
-        const data: any = await response.json()
+        const data = (await response.json()) as {
+          transactions?: Transaction[]
+          pageInfo?: { hasNextPage?: boolean; endCursor?: string }
+        }
         console.log(`Received ${data.transactions?.length || 0} transactions`)
 
         if (!data.transactions || !Array.isArray(data.transactions)) {
@@ -906,7 +912,7 @@ export function useTransactionActions({
 
         allTransactions = [...allTransactions, ...data.transactions]
         hasMore = data.pageInfo?.hasNextPage || false
-        cursor = data.pageInfo?.endCursor
+        cursor = data.pageInfo?.endCursor ?? null
 
         console.log(`Total so far: ${allTransactions.length}, hasMore: ${hasMore}`)
       }

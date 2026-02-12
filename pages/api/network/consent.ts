@@ -97,7 +97,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } else {
         // Get all user consents - need to query across all communities
         const memberships = await db.getUserMemberships(userNpub)
-        const consents: any[] = []
+        const consents: {
+          id: string
+          community_id: string
+          status: string
+          blink_username: string
+          consented_at: string
+        }[] = []
 
         for (const membership of memberships) {
           const consent = await db.getConsentByUser(membership.community_id, userNpub)

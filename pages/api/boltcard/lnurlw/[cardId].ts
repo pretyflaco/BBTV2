@@ -203,7 +203,9 @@ async function handleWithdrawPost(
 
         // Get wallet info to find the right wallet
         const wallets = await blinkAPI.getWalletInfo()
-        const btcWallet = wallets.find((w: any) => w.walletCurrency === "BTC")
+        const btcWallet = wallets.find(
+          (w: { walletCurrency: string; id: string }) => w.walletCurrency === "BTC",
+        )
 
         if (!btcWallet) {
           return { success: false, error: "No BTC wallet found" }
@@ -259,7 +261,11 @@ function extractPaymentHash(invoice: string) {
     // For simplicity, we'll use the bolt11 library if available
     const bolt11 = require("bolt11")
     const decoded = bolt11.decode(invoice)
-    return decoded.tags.find((t: any) => t.tagName === "payment_hash")?.data || null
+    return (
+      decoded.tags.find(
+        (t: { tagName: string; data: string }) => t.tagName === "payment_hash",
+      )?.data || null
+    )
   } catch (error: unknown) {
     // Return null if we can't extract it
     return null

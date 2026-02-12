@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next"
+import type { HybridStore } from "../../../lib/storage/hybrid-store"
 
 import BlinkAPI from "../../../lib/blink-api"
 import { getInvoiceFromLightningAddress, isNpubCashAddress } from "../../../lib/lnurl"
@@ -8,6 +9,37 @@ const {
   formatCurrencyServer,
   isBitcoinCurrency,
 } = require("../../../lib/currency-formatter-server")
+
+interface ApiTipRecipient {
+  username: string
+  share?: number
+  type?: string
+}
+
+interface TipResultEntry {
+  success: boolean
+  skipped?: boolean
+  amount?: number
+  recipient: string
+  error?: string
+  reason?: string
+  status?: string
+  type?: string
+}
+
+interface TipPaymentResult {
+  status: string
+  paymentHash?: string
+  errors?: Array<{ message: string; code?: string; path?: string[] }>
+}
+
+interface NwcTipDataInput {
+  tipAmount: number
+  tipRecipients: ApiTipRecipient[]
+  displayCurrency?: string
+  tipAmountDisplay?: number
+  environment?: string
+}
 
 /**
  * API endpoint for sending NWC tips AFTER base amount has been forwarded
@@ -25,7 +57,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" })
   }
 
-  let hybridStore: any = null
+  let hybridStore: HybridStore | null = null
 
   try {
     const {
@@ -34,7 +66,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       environment: reqEnvironment,
     } = req.body as {
       paymentHash: string
-      tipData: any
+      tipData: NwcTipDataInput
       environment?: EnvironmentName
     }
 
@@ -77,7 +109,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const blinkposBtcWalletId = isStaging
       ? process.env.BLINKPOS_STAGING_BTC_WALLET_ID
       : process.env.BLINKPOS_BTC_WALLET_ID
-    const apiUrl = getApiUrlForEnvironment(environment)
+    const apiUrl = getApiUrlForEnvironment(environment as EnvironmentName)
 
     if (!blinkposApiKey || !blinkposBtcWalletId) {
       console.error("Missing BlinkPOS environment variables")
@@ -85,34 +117,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     hybridStore = await getHybridStore()
+    if (!hybridStore) {
+      return res.status(500).json({ error: "Storage unavailable" })
+    }
+    const store = hybridStore
     const blinkposAPI = new BlinkAPI(blinkposApiKey, apiUrl)
 
     // Calculate weighted tip amounts based on share percentages
     const totalTipSats = Math.round(tipAmount)
     let distributedSats = 0
-    const recipientAmounts = tipRecipients.map((recipient: any, index: number) => {
-      const sharePercent = recipient.share || 100 / tipRecipients.length
-      // For the last recipient, give them whatever is left to avoid rounding issues
-      if (index === tipRecipients.length - 1) {
-        return totalTipSats - distributedSats
-      }
-      const amount = Math.floor((totalTipSats * sharePercent) / 100)
-      distributedSats += amount
-      return amount
-    })
+    const recipientAmounts = tipRecipients.map(
+      (recipient: ApiTipRecipient, index: number) => {
+        const sharePercent = recipient.share || 100 / tipRecipients.length
+        // For the last recipient, give them whatever is left to avoid rounding issues
+        if (index === tipRecipients.length - 1) {
+          return totalTipSats - distributedSats
+        }
+        const amount = Math.floor((totalTipSats * sharePercent) / 100)
+        distributedSats += amount
+        return amount
+      },
+    )
 
     console.log("💡 Processing tips for NWC payment with weighted shares:", {
       totalTipSats,
       recipientCount: tipRecipients.length,
       distribution: tipRecipients.map(
-        (r: any, i: number) =>
+        (r: ApiTipRecipient, i: number) =>
           `${r.username}: ${r.share || 100 / tipRecipients.length}% = ${recipientAmounts[i]} sats`,
       ),
     })
 
     const tipAmountInDisplayCurrency = Number(tipAmountDisplay) || totalTipSats
 
-    const tipResults: any[] = []
+    const tipResults: TipResultEntry[] = []
     const isMultiple = tipRecipients.length > 1
 
     for (let i = 0; i < tipRecipients.length; i++) {
@@ -162,7 +200,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const recipientType =
           recipient.type ||
           (isNpubCashAddress(recipient.username) ? "npub_cash" : "blink")
-        let tipPaymentResult: any
+        let tipPaymentResult: TipPaymentResult
 
         if (recipientType === "npub_cash") {
           // Send tip to npub.cash address via LNURL-pay
@@ -204,7 +242,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             type: recipientType,
           })
 
-          await hybridStore.logEvent(paymentHash, "nwc_tip_sent", "success", {
+          await store.logEvent(paymentHash, "nwc_tip_sent", "success", {
             tipAmount: recipientTipAmount,
             tipRecipient: recipient.username,
             paymentHash: tipPaymentResult.paymentHash,
@@ -241,7 +279,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    const successCount = tipResults.filter((r: any) => r.success).length
+    const successCount = tipResults.filter((r: TipResultEntry) => r.success).length
     const tipResult = {
       success: successCount === tipRecipients.length,
       partialSuccess: successCount > 0 && successCount < tipRecipients.length,
@@ -257,14 +295,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
 
     // Log the NWC forwarding completion and clean up
-    await hybridStore.logEvent(paymentHash, "nwc_tips_completed", "success", {
+    await store.logEvent(paymentHash, "nwc_tips_completed", "success", {
       tipAmount,
-      tipRecipients: tipRecipients.map((r: any) => r.username),
+      tipRecipients: tipRecipients.map((r: ApiTipRecipient) => r.username),
       tipResult,
     })
 
     // Remove tip data now that everything is done
-    await hybridStore.removeTipData(paymentHash)
+    await store.removeTipData(paymentHash)
 
     console.log(`✅ COMPLETED NWC tips for payment ${paymentHash?.substring(0, 16)}...`)
 

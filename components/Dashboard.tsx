@@ -525,10 +525,15 @@ export default function Dashboard() {
   const txSearchInputRef = useRef<HTMLInputElement>(null)
 
   // Refs for keyboard navigation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- refs are passed to multiple consumers with incompatible handle types
   const posRef = useRef<any>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- refs are passed to multiple consumers with incompatible handle types
   const voucherRef = useRef<any>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- refs are passed to multiple consumers with incompatible handle types
   const multiVoucherRef = useRef<any>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- refs are passed to multiple consumers with incompatible handle types
   const voucherManagerRef = useRef<any>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- refs are passed to multiple consumers with incompatible handle types
   const cartRef = useRef<any>(null)
 
   // NOTE: Sound settings persistence is now handled by useSoundSettings hook

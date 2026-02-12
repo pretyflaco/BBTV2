@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 import BlinkAPI from "../../../lib/blink-api"
 import { getApiUrlForEnvironment, type EnvironmentName } from "../../../lib/config/api"
+import type { HybridStore } from "../../../lib/storage/hybrid-store"
 const { getHybridStore } = require("../../../lib/storage/hybrid-store")
 
 /**
@@ -19,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" })
   }
 
-  let hybridStore: any = null
+  let hybridStore: HybridStore | null = null
   let claimSucceeded = false
   let paymentHash: string | null = null
 
@@ -70,8 +71,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // SECURITY: Verify this is a legitimate payment by claiming it from the database
     // This ensures only payments created through BlinkPOS can be forwarded
-    hybridStore = await getHybridStore()
-    const claimResult = await hybridStore.claimPaymentForProcessing(paymentHash)
+    const store: HybridStore = await getHybridStore()
+    hybridStore = store
+    const claimResult = await store.claimPaymentForProcessing(paymentHash)
 
     if (!claimResult.claimed) {
       console.log(
@@ -148,7 +150,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log("✅ Invoice paid successfully from BlinkPOS")
 
     // Log the successful forwarding
-    await hybridStore.logEvent(paymentHash, "nwc_invoice_paid", "success", {
+    await store.logEvent(paymentHash, "nwc_invoice_paid", "success", {
       memo,
       invoicePrefix: invoice.substring(0, 30),
     })

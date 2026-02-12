@@ -226,7 +226,7 @@ class PDFAdapter extends BaseAdapter {
    */
   private async _generateQRDataUrl(data: string): Promise<string | null> {
     try {
-      const QRCode: any = await import("qrcode")
+      const QRCode: typeof import("qrcode") = await import("qrcode")
       return QRCode.toDataURL(data, {
         width: 200,
         margin: 1,

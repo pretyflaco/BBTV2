@@ -4,12 +4,25 @@ import React from "react"
 import { renderToBuffer } from "@react-pdf/renderer"
 
 // Dynamic import to avoid issues with font registration at module load time
-let pdfModule: any = null
+let pdfModule: typeof import("../../../lib/pdf/VoucherPDF") | null = null
 const getPdfModule = async () => {
   if (!pdfModule) {
     pdfModule = await import("../../../lib/pdf/VoucherPDF")
   }
   return pdfModule
+}
+
+interface VoucherInput {
+  satsAmount: number
+  fiatAmount?: string
+  qrDataUrl: string
+  identifierCode?: string
+  lnurl?: string
+  expiresAt?: string
+  issuedBy?: string
+  voucherSecret?: string
+  commissionPercent?: number
+  logoDataUrl?: string
 }
 
 /**
@@ -46,7 +59,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       format = "a4",
       gridSize,
     } = req.body as {
-      vouchers: any[]
+      vouchers: VoucherInput[]
       format?: string
       gridSize?: string
     }

@@ -4,7 +4,7 @@ import React from "react"
 import { renderToBuffer } from "@react-pdf/renderer"
 
 // Dynamic import to avoid issues with font registration at module load time
-let pdfModule: any = null
+let pdfModule: typeof import("../../../lib/pdf/PaycodePDF") | null = null
 const getPdfModule = async () => {
   if (!pdfModule) {
     pdfModule = await import("../../../lib/pdf/PaycodePDF")
@@ -76,8 +76,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       paycode: {
         lightningAddress,
         qrDataUrl,
-        amount: amount || null,
-        displayAmount: displayAmount || null,
+        amount: amount || undefined,
+        displayAmount: displayAmount || undefined,
         webUrl: webUrl || `https://pay.blink.sv/${lightningAddress.split("@")[0]}`,
       },
     })

@@ -12,7 +12,7 @@ interface SerialPortRequestOptions {
   filters?: SerialPortFilter[]
 }
 
-interface SerialPort {
+interface SerialPort extends EventTarget {
   readable: ReadableStream<Uint8Array> | null
   writable: WritableStream<Uint8Array> | null
   open(options: SerialOptions): Promise<void>

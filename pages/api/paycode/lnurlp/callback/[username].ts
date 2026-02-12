@@ -77,7 +77,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Format response to match LNbits format
     // LNbits doesn't include 'status' or 'verify' fields
-    const response: any = {
+    const response: {
+      pr: string
+      routes: unknown[]
+      successAction?: unknown
+    } = {
       pr: blinkData.pr,
       routes: blinkData.routes || [],
     }

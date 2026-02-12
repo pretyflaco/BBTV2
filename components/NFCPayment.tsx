@@ -32,7 +32,7 @@ interface UseNFCParams {
   soundTheme?: string
 }
 
-interface UseNFCReturn {
+export interface UseNFCReturn {
   isNfcSupported: boolean
   hasNFCPermission: boolean
   isProcessing: boolean

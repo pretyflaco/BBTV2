@@ -9,6 +9,20 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 const db = require("../../../lib/network/db")
 
+interface MemberRecord {
+  id: string
+  user_npub: string
+  role: string
+  status: string
+  application_note?: string
+  applied_at: string
+  approved_at: string | null
+  approved_by: string | null
+  consent_given?: boolean
+  blink_username?: string | null
+  total_transactions_synced?: number
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const userNpub = req.headers["x-user-npub"] as string | undefined
 
@@ -59,7 +73,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       return res.status(200).json({
         success: true,
-        members: members.map((m: any) => ({
+        members: members.map((m: MemberRecord) => ({
           id: m.id,
           user_npub: m.user_npub,
           role: m.role,

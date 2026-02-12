@@ -1,5 +1,19 @@
 import type { NextApiRequest, NextApiResponse } from "next"
+import type {
+  LNURLWithdrawParams,
+  LNURLResponse,
+  LNURLChannelParams,
+  LNURLAuthParams,
+  LNURLPayParams,
+} from "js-lnurl"
 import { getParams } from "js-lnurl"
+
+type LNURLResult =
+  | LNURLResponse
+  | LNURLChannelParams
+  | LNURLWithdrawParams
+  | LNURLAuthParams
+  | LNURLPayParams
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -25,7 +39,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log("Payment Request (invoice):", paymentRequest.substring(0, 50) + "...")
 
     // Parse the LNURL to get the withdraw parameters
-    let lnurlParams: any
+    let lnurlParams: LNURLResult
     try {
       lnurlParams = await getParams(lnurl)
     } catch (parseError: unknown) {
@@ -70,17 +84,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Validate that it's a withdraw request (Boltcard)
-    if (!("tag" in lnurlParams && lnurlParams.tag === "withdrawRequest")) {
+    if (
+      !("tag" in lnurlParams) ||
+      (lnurlParams as LNURLWithdrawParams).tag !== "withdrawRequest"
+    ) {
       console.log("LNURL params received:", JSON.stringify(lnurlParams, null, 2))
       return res.status(400).json({
         error: "Not a properly configured LNURL withdraw tag",
         reason:
           "This is not a valid Boltcard or LNURL-withdraw compatible card. The card may have authentication issues (missing or invalid p/c parameters).",
-        received: lnurlParams.tag || "no tag",
+        received:
+          "tag" in lnurlParams ? (lnurlParams as LNURLWithdrawParams).tag : "no tag",
       })
     }
 
-    const { callback, k1 } = lnurlParams
+    const withdrawParams = lnurlParams as LNURLWithdrawParams
+    const { callback, k1 } = withdrawParams
 
     // Build the callback URL with the required parameters
     const urlObject = new URL(callback)

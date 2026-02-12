@@ -1,5 +1,12 @@
 import React from "react"
 import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer"
+import type { Style } from "@react-pdf/types/style"
+
+/**
+ * PDF style record — maps style names to react-pdf Style objects.
+ * Replaces Record<string, any> for type safety.
+ */
+type PDFStyles = Record<string, Style>
 
 // --- Type Definitions ---
 
@@ -37,7 +44,7 @@ interface VoucherData {
 interface VoucherCardProps {
   voucher: VoucherData
   format: string
-  styles: Record<string, any>
+  styles: PDFStyles
 }
 
 interface SingleVoucherDocumentProps {
@@ -57,7 +64,7 @@ interface ThermalVoucherDocumentProps {
 
 interface ReissueVoucherCardProps {
   voucher: VoucherData
-  styles: Record<string, any>
+  styles: PDFStyles
 }
 
 interface ReissueVoucherDocumentProps {
@@ -122,7 +129,7 @@ export const getAvailableFormats = (): string[] => Object.keys(PAPER_FORMATS)
 // --- Internal Helper Functions ---
 
 // Styles matching the Blink voucher app printout
-const createStyles = (format: string): Record<string, any> => {
+const createStyles = (format: string): PDFStyles => {
   const isThermal = format.startsWith("thermal")
   const is58mm = format === "thermal-58"
 
@@ -248,7 +255,7 @@ const createStyles = (format: string): Record<string, any> => {
 const createGridStyles = (
   gridConfig: GridConfig,
   paperFormat: string = "a4",
-): Record<string, any> => {
+): PDFStyles => {
   const { columns, rows, qrSize } = gridConfig
   const paper = PAPER_FORMATS[paperFormat] || PAPER_FORMATS.a4
 
@@ -538,7 +545,7 @@ const VoucherCard: React.FC<VoucherCardProps> = ({ voucher, format, styles }) =>
 }
 
 // Create styles for reissue voucher (includes LNURL text)
-const createReissueStyles = (format: string = "a4"): Record<string, any> => {
+const createReissueStyles = (format: string = "a4"): PDFStyles => {
   const paper = PAPER_FORMATS[format] || PAPER_FORMATS.a4
 
   return StyleSheet.create({

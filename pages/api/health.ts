@@ -8,7 +8,25 @@ import { getHybridStore } from "../../lib/storage/hybrid-store"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const startTime = Date.now()
-  const health: any = {
+  const health: {
+    status: string
+    timestamp: string
+    checks: Record<
+      string,
+      {
+        status: string
+        enabled?: boolean
+        error?: string
+        storage?: string
+        stats?: unknown
+        apiKey?: string
+        walletId?: string
+      }
+    >
+    uptime: number
+    version: string
+    responseTime?: number
+  } = {
     status: "healthy",
     timestamp: new Date().toISOString(),
     checks: {},

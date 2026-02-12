@@ -66,7 +66,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Get wallet info to find the right wallet based on card's currency
         const wallets = await blinkAPI.getWalletInfo()
-        const targetWallet = wallets.find((w: any) => w.walletCurrency === walletCurrency)
+        const targetWallet = wallets.find(
+          (w: { walletCurrency: string; id: string }) =>
+            w.walletCurrency === walletCurrency,
+        )
 
         if (!targetWallet) {
           console.error(`[LNURLW] No ${walletCurrency} wallet found`)
@@ -126,7 +129,11 @@ function extractPaymentHash(invoice: string) {
   try {
     const bolt11 = require("bolt11")
     const decoded = bolt11.decode(invoice)
-    return decoded.tags.find((t: any) => t.tagName === "payment_hash")?.data || null
+    return (
+      decoded.tags.find(
+        (t: { tagName: string; data: string }) => t.tagName === "payment_hash",
+      )?.data || null
+    )
   } catch (error: unknown) {
     return null
   }

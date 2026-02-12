@@ -5,8 +5,52 @@ import { getApiUrl } from "./config/api"
 // Interfaces
 // =============================================================================
 
+/**
+ * GraphQL response data record.
+ * Uses `any` because GraphQL responses are dynamically shaped and
+ * require deep chained property access (e.g. data.me.defaultAccount.wallets)
+ * that TypeScript's recursive union types cannot resolve.
+ * Fully typing these would require GraphQL code generation.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type GraphQLData = Record<string, any>
+
 interface GraphQLResponse {
-  data?: any
+  data?: GraphQLData
+  errors?: Array<{ message: string; [key: string]: unknown }>
+}
+
+/** Typed response for realtimePrice query */
+interface RealtimePriceResponse {
+  data?: {
+    realtimePrice?: {
+      btcSatPrice?: {
+        base: number
+        offset: number
+      }
+    }
+  }
+  errors?: Array<{ message: string; [key: string]: unknown }>
+}
+
+/** Typed response for accountDefaultWallet query */
+interface AccountDefaultWalletResponse {
+  data?: {
+    accountDefaultWallet?: {
+      id: string
+      currency: string
+    }
+  }
+  errors?: Array<{ message: string; [key: string]: unknown }>
+}
+
+/** Typed response for lnInvoiceCreateOnBehalfOfRecipient mutation */
+interface InvoiceOnBehalfResponse {
+  data?: {
+    lnInvoiceCreateOnBehalfOfRecipient: {
+      invoice: Invoice
+    }
+  }
   errors?: Array<{ message: string; [key: string]: unknown }>
 }
 
@@ -78,7 +122,10 @@ class BlinkAPI {
   }
 
   // Make GraphQL request to Blink API
-  async query(query: string, variables: Record<string, unknown> = {}): Promise<any> {
+  async query(
+    query: string,
+    variables: Record<string, unknown> = {},
+  ): Promise<GraphQLData> {
     try {
       const response = await fetch(this.baseUrl, {
         method: "POST",
@@ -118,6 +165,10 @@ class BlinkAPI {
         throw new Error(data.errors[0]?.message || "GraphQL error")
       }
 
+      if (!data.data) {
+        throw new Error("GraphQL response contained no data")
+      }
+
       return data.data
     } catch (error: unknown) {
       console.error("Blink API error:", error)
@@ -126,7 +177,7 @@ class BlinkAPI {
   }
 
   // Get user information including display currency
-  async getMe(): Promise<any> {
+  async getMe(): Promise<GraphQLData | undefined> {
     const query = `
       query Me {
         me {
@@ -139,7 +190,7 @@ class BlinkAPI {
     `
 
     const data = await this.query(query)
-    return data.me
+    return data?.me
   }
 
   // Get exchange rate for a currency
@@ -224,7 +275,10 @@ class BlinkAPI {
   }
 
   // Get transaction history with all fields for CSV export
-  async getTransactions(first: number = 100, after: string | null = null): Promise<any> {
+  async getTransactions(
+    first: number = 100,
+    after: string | null = null,
+  ): Promise<GraphQLData> {
     const query = `
       query TransactionsList($first: Int!, $after: String) {
         me {
@@ -294,20 +348,22 @@ class BlinkAPI {
     // Add walletId to each transaction for CSV export
     const walletId: string | undefined = data.me?.defaultAccount?.id
     if (walletId && transactions.edges) {
-      transactions.edges = transactions.edges.map((edge: any) => ({
-        ...edge,
-        node: {
-          ...edge.node,
-          walletId,
-        },
-      }))
+      transactions.edges = transactions.edges.map(
+        (edge: { cursor: string; node: Record<string, unknown> }) => ({
+          ...edge,
+          node: {
+            ...edge.node,
+            walletId,
+          },
+        }),
+      )
     }
 
     return transactions
   }
 
   // Get user info
-  async getUserInfo(): Promise<any> {
+  async getUserInfo(): Promise<GraphQLData> {
     const query = `
       query {
         me {
@@ -618,7 +674,7 @@ class BlinkAPI {
         throw new Error(`Failed to fetch public exchange rate: ${response.status}`)
       }
 
-      const data: GraphQLResponse = await response.json()
+      const data: RealtimePriceResponse = await response.json()
 
       if (data.errors) {
         throw new Error(data.errors[0]?.message || "GraphQL error fetching exchange rate")
@@ -670,15 +726,15 @@ class BlinkAPI {
         body: JSON.stringify({ query, variables }),
       })
 
-      const data: GraphQLResponse = await response.json()
+      const data: AccountDefaultWalletResponse = await response.json()
 
       if (data.errors) {
         throw new Error(data.errors[0]?.message || "Error fetching wallet information")
       }
 
       return {
-        id: data.data.accountDefaultWallet?.id,
-        currency: data.data.accountDefaultWallet?.currency,
+        id: data.data!.accountDefaultWallet!.id,
+        currency: data.data!.accountDefaultWallet!.currency,
       }
     } catch (error: unknown) {
       console.error("❌ Error getting wallet for username:", username, error)
@@ -718,13 +774,13 @@ class BlinkAPI {
         body: JSON.stringify({ query, variables }),
       })
 
-      const data: GraphQLResponse = await response.json()
+      const data: AccountDefaultWalletResponse = await response.json()
 
       if (data.errors) {
         throw new Error(data.errors[0]?.message || "Error fetching wallet information")
       }
 
-      const btcWallet = data.data.accountDefaultWallet
+      const btcWallet = data.data!.accountDefaultWallet
       if (!btcWallet?.id) {
         throw new Error(
           `No BTC wallet found for username: ${username}. User may not have a BTC wallet set up.`,
@@ -787,7 +843,7 @@ class BlinkAPI {
         body: JSON.stringify({ query: mutation, variables }),
       })
 
-      const data: GraphQLResponse = await response.json()
+      const data: InvoiceOnBehalfResponse = await response.json()
 
       if (data.errors) {
         throw new Error(
@@ -795,7 +851,7 @@ class BlinkAPI {
         )
       }
 
-      return data.data.lnInvoiceCreateOnBehalfOfRecipient.invoice
+      return data.data!.lnInvoiceCreateOnBehalfOfRecipient.invoice
     } catch (error: unknown) {
       console.error("❌ Error creating invoice on behalf of recipient:", error)
       throw error

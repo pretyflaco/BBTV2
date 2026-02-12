@@ -56,7 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // No specific community - return all accessible applications
-    let applications: any[] = []
+    let applications: Record<string, unknown>[] = []
 
     if (isSuperAdmin) {
       // Super admin sees all pending applications across all communities

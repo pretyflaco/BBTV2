@@ -110,10 +110,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const blinkAPI = new BlinkAPI(card.apiKey, apiUrl)
 
       const wallets = await blinkAPI.getWalletInfo()
-      const targetWallet = wallets.find((w: any) =>
-        card.walletCurrency === "USD"
-          ? w.walletCurrency === "USD"
-          : w.walletCurrency === "BTC",
+      const targetWallet = wallets.find(
+        (w: { walletCurrency: string; balance: number }) =>
+          card.walletCurrency === "USD"
+            ? w.walletCurrency === "USD"
+            : w.walletCurrency === "BTC",
       )
 
       walletBalance = targetWallet?.balance || 0

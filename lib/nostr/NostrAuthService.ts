@@ -52,6 +52,7 @@ interface UnsignedEvent {
   tags: string[][]
   content: string
   pubkey?: string
+  [key: string]: unknown
 }
 
 /** Signed Nostr event (after signing) */
@@ -143,14 +144,12 @@ interface DebugChallengeInfo {
 
 /**
  * Minimal interface for the dynamically imported NostrConnect services.
- * Uses `any` for the event parameter because the imported .js services
- * use the global UnsignedEvent type from nostr.d.ts which has a different
- * index signature than our local UnsignedEvent interface.
+ * The UnsignedEvent parameter includes an index signature for
+ * compatibility with the imported .js services.
  */
 interface NostrConnectServiceLike {
   isConnected: () => boolean
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  signEvent: (event: any) => Promise<{
+  signEvent: (event: UnsignedEvent) => Promise<{
     success: boolean
     event?: SignedEvent
     error?: string
@@ -2309,3 +2308,11 @@ class NostrAuthService {
 
 export default NostrAuthService
 export { NostrAuthService }
+export type {
+  SignInMethod,
+  AuthResult,
+  ChallengeFlowData,
+  Nip98LoginResult,
+  ServerSessionResult,
+  EncryptedNsecData,
+}

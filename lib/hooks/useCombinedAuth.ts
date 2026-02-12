@@ -26,6 +26,7 @@ import {
   type NWCPayResult,
   type NWCInvoiceResult,
 } from "./useNWC"
+import type { ListTransactionsParams } from "../../lib/nwc/NWCClient"
 import type { NostrProfile } from "../nostr/NostrProfileService"
 import type { StoredTippingSettings, StoredPreferences } from "../storage/ProfileStorage"
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -186,8 +187,8 @@ export interface UseCombinedAuthReturn {
     paymentHash: string,
   ) => Promise<NWCOperationResult & { invoice?: unknown }>
   nwcListTransactions: (
-    params?: unknown,
-  ) => Promise<NWCOperationResult & { transactions?: unknown[] }>
+    params?: ListTransactionsParams,
+  ) => Promise<NWCOperationResult & { transactions?: Record<string, unknown>[] }>
   nwcHasCapability: (capability: string) => boolean
   nwcLoading: boolean
   getActiveNWCUri: () => Promise<string | null>

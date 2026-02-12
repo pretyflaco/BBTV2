@@ -58,7 +58,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Get user's BTC wallet (LNURL always uses BTC)
-    let walletInfo: any
+    let walletInfo: { id: string } | undefined
     try {
       walletInfo = await BlinkAPI.getBtcWalletByUsername(username)
     } catch (err) {
@@ -94,7 +94,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ? `Payment to ${username}: ${comment.substring(0, 200)}`
       : `Payment to ${username}`
 
-    let invoice: any
+    let invoice: { paymentRequest: string; paymentHash?: string } | undefined
     try {
       invoice = await BlinkAPI.createInvoiceOnBehalfOfRecipient(
         walletInfo.id,

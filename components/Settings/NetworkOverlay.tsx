@@ -1,9 +1,10 @@
 import Network from "../Network"
 import { SPINNER_COLORS } from "../../lib/hooks/useViewNavigation"
+import type { NostrProfile } from "../../lib/nostr/NostrProfileService"
 
 interface NetworkOverlayProps {
   publicKey: string | null
-  nostrProfile: unknown
+  nostrProfile: NostrProfile | null
   darkMode: boolean
   theme: string
   cycleTheme: () => void

@@ -232,11 +232,21 @@ export default function BatchPayments({
         })
 
         if (response.ok) {
-          const data: any = await response.json()
-          const wallets: any[] = data.data?.me?.defaultAccount?.wallets || []
-          const btcWallet = wallets.find((w: any) => w.walletCurrency === "BTC")
+          const data: Record<string, unknown> = await response.json()
+          const meData = data.data as Record<string, unknown> | undefined
+          const accountData = (meData?.me as Record<string, unknown> | undefined)
+            ?.defaultAccount as Record<string, unknown> | undefined
+          const wallets: Array<{ walletCurrency: string; balance?: number }> =
+            (accountData?.wallets as Array<{
+              walletCurrency: string
+              balance?: number
+            }>) || []
+          const btcWallet = wallets.find(
+            (w: { walletCurrency: string; balance?: number }) =>
+              w.walletCurrency === "BTC",
+          )
           if (btcWallet) {
-            setBalanceSats(btcWallet.balance)
+            setBalanceSats(btcWallet.balance ?? null)
           }
         }
       } catch (err: unknown) {
@@ -310,13 +320,13 @@ export default function BatchPayments({
         body: JSON.stringify({ csvContent }),
       })
 
-      const data: any = await response.json()
+      const data = (await response.json()) as ValidationResults & { error?: string }
 
       if (!response.ok) {
         throw new Error(data.error || "Validation failed")
       }
 
-      setBatchId(data.batchId)
+      setBatchId(data.batchId as string)
       setValidationResults(data)
 
       // Calculate fee summary from valid recipients
@@ -385,7 +395,7 @@ export default function BatchPayments({
         }),
       })
 
-      const data: any = await response.json()
+      const data = (await response.json()) as ExecutionResults & { error?: string }
 
       if (!response.ok) {
         throw new Error(data.error || "Execution failed")

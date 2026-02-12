@@ -32,8 +32,8 @@ interface SerialConfig {
   baudRate: number
   dataBits: number
   stopBits: number
-  parity: string
-  flowControl: string
+  parity: "none" | "even" | "odd"
+  flowControl: "none" | "hardware"
 }
 
 /**
@@ -97,7 +97,7 @@ interface WebSerialOptions {
 }
 
 interface SerialConnectionOptions {
-  port?: any // SerialPort from Web Serial API
+  port?: SerialPort // SerialPort from Web Serial API
   serialConfig?: SerialConfig
 }
 
@@ -105,7 +105,7 @@ interface DiscoveredSerialPrinter {
   id: string
   name: string
   type: string
-  port: any // SerialPort
+  port: SerialPort // SerialPort
   vendorId?: number
   productId?: number
   [key: string]: unknown
@@ -128,9 +128,9 @@ const DEFAULT_OPTIONS: Required<WebSerialOptions> = {
  */
 class WebSerialAdapter extends BaseAdapter {
   declare options: Required<WebSerialOptions>
-  private _port: any // SerialPort
-  private _writer: any // WritableStreamDefaultWriter
-  private _reader: any // ReadableStreamDefaultReader
+  private _port: SerialPort | null // SerialPort
+  private _writer: WritableStreamDefaultWriter<Uint8Array> | null // WritableStreamDefaultWriter
+  private _reader: ReadableStreamDefaultReader<Uint8Array> | null // ReadableStreamDefaultReader
 
   /**
    * Create a WebSerial adapter
@@ -182,9 +182,9 @@ class WebSerialAdapter extends BaseAdapter {
 
   /**
    * Get list of already-granted serial ports
-   * @returns {Promise<any[]>}
+   * @returns {Promise<SerialPort[]>}
    */
-  async getPorts(): Promise<any[]> {
+  async getPorts(): Promise<SerialPort[]> {
     if (!(await this.isAvailable())) {
       return []
     }
@@ -194,9 +194,11 @@ class WebSerialAdapter extends BaseAdapter {
   /**
    * Request user to select a serial port
    * @param {object} options - Port request options
-   * @returns {Promise<any|null>}
+   * @returns {Promise<SerialPort|undefined>}
    */
-  async requestPort(options: Record<string, unknown> = {}): Promise<any | null> {
+  async requestPort(
+    options: Record<string, unknown> = {},
+  ): Promise<SerialPort | undefined> {
     if (!(await this.isAvailable())) {
       throw new Error("Web Serial API not available")
     }
@@ -218,7 +220,7 @@ class WebSerialAdapter extends BaseAdapter {
     } catch (e: unknown) {
       if ((e as Error).name === "NotFoundError") {
         // User cancelled selection
-        return null
+        return undefined
       }
       throw e
     }
@@ -343,7 +345,7 @@ class WebSerialAdapter extends BaseAdapter {
     this._emit("printing", { dataSize: data.length })
 
     try {
-      const writer = this._port.writable.getWriter()
+      const writer = this._port!.writable!.getWriter()
 
       try {
         // Send data in chunks to avoid overwhelming printer buffer
@@ -389,7 +391,7 @@ class WebSerialAdapter extends BaseAdapter {
         setTimeout(() => reject(new Error("Read timeout")), timeout)
       })
 
-      const readPromise: Promise<{ done: boolean; value: Uint8Array }> = reader.read()
+      const readPromise = reader.read()
 
       const result = await Promise.race([readPromise, timeoutPromise])
 
@@ -422,7 +424,7 @@ class WebSerialAdapter extends BaseAdapter {
       // DLE EOT 1 - Transmit real-time status
       const statusRequest = new Uint8Array([0x10, 0x04, 0x01])
 
-      const writer = this._port.writable.getWriter()
+      const writer = this._port!.writable!.getWriter()
       try {
         await writer.write(statusRequest)
       } finally {
@@ -460,7 +462,7 @@ class WebSerialAdapter extends BaseAdapter {
   async discover(): Promise<DiscoveredSerialPrinter[]> {
     const ports = await this.getPorts()
 
-    return ports.map((port: any, index: number) => {
+    return ports.map((port: SerialPort, index: number) => {
       const info = port.getInfo()
       const vendor = PRINTER_VENDORS.find(
         (v: PrinterVendor) => v.vendorId === info.usbVendorId,

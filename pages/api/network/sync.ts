@@ -79,7 +79,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } else {
         // Get metrics for all communities from database
         const communities = await db.listCommunities()
-        const metricsArray: any[] = []
+        const metricsArray: Record<string, unknown>[] = []
 
         for (const community of communities) {
           const metrics = await db.getLatestMetrics(community.id)

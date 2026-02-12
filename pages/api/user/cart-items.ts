@@ -212,7 +212,7 @@ async function handleDelete(
   const cartItems = userData.cartItems || []
 
   // Find and remove item
-  const itemIndex = cartItems.findIndex((item: any) => item.id === itemId)
+  const itemIndex = cartItems.findIndex((item: { id: string }) => item.id === itemId)
 
   if (itemIndex === -1) {
     return res.status(404).json({ error: "Item not found" })
@@ -266,7 +266,7 @@ async function handlePatch(
   const cartItems = userData.cartItems || []
 
   // Find item
-  const itemIndex = cartItems.findIndex((item: any) => item.id === itemId)
+  const itemIndex = cartItems.findIndex((item: { id: string }) => item.id === itemId)
 
   if (itemIndex === -1) {
     return res.status(404).json({ error: "Item not found" })

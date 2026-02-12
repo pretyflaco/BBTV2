@@ -105,7 +105,9 @@ async function handlePayCallback(
         if (walletCurrency === "USD") {
           console.log(`[LNURLP] USD card detected, querying account for BTC wallet...`)
           const wallets = await blinkAPI.getWalletInfo()
-          const btcWallet = wallets.find((w: any) => w.walletCurrency === "BTC")
+          const btcWallet = wallets.find(
+            (w: { walletCurrency: string; id: string }) => w.walletCurrency === "BTC",
+          )
 
           if (!btcWallet) {
             console.error(`[LNURLP] No BTC wallet found for USD card account`)

@@ -228,7 +228,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 /**
  * Generate QR code data for card programming and top-up
  */
-function generateCardQRs(serverUrl: string, card: any) {
+interface CardWithKeys {
+  id: string
+  cardUid: string
+  cardIdHash: string
+  name: string
+  walletCurrency: string
+  balance: number
+  maxTxAmount: number | null
+  dailyLimit: number | null
+  status: string
+  version: number
+  createdAt: string
+  k0: string
+  k1: string
+  k2: string
+  k3: string
+  k4: string
+}
+
+function generateCardQRs(serverUrl: string, card: CardWithKeys) {
   // LNURL-withdraw URL (programmed into card)
   const lnurlwUrl = lnurlw.generateCardUrl(serverUrl, card.id)
   const lnurlwEncoded = lnurlw.encodeLnurl(lnurlwUrl)

@@ -22,7 +22,7 @@ let sendCount: number = 0
 let errorCount: number = 0
 
 // Original console methods (stored before override)
-let originalConsole: Record<string, (...args: any[]) => void> = {}
+let originalConsole: Record<string, (...args: unknown[]) => void> = {}
 
 /**
  * Generate a unique device ID for this session
@@ -360,7 +360,7 @@ export function isRemoteLoggerActive(): boolean {
  */
 export function remoteLog(message: string, level: string = "log"): void {
   if (!isInitialized) {
-    ;(console as Record<string, any>)[level]?.(message)
+    ;(console as unknown as Record<string, (msg: string) => void>)[level]?.(message)
     return
   }
 

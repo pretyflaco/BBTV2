@@ -2,6 +2,24 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 const voucherStore = require("../../../lib/voucher-store")
 
+/** Shape of a voucher record from the store */
+interface VoucherRecord {
+  id: string
+  amount: number
+  claimed: boolean
+  createdAt: number
+  claimedAt?: number | null
+  expiresAt?: number | null
+  expiryId?: string | null
+  cancelledAt?: number | null
+  displayAmount?: number | null
+  displayCurrency?: string | null
+  commissionPercent?: number
+  status: string
+  walletCurrency?: string
+  usdAmountCents?: number | null
+}
+
 /**
  * API endpoint to list all vouchers
  *
@@ -34,7 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const allVouchers = await voucherStore.getAllVouchers()
 
     // Format vouchers for response
-    let vouchers = allVouchers.map((voucher: any) => {
+    let vouchers = allVouchers.map((voucher: VoucherRecord) => {
       // Calculate time remaining for active vouchers
       let timeRemaining: number | null = null
       if (voucher.status === "ACTIVE" && voucher.expiresAt) {
@@ -68,20 +86,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const normalizedFilter = filterStatus.toUpperCase()
 
       if (validStatuses.includes(normalizedFilter)) {
-        vouchers = vouchers.filter((v: any) => v.status === normalizedFilter)
+        vouchers = vouchers.filter((v: VoucherRecord) => v.status === normalizedFilter)
       }
     }
 
     // Calculate summary stats
     const stats = {
       total: allVouchers.length,
-      active: allVouchers.filter((v: any) => v.status === "ACTIVE").length,
-      claimed: allVouchers.filter((v: any) => v.status === "CLAIMED").length,
-      cancelled: allVouchers.filter((v: any) => v.status === "CANCELLED").length,
-      expired: allVouchers.filter((v: any) => v.status === "EXPIRED").length,
+      active: allVouchers.filter((v: VoucherRecord) => v.status === "ACTIVE").length,
+      claimed: allVouchers.filter((v: VoucherRecord) => v.status === "CLAIMED").length,
+      cancelled: allVouchers.filter((v: VoucherRecord) => v.status === "CANCELLED")
+        .length,
+      expired: allVouchers.filter((v: VoucherRecord) => v.status === "EXPIRED").length,
       // Count vouchers expiring within 24 hours
       expiringSoon: allVouchers.filter(
-        (v: any) =>
+        (v: VoucherRecord) =>
           v.status === "ACTIVE" && v.expiresAt && v.expiresAt - now < 24 * 60 * 60 * 1000,
       ).length,
     }

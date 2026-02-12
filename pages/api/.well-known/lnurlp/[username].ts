@@ -30,7 +30,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Verify user exists
-    let walletInfo: any
+    let walletInfo: { id: string } | undefined
     try {
       walletInfo = await BlinkAPI.getWalletByUsername(username)
     } catch (err) {

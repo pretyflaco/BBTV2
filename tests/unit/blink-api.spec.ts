@@ -4,7 +4,6 @@
  * Tests the Blink API client class.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 const BlinkAPI = require("../../lib/blink-api.js")
 
 describe("BlinkAPI", () => {
@@ -133,9 +132,7 @@ describe("BlinkAPI", () => {
 
   describe("getWalletInfo()", () => {
     it("should return wallet info", async () => {
-      const mockWallets = [
-        { id: "btc-wallet", walletCurrency: "BTC", balance: 50000 },
-      ]
+      const mockWallets = [{ id: "btc-wallet", walletCurrency: "BTC", balance: 50000 }]
 
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
@@ -233,11 +230,7 @@ describe("BlinkAPI", () => {
         headers: { get: () => "application/json" },
       })
 
-      const result = await api.createLnUsdInvoice(
-        "usd-wallet-id",
-        500,
-        "USD payment",
-      )
+      const result = await api.createLnUsdInvoice("usd-wallet-id", 500, "USD payment")
 
       expect(result).toEqual(mockInvoice)
     })
@@ -373,9 +366,7 @@ describe("BlinkAPI", () => {
     })
 
     it("should throw when exchange rate not available", () => {
-      expect(() => api.convertToSatoshis(10, "USD", null)).toThrow(
-        "not available",
-      )
+      expect(() => api.convertToSatoshis(10, "USD", null)).toThrow("not available")
     })
   })
 

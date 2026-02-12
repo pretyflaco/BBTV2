@@ -63,7 +63,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, cardId: stri
     // Use cardIdHash by default for privacy, only include cardUid if explicitly requested
     const includeUid = req.query.includeUid === "true"
 
-    const cardResponse: any = {
+    const cardResponse: Record<string, unknown> = {
       id: card.id,
       cardIdHash: card.cardIdHash, // Privacy-preserving identifier
       name: card.name,
@@ -120,7 +120,7 @@ async function handleUpdate(req: NextApiRequest, res: NextApiResponse, cardId: s
     }
 
     // Build updates object
-    const updates: any = {}
+    const updates: Record<string, string | number | null> = {}
     if (name !== undefined) updates.name = name
     if (maxTxAmount !== undefined)
       updates.maxTxAmount = maxTxAmount ? parseInt(maxTxAmount) : null

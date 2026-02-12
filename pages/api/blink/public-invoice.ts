@@ -80,7 +80,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { username, amount, memo, walletCurrency, environment } = req.body as {
       username: string
-      amount: any
+      amount: string | number
       memo?: string
       walletCurrency?: string
       environment?: EnvironmentName
@@ -96,12 +96,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "Username is required" })
     }
 
-    if (!amount || isNaN(amount) || amount <= 0) {
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
       return res.status(400).json({ error: "Valid amount is required (positive number)" })
     }
 
     // Enforce reasonable limits
-    const satsAmount = Math.round(parseFloat(amount))
+    const satsAmount = Math.round(parseFloat(String(amount)))
     if (satsAmount < 1) {
       return res.status(400).json({ error: "Minimum amount is 1 sat" })
     }
@@ -123,7 +123,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
 
     // Determine which wallet to use (BTC or default)
-    let walletInfo: any
+    let walletInfo: { id: string; currency: string } | undefined
     try {
       if (walletCurrency === "BTC") {
         // Explicitly request BTC wallet, pass apiUrl for environment
@@ -156,7 +156,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Create the invoice
     const invoiceMemo = memo || `Payment to ${username}`
 
-    let invoice: any
+    let invoice:
+      | { paymentRequest: string; paymentHash?: string; satoshis?: number }
+      | undefined
     try {
       // Pass apiUrl for environment-aware invoice creation
       invoice = await BlinkAPI.createInvoiceOnBehalfOfRecipient(

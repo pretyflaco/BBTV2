@@ -7,8 +7,15 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
+interface LogEntry {
+  timestamp: string
+  deviceId: string
+  userAgent: string
+  logs: unknown[]
+}
+
 // In-memory log buffer (last 500 logs)
-const logBuffer: any[] = []
+const logBuffer: LogEntry[] = []
 const MAX_LOGS = 500
 
 // SSE clients
@@ -19,7 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Receive logs from mobile device
     try {
       const { logs, deviceId, userAgent } = req.body as {
-        logs: any
+        logs: unknown
         deviceId?: string
         userAgent?: string
       }

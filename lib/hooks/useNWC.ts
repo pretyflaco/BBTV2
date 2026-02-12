@@ -18,7 +18,15 @@
 
 import { useState, useCallback, useEffect, useRef } from "react"
 import NWCClient from "../nwc/NWCClient"
+import type {
+  NWCResponse,
+  GetBalanceResult,
+  PayInvoiceResult,
+  MakeInvoiceResult,
+  ListTransactionsParams,
+} from "../nwc/NWCClient"
 import CryptoUtils from "../storage/CryptoUtils"
+import type { EncryptedData } from "../storage/CryptoUtils"
 
 // ============= Local Interfaces =============
 
@@ -30,7 +38,7 @@ import CryptoUtils from "../storage/CryptoUtils"
 export interface LocalNWCConnection {
   id: string
   label: string
-  encryptedUri: any // Encrypted by CryptoUtils
+  encryptedUri: EncryptedData
   capabilities: string[]
   walletPubkey: string
   relays: string[]
@@ -107,10 +115,12 @@ export interface NWCHookReturn {
     description?: string
     expiry?: number
   }) => Promise<NWCInvoiceResult>
-  lookupInvoice: (paymentHash: string) => Promise<NWCOperationResult & { invoice?: any }>
+  lookupInvoice: (
+    paymentHash: string,
+  ) => Promise<NWCOperationResult & { invoice?: Record<string, unknown> }>
   listTransactions: (
-    params?: any,
-  ) => Promise<NWCOperationResult & { transactions?: any[] }>
+    params?: ListTransactionsParams,
+  ) => Promise<NWCOperationResult & { transactions?: Record<string, unknown>[] }>
 
   // Helpers
   hasCapability: (method: string) => boolean
@@ -118,7 +128,7 @@ export interface NWCHookReturn {
 
   // Server sync
   syncToServer: () => Promise<void>
-  fetchFromServer: () => Promise<any[] | null>
+  fetchFromServer: () => Promise<ServerNWCConnection[] | null>
 }
 
 interface MakeInvoiceParams {
@@ -184,7 +194,7 @@ export function useNWC(
   const [serverSynced, setServerSynced] = useState<boolean>(false)
 
   // Keep NWC client in ref to persist across renders
-  const clientRef = useRef<any>(null) // NWCClient is untyped
+  const clientRef = useRef<NWCClient | null>(null)
 
   // Track current user to detect user changes
   const currentUserRef = useRef<string>(userPubkey)
@@ -196,7 +206,7 @@ export function useNWC(
    * Fetch NWC connections from server
    * NOTE: Requires hasServerSession to be true to avoid 401 errors
    */
-  const fetchFromServer = useCallback(async (): Promise<any[] | null> => {
+  const fetchFromServer = useCallback(async (): Promise<ServerNWCConnection[] | null> => {
     if (!userPubkey) return null
 
     // IMPORTANT: Don't fetch from server if session isn't established yet
@@ -373,10 +383,11 @@ export function useNWC(
                 return localConn
               } else {
                 // New connection from server - encrypt URI locally
-                const encryptedUri: any = await CryptoUtils.encryptWithDerivedKey(
-                  serverConn.uri,
-                  serverConn.walletPubkey,
-                )
+                const encryptedUri: EncryptedData =
+                  await CryptoUtils.encryptWithDerivedKey(
+                    serverConn.uri,
+                    serverConn.walletPubkey,
+                  )
 
                 return {
                   id: serverConn.id,
@@ -523,12 +534,12 @@ export function useNWC(
         }
 
         // Parse URI to get pubkey and relays
-        const tempClient: any = new NWCClient(connectionUri)
+        const tempClient: NWCClient = new NWCClient(connectionUri)
 
         // Encrypt the URI for storage
         // For simplicity, we use a derived key from the wallet pubkey
         // In production, you might want user password encryption
-        const encryptedUri: any = await CryptoUtils.encryptWithDerivedKey(
+        const encryptedUri: EncryptedData = await CryptoUtils.encryptWithDerivedKey(
           connectionUri,
           tempClient.getWalletPubkey(),
         )
@@ -726,7 +737,7 @@ export function useNWC(
     }
 
     try {
-      const response: any = await clientRef.current.getBalance()
+      const response: NWCResponse<GetBalanceResult> = await clientRef.current.getBalance()
 
       if (response.error) {
         return { success: false, error: response.error.message }
@@ -748,7 +759,8 @@ export function useNWC(
     }
 
     try {
-      const response: any = await clientRef.current.payInvoice(invoice)
+      const response: NWCResponse<PayInvoiceResult> =
+        await clientRef.current.payInvoice(invoice)
 
       if (response.error) {
         return { success: false, error: response.error.message }
@@ -793,11 +805,12 @@ export function useNWC(
       }
 
       try {
-        const response: any = await clientRef.current.makeInvoice({
-          amount,
-          description,
-          expiry,
-        })
+        const response: NWCResponse<MakeInvoiceResult> =
+          await clientRef.current.makeInvoice({
+            amount,
+            description,
+            expiry,
+          })
 
         if (response.error) {
           return { success: false, error: response.error.message }
@@ -820,19 +833,21 @@ export function useNWC(
    * Look up invoice status
    */
   const lookupInvoice = useCallback(
-    async (paymentHash: string): Promise<NWCOperationResult & { invoice?: any }> => {
+    async (
+      paymentHash: string,
+    ): Promise<NWCOperationResult & { invoice?: Record<string, unknown> }> => {
       if (!clientRef.current) {
         return { success: false, error: "No active NWC connection" }
       }
 
       try {
-        const response: any = await clientRef.current.lookupInvoice(paymentHash)
+        const response: NWCResponse = await clientRef.current.lookupInvoice(paymentHash)
 
         if (response.error) {
           return { success: false, error: response.error.message }
         }
 
-        return { success: true, invoice: response.result }
+        return { success: true, invoice: response.result ?? undefined }
       } catch (err: unknown) {
         const error = err as Error
         return { success: false, error: error.message }
@@ -845,7 +860,9 @@ export function useNWC(
    * List transactions from NWC wallet
    */
   const listTransactions = useCallback(
-    async (params: any = {}): Promise<NWCOperationResult & { transactions?: any[] }> => {
+    async (
+      params: ListTransactionsParams = {},
+    ): Promise<NWCOperationResult & { transactions?: Record<string, unknown>[] }> => {
       if (!clientRef.current) {
         return { success: false, error: "No active NWC connection" }
       }
@@ -862,7 +879,10 @@ export function useNWC(
       }
 
       try {
-        const response: any = await clientRef.current.listTransactions(params)
+        const response: NWCResponse<{ transactions?: Record<string, unknown>[] }> =
+          (await clientRef.current.listTransactions(params)) as NWCResponse<{
+            transactions?: Record<string, unknown>[]
+          }>
 
         if (response.error) {
           return { success: false, error: response.error.message }

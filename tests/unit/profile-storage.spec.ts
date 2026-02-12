@@ -4,15 +4,17 @@
  * Tests profile management, account storage, and settings.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 // We need to load this module dynamically due to mixed exports
-let ProfileStorage: any
+import type { ProfileStorage as ProfileStorageClass } from "../../lib/storage/ProfileStorage"
+
+let ProfileStorage: typeof ProfileStorageClass
 
 beforeAll(async () => {
   // Dynamically import to avoid module system conflicts
   const mod = await import("../../lib/storage/ProfileStorage.js")
-  ProfileStorage = mod.default || mod.ProfileStorage || mod
+  ProfileStorage = (mod.default ||
+    mod.ProfileStorage ||
+    mod) as typeof ProfileStorageClass
 })
 
 describe("ProfileStorage", () => {
@@ -29,9 +31,7 @@ describe("ProfileStorage", () => {
       })
 
       it("should return stored profiles", () => {
-        const mockProfiles = [
-          { id: "1", publicKey: "abc123", signInMethod: "extension" },
-        ]
+        const mockProfiles = [{ id: "1", publicKey: "abc123", signInMethod: "extension" }]
         localStorage.setItem("blinkpos_profiles", JSON.stringify(mockProfiles))
 
         const profiles = ProfileStorage.getProfiles()
@@ -52,9 +52,7 @@ describe("ProfileStorage", () => {
 
         ProfileStorage.saveProfiles(profiles)
 
-        const stored = JSON.parse(
-          localStorage.getItem("blinkpos_profiles") || "[]",
-        )
+        const stored = JSON.parse(localStorage.getItem("blinkpos_profiles") || "[]")
         expect(stored).toEqual(profiles)
       })
     })
@@ -242,11 +240,7 @@ describe("ProfileStorage", () => {
 
       it("should set subsequent accounts as inactive", async () => {
         await ProfileStorage.addBlinkAccount(profileId, "First", "key1")
-        const second = await ProfileStorage.addBlinkAccount(
-          profileId,
-          "Second",
-          "key2",
-        )
+        const second = await ProfileStorage.addBlinkAccount(profileId, "Second", "key2")
 
         expect(second.isActive).toBe(false)
       })
@@ -260,16 +254,13 @@ describe("ProfileStorage", () => {
 
     describe("addBlinkLnAddressAccount()", () => {
       it("should add a Lightning Address account", async () => {
-        const account = await ProfileStorage.addBlinkLnAddressAccount(
-          profileId,
-          {
-            label: "LN Account",
-            username: "testuser",
-            walletId: "wallet-123",
-            walletCurrency: "BTC",
-            lightningAddress: "testuser@blink.sv",
-          },
-        )
+        const account = await ProfileStorage.addBlinkLnAddressAccount(profileId, {
+          label: "LN Account",
+          username: "testuser",
+          walletId: "wallet-123",
+          walletCurrency: "BTC",
+          lightningAddress: "testuser@blink.sv",
+        })
 
         expect(account.type).toBe("ln-address")
         expect(account.lightningAddress).toBe("testuser@blink.sv")
@@ -316,17 +307,13 @@ describe("ProfileStorage", () => {
     describe("setActiveBlinkAccount()", () => {
       it("should set active account and update lastUsed", async () => {
         await ProfileStorage.addBlinkAccount(profileId, "First", "key1")
-        const second = await ProfileStorage.addBlinkAccount(
-          profileId,
-          "Second",
-          "key2",
-        )
+        const second = await ProfileStorage.addBlinkAccount(profileId, "Second", "key2")
 
         ProfileStorage.setActiveBlinkAccount(profileId, second.id)
 
         const profile = ProfileStorage.getProfileById(profileId)
         const activeAccount = profile.blinkAccounts.find(
-          (a: any) => a.isActive,
+          (a: { isActive: boolean; id: string; lastUsed?: unknown }) => a.isActive,
         )
         expect(activeAccount.id).toBe(second.id)
         expect(activeAccount.lastUsed).toBeDefined()
@@ -335,11 +322,7 @@ describe("ProfileStorage", () => {
 
     describe("removeBlinkAccount()", () => {
       it("should remove account", async () => {
-        const account = await ProfileStorage.addBlinkAccount(
-          profileId,
-          "Test",
-          "key",
-        )
+        const account = await ProfileStorage.addBlinkAccount(profileId, "Test", "key")
 
         ProfileStorage.removeBlinkAccount(profileId, account.id)
 
@@ -348,11 +331,7 @@ describe("ProfileStorage", () => {
       })
 
       it("should make first remaining account active if active was removed", async () => {
-        const first = await ProfileStorage.addBlinkAccount(
-          profileId,
-          "First",
-          "key1",
-        )
+        const first = await ProfileStorage.addBlinkAccount(profileId, "First", "key1")
         await ProfileStorage.addBlinkAccount(profileId, "Second", "key2")
 
         ProfileStorage.removeBlinkAccount(profileId, first.id)
@@ -408,27 +387,21 @@ describe("ProfileStorage", () => {
     describe("setActiveNWCConnection()", () => {
       it("should set active NWC connection", async () => {
         await ProfileStorage.addNWCConnection(profileId, "First", "uri1")
-        const second = await ProfileStorage.addNWCConnection(
-          profileId,
-          "Second",
-          "uri2",
-        )
+        const second = await ProfileStorage.addNWCConnection(profileId, "Second", "uri2")
 
         ProfileStorage.setActiveNWCConnection(profileId, second.id)
 
         const profile = ProfileStorage.getProfileById(profileId)
-        const active = profile.nwcConnections.find((c: any) => c.isActive)
+        const active = profile.nwcConnections.find(
+          (c: { isActive: boolean; id: string }) => c.isActive,
+        )
         expect(active.id).toBe(second.id)
       })
     })
 
     describe("removeNWCConnection()", () => {
       it("should remove NWC connection", async () => {
-        const conn = await ProfileStorage.addNWCConnection(
-          profileId,
-          "Test",
-          "uri",
-        )
+        const conn = await ProfileStorage.addNWCConnection(profileId, "Test", "uri")
 
         ProfileStorage.removeNWCConnection(profileId, conn.id)
 
@@ -437,11 +410,7 @@ describe("ProfileStorage", () => {
       })
 
       it("should clear forward settings if forwarding target removed", async () => {
-        const conn = await ProfileStorage.addNWCConnection(
-          profileId,
-          "Forward",
-          "uri",
-        )
+        const conn = await ProfileStorage.addNWCConnection(profileId, "Forward", "uri")
         ProfileStorage.updateTippingSettings(profileId, {
           forwardToNWC: true,
           forwardNWCId: conn.id,
@@ -533,9 +502,7 @@ describe("ProfileStorage", () => {
 
         const importData = {
           version: 1,
-          profiles: [
-            { publicKey: "newprofile", preferences: { darkMode: false } },
-          ],
+          profiles: [{ publicKey: "newprofile", preferences: { darkMode: false } }],
         }
 
         ProfileStorage.importProfiles(importData, true)

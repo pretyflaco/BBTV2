@@ -33,7 +33,7 @@ function extractPubkey(username: string): string | null {
  */
 function verifyNostrSession(req: NextApiRequest): {
   valid: boolean
-  session?: any
+  session?: { username: string }
   pubkey?: string
   error?: string
 } {
@@ -70,11 +70,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       "[nostr-blink-account] BLOCKED: Unauthenticated GET by pubkey attempt:",
       (req.query.pubkey as string)?.substring(0, 8),
     )
-    return res
-      .status(401)
-      .json({
-        error: "Authentication required - pubkey-only access is no longer supported",
-      })
+    return res.status(401).json({
+      error: "Authentication required - pubkey-only access is no longer supported",
+    })
   }
 
   if (req.method === "POST" && req.body?.pubkey && !req.cookies["auth-token"]) {
@@ -82,11 +80,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       "[nostr-blink-account] BLOCKED: Unauthenticated POST by pubkey attempt:",
       req.body?.pubkey?.substring(0, 8),
     )
-    return res
-      .status(401)
-      .json({
-        error: "Authentication required - pubkey-only access is no longer supported",
-      })
+    return res.status(401).json({
+      error: "Authentication required - pubkey-only access is no longer supported",
+    })
   }
 
   // All requests now require full session verification
@@ -100,11 +96,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     switch (req.method) {
       case "GET":
-        return handleGet(req, res, pubkey!, session.username)
+        return handleGet(req, res, pubkey!, session!.username)
       case "POST":
-        return handlePost(req, res, pubkey!, session.username)
+        return handlePost(req, res, pubkey!, session!.username)
       case "DELETE":
-        return handleDelete(req, res, pubkey!, session.username)
+        return handleDelete(req, res, pubkey!, session!.username)
       default:
         return res.status(405).json({ error: "Method not allowed" })
     }

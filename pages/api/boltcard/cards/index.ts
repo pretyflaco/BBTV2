@@ -44,8 +44,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const cards = await boltcard.store.getCardsByOwner(ownerPubkey)
 
     // Format cards for response (exclude sensitive data)
-    const formattedCards = cards.map((card: any) => {
-      const cardResponse: any = {
+    interface CardRecord {
+      id: string
+      cardUid: string
+      cardIdHash: string
+      name: string | null
+      walletCurrency: string
+      balance: number
+      maxTxAmount: number | null
+      dailyLimit: number | null
+      dailySpent: number
+      status: string
+      version: number
+      createdAt: number
+      activatedAt: number | null
+      lastUsedAt: number | null
+      environment: string
+    }
+
+    interface CardResponse {
+      id: string
+      cardIdHash: string
+      name: string | null
+      walletCurrency: string
+      balance: number
+      maxTxAmount: number | null
+      dailyLimit: number | null
+      dailySpent: number
+      status: string
+      version: number
+      createdAt: number
+      activatedAt: number | null
+      lastUsedAt: number | null
+      environment: string
+      cardUid?: string
+    }
+
+    const formattedCards = cards.map((card: CardRecord) => {
+      const cardResponse: CardResponse = {
         id: card.id,
         cardIdHash: card.cardIdHash, // Privacy-preserving identifier
         name: card.name,

@@ -11,6 +11,8 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 import { bech32 } from "bech32"
 
+import type WebSocket from "ws"
+
 // Default relays to query
 const RELAYS = ["wss://relay.damus.io", "wss://nos.lol", "wss://purplepag.es"]
 
@@ -47,9 +49,9 @@ async function fetchProfileFromRelay(
   pubkeyHex: string,
   relayUrl: string,
   timeoutMs: number = 5000,
-): Promise<any> {
+): Promise<Record<string, unknown> | null> {
   return new Promise((resolve) => {
-    let ws: any
+    let ws: WebSocket | undefined
     const timeout = setTimeout(() => {
       if (ws) ws.close()
       resolve(null)
@@ -58,9 +60,10 @@ async function fetchProfileFromRelay(
     try {
       // Dynamic import for WebSocket in Node.js
       const WebSocket = require("ws")
-      ws = new WebSocket(relayUrl)
+      const socket: WebSocket = new WebSocket(relayUrl)
+      ws = socket
 
-      ws.on("open", () => {
+      socket.on("open", () => {
         // Subscribe to kind 0 (metadata) events for this pubkey
         const subId = `profile_${Date.now()}`
         const filter = {
@@ -68,21 +71,21 @@ async function fetchProfileFromRelay(
           authors: [pubkeyHex],
           limit: 1,
         }
-        ws.send(JSON.stringify(["REQ", subId, filter]))
+        socket.send(JSON.stringify(["REQ", subId, filter]))
       })
 
-      ws.on("message", (data: any) => {
+      socket.on("message", (data: Buffer) => {
         try {
           const msg = JSON.parse(data.toString())
           if (msg[0] === "EVENT" && msg[2]?.kind === 0) {
             const content = JSON.parse(msg[2].content)
             clearTimeout(timeout)
-            ws.close()
+            socket.close()
             resolve(content)
           } else if (msg[0] === "EOSE") {
             // End of stored events - no profile found
             clearTimeout(timeout)
-            ws.close()
+            socket.close()
             resolve(null)
           }
         } catch (e: unknown) {
@@ -90,7 +93,7 @@ async function fetchProfileFromRelay(
         }
       })
 
-      ws.on("error", () => {
+      socket.on("error", () => {
         clearTimeout(timeout)
         resolve(null)
       })
@@ -104,7 +107,7 @@ async function fetchProfileFromRelay(
 /**
  * Fetch profile from multiple relays
  */
-async function fetchProfile(pubkeyHex: string): Promise<any> {
+async function fetchProfile(pubkeyHex: string): Promise<Record<string, unknown> | null> {
   // Try relays in sequence, return first success
   for (const relay of RELAYS) {
     try {

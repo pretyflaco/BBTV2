@@ -13,7 +13,7 @@
  */
 
 interface QRRasterOptions {
-  errorCorrection?: string
+  errorCorrection?: "L" | "M" | "Q" | "H"
   moduleSize?: number
   margin?: number
   darkColor?: boolean
@@ -45,13 +45,13 @@ interface QRSizeEstimate {
 
 // QRCode library will be dynamically imported to avoid bundling issues
 // in environments that don't need rasterization
-let QRCodeLib: any = null
+let QRCodeLib: typeof import("qrcode") | null = null
 
 /**
  * Dynamically load the qrcode library
- * @returns {Promise<any>} QRCode library
+ * @returns {Promise<typeof import("qrcode")>} QRCode library
  */
-async function getQRCodeLib(): Promise<any> {
+async function getQRCodeLib(): Promise<typeof import("qrcode")> {
   if (QRCodeLib) return QRCodeLib
 
   try {

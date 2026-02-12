@@ -22,6 +22,10 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from "next"
+import type {
+  FlatValidationResult,
+  PaymentResultWithRecipient,
+} from "../../../lib/batch-payments/payment-executor"
 import { executeBatchPayments } from "../../../lib/batch-payments/payment-executor"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -33,7 +37,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { apiKey, walletId, validationResults, confirm } = req.body as {
       apiKey: string
       walletId: string
-      validationResults: any[]
+      validationResults: FlatValidationResult[]
       confirm: boolean
     }
 
@@ -51,7 +55,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Filter to only valid recipients
-    const validRecipients = validationResults.filter((r: any) => r.valid)
+    const validRecipients = validationResults.filter((r: FlatValidationResult) => r.valid)
 
     if (validRecipients.length === 0) {
       return res.status(400).json({
@@ -88,7 +92,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       success: true,
       status: "COMPLETE",
       summary: executionResult.summary,
-      results: executionResult.results.map((r: any) => ({
+      results: executionResult.results.map((r: PaymentResultWithRecipient) => ({
         rowNumber: r.recipient.rowNumber,
         recipient: r.recipient.original,
         normalized: r.recipient.normalized,

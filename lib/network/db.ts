@@ -123,7 +123,10 @@ export function getPool(): Pool {
 /**
  * Execute a query with parameters
  */
-export async function query(text: string, params?: unknown[]): Promise<QueryResult<any>> {
+export async function query(
+  text: string,
+  params?: unknown[],
+): Promise<QueryResult<Record<string, unknown>>> {
   const start = Date.now()
   const result = await getPool().query(text, params)
   const duration = Date.now() - start
@@ -164,7 +167,7 @@ export async function isSuperAdmin(npub: string | null | undefined): Promise<boo
   return result.rows.length > 0
 }
 
-export async function getSuperAdmins(): Promise<Record<string, any>[]> {
+export async function getSuperAdmins(): Promise<Record<string, unknown>[]> {
   const result = await query(
     `SELECT npub, display_name, added_at FROM super_admins WHERE status = 'active'`,
   )
@@ -198,7 +201,7 @@ export async function addToWhitelist(
   displayName: string,
   addedByNpub: string,
   reason: string,
-): Promise<Record<string, any>> {
+): Promise<Record<string, unknown>> {
   // Verify the caller is a super admin
   const isAdmin = await isSuperAdmin(addedByNpub)
   if (!isAdmin) {
@@ -218,7 +221,7 @@ export async function addToWhitelist(
 export async function removeFromWhitelist(
   npub: string,
   removedByNpub: string,
-): Promise<Record<string, any> | undefined> {
+): Promise<Record<string, unknown> | undefined> {
   // Verify the caller is a super admin
   const isAdmin = await isSuperAdmin(removedByNpub)
   if (!isAdmin) {
@@ -235,7 +238,7 @@ export async function removeFromWhitelist(
   return result.rows[0]
 }
 
-export async function getWhitelistedLeaders(): Promise<Record<string, any>[]> {
+export async function getWhitelistedLeaders(): Promise<Record<string, unknown>[]> {
   const result = await query(
     `SELECT * FROM community_leader_whitelist WHERE status = 'active' ORDER BY created_at DESC`,
   )
@@ -248,7 +251,7 @@ export async function getWhitelistedLeaders(): Promise<Record<string, any>[]> {
 
 export async function createCommunity(
   data: CommunityCreateData,
-): Promise<Record<string, any>> {
+): Promise<Record<string, unknown>> {
   const {
     name,
     slug,
@@ -297,21 +300,21 @@ export async function createCommunity(
 
 export async function getCommunityBySlug(
   slug: string,
-): Promise<Record<string, any> | undefined> {
+): Promise<Record<string, unknown> | undefined> {
   const result = await query("SELECT * FROM communities WHERE slug = $1", [slug])
   return result.rows[0]
 }
 
 export async function getCommunityById(
   id: string | number,
-): Promise<Record<string, any> | undefined> {
+): Promise<Record<string, unknown> | undefined> {
   const result = await query("SELECT * FROM communities WHERE id = $1", [id])
   return result.rows[0]
 }
 
 export async function listCommunities(
   options: ListOptions = {},
-): Promise<Record<string, any>[]> {
+): Promise<Record<string, unknown>[]> {
   const { status = "active", limit = 50, offset = 0 } = options
 
   const result = await query(
@@ -327,12 +330,12 @@ export async function listCommunities(
   return result.rows
 }
 
-export async function getCommunitiesForHeatmap(): Promise<Record<string, any>[]> {
+export async function getCommunitiesForHeatmap(): Promise<Record<string, unknown>[]> {
   const result = await query(`SELECT * FROM community_heatmap`)
   return result.rows
 }
 
-export async function getLeaderboard(): Promise<Record<string, any>[]> {
+export async function getLeaderboard(): Promise<Record<string, unknown>[]> {
   const result = await query(`SELECT * FROM community_leaderboard LIMIT 100`)
   return result.rows
 }
@@ -346,7 +349,7 @@ export async function applyToJoinCommunity(
   userNpub: string,
   userPubkeyHex: string,
   applicationNote: string | null,
-): Promise<Record<string, any>> {
+): Promise<Record<string, unknown>> {
   const result = await query(
     `INSERT INTO community_memberships 
      (community_id, user_npub, user_pubkey_hex, application_note, status)
@@ -368,7 +371,7 @@ export async function applyToJoinCommunity(
 export async function getMembership(
   communityId: string | number,
   userNpub: string,
-): Promise<Record<string, any> | undefined> {
+): Promise<Record<string, unknown> | undefined> {
   const result = await query(
     `SELECT cm.*, c.name as community_name, c.slug as community_slug
      FROM community_memberships cm
@@ -384,7 +387,7 @@ export async function getMembership(
  */
 export async function getMembershipById(
   membershipId: string | number,
-): Promise<Record<string, any> | undefined> {
+): Promise<Record<string, unknown> | undefined> {
   const result = await query(
     `SELECT cm.*, c.name as community_name, c.slug as community_slug, c.leader_npub
      FROM community_memberships cm
@@ -397,7 +400,7 @@ export async function getMembershipById(
 
 export async function getUserMemberships(
   userNpub: string,
-): Promise<Record<string, any>[]> {
+): Promise<Record<string, unknown>[]> {
   const result = await query(
     `SELECT cm.*, c.name as community_name, c.slug as community_slug,
             c.member_count, c.data_sharing_member_count
@@ -412,7 +415,7 @@ export async function getUserMemberships(
 
 export async function getPendingApplications(
   communityId: string | number,
-): Promise<Record<string, any>[]> {
+): Promise<Record<string, unknown>[]> {
   const result = await query(
     `SELECT * FROM pending_applications WHERE community_id = $1`,
     [communityId],
@@ -425,7 +428,7 @@ export async function reviewApplication(
   approvedByNpub: string,
   approved: boolean,
   rejectionReason: string | null,
-): Promise<Record<string, any> | undefined> {
+): Promise<Record<string, unknown> | undefined> {
   const result = await query(
     `UPDATE community_memberships 
      SET status = $1::varchar,
@@ -448,7 +451,7 @@ export async function reviewApplication(
 export async function leaveCommunity(
   communityId: string | number,
   userNpub: string,
-): Promise<Record<string, any> | undefined> {
+): Promise<Record<string, unknown> | undefined> {
   const result = await query(
     `UPDATE community_memberships 
      SET status = 'left', left_at = NOW()
@@ -466,7 +469,7 @@ export async function leaveCommunity(
 export async function removeMember(
   membershipId: string | number,
   removedByNpub: string,
-): Promise<Record<string, any> | undefined> {
+): Promise<Record<string, unknown> | undefined> {
   const result = await query(
     `UPDATE community_memberships 
      SET status = 'removed', 
@@ -492,7 +495,7 @@ export async function removeMember(
 export async function getCommunityMembers(
   communityId: string | number,
   options: ListOptions = {},
-): Promise<Record<string, any>[]> {
+): Promise<Record<string, unknown>[]> {
   const { status = "approved", limit = 100, offset = 0 } = options
 
   const result = await query(
@@ -519,7 +522,7 @@ export async function createOrUpdateConsent(
   userNpub: string,
   communityId: string | number,
   consentData: ConsentData,
-): Promise<Record<string, any>> {
+): Promise<Record<string, unknown>> {
   const {
     consentGiven,
     blinkApiKeyEncrypted,
@@ -566,7 +569,7 @@ export async function createOrUpdateConsent(
 
 export async function getConsent(
   membershipId: string | number,
-): Promise<Record<string, any> | undefined> {
+): Promise<Record<string, unknown> | undefined> {
   const result = await query(
     `SELECT * FROM data_sharing_consents WHERE membership_id = $1`,
     [membershipId],
@@ -577,7 +580,7 @@ export async function getConsent(
 export async function getConsentByUser(
   communityId: string | number,
   userNpub: string,
-): Promise<Record<string, any> | undefined> {
+): Promise<Record<string, unknown> | undefined> {
   const result = await query(
     `SELECT dsc.* 
      FROM data_sharing_consents dsc
@@ -590,14 +593,14 @@ export async function getConsentByUser(
 
 export async function getConsentsForSync(
   limit: number = 10,
-): Promise<Record<string, any>[]> {
+): Promise<Record<string, unknown>[]> {
   const result = await query(`SELECT * FROM data_sync_queue LIMIT $1`, [limit])
   return result.rows
 }
 
 export async function getCommunityConsents(
   communityId: string | number,
-): Promise<Record<string, any>[]> {
+): Promise<Record<string, unknown>[]> {
   // Get all active consents for a specific community with API keys for syncing
   const result = await query(
     `SELECT 
@@ -625,7 +628,7 @@ export async function updateSyncStatus(
   status: string,
   error: string | null = null,
   transactionsSynced: number = 0,
-): Promise<Record<string, any> | undefined> {
+): Promise<Record<string, unknown> | undefined> {
   const result = await query(
     `UPDATE data_sharing_consents 
      SET sync_status = $1::varchar,
@@ -763,7 +766,7 @@ export async function insertMemberTransactions(
 
 export async function markInternalTransactions(
   communityId: string | number,
-): Promise<any> {
+): Promise<unknown> {
   const result = await query(`SELECT mark_internal_transactions($1)`, [communityId])
   return result.rows[0].mark_internal_transactions
 }
@@ -789,7 +792,7 @@ export async function computeMetrics(
 export async function getLatestMetrics(
   communityId: string | number,
   periodType: string = "monthly",
-): Promise<Record<string, any> | undefined> {
+): Promise<Record<string, unknown> | undefined> {
   const result = await query(
     `SELECT * FROM community_metrics 
      WHERE community_id = $1 AND period_type = $2
@@ -804,7 +807,7 @@ export async function getMetricsHistory(
   communityId: string | number,
   periodType: string = "monthly",
   limit: number = 12,
-): Promise<Record<string, any>[]> {
+): Promise<Record<string, unknown>[]> {
   const result = await query(
     `SELECT * FROM community_metrics 
      WHERE community_id = $1 AND period_type = $2
@@ -829,8 +832,8 @@ export async function calculateMetricsForPeriod(
      WHERE community_id = $1 AND consent_given = true AND blink_username IS NOT NULL`,
     [communityId],
   )
-  const memberUsernames: string[] = consentsResult.rows.map((r: Record<string, any>) =>
-    (r.blink_username as string).toLowerCase(),
+  const memberUsernames: string[] = consentsResult.rows.map(
+    (r: Record<string, unknown>) => (r.blink_username as string).toLowerCase(),
   )
   const memberSet = new Set(memberUsernames)
 
@@ -847,7 +850,7 @@ export async function calculateMetricsForPeriod(
     [communityId, periodStart, periodEnd, memberUsernames],
   )
 
-  const transactions: Record<string, any>[] = txResult.rows
+  const transactions: Record<string, unknown>[] = txResult.rows
 
   if (transactions.length === 0) {
     return {
@@ -920,7 +923,7 @@ export async function getDataCoverage(
     [communityId],
   )
 
-  const row: Record<string, any> = result.rows[0]
+  const row: Record<string, unknown> = result.rows[0]
   return {
     oldest: row.oldest ? (row.oldest as Date).toISOString() : null,
     newest: row.newest ? (row.newest as Date).toISOString() : null,
@@ -1016,7 +1019,7 @@ export async function getConsentCount(communityId: string | number): Promise<num
 /**
  * Get all communities with basic info for heatmap/leaderboard
  */
-export async function getAllCommunities(): Promise<Record<string, any>[]> {
+export async function getAllCommunities(): Promise<Record<string, unknown>[]> {
   const result = await query(
     `SELECT 
        id, name, slug, 
@@ -1038,7 +1041,7 @@ export async function checkAndRecordMilestone(
   communityId: string | number,
   milestoneType: string,
   value: number | string,
-): Promise<Record<string, any> | undefined> {
+): Promise<Record<string, unknown> | undefined> {
   const result = await query(
     `INSERT INTO community_milestones (community_id, milestone_type, milestone_value)
      VALUES ($1, $2, $3)
@@ -1051,7 +1054,7 @@ export async function checkAndRecordMilestone(
 
 export async function getCommunityMilestones(
   communityId: string | number,
-): Promise<Record<string, any>[]> {
+): Promise<Record<string, unknown>[]> {
   const result = await query(
     `SELECT * FROM community_milestones 
      WHERE community_id = $1 
@@ -1075,7 +1078,7 @@ export async function insertBalanceSnapshot(
   communityId: string | number,
   btcBalanceSats: number,
   stablesatsBalanceSats: number,
-): Promise<Record<string, any>> {
+): Promise<Record<string, unknown>> {
   const result = await query(
     `INSERT INTO member_balance_snapshots 
      (consent_id, community_id, btc_balance_sats, stablesats_balance_sats, snapshot_date)
@@ -1096,7 +1099,7 @@ export async function insertBalanceSnapshot(
  */
 export async function getLatestBalanceSnapshot(
   consentId: string | number,
-): Promise<Record<string, any> | null> {
+): Promise<Record<string, unknown> | null> {
   const result = await query(
     `SELECT * FROM member_balance_snapshots 
      WHERE consent_id = $1 
@@ -1135,10 +1138,10 @@ export async function getCommunityBitcoinPreference(
     }
   }
 
-  const row: Record<string, any> = result.rows[0]
+  const row: Record<string, unknown> = result.rows[0]
   return {
     community_id: communityId,
-    btc_preference_pct: parseFloat(row.btc_preference_pct) || null,
+    btc_preference_pct: parseFloat(row.btc_preference_pct as string) || null,
     total_btc_sats: parseInt(String(row.total_btc_sats), 10) || 0,
     total_stablesats_sats: parseInt(String(row.total_stablesats_sats), 10) || 0,
     total_balance_sats: parseInt(String(row.total_balance_sats), 10) || 0,
@@ -1154,7 +1157,7 @@ export async function getCommunityBitcoinPreference(
 export async function getBitcoinPreferenceHistory(
   communityId: string | number,
   days: number = 30,
-): Promise<Record<string, any>[]> {
+): Promise<Record<string, unknown>[]> {
   const result = await query(
     `SELECT 
        snapshot_date,

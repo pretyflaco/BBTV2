@@ -6,7 +6,7 @@ import fs from "fs"
 import path from "path"
 
 // Dynamic import to avoid issues with font registration at module load time
-let pdfModule: any = null
+let pdfModule: typeof import("../../../lib/pdf/TransactionReceiptPDF") | null = null
 const getPdfModule = async () => {
   if (!pdfModule) {
     pdfModule = await import("../../../lib/pdf/TransactionReceiptPDF")
@@ -28,6 +28,20 @@ const getLogoDataUrl = (): string | null => {
     console.error("Failed to load logo:", error)
     return null
   }
+}
+
+interface TransactionInput {
+  id: string
+  direction: string
+  status?: string
+  amount?: string
+  settlementCurrency?: string
+  settlementAmount?: number
+  settlementFee?: number
+  date?: string
+  memo?: string
+  initiationVia?: Record<string, unknown>
+  settlementVia?: Record<string, unknown>
 }
 
 /**
@@ -61,7 +75,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { transaction } = req.body as { transaction: any }
+    const { transaction } = req.body as { transaction: TransactionInput }
 
     console.log("📄 Transaction Receipt PDF API called:", {
       transactionId: transaction?.id,
@@ -106,7 +120,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const documentElement = React.createElement(TransactionReceiptDocument, {
       transaction,
       generatedAt,
-      logoDataUrl: logo,
+      logoDataUrl: logo ?? undefined,
     })
 
     // Render to buffer

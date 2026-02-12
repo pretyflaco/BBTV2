@@ -308,10 +308,10 @@ export async function syncUserTransactions(
 
     // Paginate through transactions until we hit the cutoff date or max limit
     while (hasMore && allTransactions.length < SYNC_CONFIG.MAX_TRANSACTIONS) {
-      const txData: BlinkTransactionPage | null = await blinkApi.getTransactions(
+      const txData: BlinkTransactionPage | null = (await blinkApi.getTransactions(
         SYNC_CONFIG.BATCH_SIZE,
         cursor,
-      )
+      )) as BlinkTransactionPage | null
       pagesLoaded++
 
       if (!txData || !txData.edges || txData.edges.length === 0) {

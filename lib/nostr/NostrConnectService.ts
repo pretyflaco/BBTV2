@@ -104,15 +104,26 @@ interface StoreSessionData {
  * The real type can't be imported because nostr-tools/nip46 is a subpath export
  * that doesn't resolve under moduleResolution:"node".
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type BunkerSignerInstance = any
+interface BunkerSignerInstance {
+  getPublicKey(): Promise<string>
+  signEvent(event: UnsignedEvent): Promise<SignedEvent>
+  connect(): Promise<void>
+  close(): Promise<void>
+  ping(): Promise<void>
+  bp: {
+    pubkey?: string
+    secret?: string
+    relays?: string[]
+  }
+}
 
 /**
  * Minimal typing for SimplePool.
  * Same subpath-export resolution issue as BunkerSigner.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type SimplePoolInstance = any
+interface SimplePoolInstance {
+  close(relays: string[]): void
+}
 
 // =====================================================================
 // Constants
@@ -187,7 +198,7 @@ class NostrConnectService {
       console.log("[NostrConnect] v49: Creating new SimplePool instance")
       this.pool = new SimplePool()
     }
-    return this.pool
+    return this.pool!
   }
 
   /** Close and cleanup the shared pool. */
@@ -284,7 +295,7 @@ class NostrConnectService {
       console.log("[NostrConnect] Connection established, getting public key...")
 
       // Get the user's public key from the remote signer
-      const publicKey: string = await this.signer.getPublicKey()
+      const publicKey: string = await this.signer!.getPublicKey()
 
       // Add stabilization delay to let WebSocket connections settle
       // This helps prevent the first signing attempt from failing
@@ -297,8 +308,8 @@ class NostrConnectService {
       // Store session for persistence
       this.storeSession({
         publicKey,
-        signerPubkey: this.signer.bp.pubkey,
-        relays: this.signer.bp.relays,
+        signerPubkey: this.signer!.bp.pubkey!,
+        relays: this.signer!.bp.relays!,
       })
 
       console.log("[NostrConnect] Successfully connected!")
@@ -506,9 +517,9 @@ class NostrConnectService {
       console.log(
         "[NostrConnect] v49: BunkerSigner created, signer.bp:",
         JSON.stringify({
-          pubkey: this.signer.bp?.pubkey?.slice(0, 16) + "...",
-          secret: this.signer.bp?.secret ? "exists" : "none",
-          relays: this.signer.bp?.relays,
+          pubkey: this.signer!.bp?.pubkey?.slice(0, 16) + "...",
+          secret: this.signer!.bp?.secret ? "exists" : "none",
+          relays: this.signer!.bp?.relays,
         }),
       )
 
@@ -516,7 +527,7 @@ class NostrConnectService {
         // Establish connection with the remote signer WITH TIMEOUT
         // nostr-tools signer.connect() has no built-in timeout, so we add one
         console.log("[NostrConnect] v49: Calling signer.connect() with timeout...")
-        await this.connectWithTimeout(this.signer, BUNKER_CONNECT_TIMEOUT)
+        await this.connectWithTimeout(this.signer!, BUNKER_CONNECT_TIMEOUT)
         console.log("[NostrConnect] v49: connect() completed successfully")
 
         // Small delay to let WebSocket connections stabilize
@@ -638,7 +649,7 @@ class NostrConnectService {
     let lastError: unknown = null
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const publicKey: string = await this.signer.getPublicKey()
+        const publicKey: string = await this.signer!.getPublicKey()
         return publicKey
       } catch (err: unknown) {
         lastError = err
@@ -720,7 +731,7 @@ class NostrConnectService {
           `[NostrConnect] Requesting signature for event kind: ${eventTemplate.kind} (attempt ${attempt}/${maxRetries})`,
         )
 
-        const signedEvent: SignedEvent = await this.signer.signEvent(eventTemplate)
+        const signedEvent: SignedEvent = await this.signer!.signEvent(eventTemplate)
 
         console.log("[NostrConnect] Event signed successfully")
         console.log("[NostrConnect] Event ID:", signedEvent.id.slice(0, 16) + "...")
@@ -805,10 +816,10 @@ class NostrConnectService {
 
       // Verify connection is alive with a ping
       console.log("[NostrConnect] Verifying connection with ping...")
-      await this.signer.ping()
+      await this.signer!.ping()
 
       // Verify public key matches
-      const publicKey: string = await this.signer.getPublicKey()
+      const publicKey: string = await this.signer!.getPublicKey()
       if (publicKey !== session.publicKey) {
         console.warn("[NostrConnect] Public key mismatch, clearing session")
         this.clearSession()
@@ -1029,3 +1040,4 @@ class NostrConnectService {
 }
 
 export default NostrConnectService
+export type { ConnectionResult }

@@ -5,6 +5,7 @@ import {
   type SetStateAction,
   type RefObject,
 } from "react"
+import type { CartCheckoutData } from "./useViewNavigation"
 
 // Spinner colors for transitions
 const SPINNER_COLORS: string[] = [
@@ -32,8 +33,8 @@ interface UsePublicPOSViewStateReturn {
   isViewTransitioning: boolean
   setIsViewTransitioning: Dispatch<SetStateAction<boolean>>
   transitionColorIndex: number
-  cartCheckoutData: Record<string, unknown> | null
-  setCartCheckoutData: Dispatch<SetStateAction<Record<string, unknown> | null>>
+  cartCheckoutData: CartCheckoutData | null
+  setCartCheckoutData: Dispatch<SetStateAction<CartCheckoutData | null>>
   showingInvoice: boolean
   setShowingInvoice: Dispatch<SetStateAction<boolean>>
   handleViewTransition: (newView: string) => void
@@ -57,10 +58,7 @@ export function usePublicPOSViewState({
   const [currentView, setCurrentView] = useState("pos")
   const [isViewTransitioning, setIsViewTransitioning] = useState(false)
   const [transitionColorIndex, setTransitionColorIndex] = useState(0)
-  const [cartCheckoutData, setCartCheckoutData] = useState<Record<
-    string,
-    unknown
-  > | null>(null)
+  const [cartCheckoutData, setCartCheckoutData] = useState<CartCheckoutData | null>(null)
   const [showingInvoice, setShowingInvoice] = useState(false)
 
   // View transition handler

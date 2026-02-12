@@ -37,7 +37,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Environment for staging/production switching
       environment = "production",
     } = req.body as {
-      amount: any
+      amount: string | number
       currency: string
       memo?: string
       walletId?: string
@@ -47,9 +47,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       baseAmount?: number
       tipAmount?: number
       tipPercent?: number
-      tipRecipients?: any[]
-      baseAmountDisplay?: any
-      tipAmountDisplay?: any
+      tipRecipients?: Array<{ username: string; share?: number }>
+      baseAmountDisplay?: number
+      tipAmountDisplay?: number
       nwcActive?: boolean
       nwcConnectionUri?: string
       blinkLnAddress?: boolean
@@ -124,7 +124,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Validate amount
-    const numericAmount = parseFloat(amount)
+    const numericAmount = parseFloat(String(amount))
     if (isNaN(numericAmount) || numericAmount <= 0) {
       return res.status(400).json({
         error: "Invalid amount: must be a positive number",

@@ -8,6 +8,7 @@ import {
   Ref,
 } from "react"
 import { bech32 } from "bech32"
+import type { NostrProfile } from "../lib/nostr/NostrProfileService"
 
 /**
  * Network Component - Bitcoin Circular Economy Dashboard
@@ -20,9 +21,164 @@ import { bech32 } from "bech32"
  * 5. Create Community - Create new community (whitelisted leaders only)
  */
 
+interface BitcoinPreference {
+  btc_preference_pct: number | null
+  total_btc_sats: number
+  total_stablesats_sats: number
+  total_balance_sats?: number
+  members_with_balance: number
+}
+
+interface NetworkCommunity {
+  id: string
+  name: string
+  slug: string
+  description: string | null
+  country_code: string | null
+  region: string | null
+  city: string | null
+  latitude: number
+  longitude: number
+  leader_npub: string
+  member_count: number
+  data_sharing_member_count: number
+  status: string
+  created_at: string
+  transaction_count: number
+  transaction_volume_sats: number
+  intra_community_count: number
+  intra_volume_sats: number
+  closed_loop_ratio: number
+  velocity: number
+  avg_tx_size: number
+  period_start: string | null
+  period_end: string | null
+  metrics_last_updated: string | null
+  bitcoin_preference: BitcoinPreference | null
+  oldest_tx_date?: string | null
+  newest_tx_date?: string | null
+  period_days?: number
+  tx_count_growth_percent?: number
+}
+
+interface UserMembership {
+  id: number | null
+  community_id: string
+  community_name: string
+  community_slug: string
+  user_npub?: string
+  role: string
+  status: string
+  member_count?: number
+  data_sharing_member_count?: number
+  applied_at: string | null
+  approved_at: string | null
+  consent_given: boolean
+  sync_status?: string | null
+  last_sync_at?: string | null
+}
+
+interface LeaderboardEntry {
+  id: string
+  name: string
+  slug: string
+  country_code: string | null
+  city: string | null
+  leader_npub: string
+  member_count: number
+  data_sharing_count: number
+  transaction_count: number
+  transaction_volume_sats: number
+  intra_community_count: number
+  closed_loop_ratio: number
+  velocity: number
+  avg_tx_size: number
+  btc_preference_pct: number | null
+  milestones: Array<{ type: string; threshold: number; badge: string; label: string }>
+  rank: number
+}
+
+interface PendingApplication {
+  id: number
+  community_id: string
+  user_npub: string
+  status: string
+  application_note: string | null
+  applied_at: string
+  reviewed_by?: string | null
+  reviewed_at?: string | null
+}
+
+interface CommunityMember {
+  id: number
+  user_npub: string
+  role: string
+  status: string
+  application_note: string | null
+  applied_at: string
+  approved_at: string | null
+  approved_by: string | null
+  consent_given: boolean
+  blink_username: string | null
+  total_transactions_synced: number
+}
+
+interface UserConsent {
+  id: number
+  community_id: string
+  status: string
+  blink_username: string | null
+  consented_at: string | null
+}
+
+interface NetworkSyncResult {
+  success: boolean
+  community_id: string
+  members_synced: number
+  total_members: number
+  total_transactions: number
+  new_transactions?: number
+  internal_transactions_marked?: number
+  metrics: unknown
+  message?: string
+}
+
+interface PeriodMetricsData {
+  community_id: string
+  period: string
+  period_label: string
+  period_start: string
+  period_end: string
+  transaction_count: number
+  total_volume_sats: number
+  intra_community_count: number
+  intra_volume_sats?: number
+  unique_members: number
+  closed_loop_ratio: number
+  velocity: number
+  avg_tx_size?: number
+  total_synced_txs: number
+  bitcoin_preference: BitcoinPreference | null
+}
+
+interface DataCoverage {
+  oldest_transaction: string | null
+  newest_transaction: string | null
+  total_synced_transactions: number
+}
+
+interface CoverageWarning {
+  type: string
+  message: string
+  data_starts?: string
+  period_starts?: string
+  data_ends?: string
+  period_ends?: string
+}
+
 interface NetworkProps {
   publicKey: string | null
-  nostrProfile: any
+  nostrProfile: NostrProfile | null
   darkMode: boolean
   toggleDarkMode?: () => void
   onInternalTransition?: () => void
@@ -81,15 +237,19 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
 
     // View state
     const [currentView, setCurrentView] = useState<string>("discovery") // discovery, my-communities, most-active, community, leader, create
-    const [selectedCommunity, setSelectedCommunity] = useState<any>(null)
+    const [selectedCommunity, setSelectedCommunity] = useState<NetworkCommunity | null>(
+      null,
+    )
 
     // Data state
-    const [communities, setCommunities] = useState<any[]>([])
-    const [myMemberships, setMyMemberships] = useState<any[]>([])
-    const [leaderboard, setLeaderboard] = useState<any[]>([])
-    const [pendingApplications, setPendingApplications] = useState<any[]>([])
-    const [leaderProfiles, setLeaderProfiles] = useState<Record<string, any>>({}) // npub -> profile data
-    const [userConsents, setUserConsents] = useState<Record<string, any>>({}) // communityId -> consent data
+    const [communities, setCommunities] = useState<NetworkCommunity[]>([])
+    const [myMemberships, setMyMemberships] = useState<UserMembership[]>([])
+    const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+    const [pendingApplications, setPendingApplications] = useState<PendingApplication[]>(
+      [],
+    )
+    const [leaderProfiles, setLeaderProfiles] = useState<Record<string, NostrProfile>>({}) // npub -> profile data
+    const [userConsents, setUserConsents] = useState<Record<string, UserConsent>>({}) // communityId -> consent data
 
     // UI state
     const [loading, setLoading] = useState<boolean>(true)
@@ -98,19 +258,21 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
 
     // Consent modal state
     const [showConsentModal, setShowConsentModal] = useState<boolean>(false)
-    const [consentCommunity, setConsentCommunity] = useState<any>(null)
+    const [consentCommunity, setConsentCommunity] = useState<NetworkCommunity | null>(
+      null,
+    )
     const [consentApiKey, setConsentApiKey] = useState<string>("")
     const [submittingConsent, setSubmittingConsent] = useState<boolean>(false)
 
     // Sync state
     const [syncing, setSyncing] = useState<boolean>(false)
-    const [syncResult, setSyncResult] = useState<any>(null)
+    const [syncResult, setSyncResult] = useState<NetworkSyncResult | null>(null)
 
     // Period filter state
     const [selectedPeriod, setSelectedPeriod] = useState<string>("current_week")
-    const [periodMetrics, setPeriodMetrics] = useState<any>(null)
-    const [dataCoverage, setDataCoverage] = useState<any>(null)
-    const [coverageWarning, setCoverageWarning] = useState<any>(null)
+    const [periodMetrics, setPeriodMetrics] = useState<PeriodMetricsData | null>(null)
+    const [dataCoverage, setDataCoverage] = useState<DataCoverage | null>(null)
+    const [coverageWarning, setCoverageWarning] = useState<CoverageWarning | null>(null)
     const [loadingMetrics, setLoadingMetrics] = useState<boolean>(false)
 
     const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(false)
@@ -120,12 +282,12 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
     // Application form state
     const [showApplyModal, setShowApplyModal] = useState<boolean>(false)
     const [applicationNote, setApplicationNote] = useState<string>("")
-    const [applyingTo, setApplyingTo] = useState<any>(null)
+    const [applyingTo, setApplyingTo] = useState<NetworkCommunity | null>(null)
     const [submitting, setSubmitting] = useState<boolean>(false)
 
     // Member management state (for leaders)
-    const [communityMembers, setCommunityMembers] = useState<any[]>([])
-    const [memberProfiles, setMemberProfiles] = useState<Record<string, any>>({}) // npub -> profile data
+    const [communityMembers, setCommunityMembers] = useState<CommunityMember[]>([])
+    const [memberProfiles, setMemberProfiles] = useState<Record<string, NostrProfile>>({}) // npub -> profile data
     const [loadingMembers, setLoadingMembers] = useState<boolean>(false)
     const [removingMemberId, setRemovingMemberId] = useState<number | null>(null)
     const [showRemoveConfirm, setShowRemoveConfirm] = useState<number | null>(null) // membership id to confirm removal
@@ -184,9 +346,9 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
     }
 
     // Fetch Nostr profiles for community leaders
-    const fetchLeaderProfiles = async (communitiesList: any[]) => {
+    const fetchLeaderProfiles = async (communitiesList: NetworkCommunity[]) => {
       const uniqueLeaders = [
-        ...new Set(communitiesList.map((c: any) => c.leader_npub).filter(Boolean)),
+        ...new Set(communitiesList.map((c) => c.leader_npub).filter(Boolean)),
       ]
 
       for (const leaderNpub of uniqueLeaders) {
@@ -224,8 +386,8 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
         const data = await response.json()
 
         if (data.success && data.consents) {
-          const consentsMap: Record<string, any> = {}
-          data.consents.forEach((c: any) => {
+          const consentsMap: Record<string, UserConsent> = {}
+          ;(data.consents as UserConsent[]).forEach((c) => {
             consentsMap[c.community_id] = c
           })
           setUserConsents(consentsMap)
@@ -311,7 +473,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
     }
 
     // Open consent modal
-    const openConsentModal = (community: any) => {
+    const openConsentModal = (community: NetworkCommunity) => {
       setConsentCommunity(community)
       setConsentApiKey("")
       setError("")
@@ -369,7 +531,9 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
           if (commData.success) {
             setCommunities(commData.communities || [])
             // Update selectedCommunity with fresh data
-            const updated = commData.communities.find((c: any) => c.id === communityId)
+            const updated = (commData.communities as NetworkCommunity[]).find(
+              (c) => c.id === communityId,
+            )
             if (updated) {
               setSelectedCommunity(updated)
             }
@@ -411,10 +575,8 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
     }
 
     // Fetch Nostr profiles for community members
-    const fetchMemberProfiles = async (members: any[]) => {
-      const uniqueNpubs = [
-        ...new Set(members.map((m: any) => m.user_npub).filter(Boolean)),
-      ]
+    const fetchMemberProfiles = async (members: Array<{ user_npub: string }>) => {
+      const uniqueNpubs = [...new Set(members.map((m) => m.user_npub).filter(Boolean))]
 
       for (const npub of uniqueNpubs) {
         // Skip if already fetched
@@ -462,7 +624,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
 
         if (data.success) {
           // Remove from local state
-          setCommunityMembers((prev) => prev.filter((m: any) => m.id !== membershipId))
+          setCommunityMembers((prev) => prev.filter((m) => m.id !== membershipId))
           setShowRemoveConfirm(null)
           // Refresh communities to update member counts
           fetchCommunities()
@@ -553,7 +715,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
       }
     }
 
-    const handleApplyToJoin = async (community: any) => {
+    const handleApplyToJoin = async (community: NetworkCommunity) => {
       setApplyingTo(community)
       setShowApplyModal(true)
       setApplicationNote("")
@@ -582,7 +744,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
 
         if (data.success) {
           // Add the pending membership to local state immediately
-          const newMembership = {
+          const newMembership: UserMembership = {
             id: data.membership.id,
             community_id: applyingTo.id,
             community_name: applyingTo.name,
@@ -590,6 +752,8 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
             role: "member",
             status: "pending",
             applied_at: data.membership.applied_at,
+            approved_at: null,
+            consent_given: false,
           }
           setMyMemberships((prev) => [...prev, newMembership])
 
@@ -645,9 +809,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
 
         if (data.success) {
           // Remove the application from the list
-          setPendingApplications((prev) =>
-            prev.filter((app: any) => app.id !== applicationId),
-          )
+          setPendingApplications((prev) => prev.filter((app) => app.id !== applicationId))
 
           // Show success feedback
           setReviewSuccess(
@@ -667,7 +829,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
       }
     }
 
-    const navigateToView = (view: string, community: any = null) => {
+    const navigateToView = (view: string, community: NetworkCommunity | null = null) => {
       if (onInternalTransition) onInternalTransition()
       setSelectedCommunity(community)
       setCurrentView(view)
@@ -687,7 +849,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
 
     // Filter communities based on search
     const filteredCommunities = communities.filter(
-      (c: any) =>
+      (c) =>
         c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.city?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.country_code?.toLowerCase().includes(searchQuery.toLowerCase()),
@@ -695,7 +857,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
 
     // Get membership info for a community
     const getMembershipInfo = (communityId: string) => {
-      const membership = myMemberships.find((m: any) => m.community_id === communityId)
+      const membership = myMemberships.find((m) => m.community_id === communityId)
       return membership || null
     }
 
@@ -806,7 +968,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
                 className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 text-sm font-medium whitespace-nowrap"
               >
                 My Communities (
-                {myMemberships.filter((m: any) => m.status === "approved").length})
+                {myMemberships.filter((m) => m.status === "approved").length})
               </button>
               <button
                 onClick={() => navigateToView("most-active")}
@@ -865,7 +1027,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
               </div>
             ) : (
               <div className="space-y-4">
-                {filteredCommunities.map((community: any) => {
+                {filteredCommunities.map((community) => {
                   const membership = getMembershipInfo(community.id)
                   const membershipStatus = membership?.status || null
                   const roleBadge = membership ? getRoleBadge(membership.role) : null
@@ -1004,11 +1166,12 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
                                 </span>
                               </div>
                             )}
-                            {community.tx_count_growth_percent > 0 && (
-                              <div className="text-green-600 dark:text-green-400 text-sm font-medium">
-                                +{community.tx_count_growth_percent.toFixed(1)}% growth
-                              </div>
-                            )}
+                            {community.tx_count_growth_percent != null &&
+                              community.tx_count_growth_percent > 0 && (
+                                <div className="text-green-600 dark:text-green-400 text-sm font-medium">
+                                  +{community.tx_count_growth_percent.toFixed(1)}% growth
+                                </div>
+                              )}
                           </div>
 
                           {/* Action Button - Inline for mobile-friendly layout */}
@@ -1187,10 +1350,8 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
     // MY COMMUNITIES VIEW
     // ============================================
     if (currentView === "my-communities") {
-      const approvedMemberships = myMemberships.filter(
-        (m: any) => m.status === "approved",
-      )
-      const pendingMemberships = myMemberships.filter((m: any) => m.status === "pending")
+      const approvedMemberships = myMemberships.filter((m) => m.status === "approved")
+      const pendingMemberships = myMemberships.filter((m) => m.status === "pending")
 
       return (
         <div
@@ -1237,7 +1398,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
                   Pending Applications ({pendingMemberships.length})
                 </h3>
                 <div className="space-y-3">
-                  {pendingMemberships.map((m: any) => (
+                  {pendingMemberships.map((m) => (
                     <div
                       key={m.id}
                       className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4"
@@ -1248,7 +1409,10 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
                             {m.community_name}
                           </h4>
                           <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Applied {new Date(m.applied_at).toLocaleDateString()}
+                            Applied{" "}
+                            {m.applied_at
+                              ? new Date(m.applied_at).toLocaleDateString()
+                              : "Unknown"}
                           </p>
                         </div>
                         <span className="px-3 py-1 bg-yellow-100 dark:bg-yellow-800 text-yellow-700 dark:text-yellow-300 text-sm rounded-full">
@@ -1280,9 +1444,9 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
                 <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400">
                   Active Memberships
                 </h3>
-                {approvedMemberships.map((m: any) => {
+                {approvedMemberships.map((m) => {
                   const roleBadge = getRoleBadge(m.role)
-                  const community = communities.find((c: any) => c.id === m.community_id)
+                  const community = communities.find((c) => c.id === m.community_id)
                   const leaderNpub = community?.leader_npub
                   const leaderProfile = leaderNpub ? leaderProfiles[leaderNpub] : null
 
@@ -1292,11 +1456,12 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
                       onClick={() => {
                         navigateToView(
                           "community",
-                          community || {
-                            id: m.community_id,
-                            name: m.community_name,
-                            slug: m.community_slug,
-                          },
+                          community ||
+                            ({
+                              id: m.community_id,
+                              name: m.community_name,
+                              slug: m.community_slug,
+                            } as NetworkCommunity),
                         )
                       }}
                       className="bg-gray-50 dark:bg-blink-dark rounded-lg p-4 border border-gray-200 dark:border-gray-700 cursor-pointer hover:border-teal-500 transition-colors"
@@ -1394,7 +1559,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
                 className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 text-sm font-medium whitespace-nowrap"
               >
                 My Communities (
-                {myMemberships.filter((m: any) => m.status === "approved").length})
+                {myMemberships.filter((m) => m.status === "approved").length})
               </button>
               <button
                 onClick={() => navigateToView("most-active")}
@@ -1428,7 +1593,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
                   Communities ranked by members and Bitcoin activity
                 </p>
 
-                {leaderboard.map((c: any) => {
+                {leaderboard.map((c) => {
                   const leaderProfile = leaderProfiles[c.leader_npub]
                   // Country flag mapping
                   const countryFlags: Record<string, string> = {
@@ -1455,15 +1620,14 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
                     PA: "🇵🇦 Panama",
                   }
                   const countryDisplay =
-                    countryFlags[c.country_code] || `🌍 ${c.country_code || "Global"}`
+                    (c.country_code && countryFlags[c.country_code]) ||
+                    `🌍 ${c.country_code || "Global"}`
 
                   return (
                     <div
                       key={c.id}
                       onClick={() => {
-                        const community = communities.find(
-                          (comm: any) => comm.id === c.id,
-                        )
+                        const community = communities.find((comm) => comm.id === c.id)
                         if (community) {
                           navigateToView("community", community)
                         }
@@ -1581,7 +1745,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
     // ============================================
     if (currentView === "community" && selectedCommunity) {
       const membership = myMemberships.find(
-        (m: any) => m.community_id === selectedCommunity.id,
+        (m) => m.community_id === selectedCommunity.id,
       )
       const isLeader = membership?.role === "leader"
 
@@ -1712,14 +1876,16 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
               )}
 
               {/* Data Coverage Info */}
-              {dataCoverage && dataCoverage.oldest_transaction && (
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 text-center">
-                  📊 Synced data:{" "}
-                  {new Date(dataCoverage.oldest_transaction).toLocaleDateString()} -{" "}
-                  {new Date(dataCoverage.newest_transaction).toLocaleDateString()} (
-                  {dataCoverage.total_synced_transactions} txs)
-                </p>
-              )}
+              {dataCoverage &&
+                dataCoverage.oldest_transaction &&
+                dataCoverage.newest_transaction && (
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 text-center">
+                    📊 Synced data:{" "}
+                    {new Date(dataCoverage.oldest_transaction).toLocaleDateString()} -{" "}
+                    {new Date(dataCoverage.newest_transaction).toLocaleDateString()} (
+                    {dataCoverage.total_synced_transactions} txs)
+                  </p>
+                )}
             </div>
 
             {/* Stats Cards */}
@@ -1980,7 +2146,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
     if (currentView === "leader" && selectedCommunity) {
       // Filter applications for this community
       const communityApplications = pendingApplications.filter(
-        (app: any) => app.community_id === selectedCommunity.id,
+        (app) => app.community_id === selectedCommunity.id,
       )
 
       // Calculate time ago for applications
@@ -2096,7 +2262,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
               </div>
             ) : (
               <div className="space-y-4">
-                {communityApplications.map((app: any) => {
+                {communityApplications.map((app) => {
                   const profile = memberProfiles[app.user_npub]
                   const displayName = profile?.name || profile?.display_name || "Unknown"
                   const shortNpub = app.user_npub
@@ -2348,7 +2514,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {communityMembers.map((member: any) => {
+                  {communityMembers.map((member) => {
                     const profile = memberProfiles[member.user_npub]
                     const isLeaderMember = member.role === "leader"
                     const displayName =

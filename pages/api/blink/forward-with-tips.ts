@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next"
+import type { HybridStore } from "../../../lib/storage/hybrid-store"
 
 import BlinkAPI from "../../../lib/blink-api"
 import { getInvoiceFromLightningAddress, isNpubCashAddress } from "../../../lib/lnurl"
@@ -9,12 +10,45 @@ const {
   isBitcoinCurrency,
 } = require("../../../lib/currency-formatter-server")
 
+interface ApiTipRecipient {
+  username: string
+  share?: number
+  type?: string
+}
+
+interface TipResultEntry {
+  success: boolean
+  skipped?: boolean
+  amount?: number
+  recipient: string
+  error?: string
+  reason?: string
+  status?: string
+  type?: string
+}
+
+interface TipPaymentResult {
+  status: string
+  paymentHash?: string
+  errors?: Array<{ message: string; code?: string; path?: string[] }>
+}
+
+interface TipDistributionResult {
+  success: boolean
+  partialSuccess?: boolean
+  totalAmount?: number
+  recipients?: TipResultEntry[]
+  successCount?: number
+  totalCount?: number
+  error?: string
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" })
   }
 
-  let hybridStore: any = null
+  let hybridStore: HybridStore | null = null
   let paymentHash: string | null = null
   let claimSucceeded = false
 
@@ -48,6 +82,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // CRITICAL FIX: Use atomic claim to prevent duplicate payouts
     // This ensures only ONE request can process this payment
     hybridStore = await getHybridStore()
+    if (!hybridStore) {
+      return res.status(500).json({ error: "Storage unavailable" })
+    }
     const claimResult = await hybridStore.claimPaymentForProcessing(paymentHash)
 
     if (!claimResult.claimed) {
@@ -88,6 +125,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     claimSucceeded = true
     const tipData = claimResult.paymentData
 
+    if (!tipData) {
+      await hybridStore.releaseFailedClaim(paymentHash, "No payment data in claim")
+      claimSucceeded = false
+      return res.status(400).json({ error: "No payment data found in claim" })
+    }
+
     console.log(`✅ CLAIMED payment ${paymentHash?.substring(0, 16)}... for processing`)
 
     // CRITICAL: Validate tip data contains proper user credentials
@@ -109,8 +152,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // CRITICAL: Log the user wallet being used for payment forwarding
     // Support both old single tipRecipient and new tipRecipients array
-    const tipRecipients =
-      tipData.tipRecipients ||
+    const tipRecipients: ApiTipRecipient[] =
+      (tipData.tipRecipients as ApiTipRecipient[]) ||
       (tipData.tipRecipient ? [{ username: tipData.tipRecipient, share: 100 }] : [])
 
     console.log("🔍 TIP FORWARDING USER CONTEXT:", {
@@ -119,13 +162,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       apiKeyPrefix: tipData.userApiKey?.substring(0, 10) + "...",
       tipAmount: tipData.tipAmount,
       tipRecipientsCount: tipRecipients.length,
-      tipRecipients: tipRecipients.map((r: any) => r.username),
+      tipRecipients: tipRecipients.map((r: ApiTipRecipient) => r.username),
       timestamp: new Date().toISOString(),
     })
 
     // Get BlinkPOS credentials from environment based on staging/production
     // Get environment from tip data (stored when invoice was created)
-    const environment: EnvironmentName = tipData.environment || "production"
+    const environment: EnvironmentName = (tipData.environment ||
+      "production") as EnvironmentName
     const isStaging = environment === "staging"
     const blinkposApiKey = isStaging
       ? process.env.BLINKPOS_STAGING_API_KEY
@@ -148,7 +192,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       baseAmount: tipData.baseAmount,
       tipAmount: tipData.tipAmount,
       tipRecipientsCount: tipRecipients.length,
-      tipRecipients: tipRecipients.map((r: any) => `${r.username} (${r.share}%)`),
+      tipRecipients: tipRecipients.map(
+        (r: ApiTipRecipient) => `${r.username} (${r.share}%)`,
+      ),
     })
 
     // Calculate the amount to forward to user (total - tip)
@@ -159,7 +205,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Enhanced memo with tip information
     let forwardingMemo: string
-    const recipientNames = tipRecipients.map((r: any) => r.username).join(", ")
+    const recipientNames = tipRecipients
+      .map((r: ApiTipRecipient) => r.username)
+      .join(", ")
 
     if (memo && tipData.tipAmount > 0 && tipRecipients.length > 0) {
       // Extract the base amount and tip details for enhanced memo
@@ -235,7 +283,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log("✅ Base amount successfully forwarded to user account")
 
     // Step 3: Send tip to tip recipients if there's a tip
-    let tipResult: any = null
+    let tipResult: TipDistributionResult | null = null
     // Ensure tipAmount is a proper number for comparison
     const tipAmountNum = Number(tipData.tipAmount) || 0
     console.log("🎯 TIP CHECK:", {
@@ -254,22 +302,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Calculate weighted tip amounts, ensuring we handle rounding properly
         // Each recipient has a 'share' percentage (e.g., 70 for 70%)
         let distributedSats = 0
-        const recipientAmounts = tipRecipients.map((recipient: any, index: number) => {
-          const sharePercent = recipient.share || 100 / tipRecipients.length
-          // For the last recipient, give them whatever is left to avoid rounding issues
-          if (index === tipRecipients.length - 1) {
-            return totalTipSats - distributedSats
-          }
-          const amount = Math.floor((totalTipSats * sharePercent) / 100)
-          distributedSats += amount
-          return amount
-        })
+        const recipientAmounts = tipRecipients.map(
+          (recipient: ApiTipRecipient, index: number) => {
+            const sharePercent = recipient.share || 100 / tipRecipients.length
+            // For the last recipient, give them whatever is left to avoid rounding issues
+            if (index === tipRecipients.length - 1) {
+              return totalTipSats - distributedSats
+            }
+            const amount = Math.floor((totalTipSats * sharePercent) / 100)
+            distributedSats += amount
+            return amount
+          },
+        )
 
         console.log("💡 Processing tip payment with weighted shares:", {
           totalTipSats,
           recipientCount: tipRecipients.length,
           distribution: tipRecipients.map(
-            (r: any, i: number) =>
+            (r: ApiTipRecipient, i: number) =>
               `${r.username}: ${r.share || 100 / tipRecipients.length}% = ${recipientAmounts[i]} sats`,
           ),
         })
@@ -302,7 +352,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           Number(tipData.tipAmountDisplay) || totalTipSats
 
         // Send tips to all recipients
-        const tipResults: any[] = []
+        const tipResults: TipResultEntry[] = []
         const isMultiple = tipRecipients.length > 1
 
         for (let i = 0; i < tipRecipients.length; i++) {
@@ -348,7 +398,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             const recipientType =
               recipient.type ||
               (isNpubCashAddress(recipient.username) ? "npub_cash" : "blink")
-            let tipPaymentResult: any
+            let tipPaymentResult: TipPaymentResult
 
             if (recipientType === "npub_cash") {
               // Send tip to npub.cash address via LNURL-pay
@@ -452,7 +502,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         // Summarize results
-        const successCount = tipResults.filter((r: any) => r.success).length
+        const successCount = tipResults.filter((r: TipResultEntry) => r.success).length
         tipResult = {
           success: successCount === tipRecipients.length,
           partialSuccess: successCount > 0 && successCount < tipRecipients.length,
@@ -481,7 +531,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           "failure",
           {
             tipAmount: tipData.tipAmount,
-            tipRecipients: tipRecipients.map((r: any) => r.username),
+            tipRecipients: tipRecipients.map((r: ApiTipRecipient) => r.username),
           },
           tipMessage,
         )
@@ -503,7 +553,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await hybridStore.logEvent(paymentHash, "forwarded", "success", {
       forwardedAmount: userAmount,
       tipAmount: tipData.tipAmount,
-      tipRecipients: tipRecipients.map((r: any) => r.username),
+      tipRecipients: tipRecipients.map((r: ApiTipRecipient) => r.username),
     })
 
     // Mark as completed (removes from hot storage)

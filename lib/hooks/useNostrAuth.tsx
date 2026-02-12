@@ -19,11 +19,59 @@ import React, {
   useContext,
 } from "react"
 import NostrAuthService from "../nostr/NostrAuthService"
+import type {
+  SignInMethod,
+  AuthResult,
+  ChallengeFlowData,
+  Nip98LoginResult,
+  ServerSessionResult,
+  EncryptedNsecData,
+} from "../nostr/NostrAuthService"
+import type { ConnectionResult } from "../nostr/NostrConnectService"
+import type { NostrProfile } from "../nostr/NostrProfileService"
+import type { EncryptedData } from "../storage/CryptoUtils"
 import NostrProfileService from "../nostr/NostrProfileService"
 import ProfileStorage from "../storage/ProfileStorage"
+import type { StoredProfile, StoredBlinkAccount } from "../storage/ProfileStorage"
 import CryptoUtils from "../storage/CryptoUtils"
 import NostrConnectService from "../nostr/NostrConnectService"
 import { AUTH_VERSION_FULL, logAuth, logAuthError, logAuthWarn } from "../version"
+
+// ============= Helper Types =============
+
+interface AuthActionResult {
+  success: boolean
+  profile?: StoredProfile
+  publicKey?: string
+  error?: string
+  pending?: boolean
+  errorType?: string
+}
+
+interface SyncResult {
+  synced: boolean
+  error?: string
+  alreadyExists?: boolean
+  account?: StoredBlinkAccount
+}
+
+interface PendingFlowResult {
+  success?: boolean
+  pending?: boolean
+  needsManualStep2?: boolean
+  pubkey?: string
+  challenge?: string
+  profile?: StoredProfile
+  error?: string
+}
+
+interface BlinkAccountSyncResponse {
+  hasAccount?: boolean
+  blinkUsername?: string
+  apiKey?: string
+  accountLabel?: string
+  preferredCurrency?: string
+}
 
 // ============= Interfaces =============
 
@@ -32,10 +80,10 @@ export interface NostrAuthState {
   isAuthenticated: boolean
   publicKey: string | null
   method: string | null
-  profile: any // From untyped ProfileStorage
-  activeBlinkAccount: any // From untyped ProfileStorage
+  profile: StoredProfile | null
+  activeBlinkAccount: StoredBlinkAccount | null
   hasServerSession: boolean
-  nostrProfile: any // From untyped NostrProfileService
+  nostrProfile: NostrProfile | null
   error: string | null
 }
 
@@ -46,24 +94,24 @@ interface NostrConnectSignInOptions {
 
 export interface NostrAuthContextValue extends NostrAuthState {
   // Computed
-  availableMethods: any
+  availableMethods: SignInMethod[]
   hasExtension: boolean
   isMobile: boolean
 
   // Actions
-  signInWithExtension: () => Promise<any>
-  signInWithExternalSigner: () => Promise<any>
+  signInWithExtension: () => Promise<AuthActionResult>
+  signInWithExternalSigner: () => Promise<AuthActionResult>
   signInWithNostrConnect: (
     publicKey: string,
     options?: NostrConnectSignInOptions,
-  ) => Promise<any>
+  ) => Promise<AuthActionResult>
   signOut: () => Promise<void>
   refreshProfile: () => void
-  checkPendingSignerFlow: () => Promise<any>
-  establishServerSession: () => Promise<any>
-  syncBlinkAccountFromServer: () => Promise<any>
-  createAccountWithPassword: (password: string) => Promise<any>
-  signInWithPassword: (password: string) => Promise<any>
+  checkPendingSignerFlow: () => Promise<PendingFlowResult>
+  establishServerSession: () => Promise<{ success: boolean; error?: string }>
+  syncBlinkAccountFromServer: () => Promise<SyncResult>
+  createAccountWithPassword: (password: string) => Promise<AuthActionResult>
+  signInWithPassword: (password: string) => Promise<AuthActionResult>
 }
 
 interface NostrAuthProviderProps {
@@ -161,7 +209,7 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
    * Fetch Nostr profile metadata from relays
    */
   const fetchNostrProfile = useCallback(
-    async (publicKey: string): Promise<any> => {
+    async (publicKey: string): Promise<NostrProfile | null> => {
       if (!publicKey) return null
 
       try {
@@ -169,7 +217,8 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
           "[useNostrAuth] Fetching Nostr profile for:",
           publicKey.slice(0, 8) + "...",
         )
-        const nostrProfile: any = await NostrProfileService.fetchProfile(publicKey)
+        const nostrProfile: NostrProfile | null =
+          await NostrProfileService.fetchProfile(publicKey)
 
         if (nostrProfile) {
           console.log(
@@ -196,10 +245,13 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
     (
       publicKey: string,
       method: string = "externalSigner",
-    ): { profile: any; activeBlinkAccount: any } => {
+    ): {
+      profile: StoredProfile | null
+      activeBlinkAccount: StoredBlinkAccount | null
+    } => {
       if (!publicKey) return { profile: null, activeBlinkAccount: null }
 
-      let profile: any = ProfileStorage.getProfileByPublicKey(publicKey)
+      let profile = ProfileStorage.getProfileByPublicKey(publicKey)
 
       // If no profile exists, create one (supports manual pubkey entry)
       if (!profile) {
@@ -211,8 +263,8 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
         ProfileStorage.setActiveProfile(profile.id)
       }
 
-      const activeBlinkAccount: any =
-        profile.blinkAccounts.find((a: any) => a.isActive) || null
+      const activeBlinkAccount: StoredBlinkAccount | null =
+        profile.blinkAccounts.find((a) => a.isActive) || null
       return { profile, activeBlinkAccount }
     },
     [],
@@ -222,7 +274,7 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
    * Sync Blink account from server (for cross-device consistency)
    * Called after NIP-98 session is established
    */
-  const syncBlinkAccountFromServer = useCallback(async (): Promise<any> => {
+  const syncBlinkAccountFromServer = useCallback(async (): Promise<SyncResult> => {
     try {
       const response: Response = await fetch("/api/auth/nostr-blink-account", {
         method: "GET",
@@ -234,14 +286,14 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
         return { synced: false }
       }
 
-      const data: any = await response.json()
+      const data: BlinkAccountSyncResponse = await response.json()
 
       if (data.hasAccount && data.blinkUsername && data.apiKey) {
         console.log("[useNostrAuth] Found Blink account on server:", data.blinkUsername)
 
         // Get current profile - reload from storage to avoid stale closure
-        const activeProfileId: any = ProfileStorage.getActiveProfileId()
-        const currentProfile: any = activeProfileId
+        const activeProfileId = ProfileStorage.getActiveProfileId()
+        const currentProfile: StoredProfile | null = activeProfileId
           ? ProfileStorage.getProfileById(activeProfileId)
           : state.profile
 
@@ -257,8 +309,8 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
         )
 
         // Check if we already have this account locally
-        const existingAccount: any = currentProfile.blinkAccounts.find(
-          (a: any) => a.username === data.blinkUsername,
+        const existingAccount = currentProfile.blinkAccounts.find(
+          (a) => a.username === data.blinkUsername,
         )
 
         if (existingAccount) {
@@ -268,22 +320,27 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
 
         // Add the server account to local profile WITH the API key
         // Encrypt the API key before storing locally
-        const encryptedApiKey: any = await CryptoUtils.encryptWithDeviceKey(data.apiKey)
-        const serverAccount: any = {
+        const encryptedApiKey: EncryptedData = await CryptoUtils.encryptWithDeviceKey(
+          data.apiKey,
+        )
+        const serverAccount: StoredBlinkAccount = {
           id: `server-${Date.now()}`,
           label: data.accountLabel || data.blinkUsername, // Use stored label if available
           username: data.blinkUsername,
           apiKey: encryptedApiKey, // Encrypted for local storage
           defaultCurrency: data.preferredCurrency || "BTC",
           isActive: currentProfile.blinkAccounts.length === 0, // Make active if no other accounts
-          addedAt: new Date().toISOString(),
-          source: "server", // Mark as synced from server
+          createdAt: Date.now(),
+          lastUsed: null,
         }
 
         // Update local profile
         console.log("[useNostrAuth] Adding synced account to local profile...")
-        const updatedAccounts: any[] = [...currentProfile.blinkAccounts, serverAccount]
-        const updatedProfile: any = {
+        const updatedAccounts: StoredBlinkAccount[] = [
+          ...currentProfile.blinkAccounts,
+          serverAccount,
+        ]
+        const updatedProfile: StoredProfile = {
           ...currentProfile,
           blinkAccounts: updatedAccounts,
         }
@@ -291,9 +348,9 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
         ProfileStorage.updateProfile(updatedProfile)
 
         // Update state
-        const activeBlinkAccount: any = serverAccount.isActive
+        const activeBlinkAccount: StoredBlinkAccount | null = serverAccount.isActive
           ? serverAccount
-          : updatedAccounts.find((a: any) => a.isActive) || null
+          : updatedAccounts.find((a) => a.isActive) || null
 
         console.log("[useNostrAuth] ✓ Synced Blink account from server (NIP-98)")
 
@@ -382,10 +439,11 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
             nostrReturn?.startsWith("signed"),
           )
 
-          const flow: any = NostrAuthService.getPendingChallengeFlow()
+          const flow: ChallengeFlowData | null =
+            NostrAuthService.getPendingChallengeFlow()
           console.log("[useNostrAuth] DEBUG: Current flow:", JSON.stringify(flow))
 
-          let result: any
+          let result: AuthResult
           try {
             // Note: Amber concatenates results directly, so we get "challenge{pubkey}" or "signed{event}"
             if (nostrReturn?.startsWith("challenge")) {
@@ -439,9 +497,9 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
           challengeFlowHandling.current = false
 
           if (result.success && result.publicKey) {
-            const profile: any = ProfileStorage.createProfile(
+            const profile: StoredProfile = ProfileStorage.createProfile(
               result.publicKey,
-              result.method,
+              result.method || "externalSigner",
             )
             ProfileStorage.setActiveProfile(profile.id)
 
@@ -451,7 +509,7 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
               loading: false,
               isAuthenticated: true,
               publicKey: result.publicKey,
-              method: result.method,
+              method: result.method || "externalSigner",
               profile,
               activeBlinkAccount,
               hasServerSession: result.hasServerSession || false,
@@ -485,12 +543,12 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
 
         // Check for pending external signer flow (legacy flow for pubkey-only)
         if (NostrAuthService.hasPendingExternalSignerFlow()) {
-          const result: any = await NostrAuthService.handleExternalSignerReturn()
+          const result: AuthResult = await NostrAuthService.handleExternalSignerReturn()
 
           if (result.success && result.publicKey) {
-            const profile: any = ProfileStorage.createProfile(
+            const profile: StoredProfile = ProfileStorage.createProfile(
               result.publicKey,
-              result.method,
+              result.method || "externalSigner",
             )
             ProfileStorage.setActiveProfile(profile.id)
 
@@ -500,7 +558,7 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
               loading: false,
               isAuthenticated: true,
               publicKey: result.publicKey,
-              method: result.method,
+              method: result.method || "externalSigner",
               profile,
               activeBlinkAccount,
               nostrProfile: null,
@@ -595,7 +653,8 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
             )
             setTimeout(async () => {
               try {
-                const sessionCheck: any = await NostrAuthService.verifyServerSession()
+                const sessionCheck: ServerSessionResult =
+                  await NostrAuthService.verifyServerSession()
                 if (sessionCheck.hasSession && sessionCheck.pubkey === publicKey) {
                   console.log(
                     "[useNostrAuth] ✓ External signer: Existing server session found",
@@ -622,11 +681,11 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
             setTimeout(async () => {
               try {
                 // Dynamic import to avoid circular dependency
-                const NostrConnectServiceModule: any = (
+                const NostrConnectServiceModule = (
                   await import("../nostr/NostrConnectService")
-                ).default
+                ).default as { restoreSession: () => Promise<ConnectionResult> }
 
-                const restoreResult: any =
+                const restoreResult: ConnectionResult =
                   await NostrConnectServiceModule.restoreSession()
 
                 if (!restoreResult.success) {
@@ -644,7 +703,8 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
 
                 // Now attempt NIP-98 login
                 console.log("[useNostrAuth] Nostr Connect: Starting NIP-98 login...")
-                const sessionResult: any = await NostrAuthService.nip98Login()
+                const sessionResult: Nip98LoginResult =
+                  await NostrAuthService.nip98Login()
                 console.log(
                   "[useNostrAuth] Nostr Connect: NIP-98 login result:",
                   sessionResult,
@@ -676,7 +736,7 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
           setTimeout(async () => {
             console.log("[useNostrAuth] Starting background NIP-98 login...")
             try {
-              const sessionResult: any = await NostrAuthService.nip98Login()
+              const sessionResult: Nip98LoginResult = await NostrAuthService.nip98Login()
               console.log("[useNostrAuth] NIP-98 login result:", sessionResult)
 
               if (sessionResult.success) {
@@ -702,7 +762,7 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
                   )
 
                   if (syncResponse.ok) {
-                    const data: any = await syncResponse.json()
+                    const data: BlinkAccountSyncResponse = await syncResponse.json()
                     console.log("[useNostrAuth] Server data:", data)
 
                     if (data.hasAccount && data.blinkUsername) {
@@ -712,7 +772,8 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
                       )
 
                       // Get current profile from storage
-                      const currentProfile: any = ProfileStorage.loadProfile(publicKey)
+                      const currentProfile: StoredProfile | null =
+                        ProfileStorage.loadProfile(publicKey)
                       console.log(
                         "[useNostrAuth] Current profile:",
                         currentProfile?.id,
@@ -722,8 +783,8 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
 
                       if (currentProfile) {
                         // Check if we already have this account locally
-                        const existingAccount: any = currentProfile.blinkAccounts.find(
-                          (a: any) => a.username === data.blinkUsername,
+                        const existingAccount = currentProfile.blinkAccounts.find(
+                          (a) => a.username === data.blinkUsername,
                         )
 
                         if (!existingAccount && data.apiKey) {
@@ -731,34 +792,35 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
                             "[useNostrAuth] Adding server Blink account to local profile...",
                           )
                           // Encrypt the API key before storing locally
-                          const encryptedApiKey: any =
+                          const encryptedApiKey: EncryptedData =
                             await CryptoUtils.encryptWithDeviceKey(data.apiKey)
                           // Add the server account to local profile
-                          const serverAccount: any = {
+                          const serverAccount: StoredBlinkAccount = {
                             id: `server-${Date.now()}`,
                             label: data.accountLabel || data.blinkUsername, // Use stored label if available
                             username: data.blinkUsername,
                             apiKey: encryptedApiKey, // Encrypted for local storage
                             defaultCurrency: data.preferredCurrency || "BTC",
                             isActive: currentProfile.blinkAccounts.length === 0,
-                            addedAt: new Date().toISOString(),
-                            source: "server",
+                            createdAt: Date.now(),
+                            lastUsed: null,
                           }
 
-                          const updatedAccounts: any[] = [
+                          const updatedAccounts: StoredBlinkAccount[] = [
                             ...currentProfile.blinkAccounts,
                             serverAccount,
                           ]
-                          const updatedProfile: any = {
+                          const updatedProfile: StoredProfile = {
                             ...currentProfile,
                             blinkAccounts: updatedAccounts,
                           }
 
                           ProfileStorage.updateProfile(updatedProfile)
 
-                          const newActiveBlinkAccount: any = serverAccount.isActive
-                            ? serverAccount
-                            : updatedAccounts.find((a: any) => a.isActive) || null
+                          const newActiveBlinkAccount: StoredBlinkAccount | null =
+                            serverAccount.isActive
+                              ? serverAccount
+                              : updatedAccounts.find((a) => a.isActive) || null
 
                           updateState({
                             profile: updatedProfile,
@@ -840,13 +902,16 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
    * Establish NIP-98 server session
    * Creates a signed NIP-98 event and sends to server for session establishment
    */
-  const establishServerSession = useCallback(async (): Promise<any> => {
+  const establishServerSession = useCallback(async (): Promise<{
+    success: boolean
+    error?: string
+  }> => {
     if (!state.isAuthenticated) {
       return { success: false, error: "Not authenticated" }
     }
 
     try {
-      const result: any = await NostrAuthService.nip98Login()
+      const result: Nip98LoginResult = await NostrAuthService.nip98Login()
 
       if (result.success) {
         updateState({ hasServerSession: true })
@@ -875,7 +940,7 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
    * @deprecated This function is no longer functional for security reasons
    */
   const syncBlinkAccountByPubkey = useCallback(
-    async (_publicKey: string): Promise<any> => {
+    async (_publicKey: string): Promise<SyncResult> => {
       console.warn(
         "[useNostrAuth] syncBlinkAccountByPubkey is disabled for security reasons",
       )
@@ -888,19 +953,22 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
   /**
    * Sign in with browser extension (NIP-07)
    */
-  const signInWithExtension = useCallback(async (): Promise<any> => {
+  const signInWithExtension = useCallback(async (): Promise<AuthActionResult> => {
     updateState({ loading: true, error: null })
 
     try {
-      const result: any = await NostrAuthService.signInWithExtension()
+      const result: AuthResult = await NostrAuthService.signInWithExtension()
 
       if (result.success && result.publicKey) {
         // Create or get profile
-        const profile: any = ProfileStorage.createProfile(result.publicKey, "extension")
+        const profile: StoredProfile = ProfileStorage.createProfile(
+          result.publicKey,
+          "extension",
+        )
         ProfileStorage.setActiveProfile(profile.id)
 
-        const activeBlinkAccount: any =
-          profile.blinkAccounts.find((a: any) => a.isActive) || null
+        const activeBlinkAccount: StoredBlinkAccount | null =
+          profile.blinkAccounts.find((a) => a.isActive) || null
 
         updateState({
           loading: false,
@@ -924,7 +992,7 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
             "[useNostrAuth] Starting background NIP-98 login after extension sign-in...",
           )
           try {
-            const sessionResult: any = await NostrAuthService.nip98Login()
+            const sessionResult: Nip98LoginResult = await NostrAuthService.nip98Login()
             console.log("[useNostrAuth] NIP-98 login result:", sessionResult)
             if (sessionResult.success) {
               console.log(
@@ -971,12 +1039,13 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
    * Sign in with external signer (NIP-55 / Amber)
    * Uses challenge-based authentication for secure session establishment
    */
-  const signInWithExternalSigner = useCallback(async (): Promise<any> => {
+  const signInWithExternalSigner = useCallback(async (): Promise<AuthActionResult> => {
     updateState({ loading: true, error: null })
 
     try {
       // Use the new challenge-based flow for secure authentication
-      const result: any = await NostrAuthService.signInWithExternalSignerChallenge()
+      const result: AuthResult =
+        await NostrAuthService.signInWithExternalSignerChallenge()
 
       if (result.pending) {
         // The page will redirect to external signer
@@ -996,14 +1065,14 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
 
       // If we got here with success and no pending, the full flow completed
       if (result.publicKey) {
-        const profile: any = ProfileStorage.createProfile(
+        const profile: StoredProfile = ProfileStorage.createProfile(
           result.publicKey,
           "externalSigner",
         )
         ProfileStorage.setActiveProfile(profile.id)
 
-        const activeBlinkAccount: any =
-          profile.blinkAccounts.find((a: any) => a.isActive) || null
+        const activeBlinkAccount: StoredBlinkAccount | null =
+          profile.blinkAccounts.find((a) => a.isActive) || null
 
         updateState({
           loading: false,
@@ -1047,7 +1116,7 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
    * Check for pending external signer flow (called on page focus)
    * Handles both legacy flow and new challenge-based flow
    */
-  const checkPendingSignerFlow = useCallback(async (): Promise<any> => {
+  const checkPendingSignerFlow = useCallback(async (): Promise<PendingFlowResult> => {
     console.log(
       "[useNostrAuth] checkPendingSignerFlow() called, challengeFlowHandling:",
       challengeFlowHandling.current,
@@ -1069,7 +1138,7 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
 
       const urlParams = new URLSearchParams(window.location.search)
       const nostrReturn: string | null = urlParams.get("nostr_return")
-      const flow: any = NostrAuthService.getPendingChallengeFlow()
+      const flow: ChallengeFlowData | null = NostrAuthService.getPendingChallengeFlow()
 
       // Detailed logging for debugging
       console.log(
@@ -1087,7 +1156,7 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
 
       updateState({ loading: true })
 
-      let result: any
+      let result: AuthResult
       // Note: Amber concatenates results directly, so we get "challenge{pubkey}" or "signed{event}"
       if (nostrReturn?.startsWith("challenge")) {
         console.log(
@@ -1166,14 +1235,14 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
       )
 
       if (result.success && result.publicKey) {
-        const profile: any = ProfileStorage.createProfile(
+        const profile: StoredProfile = ProfileStorage.createProfile(
           result.publicKey,
           "externalSigner",
         )
         ProfileStorage.setActiveProfile(profile.id)
 
-        const activeBlinkAccount: any =
-          profile.blinkAccounts.find((a: any) => a.isActive) || null
+        const activeBlinkAccount: StoredBlinkAccount | null =
+          profile.blinkAccounts.find((a) => a.isActive) || null
 
         updateState({
           loading: false,
@@ -1211,17 +1280,17 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
 
     updateState({ loading: true })
 
-    const result: any = await NostrAuthService.handleExternalSignerReturn()
+    const result: AuthResult = await NostrAuthService.handleExternalSignerReturn()
 
     if (result.success && result.publicKey) {
-      const profile: any = ProfileStorage.createProfile(
+      const profile: StoredProfile = ProfileStorage.createProfile(
         result.publicKey,
         "externalSigner",
       )
       ProfileStorage.setActiveProfile(profile.id)
 
-      const activeBlinkAccount: any =
-        profile.blinkAccounts.find((a: any) => a.isActive) || null
+      const activeBlinkAccount: StoredBlinkAccount | null =
+        profile.blinkAccounts.find((a) => a.isActive) || null
 
       updateState({
         loading: false,
@@ -1293,7 +1362,7 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
    * Generates keypair, encrypts with password, stores locally, and signs in
    */
   const createAccountWithPassword = useCallback(
-    async (password: string): Promise<any> => {
+    async (password: string): Promise<AuthActionResult> => {
       updateState({ loading: true, error: null })
 
       try {
@@ -1312,17 +1381,17 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
         )
 
         // Encrypt private key with password
-        const encryptedNsec: any = await CryptoUtils.encryptWithPassword(
+        const encryptedNsec: EncryptedData = await CryptoUtils.encryptWithPassword(
           privateKey,
           password,
         )
 
         // Store encrypted nsec locally
-        NostrAuthService.storeEncryptedNsec(encryptedNsec)
+        NostrAuthService.storeEncryptedNsec(encryptedNsec as unknown as EncryptedNsecData)
         console.log("[useNostrAuth] Stored encrypted nsec")
 
         // Sign in with the new keys (this sets session private key)
-        const result: any = NostrAuthService.signInWithGeneratedKeys(
+        const result: AuthResult = NostrAuthService.signInWithGeneratedKeys(
           publicKey,
           privateKey,
         )
@@ -1333,11 +1402,14 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
         }
 
         // Create or get profile
-        const profile: any = ProfileStorage.createProfile(publicKey, "generated")
+        const profile: StoredProfile = ProfileStorage.createProfile(
+          publicKey,
+          "generated",
+        )
         ProfileStorage.setActiveProfile(profile.id)
 
-        const activeBlinkAccount: any =
-          profile.blinkAccounts.find((a: any) => a.isActive) || null
+        const activeBlinkAccount: StoredBlinkAccount | null =
+          profile.blinkAccounts.find((a) => a.isActive) || null
 
         // Update state - no reload needed!
         updateState({
@@ -1361,7 +1433,7 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
             "[useNostrAuth] Starting background NIP-98 login after account creation...",
           )
           try {
-            const sessionResult: any = await NostrAuthService.nip98Login()
+            const sessionResult: Nip98LoginResult = await NostrAuthService.nip98Login()
             console.log("[useNostrAuth] NIP-98 login result:", sessionResult)
             if (sessionResult.success) {
               console.log(
@@ -1393,12 +1465,13 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
    * Sign in with password (for returning users with stored encrypted nsec)
    */
   const signInWithPassword = useCallback(
-    async (password: string): Promise<any> => {
+    async (password: string): Promise<AuthActionResult> => {
       updateState({ loading: true, error: null })
 
       try {
         // Get stored encrypted nsec
-        const encryptedNsec: any = NostrAuthService.getStoredEncryptedNsec()
+        const encryptedNsec: EncryptedNsecData | null =
+          NostrAuthService.getStoredEncryptedNsec()
 
         if (!encryptedNsec) {
           updateState({ loading: false, error: "No account found on this device" })
@@ -1408,28 +1481,34 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
         // Decrypt with password
         let privateKey: string
         try {
-          privateKey = await CryptoUtils.decryptWithPassword(encryptedNsec, password)
+          privateKey = await CryptoUtils.decryptWithPassword(
+            encryptedNsec as unknown as EncryptedData,
+            password,
+          )
         } catch (decryptError: unknown) {
           updateState({ loading: false, error: "Incorrect password" })
           return { success: false, error: "Incorrect password" }
         }
 
         // Sign in with decrypted key (this sets session private key)
-        const result: any = NostrAuthService.signInWithDecryptedKey(privateKey)
+        const result: AuthResult = NostrAuthService.signInWithDecryptedKey(privateKey)
 
         if (!result.success) {
           updateState({ loading: false, error: result.error })
           return { success: false, error: result.error }
         }
 
-        const publicKey: string = result.publicKey
+        const publicKey: string = result.publicKey!
 
         // Create or get profile
-        const profile: any = ProfileStorage.createProfile(publicKey, "generated")
+        const profile: StoredProfile = ProfileStorage.createProfile(
+          publicKey,
+          "generated",
+        )
         ProfileStorage.setActiveProfile(profile.id)
 
-        const activeBlinkAccount: any =
-          profile.blinkAccounts.find((a: any) => a.isActive) || null
+        const activeBlinkAccount: StoredBlinkAccount | null =
+          profile.blinkAccounts.find((a) => a.isActive) || null
 
         // Update state - no reload needed!
         updateState({
@@ -1453,7 +1532,7 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
             "[useNostrAuth] Starting background NIP-98 login after password sign-in...",
           )
           try {
-            const sessionResult: any = await NostrAuthService.nip98Login()
+            const sessionResult: Nip98LoginResult = await NostrAuthService.nip98Login()
             console.log("[useNostrAuth] NIP-98 login result:", sessionResult)
             if (sessionResult.success) {
               console.log(
@@ -1492,7 +1571,10 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
    * @returns Promise with success/failure result
    */
   const signInWithNostrConnect = useCallback(
-    async (publicKey: string, options: NostrConnectSignInOptions = {}): Promise<any> => {
+    async (
+      publicKey: string,
+      options: NostrConnectSignInOptions = {},
+    ): Promise<AuthActionResult> => {
       const { onProgress, timeout = 30000 } = options
 
       logAuth(
@@ -1504,26 +1586,30 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
 
       try {
         // Step 1: Register with NostrAuthService (local state only)
-        const result: any = NostrAuthService.signInWithNostrConnect(publicKey)
+        const result: AuthResult = NostrAuthService.signInWithNostrConnect(publicKey)
 
         if (!result.success) {
           return { success: false, error: result.error }
         }
 
         // Step 2: Create profile (local storage)
-        const profile: any = ProfileStorage.createProfile(publicKey, "nostrConnect")
+        const profile: StoredProfile = ProfileStorage.createProfile(
+          publicKey,
+          "nostrConnect",
+        )
         ProfileStorage.setActiveProfile(profile.id)
-        const activeBlinkAccount: any =
-          profile.blinkAccounts.find((a: any) => a.isActive) || null
+        const activeBlinkAccount: StoredBlinkAccount | null =
+          profile.blinkAccounts.find((a) => a.isActive) || null
 
         // Step 3: NIP-98 login (this is the slow part - relay signing)
         logAuth("useNostrAuth", "Starting NIP-98 login (blocking)...")
         onProgress?.("signing", "Signing authentication event...")
 
-        const sessionResult: any = await Promise.race([
+        const sessionResult: Nip98LoginResult = await Promise.race([
           NostrAuthService.nip98Login(),
-          new Promise((_: (value: never) => void, reject: (reason: Error) => void) =>
-            setTimeout(() => reject(new Error("TIMEOUT")), timeout),
+          new Promise<never>(
+            (_: (value: never) => void, reject: (reason: Error) => void) =>
+              setTimeout(() => reject(new Error("TIMEOUT")), timeout),
           ),
         ])
 
@@ -1592,7 +1678,7 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
   /**
    * Get available sign-in methods
    */
-  const availableMethods: any = NostrAuthService.getAvailableMethods()
+  const availableMethods: SignInMethod[] = NostrAuthService.getAvailableMethods()
 
   const value: NostrAuthContextValue = {
     // State

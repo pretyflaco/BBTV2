@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react"
 import { useNFC } from "../../components/NFCPayment"
+import type { UseNFCReturn } from "../../components/NFCPayment"
 import type { SoundTheme } from "./useSoundSettings"
 import type { PaymentData } from "./useBlinkWebSocket"
 
@@ -26,7 +27,7 @@ export interface UsePaymentPollingParams {
 }
 
 export interface UsePaymentPollingReturn {
-  nfcState: unknown
+  nfcState: UseNFCReturn
 }
 
 // ─── Constants ────────────────────────────────────────────────────
@@ -149,7 +150,7 @@ export function usePaymentPolling({
   }, [currentInvoice?.paymentHash])
 
   // Setup NFC for Boltcard payments
-  const nfcState: unknown = useNFC({
+  const nfcState: UseNFCReturn = useNFC({
     paymentRequest: currentInvoice?.paymentRequest,
     onPaymentSuccess: () => {
       console.log("🎉 NFC Boltcard payment successful")

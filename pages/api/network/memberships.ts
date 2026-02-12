@@ -8,6 +8,32 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 const db = require("../../../lib/network/db")
 
+interface MembershipRecord {
+  id: string | null
+  community_id: string
+  community_name?: string
+  community_slug?: string
+  user_npub: string
+  role: string
+  status: string
+  member_count?: number
+  data_sharing_member_count?: number
+  applied_at: string | null
+  approved_at: string | null
+  consent_given?: boolean
+  sync_status?: string | null
+  last_sync_at?: string | null
+}
+
+interface CommunityRecord {
+  id: string
+  name: string
+  slug: string
+  member_count?: number
+  member_count_live?: number
+  data_sharing_member_count?: number
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" })
@@ -32,10 +58,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // If super admin, also show all communities they don't already have membership in
     if (isSuperAdmin) {
       const allCommunities = await db.listCommunities()
-      const memberCommunityIds = new Set(memberships.map((m: any) => m.community_id))
+      const memberCommunityIds = new Set(
+        memberships.map((m: MembershipRecord) => m.community_id),
+      )
 
       // Add admin view for communities they're not already a member of
-      allCommunities.forEach((community: any) => {
+      allCommunities.forEach((community: CommunityRecord) => {
         if (!memberCommunityIds.has(community.id)) {
           memberships.push({
             id: null, // No membership record yet
@@ -57,7 +85,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Get consent status for each membership
     const membershipsWithConsent = await Promise.all(
-      memberships.map(async (membership: any) => {
+      memberships.map(async (membership: MembershipRecord) => {
         if (!membership.id) {
           // Admin view without actual membership
           return membership

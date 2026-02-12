@@ -33,15 +33,20 @@ const AuthManager = require("../../../lib/auth")
 // Crypto for signature verification
 const crypto = require("crypto")
 
+interface CryptoModules {
+  secp256k1: typeof import("@noble/curves/secp256k1") | null
+  sha256: ((data: Uint8Array) => Uint8Array) | null
+}
+
 // Cache for dynamically imported modules
-let secp256k1: any = null
-let sha256Fn: any = null
+let secp256k1: CryptoModules["secp256k1"] = null
+let sha256Fn: CryptoModules["sha256"] = null
 let modulesLoaded = false
 
 /**
  * Load crypto modules for BIP-340 Schnorr signatures
  */
-function loadModules(): { secp256k1: any; sha256: any } {
+function loadModules(): CryptoModules {
   if (modulesLoaded) return { secp256k1, sha256: sha256Fn }
 
   try {

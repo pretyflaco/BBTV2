@@ -9,6 +9,24 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 const db = require("../../../lib/network/db")
 
+interface CommunityRecord {
+  id: string
+  name: string
+  slug: string
+  description: string
+  country_code: string
+  region: string
+  city: string
+  latitude: string
+  longitude: string
+  leader_npub: string
+  member_count?: number
+  member_count_live?: number
+  data_sharing_member_count?: number
+  status: string
+  created_at: string
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "GET") {
     try {
@@ -17,7 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // Get latest metrics for each community
       const communitiesWithMetrics = await Promise.all(
-        communities.map(async (community: any) => {
+        communities.map(async (community: CommunityRecord) => {
           const metrics = await db.getLatestMetrics(community.id)
 
           // Get Bitcoin Preference metric (may fail if migration 012 hasn't run)

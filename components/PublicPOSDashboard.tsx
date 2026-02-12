@@ -19,6 +19,7 @@ import PublicPOSValidationOverlay from "./PublicPOS/PublicPOSValidationOverlay"
 import { useCurrencies } from "../lib/hooks/useCurrencies"
 import { useTheme } from "../lib/hooks/useTheme"
 import { useNFC } from "./NFCPayment"
+import type { CartCheckoutData } from "../lib/hooks/useViewNavigation"
 import StagingBanner from "./StagingBanner"
 import POS from "./POS"
 import ItemCart from "./ItemCart"
@@ -465,7 +466,7 @@ export default function PublicPOSDashboard({ username }: PublicPOSDashboardProps
               bitcoinFormat={bitcoinFormat}
               currencies={currencies}
               publicKey={null} // No auth in public mode - cart items stored locally
-              onCheckout={(checkoutData: any) => {
+              onCheckout={(checkoutData: CartCheckoutData) => {
                 setCartCheckoutData(checkoutData)
                 handleViewTransition("pos")
               }}
@@ -481,7 +482,7 @@ export default function PublicPOSDashboard({ username }: PublicPOSDashboardProps
           <POS
             ref={posRef}
             apiKey={null} // No API key - uses public invoice creation
-            user={{ username }}
+            user={{ username, authMode: "public" }}
             displayCurrency={displayCurrency}
             numberFormat={numberFormat}
             bitcoinFormat={bitcoinFormat}
@@ -500,7 +501,13 @@ export default function PublicPOSDashboard({ username }: PublicPOSDashboardProps
             theme={theme}
             cycleTheme={cycleTheme}
             nfcState={nfcState}
-            activeBlinkAccount={{ username, type: "public" }}
+            activeBlinkAccount={{
+              id: "public",
+              label: "Public",
+              username,
+              type: "public",
+              isActive: true,
+            }}
             cartCheckoutData={cartCheckoutData}
             onCartCheckoutProcessed={() => setCartCheckoutData(null)}
             onInternalTransition={handleInternalTransition}

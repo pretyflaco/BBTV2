@@ -4,6 +4,7 @@ import type { TransactionRecord } from "../../components/TransactionDetail"
 import type { CombinedUser } from "./useCombinedAuth"
 import type { LocalBlinkAccount } from "./useProfile"
 import type { LocalNWCConnection, NWCOperationResult } from "./useNWC"
+import type { ListTransactionsParams } from "../nwc/NWCClient"
 import type { VoucherWallet, VoucherCurrencyMode } from "./useVoucherWalletState"
 import type { WalletInfo } from "./useWalletState"
 import type { PaymentData } from "./useBlinkWebSocket"
@@ -73,8 +74,8 @@ export interface UseDashboardDataParams {
   activeNWC: LocalNWCConnection | null
   nwcClientReady: boolean
   nwcListTransactions: (
-    params?: any,
-  ) => Promise<NWCOperationResult & { transactions?: any[] }>
+    params?: ListTransactionsParams,
+  ) => Promise<NWCOperationResult & { transactions?: Record<string, unknown>[] }>
   nwcHasCapability: (capability: string) => boolean
   activeNpubCashWallet: LocalBlinkAccount | null
   // From useViewNavigation
@@ -325,13 +326,15 @@ export function useDashboardData({
           }
 
           const formattedTransactions: Transaction[] = result.transactions.map(
-            (tx, index) => {
+            (rawTx, index) => {
+              const tx = rawTx as Record<string, unknown>
+              const txMetadata = tx.metadata as Record<string, unknown> | undefined
               console.log(`NWC Transaction ${index}:`, JSON.stringify(tx, null, 2))
               // Convert millisats to sats
-              const satsAmount = Math.round((tx.amount || 0) / 1000)
+              const satsAmount = Math.round(((tx.amount as number) || 0) / 1000)
               // Format date like Blink API does
               const txDate = tx.created_at
-                ? new Date(tx.created_at * 1000).toLocaleDateString("en-US", {
+                ? new Date((tx.created_at as number) * 1000).toLocaleDateString("en-US", {
                     year: "numeric",
                     month: "short",
                     day: "numeric",
@@ -344,13 +347,14 @@ export function useDashboardData({
               // 1. First check if we have it stored locally (for BlinkPOS-created invoices with long memos)
               // 2. Then try the NWC response fields
               // 3. Fall back to a descriptive default
-              const localMemo = tx.payment_hash && storedMemos[tx.payment_hash]?.memo
+              const localMemo =
+                tx.payment_hash && storedMemos[tx.payment_hash as string]?.memo
               const memo =
                 localMemo ||
                 tx.description ||
                 tx.memo ||
-                tx.metadata?.description ||
-                tx.metadata?.memo ||
+                txMetadata?.description ||
+                txMetadata?.memo ||
                 tx.invoice_description ||
                 (tx.type === "incoming"
                   ? `Received ${satsAmount} sats`
@@ -358,13 +362,16 @@ export function useDashboardData({
 
               if (localMemo) {
                 console.log(
-                  `✓ Found stored memo for ${tx.payment_hash?.substring(0, 16)}:`,
-                  localMemo.substring(0, 50) + "...",
+                  `✓ Found stored memo for ${(tx.payment_hash as string)?.substring(0, 16)}:`,
+                  (localMemo as string).substring(0, 50) + "...",
                 )
               }
 
               return {
-                id: tx.payment_hash || tx.preimage || `nwc-${Date.now()}-${index}`,
+                id:
+                  (tx.payment_hash as string) ||
+                  (tx.preimage as string) ||
+                  `nwc-${Date.now()}-${index}`,
                 direction: tx.type === "incoming" ? "RECEIVE" : "SEND",
                 status: tx.settled_at ? "SUCCESS" : "PENDING",
                 // Format amount like Blink: "21 sats" or "-21 sats"
@@ -375,7 +382,7 @@ export function useDashboardData({
                 currency: "BTC",
                 date: txDate,
                 createdAt: tx.created_at
-                  ? new Date(tx.created_at * 1000).toISOString()
+                  ? new Date((tx.created_at as number) * 1000).toISOString()
                   : new Date().toISOString(),
                 memo: memo as string,
                 isNwc: true,

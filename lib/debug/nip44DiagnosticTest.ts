@@ -21,11 +21,17 @@ import { secp256k1 } from "@noble/curves/secp256k1"
 // @ts-expect-error -- nostr-tools subpath exports require moduleResolution:"bundler", works at runtime via webpack
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure"
 
+export interface DiagnosticTestResult {
+  pass?: boolean
+  error?: string
+  [key: string]: unknown
+}
+
 export interface DiagnosticResults {
   timestamp: string
   userAgent: string
   platform: string
-  tests: Record<string, any>
+  tests: Record<string, DiagnosticTestResult>
   overall: string
   summary?: string
 }
@@ -403,8 +409,10 @@ export async function runNIP44Diagnostics(
   log("")
 
   // Calculate overall result
-  const testResults: Array<{ pass: boolean }> = Object.values(results.tests)
-  const passedCount: number = testResults.filter((t: { pass: boolean }) => t.pass).length
+  const testResults: DiagnosticTestResult[] = Object.values(results.tests)
+  const passedCount: number = testResults.filter(
+    (t: DiagnosticTestResult) => t.pass,
+  ).length
   const totalCount: number = testResults.length
   results.overall = passedCount === totalCount ? "PASS" : "FAIL"
   results.summary = `${passedCount}/${totalCount} tests passed`
@@ -415,8 +423,8 @@ export async function runNIP44Diagnostics(
 
   // List failed tests
   const failedTests: string[] = Object.entries(results.tests)
-    .filter(([_name, t]: [string, { pass: boolean }]) => !t.pass)
-    .map(([name, _t]: [string, { pass: boolean }]) => name)
+    .filter(([_name, t]: [string, DiagnosticTestResult]) => !t.pass)
+    .map(([name, _t]: [string, DiagnosticTestResult]) => name)
 
   if (failedTests.length > 0) {
     log(`Failed tests: ${failedTests.join(", ")}`)

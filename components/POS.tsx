@@ -15,46 +15,94 @@ import type {
   NumpadLayoutPreference,
 } from "../lib/number-format"
 import { useNFC } from "./NFCPayment"
+import type { UseNFCReturn } from "./NFCPayment"
 import Numpad from "./Numpad"
 import { THEMES } from "../lib/hooks/useTheme"
 import type { Theme } from "../lib/hooks/useTheme"
 import { unlockAudioContext, playSound } from "../lib/audio-utils"
 import { getEnvironment } from "../lib/config/api"
+import type { CombinedUser } from "../lib/hooks/useCombinedAuth"
+import type { CurrencyMetadata } from "../lib/currency-utils"
+import type { Wallet } from "../lib/blink-api"
+import type {
+  LocalNWCConnection,
+  NWCInvoiceResult,
+  NWCOperationResult,
+} from "../lib/hooks/useNWC"
+import type { LocalBlinkAccount } from "../lib/hooks/useProfile"
+import type { CartCheckoutData } from "../lib/hooks/useViewNavigation"
+import type { PaymentData } from "../lib/hooks/useBlinkWebSocket"
+
+interface TipRecipient {
+  username: string
+  share?: number
+  type?: string
+}
+
+interface CreateInvoiceRequest {
+  amount: number
+  currency: string
+  memo: string
+  displayCurrency: string
+  environment: string
+  baseAmount: number
+  tipAmount: number
+  tipPercent: number
+  tipRecipients: TipRecipient[]
+  baseAmountDisplay: number
+  tipAmountDisplay: number
+  walletId?: string
+  userWalletId?: string
+  apiKey?: string
+  nwcActive: boolean
+  nwcConnectionUri?: string | null
+  blinkLnAddress?: boolean
+  blinkLnAddressWalletId?: string | null
+  blinkLnAddressUsername?: string | null
+  npubCashActive?: boolean
+  npubCashLightningAddress?: string | null
+}
 
 interface POSProps {
   apiKey: string | null
-  user: any
+  user: CombinedUser | null
   displayCurrency: string
   numberFormat?: NumberFormatPreference
   bitcoinFormat?: BitcoinFormatPreference
   numpadLayout?: NumpadLayoutPreference
-  currencies: any[]
-  wallets: any[]
+  currencies: CurrencyMetadata[]
+  wallets: Wallet[]
   onPaymentReceived: React.MutableRefObject<(() => void) | null>
   connected: boolean
   manualReconnect?: () => void
   reconnectAttempts?: number
   tipsEnabled: boolean
   tipPresets: number[]
-  tipRecipients?: any[]
+  tipRecipients?: TipRecipient[]
   soundEnabled: boolean
   onInvoiceStateChange?: (showing: boolean) => void
   onInvoiceChange?: (invoice: InvoiceData | null) => void
   darkMode: boolean
   theme?: Theme
   cycleTheme: () => void
-  nfcState: any
-  activeNWC?: any
+  nfcState: UseNFCReturn | null
+  activeNWC?: LocalNWCConnection | null
   nwcClientReady?: boolean
-  nwcMakeInvoice?: any
-  nwcLookupInvoice?: any
-  getActiveNWCUri?: any
-  activeBlinkAccount: any
-  activeNpubCashWallet?: any
-  cartCheckoutData: any
+  nwcMakeInvoice?: (params: {
+    amount: number
+    description?: string
+    expiry?: number
+  }) => Promise<NWCInvoiceResult>
+  nwcLookupInvoice?: (
+    paymentHash: string,
+  ) => Promise<NWCOperationResult & { invoice?: unknown }>
+  getActiveNWCUri?: () => Promise<string | null>
+  activeBlinkAccount: LocalBlinkAccount | null
+  activeNpubCashWallet?: LocalBlinkAccount | null
+  cartCheckoutData: CartCheckoutData | null
   onCartCheckoutProcessed?: () => void
   onInternalTransition?: () => void
-  triggerPaymentAnimation?: (data: any) => void
+  triggerPaymentAnimation?: (data: PaymentData) => void
   isPublicPOS?: boolean
   publicUsername?: string | null
 }
@@ -85,7 +133,7 @@ interface InvoiceData {
   displayAmount?: number
   displayCurrency?: string
   satAmount?: number
-  [key: string]: any
+  [key: string]: string | number | boolean | undefined
 }
 
 const POS = forwardRef<POSRef, POSProps>(
@@ -136,7 +184,7 @@ const POS = forwardRef<POSRef, POSProps>(
     const [loading, setLoading] = useState<boolean>(false)
     const [creatingInvoice, setCreatingInvoice] = useState<boolean>(false)
     const [error, setError] = useState<string>("")
-    const [selectedWallet, setSelectedWallet] = useState<any>(null)
+    const [selectedWallet, setSelectedWallet] = useState<Wallet | null>(null)
     const [exchangeRate, setExchangeRate] = useState<ExchangeRateInfo | null>(null)
     const [loadingRate, setLoadingRate] = useState<boolean>(false)
 
@@ -334,7 +382,7 @@ const POS = forwardRef<POSRef, POSProps>(
       console.log("Wallets changed:", wallets)
       if (wallets && wallets.length > 0) {
         // Always use BTC wallet for POS
-        const btcWallet = wallets.find((w: any) => w.walletCurrency === "BTC")
+        const btcWallet = wallets.find((w) => w.walletCurrency === "BTC")
 
         if (!btcWallet) {
           console.error("No BTC wallet found in:", wallets)
@@ -347,7 +395,7 @@ const POS = forwardRef<POSRef, POSProps>(
         // 2. Current wallet is from a different account (account switched)
         //    Detected by checking if current wallet ID exists in new wallets list
         const currentWalletStillValid =
-          selectedWallet && wallets.some((w: any) => w.id === selectedWallet.id)
+          selectedWallet && wallets.some((w) => w.id === selectedWallet.id)
 
         if (!selectedWallet || !currentWalletStillValid) {
           console.log("Updating selected wallet:", {
@@ -419,15 +467,15 @@ const POS = forwardRef<POSRef, POSProps>(
 
     // Handle cart checkout data - prefill total when coming from cart
     useEffect(() => {
-      if (cartCheckoutData && cartCheckoutData.total > 0) {
+      if (cartCheckoutData && cartCheckoutData.amount > 0) {
         console.log("Cart checkout data received:", cartCheckoutData)
         // Set the total from cart
-        setTotal(cartCheckoutData.total)
+        setTotal(cartCheckoutData.amount)
         setAmount("")
         // Store the cart memo for invoice creation
         setCartMemo(cartCheckoutData.memo || "")
         // We use items array to store numeric values for the calculation display
-        setItems([cartCheckoutData.total])
+        setItems([cartCheckoutData.amount])
         setError("")
 
         // Mark as processed
@@ -517,7 +565,7 @@ const POS = forwardRef<POSRef, POSProps>(
 
                       // Step 2: Create NWC invoice for base amount
                       console.log("📝 Creating NWC invoice for base amount:", baseAmount)
-                      let nwcInvoiceResult: any
+                      let nwcInvoiceResult: NWCInvoiceResult
                       try {
                         nwcInvoiceResult = await nwcMakeInvoice({
                           amount: baseAmount * 1000, // NWC uses millisats
@@ -737,7 +785,7 @@ const POS = forwardRef<POSRef, POSProps>(
     }
 
     // Get current currency metadata
-    const getCurrentCurrency = (): any => {
+    const getCurrentCurrency = (): CurrencyMetadata | null => {
       return getCurrencyById(displayCurrency, currencies)
     }
 
@@ -764,8 +812,8 @@ const POS = forwardRef<POSRef, POSProps>(
       }
 
       // Minimum is 1 in the smallest unit (e.g., 0.01 for 2 decimals, 1 for 0 decimals)
-      const minimumAmount =
-        currency.fractionDigits > 0 ? 1 / Math.pow(10, currency.fractionDigits) : 1
+      const fractionDigits = currency.fractionDigits ?? 0
+      const minimumAmount = fractionDigits > 0 ? 1 / Math.pow(10, fractionDigits) : 1
 
       if (numValue < minimumAmount) {
         return false
@@ -931,7 +979,7 @@ const POS = forwardRef<POSRef, POSProps>(
       } else if (amount.includes(".")) {
         // Check decimal places based on currency fractionDigits
         const currency = getCurrentCurrency()
-        const maxDecimals = currency ? currency.fractionDigits : 2
+        const maxDecimals = currency ? (currency.fractionDigits ?? 2) : 2
         const currentDecimals = amount.split(".")[1].length
 
         if (currentDecimals >= maxDecimals) {
@@ -1078,9 +1126,9 @@ const POS = forwardRef<POSRef, POSProps>(
         if (!isValidAmount(amount)) {
           const currency = getCurrentCurrency()
           const minAmount =
-            currency && currency.fractionDigits > 0
-              ? (1 / Math.pow(10, currency.fractionDigits)).toFixed(
-                  currency.fractionDigits,
+            currency && (currency.fractionDigits ?? 0) > 0
+              ? (1 / Math.pow(10, currency.fractionDigits ?? 2)).toFixed(
+                  currency.fractionDigits ?? 2,
                 )
               : "1"
           setError(`Minimum amount is ${formatDisplayAmount(minAmount, displayCurrency)}`)
@@ -1310,7 +1358,7 @@ const POS = forwardRef<POSRef, POSProps>(
             }
           }
 
-          const requestBody: any = {
+          const requestBody: CreateInvoiceRequest = {
             amount: finalTotalInSats,
             currency: "BTC", // Always create BTC invoices
             memo: memo, // Show calculation in memo
@@ -1333,7 +1381,7 @@ const POS = forwardRef<POSRef, POSProps>(
             }),
             ...(apiKey && { apiKey }),
             // Flag to indicate if NWC is active (for forwarding logic)
-            nwcActive: !!activeNWC && nwcClientReady,
+            nwcActive: !!activeNWC && !!nwcClientReady,
             // NWC connection URI for server-side webhook forwarding
             // This allows the webhook to forward payments even when the app is in background
             ...(nwcConnectionUri && { nwcConnectionUri }),

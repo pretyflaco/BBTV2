@@ -127,7 +127,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const dataCoverage = await db.getDataCoverage(communityId)
 
     // Get Bitcoin Preference metric (latest snapshot)
-    let bitcoinPreference: any = null
+    let bitcoinPreference: {
+      has_data: boolean
+      btc_preference_pct: number
+      total_btc_sats: number
+      total_stablesats_sats: number
+      total_balance_sats: number
+      members_with_balance: number
+    } | null = null
     try {
       bitcoinPreference = await db.getCommunityBitcoinPreference(communityId)
     } catch (btcPrefError: unknown) {
@@ -138,7 +145,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Check if selected period extends beyond our data coverage
-    let coverageWarning: any = null
+    let coverageWarning: {
+      type: string
+      message: string
+      data_starts?: string
+      period_starts?: string
+      data_ends?: string
+      period_ends?: string
+    } | null = null
     if (dataCoverage.oldest && dataCoverage.newest) {
       const dataStart = new Date(dataCoverage.oldest).getTime()
       const dataEnd = new Date(dataCoverage.newest).getTime()

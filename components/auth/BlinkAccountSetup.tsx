@@ -159,10 +159,10 @@ export default function BlinkAccountSetup({
 
     setValidating(false)
 
-    if (result.success) {
+    if (result.success && result.account) {
       refreshProfile()
       refreshAuthProfile()
-      onComplete?.(result.account)
+      onComplete?.(result.account as unknown as BlinkAccount)
     } else {
       setError(result.error || "Failed to save account")
     }

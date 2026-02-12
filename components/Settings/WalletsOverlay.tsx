@@ -107,7 +107,10 @@ interface WalletsOverlayProps {
   }) => Promise<{ success: boolean; error?: string }>
   removeBlinkAccount: (id: string) => void
   removeNWCConnection: (id: string) => void
-  updateBlinkAccount: (id: string, data: { label: string }) => Promise<void>
+  updateBlinkAccount: (
+    id: string,
+    data: { label: string },
+  ) => Promise<{ success: boolean; error?: string } | void>
   updateNWCConnection: (id: string, data: { label: string }) => void
 }
 

@@ -26,6 +26,84 @@ import type { NextApiRequest, NextApiResponse } from "next"
 const AuthManager = require("../../../lib/auth")
 const StorageManager = require("../../../lib/storage")
 
+/** Blink API account shape for sync */
+interface BlinkApiAccount {
+  id: string
+  label: string
+  username: string
+  apiKey: string
+  defaultCurrency?: string
+  isActive?: boolean
+  createdAt?: string
+  lastUsed?: string
+}
+
+/** NWC connection shape for sync */
+interface NWCConnection {
+  uri: string
+  [key: string]: unknown
+}
+
+/** Blink Lightning Address wallet shape */
+interface BlinkLnAddressWallet {
+  id: string
+  label: string
+  username: string
+  lightningAddress: string
+  walletId: string
+  isActive?: boolean
+  createdAt?: string
+  lastUsed?: string
+}
+
+/** npub.cash wallet shape */
+interface NpubCashWallet {
+  id: string
+  label: string
+  address: string
+  lightningAddress?: string
+  localpart?: string
+  isNpub?: boolean
+  pubkey?: string
+  isActive?: boolean
+  createdAt?: string
+  lastUsed?: string
+}
+
+/** User preferences shape */
+interface UserPreferences {
+  soundEnabled?: boolean
+  soundTheme?: string
+  darkMode?: boolean
+  displayCurrency?: string
+  tipsEnabled?: boolean
+  tipPresets?: number[]
+  voucherCurrencyMode?: string
+  [key: string]: unknown
+}
+
+/** Voucher wallet shape */
+interface VoucherWalletData {
+  label?: string
+  username?: string
+  userId?: string
+  walletId?: string
+  apiKey?: string
+  displayCurrency?: string
+  scopes?: string[]
+  createdAt?: string
+  lastUsed?: string
+}
+
+/** Split profile shape */
+interface SplitProfile {
+  id: string
+  label: string
+  recipients: Array<{ username: string; share?: number }>
+  createdAt?: string
+  updatedAt?: string
+}
+
 /**
  * Verify request has valid NIP-98 session
  * SECURITY: No longer accepts pubkey-only authentication
@@ -145,13 +223,15 @@ async function handleGet(
   }
 
   // Decrypt Blink API account API keys for the client
-  const blinkApiAccounts = (userData.blinkApiAccounts || []).map((account: any) => ({
-    ...account,
-    apiKey: decryptSensitiveData(account.apiKey),
-  }))
+  const blinkApiAccounts = (userData.blinkApiAccounts || []).map(
+    (account: BlinkApiAccount) => ({
+      ...account,
+      apiKey: decryptSensitiveData(account.apiKey),
+    }),
+  )
 
   // Decrypt NWC connection URIs for the client
-  const nwcConnections = (userData.nwcConnections || []).map((conn: any) => ({
+  const nwcConnections = (userData.nwcConnections || []).map((conn: NWCConnection) => ({
     ...conn,
     uri: decryptNWCUri(conn.uri),
   }))
@@ -206,44 +286,48 @@ async function handlePost(
 
   const { blinkApiAccounts, blinkLnAddressWallets, nwcConnections, preferences } =
     req.body as {
-      blinkApiAccounts?: any[]
-      blinkLnAddressWallets?: any[]
-      nwcConnections?: any[]
-      preferences?: any
+      blinkApiAccounts?: BlinkApiAccount[]
+      blinkLnAddressWallets?: BlinkLnAddressWallet[]
+      nwcConnections?: NWCConnection[]
+      preferences?: UserPreferences
     }
 
   // Load existing data to preserve non-synced fields
   const existingData = (await StorageManager.loadUserData(username)) || {}
 
   // Encrypt Blink API account API keys before storage
-  const encryptedBlinkApiAccounts = (blinkApiAccounts || []).map((account: any) => ({
-    id: account.id,
-    label: account.label,
-    username: account.username,
-    apiKey: encryptSensitiveData(account.apiKey),
-    defaultCurrency: account.defaultCurrency || "BTC",
-    isActive: !!account.isActive,
-    createdAt: account.createdAt || new Date().toISOString(),
-    lastUsed: account.lastUsed,
-  }))
+  const encryptedBlinkApiAccounts = (blinkApiAccounts || []).map(
+    (account: BlinkApiAccount) => ({
+      id: account.id,
+      label: account.label,
+      username: account.username,
+      apiKey: encryptSensitiveData(account.apiKey),
+      defaultCurrency: account.defaultCurrency || "BTC",
+      isActive: !!account.isActive,
+      createdAt: account.createdAt || new Date().toISOString(),
+      lastUsed: account.lastUsed,
+    }),
+  )
 
   // Encrypt NWC connection URIs before storage
-  const encryptedNWCConnections = (nwcConnections || []).map((conn: any) => ({
+  const encryptedNWCConnections = (nwcConnections || []).map((conn: NWCConnection) => ({
     ...conn,
     uri: encryptNWCUri(conn.uri),
   }))
 
   // Validate and sanitize Blink LN Address wallets
-  const sanitizedLnAddressWallets = (blinkLnAddressWallets || []).map((wallet: any) => ({
-    id: wallet.id,
-    label: wallet.label,
-    username: wallet.username,
-    lightningAddress: wallet.lightningAddress,
-    walletId: wallet.walletId,
-    isActive: !!wallet.isActive,
-    createdAt: wallet.createdAt || new Date().toISOString(),
-    lastUsed: wallet.lastUsed,
-  }))
+  const sanitizedLnAddressWallets = (blinkLnAddressWallets || []).map(
+    (wallet: BlinkLnAddressWallet) => ({
+      id: wallet.id,
+      label: wallet.label,
+      username: wallet.username,
+      lightningAddress: wallet.lightningAddress,
+      walletId: wallet.walletId,
+      isActive: !!wallet.isActive,
+      createdAt: wallet.createdAt || new Date().toISOString(),
+      lastUsed: wallet.lastUsed,
+    }),
+  )
 
   // Merge preferences with defaults
   const mergedPreferences = {
@@ -283,7 +367,7 @@ async function handlePatch(
 ) {
   console.log("[user/sync] PATCH for user:", username)
 
-  const { field, data } = req.body as { field: string; data: any }
+  const { field, data } = req.body as { field: string; data: unknown }
 
   const validFields = [
     "blinkApiAccounts",
@@ -307,7 +391,7 @@ async function handlePatch(
 
   // Special handling for Blink API accounts - encrypt API keys
   if (field === "blinkApiAccounts" && Array.isArray(data)) {
-    processedData = data.map((account: any) => ({
+    processedData = (data as BlinkApiAccount[]).map((account) => ({
       id: account.id,
       label: account.label,
       username: account.username,
@@ -321,7 +405,7 @@ async function handlePatch(
 
   // Special handling for NWC connections - encrypt URIs
   if (field === "nwcConnections" && Array.isArray(data)) {
-    processedData = data.map((conn: any) => ({
+    processedData = (data as NWCConnection[]).map((conn) => ({
       ...conn,
       uri: encryptNWCUri(conn.uri),
     }))
@@ -329,7 +413,7 @@ async function handlePatch(
 
   // Special handling for npub.cash wallets - sanitize data
   if (field === "npubCashWallets" && Array.isArray(data)) {
-    processedData = data.map((wallet: any) => ({
+    processedData = (data as NpubCashWallet[]).map((wallet) => ({
       id: wallet.id,
       label: wallet.label,
       address: wallet.address,
@@ -348,7 +432,7 @@ async function handlePatch(
     processedData = {
       ...getDefaultPreferences(),
       ...(existingData.preferences || {}),
-      ...(data || {}),
+      ...((data as UserPreferences) || {}),
     }
   }
 
@@ -358,16 +442,17 @@ async function handlePatch(
       // Allow deletion of voucher wallet
       processedData = null
     } else if (data && typeof data === "object") {
+      const vw = data as VoucherWalletData
       processedData = {
-        label: data.label || "Voucher Wallet",
-        username: data.username,
-        userId: data.userId,
-        walletId: data.walletId,
-        apiKey: encryptSensitiveData(data.apiKey),
-        displayCurrency: data.displayCurrency || "BTC",
-        scopes: data.scopes || [],
-        createdAt: data.createdAt || new Date().toISOString(),
-        lastUsed: data.lastUsed,
+        label: vw.label || "Voucher Wallet",
+        username: vw.username,
+        userId: vw.userId,
+        walletId: vw.walletId,
+        apiKey: encryptSensitiveData(vw.apiKey),
+        displayCurrency: vw.displayCurrency || "BTC",
+        scopes: vw.scopes || [],
+        createdAt: vw.createdAt || new Date().toISOString(),
+        lastUsed: vw.lastUsed,
       }
     }
   }

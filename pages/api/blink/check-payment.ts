@@ -78,14 +78,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         result?.me?.defaultAccount?.walletById?.transactions?.edges || []
 
       // Find a matching receive transaction by payment hash
-      const matchingTx = transactions.find((edge: any) => {
-        const tx = edge.node
-        return (
-          tx.direction === "RECEIVE" &&
-          tx.status === "SUCCESS" &&
-          tx.initiationVia?.paymentHash === paymentHash
-        )
-      })
+      const matchingTx = transactions.find(
+        (edge: {
+          node: {
+            direction: string
+            status: string
+            initiationVia?: { paymentHash?: string }
+            id: string
+            settlementAmount: number
+            createdAt: string
+          }
+        }) => {
+          const tx = edge.node
+          return (
+            tx.direction === "RECEIVE" &&
+            tx.status === "SUCCESS" &&
+            tx.initiationVia?.paymentHash === paymentHash
+          )
+        },
+      )
 
       if (matchingTx) {
         console.log(

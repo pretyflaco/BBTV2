@@ -43,7 +43,7 @@ export class CitrusrateAPI {
    * @param params - Query parameters
    * @returns API response data
    */
-  async request(endpoint: string, params: Record<string, string> = {}): Promise<any> {
+  async request(endpoint: string, params: Record<string, string> = {}): Promise<unknown> {
     const url: URL = new URL(`${this.baseUrl}${endpoint}`)
     Object.entries(params).forEach(([key, value]: [string, string]) => {
       url.searchParams.append(key, value)
@@ -119,9 +119,9 @@ export class CitrusrateAPI {
     // GET /v1/btc/blackmarket?currency=MZN
     // Response: { pair: "BTC/MZN", rate: 6903525.51, timestamp: "...", source: "estimated" }
 
-    const data: Record<string, unknown> = await this.request("/v1/btc/blackmarket", {
+    const data: Record<string, unknown> = (await this.request("/v1/btc/blackmarket", {
       currency: currency.toUpperCase(),
-    })
+    })) as Record<string, unknown>
 
     if (!data.rate) {
       throw new Error(`No black market rate available for ${currency}`)
@@ -150,9 +150,9 @@ export class CitrusrateAPI {
    */
   async getOfficialRate(currency: string): Promise<CitrusrateRateData> {
     // GET /v1/btc?currency=NGN
-    const data: Record<string, unknown> = await this.request("/v1/btc", {
+    const data: Record<string, unknown> = (await this.request("/v1/btc", {
       currency: currency.toUpperCase(),
-    })
+    })) as Record<string, unknown>
 
     if (!data.rate) {
       throw new Error(`No official rate available for ${currency}`)
@@ -176,7 +176,10 @@ export class CitrusrateAPI {
    */
   async getAllOfficialRates(): Promise<CitrusrateAllRatesResponse> {
     // GET /v1/btc/all
-    const data: Record<string, unknown> = await this.request("/v1/btc/all")
+    const data: Record<string, unknown> = (await this.request("/v1/btc/all")) as Record<
+      string,
+      unknown
+    >
 
     if (!data.rates) {
       throw new Error("No rates available from Citrusrate")

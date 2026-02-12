@@ -85,31 +85,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Format transactions for display (preserving all raw data for CSV export)
-    const formattedTransactions = transactionData.edges.map((edge: any) => {
-      const tx = edge.node
-      return {
-        // Display fields (for UI)
-        id: tx.id,
-        direction: tx.direction,
-        status: tx.status,
-        amount: BlinkAPI.getTransactionAmount(tx),
-        currency: tx.settlementCurrency,
-        date: BlinkAPI.formatDate(tx.createdAt),
-        memo: tx.memo || "-",
-        cursor: edge.cursor,
-        // Raw fields (for CSV export) - pass through all data
-        walletId: tx.walletId,
-        settlementAmount: tx.settlementAmount,
-        settlementFee: tx.settlementFee,
-        settlementCurrency: tx.settlementCurrency,
-        settlementDisplayAmount: tx.settlementDisplayAmount,
-        settlementDisplayCurrency: tx.settlementDisplayCurrency,
-        settlementDisplayFee: tx.settlementDisplayFee,
-        createdAt: tx.createdAt,
-        initiationVia: tx.initiationVia,
-        settlementVia: tx.settlementVia,
-      }
-    })
+    const formattedTransactions = transactionData.edges.map(
+      (edge: { node: Record<string, unknown>; cursor: string }) => {
+        const tx = edge.node
+        return {
+          // Display fields (for UI)
+          id: tx.id,
+          direction: tx.direction,
+          status: tx.status,
+          amount: BlinkAPI.getTransactionAmount(tx),
+          currency: tx.settlementCurrency,
+          date: BlinkAPI.formatDate(tx.createdAt),
+          memo: tx.memo || "-",
+          cursor: edge.cursor,
+          // Raw fields (for CSV export) - pass through all data
+          walletId: tx.walletId,
+          settlementAmount: tx.settlementAmount,
+          settlementFee: tx.settlementFee,
+          settlementCurrency: tx.settlementCurrency,
+          settlementDisplayAmount: tx.settlementDisplayAmount,
+          settlementDisplayCurrency: tx.settlementDisplayCurrency,
+          settlementDisplayFee: tx.settlementDisplayFee,
+          createdAt: tx.createdAt,
+          initiationVia: tx.initiationVia,
+          settlementVia: tx.settlementVia,
+        }
+      },
+    )
 
     res.status(200).json({
       success: true,

@@ -10,7 +10,6 @@ import {
   type VoucherWallet,
   type VoucherCurrencyMode,
   type VoucherExpiry,
-  type VoucherWalletScopes,
 } from "@/lib/hooks/useVoucherWalletState"
 
 // Mock localStorage
@@ -43,12 +42,7 @@ const mockVoucherWallet: VoucherWallet = {
   usdWalletId: "usd-wallet-012",
 }
 
-const mockScopes: VoucherWalletScopes = {
-  receive: true,
-  send: true,
-  read: true,
-  write: false,
-}
+const mockScopes: string[] = ["RECEIVE", "SEND", "READ"]
 
 describe("useVoucherWalletState", () => {
   beforeEach(() => {
@@ -278,9 +272,7 @@ describe("useVoucherWalletState", () => {
       })
 
       expect(result.current.voucherCurrencyMode).toBe("USD")
-      expect(localStorageMock.getItem("blinkpos-voucher-currency-mode")).toBe(
-        "USD"
-      )
+      expect(localStorageMock.getItem("blinkpos-voucher-currency-mode")).toBe("USD")
     })
 
     it("setVoucherExpiry updates expiry and persists to localStorage", () => {
@@ -600,9 +592,7 @@ describe("useVoucherWalletState", () => {
       })
 
       expect(result.current.voucherCurrencyMode).toBe("USD")
-      expect(localStorageMock.getItem("blinkpos-voucher-currency-mode")).toBe(
-        "USD"
-      )
+      expect(localStorageMock.getItem("blinkpos-voucher-currency-mode")).toBe("USD")
 
       // User switches back to BTC
       act(() => {

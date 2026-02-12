@@ -42,7 +42,7 @@ export interface VoucherWalletState {
   voucherWalletValidating: boolean
 
   // Wallet details
-  voucherWalletScopes: VoucherWalletScopes | null
+  voucherWalletScopes: string[] | null
   voucherWalletBtcId: string | null
   voucherWalletUsdId: string | null
 
@@ -74,7 +74,7 @@ export interface VoucherWalletActions {
   setVoucherWalletValidating: (validating: boolean) => void
 
   // Wallet details setters
-  setVoucherWalletScopes: (scopes: VoucherWalletScopes | null) => void
+  setVoucherWalletScopes: (scopes: string[] | null) => void
   setVoucherWalletBtcId: (id: string | null) => void
   setVoucherWalletUsdId: (id: string | null) => void
 
@@ -99,8 +99,7 @@ export interface VoucherWalletActions {
   resetCapacityIndicator: () => void
 }
 
-export type UseVoucherWalletStateReturn = VoucherWalletState &
-  VoucherWalletActions
+export type UseVoucherWalletStateReturn = VoucherWalletState & VoucherWalletActions
 
 /**
  * Load voucher currency mode from localStorage
@@ -160,30 +159,20 @@ export function useVoucherWalletState(): UseVoucherWalletStateReturn {
 
   // Loading/error states
   const [voucherWalletLoading, setVoucherWalletLoading] = useState(false)
-  const [voucherWalletError, setVoucherWalletError] = useState<string | null>(
-    null
-  )
+  const [voucherWalletError, setVoucherWalletError] = useState<string | null>(null)
   const [voucherWalletValidating, setVoucherWalletValidating] = useState(false)
 
   // Wallet details
-  const [voucherWalletScopes, setVoucherWalletScopes] =
-    useState<VoucherWalletScopes | null>(null)
-  const [voucherWalletBtcId, setVoucherWalletBtcId] = useState<string | null>(
-    null
-  )
-  const [voucherWalletUsdId, setVoucherWalletUsdId] = useState<string | null>(
-    null
-  )
+  const [voucherWalletScopes, setVoucherWalletScopes] = useState<string[] | null>(null)
+  const [voucherWalletBtcId, setVoucherWalletBtcId] = useState<string | null>(null)
+  const [voucherWalletUsdId, setVoucherWalletUsdId] = useState<string | null>(null)
 
   // Balance tracking
-  const [voucherWalletBalance, setVoucherWalletBalance] = useState<
-    number | null
-  >(null)
-  const [voucherWalletUsdBalance, setVoucherWalletUsdBalance] = useState<
-    number | null
-  >(null)
-  const [voucherWalletBalanceLoading, setVoucherWalletBalanceLoading] =
-    useState(false)
+  const [voucherWalletBalance, setVoucherWalletBalance] = useState<number | null>(null)
+  const [voucherWalletUsdBalance, setVoucherWalletUsdBalance] = useState<number | null>(
+    null,
+  )
+  const [voucherWalletBalanceLoading, setVoucherWalletBalanceLoading] = useState(false)
   const [usdExchangeRate, setUsdExchangeRate] = useState<number | null>(null)
 
   // Voucher creation settings (loaded from localStorage)

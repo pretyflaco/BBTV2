@@ -8,15 +8,15 @@
  * integration/E2E tests.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 // We need to load this module dynamically due to mixed exports
-let CryptoUtils: any
+import type { CryptoUtils as CryptoUtilsClass } from "../../lib/storage/CryptoUtils"
+
+let CryptoUtils: typeof CryptoUtilsClass
 
 beforeAll(async () => {
   // Dynamically import to avoid module system conflicts
   const mod = await import("../../lib/storage/CryptoUtils.js")
-  CryptoUtils = mod.default || mod.CryptoUtils || mod
+  CryptoUtils = (mod.default || mod.CryptoUtils || mod) as typeof CryptoUtilsClass
 })
 
 // Check if real crypto API is available (not mocked)
@@ -42,11 +42,11 @@ describe("CryptoUtils", () => {
 
     it("should return falsy when crypto is not available", () => {
       const originalCrypto = global.crypto
-      ;(global as any).crypto = undefined
+      Object.defineProperty(global, "crypto", { value: undefined, writable: true })
 
       expect(CryptoUtils.isSupported()).toBeFalsy()
 
-      ;(global as any).crypto = originalCrypto
+      Object.defineProperty(global, "crypto", { value: originalCrypto, writable: true })
     })
   })
 
@@ -253,8 +253,8 @@ describe("CryptoUtils", () => {
         // This should not throw (it will use device key)
         try {
           await CryptoUtils.decrypt(encrypted)
-        } catch (e: any) {
-          expect(e.message).not.toContain("Password is required")
+        } catch (e: unknown) {
+          expect((e as Error).message).not.toContain("Password is required")
         }
       })
     })

@@ -30,10 +30,7 @@ const { CardStatus, TxType } = require("./store") as {
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const boltcardCrypto = require("./crypto")
 
-// BlinkAPI is a CommonJS JS class (not yet migrated).
-// It exports both instance methods and static methods.
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const BlinkAPI = require("../blink-api").default || require("../blink-api")
+import BlinkAPI from "../blink-api"
 
 // ============================================================================
 // Types

@@ -1,29 +1,84 @@
 // Import centralized API configuration
-// Note: We use dynamic import pattern for compatibility with both client and server
-const getApiUrlFromConfig = () => {
+import { getApiUrl } from "./config/api"
+
+// =============================================================================
+// Interfaces
+// =============================================================================
+
+interface GraphQLResponse {
+  data?: any
+  errors?: Array<{ message: string; [key: string]: unknown }>
+}
+
+interface ExchangeRate {
+  satPriceInCurrency: number
+  currency?: string
+}
+
+interface Wallet {
+  id: string
+  walletCurrency: string
+  balance: number
+}
+
+interface Invoice {
+  paymentRequest: string
+  paymentHash: string
+  paymentSecret?: string
+  satoshis: number
+}
+
+interface PaymentResult {
+  status: string
+  errors?: Array<{ message: string; code?: string; path?: string[] }>
+}
+
+interface WalletInfo {
+  id: string
+  currency: string
+}
+
+interface Transaction {
+  settlementAmount: number
+  direction: string
+  settlementCurrency: string
+}
+
+// =============================================================================
+// Helper
+// =============================================================================
+
+// Note: We use a try/catch wrapper for compatibility with both client and server
+const getApiUrlFromConfig = (): string => {
   try {
     // Try to use the centralized config
-    const { getApiUrl } = require("./config/api")
     return getApiUrl()
-  } catch (e) {
+  } catch (_e: unknown) {
     // Fallback if config not available (e.g., during SSR build)
     return process.env.BLINK_API_URL || "https://api.blink.sv/graphql"
   }
 }
 
+// =============================================================================
+// BlinkAPI Class
+// =============================================================================
+
 class BlinkAPI {
+  apiKey: string
+  baseUrl: string
+
   /**
    * Create a BlinkAPI instance
    * @param {string} apiKey - Blink API key
    * @param {string|null} apiUrl - Optional API URL override (for environment switching on server-side)
    */
-  constructor(apiKey, apiUrl = null) {
+  constructor(apiKey: string, apiUrl: string | null = null) {
     this.apiKey = apiKey
     this.baseUrl = apiUrl || getApiUrlFromConfig()
   }
 
   // Make GraphQL request to Blink API
-  async query(query, variables = {}) {
+  async query(query: string, variables: Record<string, unknown> = {}): Promise<any> {
     try {
       const response = await fetch(this.baseUrl, {
         method: "POST",
@@ -44,7 +99,7 @@ class BlinkAPI {
           try {
             const errorData = await response.json()
             errorMessage = errorData.message || errorData.error || errorMessage
-          } catch (e) {
+          } catch (_e: unknown) {
             // Failed to parse error as JSON, use default message
           }
         } else {
@@ -57,21 +112,21 @@ class BlinkAPI {
         throw new Error(errorMessage)
       }
 
-      const data = await response.json()
+      const data: GraphQLResponse = await response.json()
 
       if (data.errors) {
         throw new Error(data.errors[0]?.message || "GraphQL error")
       }
 
       return data.data
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Blink API error:", error)
       throw error
     }
   }
 
   // Get user information including display currency
-  async getMe() {
+  async getMe(): Promise<any> {
     const query = `
       query Me {
         me {
@@ -88,7 +143,7 @@ class BlinkAPI {
   }
 
   // Get exchange rate for a currency
-  async getExchangeRate(currency) {
+  async getExchangeRate(currency: string): Promise<ExchangeRate> {
     if (currency === "BTC") {
       return { satPriceInCurrency: 1 } // 1 sat = 1 sat
     }
@@ -116,7 +171,7 @@ class BlinkAPI {
 
     const btcSatPrice = data.realtimePrice.btcSatPrice
     // Calculate price of 1 sat in the queried currency
-    const satPriceInCurrency = btcSatPrice.base / Math.pow(10, btcSatPrice.offset)
+    const satPriceInCurrency: number = btcSatPrice.base / Math.pow(10, btcSatPrice.offset)
 
     return {
       satPriceInCurrency: satPriceInCurrency,
@@ -125,7 +180,12 @@ class BlinkAPI {
   }
 
   // Convert fiat currency amount to satoshis
-  convertToSatoshis(amount, currency, exchangeRate, fractionDigits = 2) {
+  convertToSatoshis(
+    amount: number,
+    currency: string,
+    exchangeRate: ExchangeRate,
+    fractionDigits: number = 2,
+  ): number {
     if (currency === "BTC") {
       return Math.round(amount) // Already in sats
     }
@@ -135,14 +195,16 @@ class BlinkAPI {
     }
 
     // Use currency's fractionDigits (0 for KRW/JPY, 2 for USD/EUR, etc.)
-    const amountInMinorUnits = amount * Math.pow(10, fractionDigits)
-    const satsAmount = Math.round(amountInMinorUnits / exchangeRate.satPriceInCurrency)
+    const amountInMinorUnits: number = amount * Math.pow(10, fractionDigits)
+    const satsAmount: number = Math.round(
+      amountInMinorUnits / exchangeRate.satPriceInCurrency,
+    )
 
     return satsAmount
   }
 
   // Get wallet balances
-  async getBalance() {
+  async getBalance(): Promise<Wallet[]> {
     const query = `
       query {
         me {
@@ -162,7 +224,7 @@ class BlinkAPI {
   }
 
   // Get transaction history with all fields for CSV export
-  async getTransactions(first = 100, after = null) {
+  async getTransactions(first: number = 100, after: string | null = null): Promise<any> {
     const query = `
       query TransactionsList($first: Int!, $after: String) {
         me {
@@ -230,9 +292,9 @@ class BlinkAPI {
     }
 
     // Add walletId to each transaction for CSV export
-    const walletId = data.me?.defaultAccount?.id
+    const walletId: string | undefined = data.me?.defaultAccount?.id
     if (walletId && transactions.edges) {
-      transactions.edges = transactions.edges.map((edge) => ({
+      transactions.edges = transactions.edges.map((edge: any) => ({
         ...edge,
         node: {
           ...edge.node,
@@ -245,7 +307,7 @@ class BlinkAPI {
   }
 
   // Get user info
-  async getUserInfo() {
+  async getUserInfo(): Promise<any> {
     const query = `
       query {
         me {
@@ -262,7 +324,7 @@ class BlinkAPI {
   }
 
   // Get CSV export from Blink (official backend-generated CSV with all fields)
-  async getCsvTransactions(walletIds) {
+  async getCsvTransactions(walletIds: string[]): Promise<string> {
     const query = `
       query ExportCsv($walletIds: [WalletId!]!) {
         me {
@@ -280,7 +342,11 @@ class BlinkAPI {
   }
 
   // Create Lightning invoice for BTC payments
-  async createLnInvoice(walletId, amount, memo = "") {
+  async createLnInvoice(
+    walletId: string,
+    amount: number,
+    memo: string = "",
+  ): Promise<Invoice> {
     const query = `
       mutation LnInvoiceCreate($input: LnInvoiceCreateInput!) {
         lnInvoiceCreate(input: $input) {
@@ -315,7 +381,11 @@ class BlinkAPI {
   }
 
   // Create Lightning invoice for USD payments
-  async createLnUsdInvoice(walletId, amount, memo = "") {
+  async createLnUsdInvoice(
+    walletId: string,
+    amount: number,
+    memo: string = "",
+  ): Promise<Invoice> {
     const query = `
       mutation LnUsdInvoiceCreate($input: LnUsdInvoiceCreateInput!) {
         lnUsdInvoiceCreate(input: $input) {
@@ -350,7 +420,7 @@ class BlinkAPI {
   }
 
   // Get wallet IDs and currencies
-  async getWalletInfo() {
+  async getWalletInfo(): Promise<Wallet[]> {
     const query = `
       query {
         me {
@@ -370,7 +440,7 @@ class BlinkAPI {
   }
 
   // Format amount for display
-  static formatAmount(amount, currency) {
+  static formatAmount(amount: number, currency: string): string {
     if (currency === "BTC") {
       // Amount is already in sats from Blink API
       return `${Math.round(amount).toLocaleString()} sats`
@@ -378,7 +448,7 @@ class BlinkAPI {
 
     if (currency === "USD") {
       // Amount is in cents, convert to dollars
-      const dollars = amount / 100
+      const dollars: number = amount / 100
       return `${dollars.toFixed(2)} USD`
     }
 
@@ -388,7 +458,12 @@ class BlinkAPI {
   // Intra-ledger payment (internal transfer between Blink wallets)
   // Used for transferring funds between BTC and USD wallets within the same account
   // When sending from BTC wallet to USD wallet, Blink automatically converts at current rate
-  async intraLedgerPaymentSend(senderWalletId, recipientWalletId, amountSats, memo = "") {
+  async intraLedgerPaymentSend(
+    senderWalletId: string,
+    recipientWalletId: string,
+    amountSats: number,
+    memo: string = "",
+  ): Promise<PaymentResult> {
     const mutation = `
       mutation IntraLedgerPaymentSend($input: IntraLedgerPaymentSendInput!) {
         intraLedgerPaymentSend(input: $input) {
@@ -421,7 +496,11 @@ class BlinkAPI {
 
   // Pay a Lightning invoice (for payment forwarding)
   // memo: Optional memo to associate with the payment (shows in receiver's transaction history for intra-ledger)
-  async payLnInvoice(walletId, paymentRequest, memo = "") {
+  async payLnInvoice(
+    walletId: string,
+    paymentRequest: string,
+    memo: string = "",
+  ): Promise<PaymentResult> {
     const query = `
       mutation LnInvoicePaymentSend($input: LnInvoicePaymentInput!) {
         lnInvoicePaymentSend(input: $input) {
@@ -498,7 +577,9 @@ class BlinkAPI {
 
   // Get exchange rate without authentication (uses mainnet public endpoint)
   // This is useful for public POS and other unauthenticated scenarios
-  static async getExchangeRatePublic(currency) {
+  static async getExchangeRatePublic(
+    currency: string,
+  ): Promise<{ satPriceInCurrency: number; currency: string }> {
     if (currency === "BTC" || currency === "SAT") {
       return { satPriceInCurrency: 1, currency: "BTC" } // 1 sat = 1 sat
     }
@@ -537,7 +618,7 @@ class BlinkAPI {
         throw new Error(`Failed to fetch public exchange rate: ${response.status}`)
       }
 
-      const data = await response.json()
+      const data: GraphQLResponse = await response.json()
 
       if (data.errors) {
         throw new Error(data.errors[0]?.message || "GraphQL error fetching exchange rate")
@@ -549,13 +630,14 @@ class BlinkAPI {
 
       const btcSatPrice = data.data.realtimePrice.btcSatPrice
       // Calculate price of 1 sat in the queried currency
-      const satPriceInCurrency = btcSatPrice.base / Math.pow(10, btcSatPrice.offset)
+      const satPriceInCurrency: number =
+        btcSatPrice.base / Math.pow(10, btcSatPrice.offset)
 
       return {
         satPriceInCurrency: satPriceInCurrency,
         currency: currency.toUpperCase(),
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("❌ Error getting public exchange rate:", currency, error)
       throw error
     }
@@ -563,7 +645,10 @@ class BlinkAPI {
 
   // Get wallet information for a Blink username (unauthenticated call)
   // apiUrl: Optional API URL override (for environment switching)
-  static async getWalletByUsername(username, apiUrl = null) {
+  static async getWalletByUsername(
+    username: string,
+    apiUrl: string | null = null,
+  ): Promise<WalletInfo> {
     const query = `
       query AccountDefaultWallet($username: Username!) {
         accountDefaultWallet(username: $username) {
@@ -574,7 +659,7 @@ class BlinkAPI {
     `
 
     const variables = { username }
-    const url = apiUrl || getApiUrlFromConfig()
+    const url: string = apiUrl || getApiUrlFromConfig()
 
     try {
       const response = await fetch(url, {
@@ -585,7 +670,7 @@ class BlinkAPI {
         body: JSON.stringify({ query, variables }),
       })
 
-      const data = await response.json()
+      const data: GraphQLResponse = await response.json()
 
       if (data.errors) {
         throw new Error(data.errors[0]?.message || "Error fetching wallet information")
@@ -595,7 +680,7 @@ class BlinkAPI {
         id: data.data.accountDefaultWallet?.id,
         currency: data.data.accountDefaultWallet?.currency,
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("❌ Error getting wallet for username:", username, error)
       throw error
     }
@@ -605,7 +690,10 @@ class BlinkAPI {
   // Uses walletCurrency parameter to directly query for BTC wallet,
   // even if user's default wallet is USD
   // apiUrl: Optional API URL override (for environment switching)
-  static async getBtcWalletByUsername(username, apiUrl = null) {
+  static async getBtcWalletByUsername(
+    username: string,
+    apiUrl: string | null = null,
+  ): Promise<WalletInfo> {
     const query = `
       query AccountDefaultWallet($username: Username!, $walletCurrency: WalletCurrency) {
         accountDefaultWallet(username: $username, walletCurrency: $walletCurrency) {
@@ -619,7 +707,7 @@ class BlinkAPI {
       username,
       walletCurrency: "BTC", // Explicitly request BTC wallet
     }
-    const url = apiUrl || getApiUrlFromConfig()
+    const url: string = apiUrl || getApiUrlFromConfig()
 
     try {
       const response = await fetch(url, {
@@ -630,7 +718,7 @@ class BlinkAPI {
         body: JSON.stringify({ query, variables }),
       })
 
-      const data = await response.json()
+      const data: GraphQLResponse = await response.json()
 
       if (data.errors) {
         throw new Error(data.errors[0]?.message || "Error fetching wallet information")
@@ -653,7 +741,7 @@ class BlinkAPI {
         id: btcWallet.id,
         currency: btcWallet.currency,
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("❌ Error getting BTC wallet for username:", username, error)
       throw error
     }
@@ -662,12 +750,12 @@ class BlinkAPI {
   // Create invoice on behalf of recipient with custom memo (unauthenticated call)
   // apiUrl: Optional API URL override (for environment switching)
   static async createInvoiceOnBehalfOfRecipient(
-    recipientWalletId,
-    amount,
-    memo,
-    expiresInMinutes = 15,
-    apiUrl = null,
-  ) {
+    recipientWalletId: string,
+    amount: number,
+    memo: string,
+    expiresInMinutes: number = 15,
+    apiUrl: string | null = null,
+  ): Promise<Invoice> {
     const mutation = `
       mutation LnInvoiceCreateOnBehalfOfRecipient($input: LnInvoiceCreateOnBehalfOfRecipientInput!) {
         lnInvoiceCreateOnBehalfOfRecipient(input: $input) {
@@ -688,7 +776,7 @@ class BlinkAPI {
         expiresIn: expiresInMinutes.toString(),
       },
     }
-    const url = apiUrl || getApiUrlFromConfig()
+    const url: string = apiUrl || getApiUrlFromConfig()
 
     try {
       const response = await fetch(url, {
@@ -699,7 +787,7 @@ class BlinkAPI {
         body: JSON.stringify({ query: mutation, variables }),
       })
 
-      const data = await response.json()
+      const data: GraphQLResponse = await response.json()
 
       if (data.errors) {
         throw new Error(
@@ -708,14 +796,19 @@ class BlinkAPI {
       }
 
       return data.data.lnInvoiceCreateOnBehalfOfRecipient.invoice
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("❌ Error creating invoice on behalf of recipient:", error)
       throw error
     }
   }
 
   // Send tip by creating invoice on behalf of recipient and paying it
-  async sendTipViaInvoice(fromWalletId, recipientUsername, amount, memo) {
+  async sendTipViaInvoice(
+    fromWalletId: string,
+    recipientUsername: string,
+    amount: number,
+    memo: string,
+  ): Promise<{ status: string; paymentHash: string; satoshis: number; memo: string }> {
     try {
       console.log("💡 Sending tip via invoice creation approach:", {
         fromWalletId,
@@ -726,7 +819,8 @@ class BlinkAPI {
 
       // Step 1: Get recipient's BTC wallet ID (required for BTC invoice creation)
       // This will throw an error if the user's default wallet is not BTC
-      const recipientWallet = await BlinkAPI.getBtcWalletByUsername(recipientUsername)
+      const recipientWallet: WalletInfo =
+        await BlinkAPI.getBtcWalletByUsername(recipientUsername)
       if (!recipientWallet?.id) {
         throw new Error(`Could not find BTC wallet for username: ${recipientUsername}`)
       }
@@ -734,7 +828,7 @@ class BlinkAPI {
       console.log("📋 Recipient BTC wallet found:", recipientWallet)
 
       // Step 2: Create invoice on behalf of recipient with custom memo
-      const invoice = await BlinkAPI.createInvoiceOnBehalfOfRecipient(
+      const invoice: Invoice = await BlinkAPI.createInvoiceOnBehalfOfRecipient(
         recipientWallet.id,
         amount,
         memo,
@@ -753,7 +847,7 @@ class BlinkAPI {
       })
 
       // Step 3: Pay the invoice from our wallet (pass memo for intra-ledger visibility)
-      const paymentResult = await this.payLnInvoice(
+      const paymentResult: PaymentResult = await this.payLnInvoice(
         fromWalletId,
         invoice.paymentRequest,
         memo,
@@ -767,16 +861,16 @@ class BlinkAPI {
         satoshis: invoice.satoshis,
         memo,
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("❌ Tip via invoice failed:", error)
       throw error
     }
   }
 
   // Format date for display
-  static formatDate(dateString) {
+  static formatDate(dateString: string | number): string {
     try {
-      let date
+      let date: Date
 
       // Handle different date formats
       if (typeof dateString === "number") {
@@ -789,7 +883,7 @@ class BlinkAPI {
           date = new Date(dateString)
         } else {
           // Check if it's a timestamp in milliseconds or seconds
-          const numericValue = parseInt(dateString)
+          const numericValue: number = parseInt(dateString)
           if (!isNaN(numericValue)) {
             // If it's a very large number, it's likely milliseconds
             if (numericValue > 1000000000000) {
@@ -804,12 +898,12 @@ class BlinkAPI {
           }
         }
       } else {
-        date = new Date(dateString)
+        date = new Date(dateString as any)
       }
 
       // Validate the date
       if (isNaN(date.getTime())) {
-        return dateString
+        return String(dateString)
       }
 
       return date.toLocaleDateString("en-US", {
@@ -819,20 +913,33 @@ class BlinkAPI {
         hour: "2-digit",
         minute: "2-digit",
       })
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Date formatting error:", error, "Input:", dateString)
-      return dateString
+      return String(dateString)
     }
   }
 
   // Determine transaction amount with proper sign
-  static getTransactionAmount(transaction) {
-    const amount = Math.abs(transaction.settlementAmount)
-    const sign = transaction.direction === "RECEIVE" ? "+" : "-"
-    const formattedAmount = BlinkAPI.formatAmount(amount, transaction.settlementCurrency)
+  static getTransactionAmount(transaction: Transaction): string {
+    const amount: number = Math.abs(transaction.settlementAmount)
+    const sign: string = transaction.direction === "RECEIVE" ? "+" : "-"
+    const formattedAmount: string = BlinkAPI.formatAmount(
+      amount,
+      transaction.settlementCurrency,
+    )
 
     return `${sign}${formattedAmount}`
   }
 }
 
-module.exports = BlinkAPI
+export default BlinkAPI
+export { BlinkAPI }
+export type {
+  GraphQLResponse,
+  ExchangeRate,
+  Wallet,
+  Invoice,
+  PaymentResult,
+  WalletInfo,
+  Transaction,
+}

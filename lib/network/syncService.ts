@@ -6,8 +6,7 @@
  * IMPORTANT: This service uses DATABASE storage, not in-memory stores
  */
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const BlinkAPI = require("../blink-api")
+import BlinkAPI from "../blink-api"
 import * as db from "./db"
 
 // ---------------------------------------------------------------------------

@@ -25,11 +25,11 @@
  * - User preference persistence
  */
 
-import CompanionAdapter from "./adapters/CompanionAdapter.js"
-import WebSerialAdapter from "./adapters/WebSerialAdapter.js"
-import PDFAdapter from "./adapters/PDFAdapter.js"
-import LocalPrintAdapter from "./adapters/LocalPrintAdapter.js"
-import type BaseAdapter from "./adapters/BaseAdapter.js"
+import CompanionAdapter from "./adapters/CompanionAdapter"
+import WebSerialAdapter from "./adapters/WebSerialAdapter"
+import PDFAdapter from "./adapters/PDFAdapter"
+import LocalPrintAdapter from "./adapters/LocalPrintAdapter"
+import type BaseAdapter from "./adapters/BaseAdapter"
 
 interface PlatformCapabilities {
   webSerial: boolean

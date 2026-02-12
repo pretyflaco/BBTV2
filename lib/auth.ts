@@ -39,7 +39,8 @@ class AuthManager {
   }
 
   // Verify user session
-  static verifySession(token: string): SessionPayload | null {
+  static verifySession(token: string | undefined): SessionPayload | null {
+    if (!token) return null
     try {
       return jwt.verify(token, JWT_SECRET) as SessionPayload
     } catch (err: unknown) {

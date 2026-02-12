@@ -15,8 +15,8 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const AuthManager = require("../../../lib/auth")
-const StorageManager = require("../../../lib/storage")
+import AuthManager from "../../../lib/auth"
+import StorageManager from "../../../lib/storage"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {

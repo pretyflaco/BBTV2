@@ -19,7 +19,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const { generateChallenge, storeChallenge } = require("../../../lib/auth/challengeStore")
+import { generateChallenge, storeChallenge } from "../../../lib/auth/challengeStore"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Only accept GET requests

@@ -7,7 +7,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const StorageManager = require("../../../lib/storage")
+import StorageManager from "../../../lib/storage"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -28,7 +28,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (nostrLink && nostrLink.legacyUsername) {
       // Load the legacy user data
-      const userData = await StorageManager.loadUserData(nostrLink.legacyUsername)
+      const userData = await StorageManager.loadUserData(
+        nostrLink.legacyUsername as string,
+      )
 
       if (userData && userData.migratedToNostr) {
         return res.status(200).json({

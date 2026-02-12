@@ -16,8 +16,8 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const Nip98Verifier = require("../../../lib/nostr/Nip98Verifier")
-const AuthManager = require("../../../lib/auth")
+import Nip98Verifier from "../../../lib/nostr/Nip98Verifier"
+import AuthManager from "../../../lib/auth"
 
 /**
  * Get the full URL of the request

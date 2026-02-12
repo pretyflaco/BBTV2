@@ -27,11 +27,10 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const { verifyChallenge } = require("../../../lib/auth/challengeStore")
-const AuthManager = require("../../../lib/auth")
+import { verifyChallenge } from "../../../lib/auth/challengeStore"
+import AuthManager from "../../../lib/auth"
 
-// Crypto for signature verification
-const crypto = require("crypto")
+import crypto from "crypto"
 
 interface CryptoModules {
   secp256k1: typeof import("@noble/curves/secp256k1") | null

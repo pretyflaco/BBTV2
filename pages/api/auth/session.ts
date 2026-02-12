@@ -7,7 +7,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const AuthManager = require("../../../lib/auth")
+import AuthManager from "../../../lib/auth"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {

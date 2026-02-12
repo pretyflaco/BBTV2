@@ -62,31 +62,17 @@
  * - Boltcard Spec: https://github.com/boltcard/boltcard/blob/main/docs/SPEC.md
  */
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const store = require("./store")
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const crypto = require("./crypto")
+import boltcardStore from "./store"
+import { CardStatus, TxType, PendingStatus } from "./store"
+import * as boltcardCrypto from "./crypto"
+import { KeySlot, PICCDATA_TAG_BOLTCARD } from "./crypto"
 
 import * as lnurlw from "./lnurlw"
 import * as lnurlp from "./lnurlp"
 
-// Re-export constants from CommonJS modules
-const { CardStatus, TxType, PendingStatus } = require("./store") as {
-  CardStatus: { PENDING: string; ACTIVE: string; DISABLED: string; WIPED: string }
-  TxType: { WITHDRAW: string; TOPUP: string; ADJUST: string }
-  PendingStatus: { PENDING: string; COMPLETED: string; EXPIRED: string }
-}
-
-const { KeySlot, PICCDATA_TAG_BOLTCARD } = require("./crypto") as {
-  KeySlot: {
-    K0_AUTH: number
-    K1_ENC_PICC: number
-    K2_ENC_MAC: number
-    K3_APP: number
-    K4_APP: number
-  }
-  PICCDATA_TAG_BOLTCARD: number
-}
+// Preserve original names for re-export and internal usage
+const store = boltcardStore
+const crypto = boltcardCrypto
 
 const { TopUpLimits } = lnurlp
 
@@ -174,9 +160,7 @@ interface CreatePendingResult {
   qrPayload: string
 }
 
-interface KeysResponse {
-  [key: string]: unknown
-}
+import type { KeysResponse } from "./crypto"
 
 interface ProgrammingQR {
   keysJson: string
@@ -279,7 +263,7 @@ async function createPendingRegistration(
       apiKey,
     },
     options,
-  )) as PendingRegistration
+  )) as unknown as PendingRegistration
 
   // Generate deeplink
   const keysRequestUrl = `${serverUrl}/api/boltcard/keys/${pending.id}`
@@ -360,8 +344,8 @@ async function verifyCardTap(
   const verifyResult: VerifyResult = crypto.verifyCardTap(
     piccData,
     sunMac,
-    card.k1,
-    card.k2,
+    card.k1 as string,
+    card.k2 as string,
     card.cardUid,
     card.lastCounter,
   )
@@ -371,7 +355,7 @@ async function verifyCardTap(
   }
 
   // Update counter
-  await store.updateLastCounter(cardId, verifyResult.counter)
+  await store.updateLastCounter(cardId, verifyResult.counter as number)
 
   // Calculate available amount
   let maxWithdrawable = card.balance

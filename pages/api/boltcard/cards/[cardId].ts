@@ -140,6 +140,10 @@ async function handleUpdate(req: NextApiRequest, res: NextApiResponse, cardId: s
     // Get updated card
     const updatedCard = await boltcard.store.getCard(cardId)
 
+    if (!updatedCard) {
+      return res.status(404).json({ error: "Card not found after update" })
+    }
+
     console.log("✅ Card updated:", { cardId, updates })
 
     res.status(200).json({
@@ -275,6 +279,10 @@ async function handleAction(req: NextApiRequest, res: NextApiResponse, cardId: s
 
     // Get updated card
     const updatedCard = await boltcard.store.getCard(cardId)
+
+    if (!updatedCard) {
+      return res.status(404).json({ error: "Card not found after action" })
+    }
 
     console.log("✅ Card action:", { cardId, action, success })
 

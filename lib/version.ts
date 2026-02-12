@@ -11,16 +11,16 @@
  */
 
 // Major version - increment for significant releases
-export const AUTH_VERSION_MAJOR: string = "v76"
+export const AUTH_VERSION_MAJOR: string = "v77"
 
 // Git commit hash (injected at build time, fallback for local dev)
 const GIT_COMMIT: string =
   typeof process !== "undefined" ? process.env.NEXT_PUBLIC_GIT_COMMIT || "dev" : "dev"
 
-// Full version string: v76-abc1234 or v76-dev for local
+// Full version string: v77-abc1234 or v77-dev for local
 export const AUTH_VERSION: string = AUTH_VERSION_MAJOR
-export const AUTH_VERSION_DATE: string = "2026-02-06"
-export const AUTH_VERSION_DESCRIPTION: string = "Auto-versioning with git commit hash"
+export const AUTH_VERSION_DATE: string = "2026-02-12"
+export const AUTH_VERSION_DESCRIPTION: string = "Fix boltcard require/import mismatches"
 
 // Full version string for display (includes git hash)
 export const AUTH_VERSION_FULL: string = `${AUTH_VERSION_MAJOR}-${GIT_COMMIT.substring(0, 7)}`

@@ -113,8 +113,8 @@ async function handleBalanceGet(
     const tapResult = boltcard.crypto.verifyCardTap(
       piccData,
       sunMac,
-      card.k1,
-      card.k2,
+      card.k1 as string,
+      card.k2 as string,
       card.cardUid,
       card.lastCounter,
     )
@@ -128,7 +128,7 @@ async function handleBalanceGet(
     }
 
     // Update last counter for replay protection
-    await boltcard.store.updateLastCounter(cardId, tapResult.counter)
+    await boltcard.store.updateLastCounter(cardId, tapResult.counter as number)
 
     // Check and process any pending top-ups before returning balance
     // This detects paid invoices that weren't processed via webhook
@@ -136,7 +136,7 @@ async function handleBalanceGet(
     try {
       pendingTopUpsResult = await boltcard.lnurlp.checkAndProcessPendingTopUps(
         cardId,
-        card.apiKey,
+        card.apiKey as string,
         card.environment,
         card.walletId,
         card.walletCurrency, // Pass currency so we can query BTC wallet for USD cards
@@ -187,13 +187,13 @@ async function handleBalanceGet(
         dailyRemaining: number | null
         dailySpent: number
         status: string
-        lastUsedAt: string | null
+        lastUsedAt: number | null
       }
       transactions: {
         type: string
         amount: number
-        description: string
-        createdAt: string
+        description: string | null
+        createdAt: number
       }[]
       topUp: { lnurl: string; url: string }
       pendingTopUps?: { processed: number; total: number }
@@ -213,8 +213,8 @@ async function handleBalanceGet(
         (tx: {
           type: string
           amount: number
-          description: string
-          createdAt: string
+          description: string | null
+          createdAt: number
         }) => ({
           type: tx.type,
           amount: tx.amount,

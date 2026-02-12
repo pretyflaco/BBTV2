@@ -107,7 +107,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const apiUrl = getApiUrlForEnvironment(
         (card.environment || "production") as EnvironmentName,
       )
-      const blinkAPI = new BlinkAPI(card.apiKey, apiUrl)
+      const blinkAPI = new BlinkAPI(card.apiKey as string, apiUrl)
 
       const wallets = await blinkAPI.getWalletInfo()
       const targetWallet = wallets.find(
@@ -170,6 +170,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Get updated card data
     const updatedCard = await boltcard.store.getCard(cardId)
+
+    if (!updatedCard) {
+      return res.status(404).json({ error: "Card not found after funding" })
+    }
 
     res.status(200).json({
       success: true,

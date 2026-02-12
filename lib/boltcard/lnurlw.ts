@@ -22,14 +22,9 @@
 import { bech32 } from "bech32"
 import type { EnvironmentName } from "../config/api"
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const boltcardStore = require("./store")
-const { CardStatus, TxType } = require("./store") as {
-  CardStatus: { PENDING: string; ACTIVE: string; DISABLED: string; WIPED: string }
-  TxType: { WITHDRAW: string; TOPUP: string; ADJUST: string }
-}
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const boltcardCrypto = require("./crypto")
+import boltcardStore from "./store"
+import { CardStatus, TxType } from "./store"
+import * as boltcardCrypto from "./crypto"
 
 import BlinkAPI from "../blink-api"
 
@@ -281,8 +276,8 @@ async function handleWithdrawRequest(
   const verifyResult: VerifyResult = boltcardCrypto.verifyCardTap(
     piccDataHex,
     sunMacHex,
-    card.k1,
-    card.k2,
+    card.k1 as string,
+    card.k2 as string,
     card.cardUid,
     card.lastCounter,
   )
@@ -296,7 +291,7 @@ async function handleWithdrawRequest(
   }
 
   // Update counter for replay protection
-  await boltcardStore.updateLastCounter(cardId, verifyResult.counter)
+  await boltcardStore.updateLastCounter(cardId, verifyResult.counter as number)
 
   // Check balance
   if (card.balance <= 0) {
@@ -474,7 +469,7 @@ async function handleWithdrawCallback(
   await boltcardStore.recordTransaction(cardId, {
     type: TxType.WITHDRAW,
     amount: amount,
-    balanceAfter: deductResult.balance,
+    balanceAfter: deductResult.balance as number,
     paymentHash: payResult.paymentHash,
     description: "Card payment",
   })

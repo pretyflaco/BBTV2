@@ -23,12 +23,8 @@
 
 import { bech32 } from "bech32"
 import type { EnvironmentName } from "../config/api"
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const boltcardStore = require("./store")
-const { CardStatus, TxType } = require("./store") as {
-  CardStatus: { PENDING: string; ACTIVE: string; DISABLED: string; WIPED: string }
-  TxType: { WITHDRAW: string; TOPUP: string; ADJUST: string }
-}
+import boltcardStore from "./store"
+import { CardStatus } from "./store"
 
 // ============================================================================
 // Types
@@ -797,7 +793,7 @@ async function checkAndProcessPendingTopUps(
         }
       } else if (status === "EXPIRED") {
         // Mark expired invoices as processed to clean them up
-        await boltcardStore.markTopUpProcessed(pending.paymentHash)
+        await boltcardStore.markTopUpProcessed(pending.paymentHash as string)
         console.log(
           `[LNURLP] Cleaned up expired top-up invoice: ${(pending.paymentHash as string).substring(0, 16)}...`,
         )

@@ -650,7 +650,7 @@ const createReissueStyles = (format: string = "a4"): Record<string, any> => {
       fontFamily: "Courier",
       textAlign: "center",
       lineHeight: 1.4,
-      ...({ wordBreak: "break-all" } as any),
+      ...({ wordBreak: "break-all" } as Record<string, string>),
     },
     lnurlHint: {
       fontSize: 8,

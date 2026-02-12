@@ -193,9 +193,9 @@ export function installWebSocketDebugger(): void {
   }
 
   // Copy static properties and prototype onto the replacement function.
-  // We use 'as any' because we're building a WebSocket-compatible constructor
+  // We cast through unknown because we're building a WebSocket-compatible constructor
   // from a plain function, and the static fields on typeof WebSocket are read-only.
-  const DebugWS = DebugWebSocket as any
+  const DebugWS = DebugWebSocket as unknown as Record<string, unknown>
   DebugWS.CONNECTING = OriginalWebSocket.CONNECTING
   DebugWS.OPEN = OriginalWebSocket.OPEN
   DebugWS.CLOSING = OriginalWebSocket.CLOSING
@@ -203,7 +203,7 @@ export function installWebSocketDebugger(): void {
   // Copy the prototype so instanceof checks work
   DebugWS.prototype = OriginalWebSocket.prototype
 
-  window.WebSocket = DebugWS as typeof WebSocket
+  window.WebSocket = DebugWS as unknown as typeof WebSocket
 
   isInstalled = true
   console.log("[WSDebug] WebSocket debugger installed")

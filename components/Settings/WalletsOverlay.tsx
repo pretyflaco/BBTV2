@@ -1,62 +1,25 @@
 import NWCClient from "../../lib/nwc/NWCClient"
 import { getApiUrl, getLnAddressDomain } from "../../lib/config/api"
 import { isNpubCashAddress, probeNpubCashAddress } from "../../lib/lnurl"
-
-interface BlinkAccount {
-  id: string
-  label?: string
-  username?: string
-  type?: string
-  isActive?: boolean
-  lightningAddress?: string
-  apiKey?: string
-  defaultCurrency?: string
-}
-
-interface NWCConnection {
-  id: string
-  label?: string
-  walletPubkey?: string
-  isActive?: boolean
-}
-
-interface NpubCashWallet {
-  id: string
-  label?: string
-  lightningAddress?: string
-  isActive?: boolean
-}
-
-interface LnAddressValidated {
-  username: string
-  walletId: string
-  walletCurrency: string
-  lightningAddress: string
-}
-
-interface NwcValidated {
-  walletPubkey: string
-  relays: string[]
-  capabilities: string[]
-}
-
-interface NpubCashValidated {
-  lightningAddress: string
-  minSendable?: number
-  maxSendable?: number
-}
-
-interface EditingWalletLabel {
-  type: string
-  id?: string
-}
+import type { LocalBlinkAccount } from "../../lib/hooks/useProfile"
+import type { LocalNWCConnection, NWCOperationResult } from "../../lib/hooks/useNWC"
+import type { AuthMode } from "../../lib/hooks/useCombinedAuth"
+import type { StoreBlinkAccountResult } from "../../lib/hooks/useCombinedAuth"
+import type {
+  AccountType,
+  EditingWalletLabel,
+  NwcValidation,
+  LnAddressValidation,
+  NpubCashValidation,
+  ConfirmDeleteWallet,
+} from "../../lib/hooks/useAccountManagement"
 
 interface WalletsOverlayProps {
   // State values
   showAddAccountForm: boolean
-  newAccountType: string | null
+  newAccountType: AccountType
   darkMode: boolean
-  authMode: string
+  authMode: AuthMode
   newAccountLabel: string
   newAccountApiKey: string
   newAccountLnAddress: string
@@ -64,17 +27,17 @@ interface WalletsOverlayProps {
   newNpubCashAddress: string
   addAccountError: string | null
   addAccountLoading: boolean
-  lnAddressValidated: LnAddressValidated | null
+  lnAddressValidated: LnAddressValidation | null
   lnAddressValidating: boolean
-  nwcValidated: NwcValidated | null
+  nwcValidated: NwcValidation | null
   nwcValidating: boolean
-  npubCashValidated: NpubCashValidated | null
+  npubCashValidated: NpubCashValidation | null
   npubCashValidating: boolean
-  blinkAccounts: BlinkAccount[] | null
-  nwcConnections: NWCConnection[] | null
-  npubCashWallets: NpubCashWallet[] | null
-  activeNWC: NWCConnection | null
-  activeBlinkAccount: string | null
+  blinkAccounts: LocalBlinkAccount[] | null
+  nwcConnections: LocalNWCConnection[] | null
+  npubCashWallets: LocalBlinkAccount[] | null
+  activeNWC: LocalNWCConnection | null
+  activeBlinkAccount: LocalBlinkAccount | null
   editingWalletLabel: EditingWalletLabel | null
   editedWalletLabel: string
   isBlinkClassic: boolean
@@ -87,28 +50,31 @@ interface WalletsOverlayProps {
   setNewAccountLabel: (v: string) => void
   setNewAccountNwcUri: (v: string) => void
   setNewAccountLnAddress: (v: string) => void
-  setNewAccountType: (v: string | null) => void
+  setNewAccountType: (v: AccountType) => void
   setAddAccountError: (v: string | null) => void
-  setNwcValidated: (v: NwcValidated | null) => void
-  setLnAddressValidated: (v: LnAddressValidated | null) => void
-  setConfirmDeleteWallet: (v: string | null) => void
+  setNwcValidated: (v: NwcValidation | null) => void
+  setLnAddressValidated: (v: LnAddressValidation | null) => void
+  setConfirmDeleteWallet: (v: ConfirmDeleteWallet | null) => void
   setAddAccountLoading: (v: boolean) => void
   setLnAddressValidating: (v: boolean) => void
   setNwcValidating: (v: boolean) => void
-  setNpubCashValidated: (v: NpubCashValidated | null) => void
+  setNpubCashValidated: (v: NpubCashValidation | null) => void
   setNpubCashValidating: (v: boolean) => void
   setNewNpubCashAddress: (v: string) => void
-  setActiveBlinkAccount: (v: string | null) => Promise<void> | void
-  setActiveNWC: (v: string | null) => Promise<void> | void
+  setActiveBlinkAccount: (accountId: string | null) => void
+  setActiveNWC: (
+    connectionId: string | null,
+    connectionsOverride?: LocalNWCConnection[],
+  ) => Promise<NWCOperationResult>
   setEditingWalletLabel: (v: EditingWalletLabel | null) => void
   setEditedWalletLabel: (v: string) => void
   // Theme style functions
   getSubmenuBgClasses: () => string
   getSubmenuHeaderClasses: () => string
-  getWalletCardActiveClasses: (color: string) => string
+  getWalletCardActiveClasses: (accentColor?: "amber" | "purple" | "teal") => string
   getWalletCardClasses: () => string
-  getWalletIconClasses: (isActive: boolean | undefined) => string
-  getWalletActiveBadgeClasses: (color: string) => string
+  getWalletIconClasses: (isActive: boolean) => string
+  getWalletActiveBadgeClasses: (accentColor?: "amber" | "purple" | "teal") => string
   getWalletUseButtonClasses: () => string
   getSecondaryTextClasses: () => string
   getInputClasses: () => string
@@ -121,9 +87,9 @@ interface WalletsOverlayProps {
   }) => Promise<{ success: boolean; error?: string }>
   storeBlinkAccountOnServer: (
     apiKey: string,
-    displayCurrency: string,
-    label: string,
-  ) => Promise<void>
+    preferredCurrency?: string,
+    label?: string | null,
+  ) => Promise<StoreBlinkAccountResult>
   addBlinkLnAddressWallet: (data: {
     label: string
     username: string
@@ -1138,8 +1104,8 @@ export default function WalletsOverlay({
                         if (probeResult.valid) {
                           setNpubCashValidated({
                             lightningAddress: newNpubCashAddress.trim(),
-                            minSendable: probeResult.minSats,
-                            maxSendable: probeResult.maxSats,
+                            minSendable: probeResult.minSats ?? 0,
+                            maxSendable: probeResult.maxSats ?? 0,
                           })
                         } else {
                           setAddAccountError(
@@ -1302,8 +1268,8 @@ export default function WalletsOverlay({
               {/* Blink Accounts (exclude npub.cash which is shown separately) */}
               {blinkAccounts &&
                 blinkAccounts
-                  .filter((a: BlinkAccount) => a.type !== "npub-cash")
-                  .map((account: BlinkAccount) => (
+                  .filter((a: LocalBlinkAccount) => a.type !== "npub-cash")
+                  .map((account: LocalBlinkAccount) => (
                     <div
                       key={`blink-${account.id}`}
                       className={`p-4 transition-colors ${
@@ -1460,7 +1426,7 @@ export default function WalletsOverlay({
 
               {/* npub.cash Wallets */}
               {npubCashWallets &&
-                npubCashWallets.map((wallet: NpubCashWallet) => (
+                npubCashWallets.map((wallet: LocalBlinkAccount) => (
                   <div
                     key={`npubcash-${wallet.id}`}
                     className={`p-4 transition-colors ${
@@ -1620,7 +1586,7 @@ export default function WalletsOverlay({
 
               {/* NWC Connections */}
               {nwcConnections &&
-                nwcConnections.map((conn: NWCConnection) => (
+                nwcConnections.map((conn: LocalNWCConnection) => (
                   <div
                     key={`nwc-${conn.id}`}
                     className={`p-4 transition-colors ${

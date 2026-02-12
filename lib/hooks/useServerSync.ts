@@ -1,20 +1,17 @@
 import { useEffect, useRef, useCallback } from "react"
 import { getApiUrl } from "../config/api"
 import { initTransactionLabels } from "../../components/TransactionDetail"
+import type {
+  VoucherWallet,
+  VoucherCurrencyMode,
+  VoucherExpiry,
+} from "./useVoucherWalletState"
+import type { SoundTheme } from "./useSoundSettings"
+import type { NumberFormat, NumpadLayout, DisplayCurrency } from "./useDisplaySettings"
 
 // Voucher Wallet storage key (user-scoped for security)
 const VOUCHER_WALLET_OLD_KEY = "blinkpos-voucher-wallet" // Old global key (for cleanup)
 const VOUCHER_WALLET_PREFIX = "blinkpos-voucher-wallet"
-
-/**
- * VoucherWallet represents a connected Blink voucher wallet.
- */
-export interface VoucherWallet {
-  apiKey: string
-  label?: string
-  username?: string
-  [key: string]: unknown
-}
 
 /**
  * Preferences object synced to the server.
@@ -39,22 +36,22 @@ interface UseServerSyncParams {
   publicKey: string | null
   soundEnabled: boolean
   setSoundEnabled: (value: boolean) => void
-  soundTheme: string
-  setSoundTheme: (value: string) => void
+  soundTheme: SoundTheme | string
+  setSoundTheme: (value: SoundTheme) => void
   tipsEnabled: boolean
   setTipsEnabled: (value: boolean) => void
   tipPresets: number[]
   setTipPresets: (value: number[]) => void
   displayCurrency: string
-  setDisplayCurrency: (value: string) => void
-  numberFormat: string
-  setNumberFormat: (value: string) => void
-  numpadLayout: string
-  setNumpadLayout: (value: string) => void
-  voucherCurrencyMode: string
-  setVoucherCurrencyMode: (value: string) => void
-  voucherExpiry: string
-  setVoucherExpiry: (value: string) => void
+  setDisplayCurrency: (value: DisplayCurrency) => void
+  numberFormat: NumberFormat | string
+  setNumberFormat: (value: NumberFormat) => void
+  numpadLayout: NumpadLayout | string
+  setNumpadLayout: (value: NumpadLayout) => void
+  voucherCurrencyMode: VoucherCurrencyMode | string
+  setVoucherCurrencyMode: (value: VoucherCurrencyMode) => void
+  voucherExpiry: VoucherExpiry | string
+  setVoucherExpiry: (value: VoucherExpiry) => void
   voucherWallet: VoucherWallet | null
   setVoucherWallet: (value: VoucherWallet | null) => void
   setVoucherWalletBalance: (value: number | null) => void
@@ -226,7 +223,7 @@ export function useServerSync({
             localStorage.setItem("soundEnabled", JSON.stringify(serverPrefs.soundEnabled))
           }
           if (serverPrefs.soundTheme) {
-            setSoundTheme(serverPrefs.soundTheme)
+            setSoundTheme(serverPrefs.soundTheme as SoundTheme)
             localStorage.setItem("soundTheme", serverPrefs.soundTheme)
           }
           if (serverPrefs.tipsEnabled !== undefined) {
@@ -244,18 +241,18 @@ export function useServerSync({
             )
           }
           if (serverPrefs.displayCurrency) {
-            setDisplayCurrency(serverPrefs.displayCurrency)
+            setDisplayCurrency(serverPrefs.displayCurrency as DisplayCurrency)
           }
           if (serverPrefs.numberFormat) {
-            setNumberFormat(serverPrefs.numberFormat)
+            setNumberFormat(serverPrefs.numberFormat as NumberFormat)
             localStorage.setItem("blinkpos-number-format", serverPrefs.numberFormat)
           }
           if (serverPrefs.numpadLayout) {
-            setNumpadLayout(serverPrefs.numpadLayout)
+            setNumpadLayout(serverPrefs.numpadLayout as NumpadLayout)
             localStorage.setItem("blinkpos-numpad-layout", serverPrefs.numpadLayout)
           }
           if (serverPrefs.voucherCurrencyMode) {
-            setVoucherCurrencyMode(serverPrefs.voucherCurrencyMode)
+            setVoucherCurrencyMode(serverPrefs.voucherCurrencyMode as VoucherCurrencyMode)
             localStorage.setItem(
               "blinkpos-voucher-currency-mode",
               serverPrefs.voucherCurrencyMode,
@@ -270,7 +267,7 @@ export function useServerSync({
               serverPrefs.voucherExpiry === "1h"
                 ? "24h"
                 : serverPrefs.voucherExpiry
-            setVoucherExpiry(migratedExpiry)
+            setVoucherExpiry(migratedExpiry as VoucherExpiry)
             localStorage.setItem("blinkpos-voucher-expiry", migratedExpiry)
           }
 

@@ -5,14 +5,6 @@
 
 import type { DateRangePreset } from "../../lib/hooks/useTransactionActions"
 
-interface DateRangeLoadParams {
-  type: string
-  id: string
-  label: string
-  start: Date
-  end: Date
-}
-
 interface DateRangeSelectorOverlayProps {
   customDateStart: string
   customDateEnd: string
@@ -27,7 +19,7 @@ interface DateRangeSelectorOverlayProps {
   setCustomTimeEnd: (time: string) => void
   setShowTimeInputs: (show: boolean) => void
   getDateRangePresets: () => DateRangePreset[]
-  loadTransactionsForDateRange: (params: DateRangeLoadParams) => void
+  loadTransactionsForDateRange: (preset: DateRangePreset) => void
   handleCustomDateRange: () => void
   getSubmenuBgClasses: () => string
   getSubmenuHeaderClasses: () => string
@@ -89,9 +81,7 @@ export default function DateRangeSelectorOverlay({
                 {getDateRangePresets().map((preset) => (
                   <button
                     key={preset.id}
-                    onClick={() =>
-                      loadTransactionsForDateRange({ type: "preset", ...preset })
-                    }
+                    onClick={() => loadTransactionsForDateRange(preset)}
                     disabled={loadingMore}
                     className="p-4 rounded-lg border-2 border-blue-500 dark:border-blue-400 bg-white dark:bg-blink-dark hover:border-blue-600 dark:hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-left"
                   >

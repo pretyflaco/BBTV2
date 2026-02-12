@@ -25,6 +25,7 @@
  */
 
 import VoucherReceipt from "./VoucherReceipt"
+import type { VoucherData as VoucherReceiptData } from "./VoucherReceipt"
 import { getConnectionManager } from "./ConnectionManager"
 import { AdapterStatus } from "./adapters/BaseAdapter"
 import { preloadLogo, getBlinkLogoUrl } from "./LogoRasterizer"
@@ -339,8 +340,7 @@ class PrintService {
 
     // Cast voucher to satisfy VoucherReceipt's stricter JSDoc-inferred param types
     // (the JS source uses @param with required fields, but our VoucherData has optional ones)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const voucherArg = voucher as any
+    const voucherArg: VoucherReceiptData = voucher as VoucherReceiptData
 
     switch (options.receiptType) {
       case ReceiptType.MINIMAL:
@@ -394,8 +394,7 @@ class PrintService {
       await receipt.preloadLogo()
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const voucherArg = voucher as any
+    const voucherArg: VoucherReceiptData = voucher as VoucherReceiptData
 
     switch (type) {
       case ReceiptType.MINIMAL:
@@ -421,25 +420,12 @@ class PrintService {
    */
   async getAvailableMethods(): Promise<AvailableMethod[]> {
     const adapters = await this.connectionManager.getAvailableAdapters()
-    // The JS ConnectionManager.getAvailableAdapters() includes `recommended` in results
-    // but TS only infers {adapter, available, priority} from the JSDoc — cast to access all fields
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (adapters as any[]).map(
-      ({
-        adapter,
-        available,
-        recommended,
-      }: {
-        adapter: BaseAdapter
-        available: boolean
-        recommended: boolean
-      }) => ({
-        type: adapter.type,
-        name: adapter.name,
-        available,
-        recommended,
-      }),
-    )
+    return adapters.map(({ adapter, available, recommended }) => ({
+      type: adapter.type,
+      name: adapter.name,
+      available,
+      recommended,
+    }))
   }
 
   /**

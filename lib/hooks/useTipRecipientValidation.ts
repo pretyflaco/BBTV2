@@ -1,19 +1,17 @@
 import { useEffect, useCallback } from "react"
 import { getApiUrl, getAllValidDomains } from "../config/api"
+import type { UsernameValidationState } from "./useTipSettings"
 
 // ─── Types ────────────────────────────────────────────────────────
 
-export interface UsernameValidation {
-  status: "success" | "error" | null
-  message: string
-  isValidating: boolean
-}
+/** @deprecated Use UsernameValidationState from useTipSettings instead */
+export type UsernameValidation = UsernameValidationState
 
 export interface UseTipRecipientValidationParams {
   tipRecipient: string
-  setUsernameValidation: (v: UsernameValidation) => void
+  setUsernameValidation: (v: UsernameValidationState) => void
   setTipsEnabled: (v: boolean) => void
-  usernameValidation: UsernameValidation
+  usernameValidation: UsernameValidationState
 }
 
 export interface UseTipRecipientValidationReturn {

@@ -1,39 +1,32 @@
 import { useEffect } from "react"
 import { isBitcoinCurrency } from "../currency-utils"
+import type { ExchangeRateData } from "./useExchangeRate"
+import type { VoucherWallet } from "./useVoucherWalletState"
+import type { TipProfile } from "./useTipSettings"
+import type { CombinedUser } from "./useCombinedAuth"
 
 // ─── Types ────────────────────────────────────────────────────────
 
-export interface ExchangeRate {
-  satPriceInCurrency: number
-  currency: string
-}
+/** @deprecated Use ExchangeRateData from useExchangeRate instead */
+export type ExchangeRate = ExchangeRateData
 
-export interface VoucherWallet {
-  apiKey: string
-  [key: string]: unknown
-}
+/** @deprecated Use TipProfile from useTipSettings instead */
+export type ActiveTipProfile = TipProfile
 
-export interface ActiveTipProfile {
-  tipOptions: number[]
-  [key: string]: unknown
-}
-
-export interface ExchangeRateUser {
-  username: string
-  [key: string]: unknown
-}
+/** @deprecated Use CombinedUser from useCombinedAuth instead */
+export type ExchangeRateUser = CombinedUser
 
 export interface UseExchangeRateFetcherParams {
   displayCurrency: string
   apiKey: string | null
-  setExchangeRate: (rate: ExchangeRate) => void
+  setExchangeRate: (rate: ExchangeRateData) => void
   setLoadingRate: (loading: boolean) => void
   voucherWallet: VoucherWallet | null
-  setUsdExchangeRate: (rate: ExchangeRate | null) => void
-  activeTipProfile: ActiveTipProfile | null
+  setUsdExchangeRate: (rate: number | null) => void
+  activeTipProfile: TipProfile | null
   setTipPresets: (presets: number[]) => void
   resetTipRecipient: () => void
-  user: ExchangeRateUser | null
+  user: CombinedUser | null
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────
@@ -137,10 +130,7 @@ export function useExchangeRateFetcher({
         const data = await response.json()
 
         if (data.success) {
-          setUsdExchangeRate({
-            satPriceInCurrency: data.satPriceInCurrency,
-            currency: "USD",
-          })
+          setUsdExchangeRate(data.satPriceInCurrency)
           console.log("[VoucherWallet] USD exchange rate:", data.satPriceInCurrency)
         } else {
           console.error("[VoucherWallet] Failed to fetch USD exchange rate:", data.error)

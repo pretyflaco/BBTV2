@@ -3,58 +3,16 @@ import { FORMAT_LABELS } from "../lib/number-format"
 import type { NumberFormatPreference } from "../lib/number-format"
 import type { Theme } from "../lib/hooks/useTheme"
 import type { SoundThemeName } from "../lib/audio-utils"
-
-// ============================================================================
-// Local types for wallet/connection shapes
-// ============================================================================
-
-interface BlinkAccount {
-  label?: string
-  username?: string
-  [key: string]: unknown
-}
-
-interface NWCConnection {
-  label: string
-  [key: string]: unknown
-}
-
-interface NpubCashWallet {
-  label?: string
-  lightningAddress?: string
-  [key: string]: unknown
-}
-
-interface VoucherWallet {
-  label?: string
-  username?: string
-  apiKey?: string
-  [key: string]: unknown
-}
-
-interface SplitProfile {
-  label: string
-  [key: string]: unknown
-}
-
-interface TipProfile {
-  name: string
-  [key: string]: unknown
-}
-
-interface NostrProfile {
-  picture?: string
-  display_name?: string
-  name?: string
-  [key: string]: unknown
-}
-
-interface UserInfo {
-  username?: string
-  [key: string]: unknown
-}
-
-type AuthMode = "nostr" | "blink" | string
+import type {
+  AuthMode,
+  CombinedUser,
+  LocalBlinkAccount,
+  LocalNWCConnection,
+  NostrProfile,
+} from "../lib/hooks/useCombinedAuth"
+import type { SplitProfile } from "../lib/hooks/useSplitProfiles"
+import type { TipProfile } from "../lib/hooks/useTipSettings"
+import type { VoucherWallet } from "../lib/hooks/useVoucherWalletState"
 
 // ============================================================================
 // Component Props
@@ -63,10 +21,10 @@ type AuthMode = "nostr" | "blink" | string
 interface SideMenuOverlayProps {
   authMode: AuthMode
   nostrProfile: NostrProfile | null
-  user: UserInfo | null
-  activeNWC: NWCConnection | null
-  activeNpubCashWallet: NpubCashWallet | null
-  activeBlinkAccount: BlinkAccount | null
+  user: CombinedUser | null
+  activeNWC: LocalNWCConnection | null
+  activeNpubCashWallet: LocalBlinkAccount | null
+  activeBlinkAccount: LocalBlinkAccount | null
   voucherWallet: VoucherWallet | null
   theme: Theme
   displayCurrency: string
@@ -286,7 +244,9 @@ export default function SideMenuOverlay({
                 <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                   <span>
                     {voucherWallet
-                      ? voucherWallet.label || voucherWallet.username || "Connected"
+                      ? voucherWallet.label ||
+                        String(voucherWallet.username ?? "") ||
+                        "Connected"
                       : "None"}
                   </span>
                   <span className="ml-1">›</span>

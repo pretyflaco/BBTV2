@@ -9,7 +9,7 @@ import { useDisplaySettings } from "../lib/hooks/useDisplaySettings"
 import { useSoundSettings } from "../lib/hooks/useSoundSettings"
 import { useCommissionSettings } from "../lib/hooks/useCommissionSettings"
 import { usePaycodeState } from "../lib/hooks/usePaycodeState"
-import { usePWAInstall } from "../lib/hooks/usePWAInstall"
+import { usePWAInstall, type BeforeInstallPromptEvent } from "../lib/hooks/usePWAInstall"
 import { useAccountManagement } from "../lib/hooks/useAccountManagement"
 import { useVoucherWalletState } from "../lib/hooks/useVoucherWalletState"
 import { useTransactionState } from "../lib/hooks/useTransactionState"
@@ -317,7 +317,7 @@ export default function Dashboard() {
     setUsernameValidation,
     setTipsEnabled,
     usernameValidation,
-  } as any)
+  })
 
   // Account management state - extracted to useAccountManagement hook
   const {
@@ -464,7 +464,7 @@ export default function Dashboard() {
     setTipPresets,
     resetTipRecipient,
     user,
-  } as any)
+  })
 
   // Server sync for preferences & voucher wallet - extracted to useServerSync hook
   const { syncVoucherWalletToServer } = useServerSync({
@@ -491,7 +491,7 @@ export default function Dashboard() {
     setVoucherWallet,
     setVoucherWalletBalance,
     setVoucherWalletUsdBalance,
-  } as any)
+  })
 
   // Split profile CRUD & recipient validation - extracted to useSplitProfileActions hook
   const {
@@ -519,7 +519,7 @@ export default function Dashboard() {
     newSplitProfileRecipients,
     setNewSplitProfileRecipients,
     useCustomWeights,
-  } as any)
+  })
 
   // Transaction search ref (state is in useTransactionState hook)
   const txSearchInputRef = useRef<HTMLInputElement>(null)
@@ -619,7 +619,7 @@ export default function Dashboard() {
     posPaymentReceivedRef,
     voucherRef,
     multiVoucherRef,
-  } as any)
+  })
 
   // Transaction operations - extracted to useTransactionActions hook
   const {
@@ -678,6 +678,7 @@ export default function Dashboard() {
     setShowExportOptions,
     currentView,
     setCurrentView,
+    transitionColorIndex,
     setTransitionColorIndex,
     setIsViewTransitioning,
     customDateStart,
@@ -687,7 +688,7 @@ export default function Dashboard() {
     fetchData,
     txSearchInputRef,
     cartRef,
-  } as any)
+  })
 
   // PWA Install prompt
   useEffect(() => {
@@ -695,7 +696,7 @@ export default function Dashboard() {
       // Prevent the mini-infobar from appearing on mobile
       e.preventDefault()
       // Stash the event so it can be triggered later
-      setDeferredPrompt(e as any)
+      setDeferredPrompt(e as BeforeInstallPromptEvent)
       setShowInstallPrompt(true)
     }
 
@@ -712,7 +713,7 @@ export default function Dashboard() {
     fetchData,
     soundEnabled,
     soundTheme,
-  } as any)
+  })
 
   // Navigation handlers (touch swipe + keyboard) - extracted to useNavigationHandlers hook
   const { handleTouchStart, handleTouchMove, handleTouchEnd } = useNavigationHandlers({
@@ -729,7 +730,7 @@ export default function Dashboard() {
     voucherRef,
     multiVoucherRef,
     cartRef,
-  } as any)
+  })
 
   const handleLogout = () => {
     logout()
@@ -789,18 +790,18 @@ export default function Dashboard() {
       {/* Full Screen Menu */}
       {sideMenuOpen && (
         <SideMenuOverlay
-          authMode={authMode as any}
-          nostrProfile={nostrProfile as any}
-          user={user as any}
-          activeNWC={activeNWC as any}
-          activeNpubCashWallet={activeNpubCashWallet as any}
-          activeBlinkAccount={activeBlinkAccount as any}
+          authMode={authMode}
+          nostrProfile={nostrProfile}
+          user={user}
+          activeNWC={activeNWC}
+          activeNpubCashWallet={activeNpubCashWallet}
+          activeBlinkAccount={activeBlinkAccount}
           voucherWallet={voucherWallet}
           theme={theme}
           displayCurrency={displayCurrency}
-          numberFormat={numberFormat as any}
-          activeSplitProfile={activeSplitProfile as any}
-          activeTipProfile={activeTipProfile as any}
+          numberFormat={numberFormat}
+          activeSplitProfile={activeSplitProfile}
+          activeTipProfile={activeTipProfile}
           soundEnabled={soundEnabled}
           soundTheme={soundTheme}
           showInstallPrompt={showInstallPrompt}
@@ -839,13 +840,13 @@ export default function Dashboard() {
       {/* Boltcards Overlay */}
       {showBoltcards && (
         <BoltcardsOverlay
-          voucherWallet={voucherWallet as any}
-          voucherWalletBtcId={voucherWalletBtcId as any}
-          voucherWalletUsdId={voucherWalletUsdId as any}
-          voucherWalletBalance={voucherWalletBalance as any}
-          voucherWalletUsdBalance={voucherWalletUsdBalance as any}
-          exchangeRate={exchangeRate as any}
-          bitcoinFormat={bitcoinFormat as any}
+          voucherWallet={voucherWallet}
+          voucherWalletBtcId={voucherWalletBtcId}
+          voucherWalletUsdId={voucherWalletUsdId}
+          voucherWalletBalance={voucherWalletBalance}
+          voucherWalletUsdBalance={voucherWalletUsdBalance}
+          exchangeRate={exchangeRate}
+          bitcoinFormat={bitcoinFormat}
           setShowBoltcards={setShowBoltcards}
           getSubmenuBgClasses={getSubmenuBgClasses}
           getSubmenuHeaderClasses={getSubmenuHeaderClasses}
@@ -855,7 +856,7 @@ export default function Dashboard() {
       {/* Batch Payments Overlay */}
       {showBatchPayments && voucherWallet?.apiKey && (
         <BatchPaymentsOverlay
-          voucherWallet={voucherWallet as any}
+          voucherWallet={voucherWallet}
           darkMode={darkMode}
           setShowBatchPayments={setShowBatchPayments}
           setSideMenuOpen={setSideMenuOpen}
@@ -874,7 +875,8 @@ export default function Dashboard() {
           cycleTheme={cycleTheme}
           setShowNetworkOverlay={setShowNetworkOverlay}
           setSideMenuOpen={setSideMenuOpen}
-          setTransitionColorIndex={setTransitionColorIndex as any}
+          transitionColorIndex={transitionColorIndex}
+          setTransitionColorIndex={setTransitionColorIndex}
           setIsViewTransitioning={setIsViewTransitioning}
           getSubmenuBgClasses={getSubmenuBgClasses}
           getSubmenuHeaderClasses={getSubmenuHeaderClasses}
@@ -882,9 +884,9 @@ export default function Dashboard() {
       )}
 
       {/* Paycodes Overlay */}
-      {showPaycode && (activeBlinkAccount as any)?.username && (
+      {showPaycode && activeBlinkAccount?.username && (
         <PaycodesOverlay
-          activeBlinkAccount={activeBlinkAccount as any}
+          activeBlinkAccount={activeBlinkAccount}
           paycodeAmount={paycodeAmount}
           paycodeGeneratingPdf={paycodeGeneratingPdf}
           darkMode={darkMode}
@@ -902,7 +904,7 @@ export default function Dashboard() {
           soundEnabled={soundEnabled}
           soundTheme={soundTheme}
           setSoundEnabled={setSoundEnabled}
-          setSoundTheme={setSoundTheme as any}
+          setSoundTheme={setSoundTheme}
           setShowSoundThemes={setShowSoundThemes}
           getSubmenuBgClasses={getSubmenuBgClasses}
           getSubmenuHeaderClasses={getSubmenuHeaderClasses}
@@ -963,7 +965,7 @@ export default function Dashboard() {
       {/* Split Settings Overlay */}
       {showTipSettings && !showCreateSplitProfile && (
         <SplitSettingsOverlay
-          authMode={authMode as any}
+          authMode={authMode}
           activeSplitProfile={activeSplitProfile}
           splitProfiles={splitProfiles}
           splitProfilesLoading={splitProfilesLoading}
@@ -973,14 +975,14 @@ export default function Dashboard() {
           setShowTipSettings={setShowTipSettings}
           setShowCreateSplitProfile={setShowCreateSplitProfile}
           setActiveSplitProfileById={setActiveSplitProfileById}
-          setEditingSplitProfile={setEditingSplitProfile as any}
+          setEditingSplitProfile={setEditingSplitProfile}
           setNewSplitProfileLabel={setNewSplitProfileLabel}
-          setNewSplitProfileRecipients={setNewSplitProfileRecipients as any}
+          setNewSplitProfileRecipients={setNewSplitProfileRecipients}
           setNewRecipientInput={setNewRecipientInput}
-          setRecipientValidation={setRecipientValidation as any}
+          setRecipientValidation={setRecipientValidation}
           setSplitProfileError={setSplitProfileError}
           setUseCustomWeights={setUseCustomWeights}
-          deleteSplitProfile={deleteSplitProfile as any}
+          deleteSplitProfile={deleteSplitProfile}
           getSubmenuBgClasses={getSubmenuBgClasses}
           getSubmenuHeaderClasses={getSubmenuHeaderClasses}
           getSubmenuOptionClasses={getSubmenuOptionClasses}
@@ -1005,16 +1007,16 @@ export default function Dashboard() {
           useCustomWeights={useCustomWeights}
           setShowCreateSplitProfile={setShowCreateSplitProfile}
           setShowTipSettings={setShowTipSettings}
-          setEditingSplitProfile={setEditingSplitProfile as any}
+          setEditingSplitProfile={setEditingSplitProfile}
           setNewSplitProfileLabel={setNewSplitProfileLabel}
-          setNewSplitProfileRecipients={setNewSplitProfileRecipients as any}
+          setNewSplitProfileRecipients={setNewSplitProfileRecipients}
           setNewRecipientInput={setNewRecipientInput}
-          setRecipientValidation={setRecipientValidation as any}
+          setRecipientValidation={setRecipientValidation}
           setSplitProfileError={setSplitProfileError}
           setUseCustomWeights={setUseCustomWeights}
           addRecipientToProfile={addRecipientToProfile}
           removeRecipientFromProfile={removeRecipientFromProfile}
-          saveSplitProfile={saveSplitProfile as any}
+          saveSplitProfile={saveSplitProfile}
           getSubmenuBgClasses={getSubmenuBgClasses}
           getSubmenuHeaderClasses={getSubmenuHeaderClasses}
         />
@@ -1031,10 +1033,10 @@ export default function Dashboard() {
           isBlinkClassic={isBlinkClassic}
           isBlinkClassicDark={isBlinkClassicDark}
           isBlinkClassicLight={isBlinkClassicLight}
-          setDisplayCurrency={setDisplayCurrency as any}
+          setDisplayCurrency={setDisplayCurrency}
           setShowCurrencySettings={setShowCurrencySettings}
           setCurrencyFilter={setCurrencyFilter}
-          getAllCurrencies={getAllCurrencies as any}
+          getAllCurrencies={getAllCurrencies}
           isPopularCurrency={isPopularCurrency}
           addToPopular={addToPopular}
           removeFromPopular={removeFromPopular}
@@ -1051,12 +1053,12 @@ export default function Dashboard() {
       {/* Regional Settings Overlay */}
       {showRegionalSettings && (
         <RegionalSettingsOverlay
-          numberFormat={numberFormat as any}
-          bitcoinFormat={bitcoinFormat as any}
-          numpadLayout={numpadLayout as any}
-          setNumberFormat={setNumberFormat as any}
-          setBitcoinFormat={setBitcoinFormat as any}
-          setNumpadLayout={setNumpadLayout as any}
+          numberFormat={numberFormat}
+          bitcoinFormat={bitcoinFormat}
+          numpadLayout={numpadLayout}
+          setNumberFormat={setNumberFormat}
+          setBitcoinFormat={setBitcoinFormat}
+          setNumpadLayout={setNumpadLayout}
           setShowRegionalSettings={setShowRegionalSettings}
           getSubmenuBgClasses={getSubmenuBgClasses}
           getSubmenuHeaderClasses={getSubmenuHeaderClasses}
@@ -1076,7 +1078,7 @@ export default function Dashboard() {
           showAddAccountForm={showAddAccountForm}
           newAccountType={newAccountType}
           darkMode={darkMode}
-          authMode={authMode as any}
+          authMode={authMode}
           newAccountLabel={newAccountLabel}
           newAccountApiKey={newAccountApiKey}
           newAccountLnAddress={newAccountLnAddress}
@@ -1090,11 +1092,11 @@ export default function Dashboard() {
           nwcValidating={nwcValidating}
           npubCashValidated={npubCashValidated}
           npubCashValidating={npubCashValidating}
-          blinkAccounts={blinkAccounts as any}
-          nwcConnections={nwcConnections as any}
-          npubCashWallets={npubCashWallets as any}
-          activeNWC={activeNWC as any}
-          activeBlinkAccount={activeBlinkAccount as any}
+          blinkAccounts={blinkAccounts}
+          nwcConnections={nwcConnections}
+          npubCashWallets={npubCashWallets}
+          activeNWC={activeNWC}
+          activeBlinkAccount={activeBlinkAccount}
           editingWalletLabel={editingWalletLabel}
           editedWalletLabel={editedWalletLabel}
           isBlinkClassic={isBlinkClassic}
@@ -1106,39 +1108,41 @@ export default function Dashboard() {
           setNewAccountLabel={setNewAccountLabel}
           setNewAccountNwcUri={setNewAccountNwcUri}
           setNewAccountLnAddress={setNewAccountLnAddress}
-          setNewAccountType={setNewAccountType as any}
+          setNewAccountType={setNewAccountType}
           setAddAccountError={setAddAccountError}
           setNwcValidated={setNwcValidated}
           setLnAddressValidated={setLnAddressValidated}
-          setConfirmDeleteWallet={setConfirmDeleteWallet as any}
+          setConfirmDeleteWallet={setConfirmDeleteWallet}
           setAddAccountLoading={setAddAccountLoading}
           setLnAddressValidating={setLnAddressValidating}
           setNwcValidating={setNwcValidating}
-          setNpubCashValidated={setNpubCashValidated as any}
+          setNpubCashValidated={setNpubCashValidated}
           setNpubCashValidating={setNpubCashValidating}
           setNewNpubCashAddress={setNewNpubCashAddress}
-          setActiveBlinkAccount={setActiveBlinkAccount as any}
-          setActiveNWC={setActiveNWC as any}
-          setEditingWalletLabel={setEditingWalletLabel as any}
+          setActiveBlinkAccount={(accountId) => {
+            if (accountId !== null) setActiveBlinkAccount(accountId)
+          }}
+          setActiveNWC={setActiveNWC}
+          setEditingWalletLabel={setEditingWalletLabel}
           setEditedWalletLabel={setEditedWalletLabel}
           getSubmenuBgClasses={getSubmenuBgClasses}
           getSubmenuHeaderClasses={getSubmenuHeaderClasses}
-          getWalletCardActiveClasses={getWalletCardActiveClasses as any}
+          getWalletCardActiveClasses={getWalletCardActiveClasses}
           getWalletCardClasses={getWalletCardClasses}
-          getWalletIconClasses={getWalletIconClasses as any}
-          getWalletActiveBadgeClasses={getWalletActiveBadgeClasses as any}
-          getWalletUseButtonClasses={getWalletUseButtonClasses as any}
+          getWalletIconClasses={getWalletIconClasses}
+          getWalletActiveBadgeClasses={getWalletActiveBadgeClasses}
+          getWalletUseButtonClasses={getWalletUseButtonClasses}
           getSecondaryTextClasses={getSecondaryTextClasses}
           getInputClasses={getInputClasses}
-          addBlinkAccount={addBlinkAccount as any}
-          storeBlinkAccountOnServer={storeBlinkAccountOnServer as any}
-          addBlinkLnAddressWallet={addBlinkLnAddressWallet as any}
-          addNWCConnection={addNWCConnection as any}
-          addNpubCashWallet={addNpubCashWallet as any}
+          addBlinkAccount={addBlinkAccount}
+          storeBlinkAccountOnServer={storeBlinkAccountOnServer}
+          addBlinkLnAddressWallet={addBlinkLnAddressWallet}
+          addNWCConnection={addNWCConnection}
+          addNpubCashWallet={addNpubCashWallet}
           removeBlinkAccount={removeBlinkAccount}
           removeNWCConnection={removeNWCConnection}
-          updateBlinkAccount={updateBlinkAccount as any}
-          updateNWCConnection={updateNWCConnection as any}
+          updateBlinkAccount={updateBlinkAccount}
+          updateNWCConnection={updateNWCConnection}
         />
       )}
 
@@ -1146,7 +1150,7 @@ export default function Dashboard() {
       {showVoucherWalletSettings && (
         <VoucherWalletOverlay
           darkMode={darkMode}
-          voucherWallet={voucherWallet as any}
+          voucherWallet={voucherWallet}
           voucherWalletBalance={voucherWalletBalance}
           voucherWalletUsdBalance={voucherWalletUsdBalance}
           voucherWalletBalanceLoading={voucherWalletBalanceLoading}
@@ -1154,27 +1158,27 @@ export default function Dashboard() {
           voucherWalletLabel={voucherWalletLabel}
           voucherWalletLoading={voucherWalletLoading}
           voucherWalletValidating={voucherWalletValidating}
-          voucherWalletScopes={voucherWalletScopes as any}
+          voucherWalletScopes={voucherWalletScopes}
           voucherWalletError={voucherWalletError}
           editingWalletLabel={editingWalletLabel}
           editedWalletLabel={editedWalletLabel}
-          numberFormat={numberFormat as any}
+          numberFormat={numberFormat}
           publicKey={publicKey}
           setShowVoucherWalletSettings={setShowVoucherWalletSettings}
           setVoucherWalletApiKey={setVoucherWalletApiKey}
           setVoucherWalletLabel={setVoucherWalletLabel}
           setVoucherWalletError={setVoucherWalletError}
-          setVoucherWalletScopes={setVoucherWalletScopes as any}
-          setVoucherWallet={setVoucherWallet as any}
+          setVoucherWalletScopes={setVoucherWalletScopes}
+          setVoucherWallet={setVoucherWallet}
           setVoucherWalletLoading={setVoucherWalletLoading}
           setVoucherWalletValidating={setVoucherWalletValidating}
-          setEditingWalletLabel={setEditingWalletLabel as any}
+          setEditingWalletLabel={setEditingWalletLabel}
           setEditedWalletLabel={setEditedWalletLabel}
           getSubmenuBgClasses={getSubmenuBgClasses}
           getSubmenuHeaderClasses={getSubmenuHeaderClasses}
           fetchVoucherWalletBalance={fetchVoucherWalletBalance}
           getVoucherWalletKey={getVoucherWalletKey}
-          syncVoucherWalletToServer={syncVoucherWalletToServer as any}
+          syncVoucherWalletToServer={syncVoucherWalletToServer}
         />
       )}
 
@@ -1185,7 +1189,7 @@ export default function Dashboard() {
           dateFilterActive={dateFilterActive}
           filteredTransactions={filteredTransactions}
           selectedDateRange={selectedDateRange}
-          user={user as any}
+          user={user}
           setShowExportOptions={setShowExportOptions}
           convertTransactionsToBasicCSV={convertTransactionsToBasicCSV}
           downloadCSV={downloadCSV}
@@ -1237,21 +1241,21 @@ export default function Dashboard() {
           showingInvoice={showingInvoice}
           showingVoucherQR={showingVoucherQR}
           voucherWallet={voucherWallet}
-          activeNWC={activeNWC as any}
-          activeNpubCashWallet={activeNpubCashWallet as any}
-          activeBlinkAccount={activeBlinkAccount as any}
+          activeNWC={activeNWC}
+          activeNpubCashWallet={activeNpubCashWallet}
+          activeBlinkAccount={activeBlinkAccount}
           voucherExpiry={voucherExpiry}
-          activeSplitProfile={activeSplitProfile as any}
+          activeSplitProfile={activeSplitProfile}
           voucherWalletBalanceLoading={voucherWalletBalanceLoading}
           isBlinkClassic={isBlinkClassic}
           currentVoucherCurrencyMode={currentVoucherCurrencyMode}
           currentAmountInUsdCents={currentAmountInUsdCents}
           currentAmountInSats={currentAmountInSats}
-          voucherWalletUsdBalance={voucherWalletUsdBalance as any}
-          voucherWalletBalance={voucherWalletBalance as any}
+          voucherWalletUsdBalance={voucherWalletUsdBalance}
+          voucherWalletBalance={voucherWalletBalance}
           setShowVoucherWalletSettings={setShowVoucherWalletSettings}
           setShowAccountSettings={setShowAccountSettings}
-          setVoucherExpiry={setVoucherExpiry as any}
+          setVoucherExpiry={setVoucherExpiry}
           voucherRef={voucherRef}
           multiVoucherRef={multiVoucherRef}
           getCapacityColor={getCapacityColor}
@@ -1270,25 +1274,26 @@ export default function Dashboard() {
         <DashboardViewSwitcher
           currentView={currentView}
           displayCurrency={displayCurrency}
-          numberFormat={numberFormat as any}
-          bitcoinFormat={bitcoinFormat as any}
-          numpadLayout={numpadLayout as any}
-          currencies={currencies as any}
+          numberFormat={numberFormat}
+          bitcoinFormat={bitcoinFormat}
+          numpadLayout={numpadLayout}
+          currencies={currencies}
           darkMode={darkMode}
           theme={theme}
           cycleTheme={cycleTheme}
           soundEnabled={soundEnabled}
-          exchangeRate={exchangeRate as any}
+          exchangeRate={exchangeRate}
           isViewTransitioning={isViewTransitioning}
-          setTransitionColorIndex={setTransitionColorIndex as any}
+          transitionColorIndex={transitionColorIndex}
+          setTransitionColorIndex={setTransitionColorIndex}
           setIsViewTransitioning={setIsViewTransitioning}
           cartRef={cartRef}
-          publicKey={publicKey as any}
+          publicKey={publicKey}
           setCartCheckoutData={setCartCheckoutData}
           handleViewTransition={handleViewTransition}
           posRef={posRef}
-          apiKey={apiKey as any}
-          user={user as any}
+          apiKey={apiKey}
+          user={user}
           wallets={wallets}
           posPaymentReceivedRef={posPaymentReceivedRef}
           connected={connected}
@@ -1296,28 +1301,28 @@ export default function Dashboard() {
           reconnectAttempts={reconnectAttempts}
           tipsEnabled={tipsEnabled}
           tipPresets={tipPresets}
-          activeSplitProfile={activeSplitProfile as any}
+          activeSplitProfile={activeSplitProfile}
           setShowingInvoice={setShowingInvoice}
-          setCurrentInvoice={setCurrentInvoice as any}
-          nfcState={nfcState as any}
-          activeNWC={activeNWC as any}
+          setCurrentInvoice={setCurrentInvoice}
+          nfcState={nfcState}
+          activeNWC={activeNWC}
           nwcClientReady={nwcClientReady}
           nwcMakeInvoice={nwcMakeInvoice}
           nwcLookupInvoice={nwcLookupInvoice}
-          getActiveNWCUri={getActiveNWCUri as any}
-          activeBlinkAccount={activeBlinkAccount as any}
-          activeNpubCashWallet={activeNpubCashWallet as any}
+          getActiveNWCUri={getActiveNWCUri}
+          activeBlinkAccount={activeBlinkAccount}
+          activeNpubCashWallet={activeNpubCashWallet}
           cartCheckoutData={cartCheckoutData}
-          triggerPaymentAnimation={triggerPaymentAnimation as any}
+          triggerPaymentAnimation={triggerPaymentAnimation}
           voucherWallet={voucherWallet}
           voucherCurrencyMode={voucherCurrencyMode}
-          voucherWalletBalance={voucherWalletBalance as any}
-          voucherWalletUsdBalance={voucherWalletUsdBalance as any}
+          voucherWalletBalance={voucherWalletBalance}
+          voucherWalletUsdBalance={voucherWalletUsdBalance}
           commissionEnabled={commissionEnabled}
           commissionPresets={commissionPresets}
           voucherWalletUsdId={voucherWalletUsdId}
-          setVoucherCurrencyMode={setVoucherCurrencyMode as any}
-          usdExchangeRate={usdExchangeRate as any}
+          setVoucherCurrencyMode={setVoucherCurrencyMode}
+          usdExchangeRate={usdExchangeRate}
           voucherExpiry={voucherExpiry}
           voucherRef={voucherRef}
           setShowingVoucherQR={setShowingVoucherQR}
@@ -1336,7 +1341,7 @@ export default function Dashboard() {
           loadingMore={loadingMore}
           hasMoreTransactions={hasMoreTransactions}
           expandedMonths={expandedMonths}
-          setSelectedTransaction={setSelectedTransaction as any}
+          setSelectedTransaction={setSelectedTransaction}
           setShowDateRangeSelector={setShowDateRangeSelector}
           setShowExportOptions={setShowExportOptions}
           setIsSearchingTx={setIsSearchingTx}
@@ -1348,17 +1353,17 @@ export default function Dashboard() {
           handleTxSearchSubmit={handleTxSearchSubmit}
           loadMoreMonths={loadMoreMonths}
           toggleMonth={toggleMonth}
-          getFilteredStats={getFilteredStats as any}
+          getFilteredStats={getFilteredStats}
           getDisplayTransactions={getDisplayTransactions}
-          getMonthGroups={getMonthGroups as any}
-          filterTransactionsBySearch={filterTransactionsBySearch as any}
+          getMonthGroups={getMonthGroups}
+          filterTransactionsBySearch={filterTransactionsBySearch}
         />
       </main>
 
       {/* Transaction Detail Modal */}
       {selectedTransaction && (
         <TransactionDetail
-          transaction={selectedTransaction as any}
+          transaction={selectedTransaction}
           onClose={() => setSelectedTransaction(null)}
           darkMode={darkMode}
           onLabelChange={triggerLabelUpdate}

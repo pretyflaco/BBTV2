@@ -15,11 +15,11 @@ import { bech32 } from "bech32"
 const RELAYS = ["wss://relay.damus.io", "wss://nos.lol", "wss://purplepag.es"]
 
 // Server-side cache for profiles
-if (!(global as any)._networkProfileCache) {
-  ;(global as any)._networkProfileCache = new Map()
+if (!global._networkProfileCache) {
+  global._networkProfileCache = new Map()
 }
-const profileCache: Map<string, { profile: any; timestamp: number }> = (global as any)
-  ._networkProfileCache
+const profileCache: Map<string, { profile: Record<string, unknown>; timestamp: number }> =
+  global._networkProfileCache!
 const CACHE_TTL = 10 * 60 * 1000 // 10 minutes
 
 /**

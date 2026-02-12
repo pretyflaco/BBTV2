@@ -1166,11 +1166,11 @@ class NostrAuthService {
       event.pubkey = await window.nostr!.getPublicKey()
     }
 
-    // window.nostr.signEvent expects UnsignedNostrEvent from the global types (nostr.d.ts)
-    // Our local UnsignedEvent is structurally compatible but TS can't verify this across
-    // the two different type names, so we cast through unknown
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (await window.nostr!.signEvent(event as any)) as unknown as SignedEvent
+    // Our local UnsignedEvent is structurally identical to the global UnsignedNostrEvent
+    // that window.nostr.signEvent expects, so cast through unknown
+    return (await window.nostr!.signEvent(
+      event as unknown as Parameters<NonNullable<typeof window.nostr>["signEvent"]>[0],
+    )) as unknown as SignedEvent
   }
 
   /**

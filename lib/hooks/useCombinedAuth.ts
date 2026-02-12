@@ -9,12 +9,32 @@
  */
 
 import { useCallback, useMemo, useEffect, useState } from "react"
-import { useAuth } from "./useAuth"
-import { useNostrAuth } from "./useNostrAuth"
-import { useProfile } from "./useProfile"
-import { useNWC } from "./useNWC"
+import { useAuth, type AuthContextValue, type User, type LoginResult } from "./useAuth"
+import { useNostrAuth, type NostrAuthContextValue } from "./useNostrAuth"
+import {
+  useProfile,
+  type ProfileContextValue,
+  type LocalBlinkAccount,
+} from "./useProfile"
+import {
+  useNWC,
+  type NWCHookReturn,
+  type LocalNWCConnection,
+  type NWCConnectionResult,
+  type NWCOperationResult,
+  type NWCBalanceResult,
+  type NWCPayResult,
+  type NWCInvoiceResult,
+} from "./useNWC"
+import type { NostrProfile } from "../nostr/NostrProfileService"
+import type { StoredTippingSettings, StoredPreferences } from "../storage/ProfileStorage"
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const MigrationService: any = require("../migration/MigrationService")
+const MigrationService: {
+  getPendingMigration: () => PendingMigration | null
+  startMigration: (username: string) => boolean
+  completeMigration: (pubkey: string) => Promise<CompleteMigrationResult>
+  clearMigration: () => void
+} = require("../migration/MigrationService")
 
 // ============================================================================
 // Interfaces
@@ -78,18 +98,6 @@ export interface PendingMigration {
 }
 
 /**
- * Combined auth state
- * @typedef {Object} CombinedAuthState
- * @property {boolean} loading - Whether auth check is in progress
- * @property {boolean} isAuthenticated - Whether user is authenticated (either method)
- * @property {AuthMode} authMode - Which auth method is active
- * @property {Object|null} user - User info (username, etc.)
- * @property {string|null} publicKey - Nostr public key (if using Nostr auth)
- * @property {boolean} hasBlinkAccount - Whether a Blink account is configured
- * @property {boolean} needsBlinkSetup - Whether Nostr user needs to add Blink account
- */
-
-/**
  * Return type of useCombinedAuth hook
  */
 export interface UseCombinedAuthReturn {
@@ -107,43 +115,49 @@ export interface UseCombinedAuthReturn {
   hasExtension: boolean
   isMobile: boolean
   hasServerSession: boolean
-  nostrProfile: unknown
+  nostrProfile: NostrProfile | null
 
   // Profile data
   hasBlinkAccount: boolean
   hasNpubCashWallet: boolean
-  npubCashWallets: unknown[]
-  activeNpubCashWallet: unknown
-  blinkAccounts: unknown[]
-  activeBlinkAccount: unknown
-  tippingSettings: unknown
-  preferences: unknown
+  npubCashWallets: LocalBlinkAccount[]
+  activeNpubCashWallet: LocalBlinkAccount | null
+  blinkAccounts: LocalBlinkAccount[]
+  activeBlinkAccount: LocalBlinkAccount | null
+  tippingSettings: StoredTippingSettings | null
+  preferences: StoredPreferences | null
 
   // NWC data
   hasNWC: boolean
-  nwcConnections: unknown[]
-  activeNWC: unknown
+  nwcConnections: LocalNWCConnection[]
+  activeNWC: LocalNWCConnection | null
   nwcClientReady: boolean
 
   // Legacy auth methods
-  legacyLogin: (...args: unknown[]) => Promise<unknown>
+  legacyLogin: (username: string, apiKey: string) => Promise<LoginResult>
 
   // Nostr auth methods
-  signInWithExtension: (...args: unknown[]) => Promise<unknown>
-  signInWithExternalSigner: (...args: unknown[]) => Promise<unknown>
-  checkPendingSignerFlow: (...args: unknown[]) => unknown
-  establishServerSession: (...args: unknown[]) => Promise<unknown>
+  signInWithExtension: () => Promise<unknown>
+  signInWithExternalSigner: () => Promise<unknown>
+  checkPendingSignerFlow: () => Promise<unknown>
+  establishServerSession: () => Promise<unknown>
 
   // Profile methods
-  addBlinkAccount: (...args: unknown[]) => unknown
-  addBlinkLnAddressWallet: (...args: unknown[]) => unknown
-  addNpubCashWallet: (...args: unknown[]) => unknown
-  removeBlinkAccount: (...args: unknown[]) => unknown
-  updateBlinkAccount: (...args: unknown[]) => unknown
+  addBlinkAccount: ProfileContextValue["addBlinkAccount"]
+  addBlinkLnAddressWallet: ProfileContextValue["addBlinkLnAddressAccount"]
+  addNpubCashWallet: ProfileContextValue["addNpubCashAccount"]
+  removeBlinkAccount: ProfileContextValue["removeBlinkAccount"]
+  updateBlinkAccount: ProfileContextValue["updateBlinkAccount"]
   getActiveBlinkApiKey: () => Promise<string | null>
-  setActiveBlinkAccount: (...args: unknown[]) => unknown
-  updateTippingSettings: (...args: unknown[]) => unknown
-  updatePreferences: (...args: unknown[]) => unknown
+  setActiveBlinkAccount: (accountId: string) => void
+  updateTippingSettings: (settings: Partial<StoredTippingSettings>) => {
+    success: boolean
+    error?: string
+  }
+  updatePreferences: (preferences: Partial<StoredPreferences>) => {
+    success: boolean
+    error?: string
+  }
   storeBlinkAccountOnServer: (
     apiKey: string,
     preferredCurrency?: string,
@@ -151,18 +165,32 @@ export interface UseCombinedAuthReturn {
   ) => Promise<StoreBlinkAccountResult>
 
   // NWC methods
-  addNWCConnection: (...args: unknown[]) => unknown
-  removeNWCConnection: (...args: unknown[]) => unknown
-  updateNWCConnection: (...args: unknown[]) => unknown
-  setActiveNWC: (...args: unknown[]) => unknown
-  nwcMakeInvoice: (...args: unknown[]) => Promise<unknown>
-  nwcPayInvoice: (...args: unknown[]) => Promise<unknown>
-  nwcGetBalance: (...args: unknown[]) => Promise<unknown>
-  nwcLookupInvoice: (...args: unknown[]) => Promise<unknown>
-  nwcListTransactions: (...args: unknown[]) => Promise<unknown>
+  addNWCConnection: (connectionUri: string, label: string) => Promise<NWCConnectionResult>
+  removeNWCConnection: (connectionId: string) => NWCOperationResult
+  updateNWCConnection: (
+    connectionId: string,
+    updates: Partial<LocalNWCConnection>,
+  ) => NWCOperationResult
+  setActiveNWC: (
+    connectionId: string | null,
+    connectionsOverride?: LocalNWCConnection[],
+  ) => Promise<NWCOperationResult>
+  nwcMakeInvoice: (params: {
+    amount: number
+    description?: string
+    expiry?: number
+  }) => Promise<NWCInvoiceResult>
+  nwcPayInvoice: (invoice: string) => Promise<NWCPayResult>
+  nwcGetBalance: () => Promise<NWCBalanceResult>
+  nwcLookupInvoice: (
+    paymentHash: string,
+  ) => Promise<NWCOperationResult & { invoice?: unknown }>
+  nwcListTransactions: (
+    params?: unknown,
+  ) => Promise<NWCOperationResult & { transactions?: unknown[] }>
   nwcHasCapability: (capability: string) => boolean
   nwcLoading: boolean
-  getActiveNWCUri: (...args: unknown[]) => unknown
+  getActiveNWCUri: () => Promise<string | null>
 
   // Unified methods
   logout: () => Promise<void>
@@ -179,26 +207,38 @@ export interface UseCombinedAuthReturn {
   clearMigration: () => void
 
   // Raw access to individual hooks (for advanced usage)
-  _legacy: any
-  _nostr: any
-  _profile: any
-  _nwc: any
+  _legacy: AuthContextValue
+  _nostr: NostrAuthContextValue
+  _profile: ProfileContextValue
+  _nwc: NWCHookReturn
 }
+
+// Re-export types that consumers need
+export type { LocalBlinkAccount, LocalNWCConnection, NostrProfile }
+export type {
+  NWCOperationResult,
+  NWCBalanceResult,
+  NWCPayResult,
+  NWCInvoiceResult,
+  NWCConnectionResult,
+}
+export type { StoredTippingSettings, StoredPreferences }
+export type { User, LoginResult }
 
 export function useCombinedAuth(): UseCombinedAuthReturn {
   // Legacy auth (API key based)
-  const legacyAuth: any = useAuth()
+  const legacyAuth = useAuth()
 
   // Nostr auth (extension/signer based)
-  const nostrAuth: any = useNostrAuth()
+  const nostrAuth = useNostrAuth()
 
   // Profile management (Blink accounts, settings)
-  const profile: any = useProfile()
+  const profile = useProfile()
 
   // NWC wallet connections - IMPORTANT: Pass user's public key for user-scoped storage
   // This prevents NWC connections from one user being accessible by another user
   // Also pass hasServerSession to prevent 401 errors during auth race condition
-  const nwc: any = useNWC(nostrAuth.publicKey, nostrAuth.hasServerSession)
+  const nwc = useNWC(nostrAuth.publicKey ?? "", nostrAuth.hasServerSession)
 
   // Track initialization state
   const [initialized, setInitialized] = useState<boolean>(false)
@@ -215,10 +255,11 @@ export function useCombinedAuth(): UseCombinedAuthReturn {
     // Check Nostr first - if user has local Nostr profile, they're a Nostr user
     if (nostrAuth.isAuthenticated) return "nostr"
     // Check if legacy user (API key only, not Nostr with server session)
-    if (legacyAuth.user && !(legacyAuth.user as any).authMethod?.startsWith("nostr"))
-      return "legacy"
+    // User extends { [key: string]: unknown }, so authMethod access is via index
+    const userAuthMethod = legacyAuth.user?.authMethod as string | undefined
+    if (legacyAuth.user && !userAuthMethod?.startsWith("nostr")) return "legacy"
     // If user has authMethod === 'nostr' from verify, they're Nostr but profile not loaded yet
-    if ((legacyAuth.user as any)?.authMethod === "nostr") return "nostr"
+    if (userAuthMethod === "nostr") return "nostr"
     return null
   }, [legacyAuth.user, nostrAuth.isAuthenticated])
 
@@ -233,9 +274,10 @@ export function useCombinedAuth(): UseCombinedAuthReturn {
     // Nostr with Blink account - show Blink username
     if (nostrAuth.isAuthenticated && profile.activeBlinkAccount) {
       return {
-        username: (profile.activeBlinkAccount as any).username,
-        preferredCurrency: (profile.preferences as any)?.defaultCurrency || "BTC",
-        publicKey: nostrAuth.publicKey as string | undefined,
+        username: profile.activeBlinkAccount.username ?? null,
+        preferredCurrency:
+          (profile.preferences as StoredPreferences | null)?.defaultCurrency || "BTC",
+        publicKey: nostrAuth.publicKey ?? undefined,
         authMode: "nostr",
       }
     }
@@ -244,17 +286,19 @@ export function useCombinedAuth(): UseCombinedAuthReturn {
     if (nostrAuth.isAuthenticated) {
       return {
         username: null,
-        preferredCurrency: (profile.preferences as any)?.defaultCurrency || "BTC",
-        publicKey: nostrAuth.publicKey as string | undefined,
+        preferredCurrency:
+          (profile.preferences as StoredPreferences | null)?.defaultCurrency || "BTC",
+        publicKey: nostrAuth.publicKey ?? undefined,
         authMode: "nostr",
       }
     }
 
     // Legacy user (API key auth, not Nostr)
     // Only treat as legacy if authMethod is not 'nostr'
-    if (legacyAuth.user && (legacyAuth.user as any).authMethod !== "nostr") {
+    const userAuthMethod = legacyAuth.user?.authMethod as string | undefined
+    if (legacyAuth.user && userAuthMethod !== "nostr") {
       return {
-        ...(legacyAuth.user as any),
+        ...legacyAuth.user,
         authMode: "legacy",
       }
     }
@@ -307,7 +351,7 @@ export function useCombinedAuth(): UseCombinedAuthReturn {
       // The server only stores one key (for initial setup/recovery), but local profile has all
       const localKey = await profile.getActiveBlinkApiKey()
       if (localKey) {
-        return localKey
+        return localKey as string
       }
 
       // Fallback to server if no local key (e.g., first login on new device)
@@ -420,9 +464,7 @@ export function useCombinedAuth(): UseCombinedAuthReturn {
     if (authMode !== "legacy" || !legacyAuth.user) {
       return { success: false, error: "Must be logged in with legacy auth" }
     }
-    const started: boolean = MigrationService.startMigration(
-      (legacyAuth.user as any).username,
-    )
+    const started: boolean = MigrationService.startMigration(legacyAuth.user.username)
     return { success: started }
   }, [authMode, legacyAuth.user])
 
@@ -438,27 +480,31 @@ export function useCombinedAuth(): UseCombinedAuthReturn {
       if (result.success) {
         // Add the Blink account to the new Nostr profile
         try {
-          const ProfileStorage: any = (await import("../storage/ProfileStorage")).default
+          const { default: ProfileStorageModule } =
+            await import("../storage/ProfileStorage")
 
           // Ensure profile exists - use getProfileByPublicKey and createProfile with signInMethod
-          let profileData: any = ProfileStorage.getProfileByPublicKey(nostrPublicKey)
+          let profileData = ProfileStorageModule.getProfileByPublicKey(nostrPublicKey)
           if (!profileData) {
-            profileData = ProfileStorage.createProfile(nostrPublicKey, signInMethod)
+            profileData = ProfileStorageModule.createProfile(nostrPublicKey, signInMethod)
           }
 
           // Add the migrated Blink account using correct method signature:
           // addBlinkAccount(profileId, label, apiKey, username, defaultCurrency)
-          await ProfileStorage.addBlinkAccount(
+          await ProfileStorageModule.addBlinkAccount(
             profileData.id,
             `Migrated from ${result.blinkUsername}`,
-            result.apiKey,
+            result.apiKey ?? "",
             result.blinkUsername,
             result.preferences?.preferredCurrency || "BTC",
           )
 
           // Update preferences using profile.id, not nostrPublicKey
           if (result.preferences) {
-            ProfileStorage.updatePreferences(profileData.id, result.preferences)
+            ProfileStorageModule.updatePreferences(
+              profileData.id,
+              result.preferences as Partial<StoredPreferences>,
+            )
           }
 
           return { success: true, message: "Migration complete" }
@@ -493,7 +539,7 @@ export function useCombinedAuth(): UseCombinedAuthReturn {
     hasExtension: nostrAuth.hasExtension,
     isMobile: nostrAuth.isMobile,
     hasServerSession: nostrAuth.hasServerSession,
-    nostrProfile: nostrAuth.nostrProfile,
+    nostrProfile: nostrAuth.nostrProfile as NostrProfile | null,
 
     // Profile data
     hasBlinkAccount: profile.hasBlinkAccount,
@@ -502,8 +548,8 @@ export function useCombinedAuth(): UseCombinedAuthReturn {
     activeNpubCashWallet: profile.activeNpubCashWallet,
     blinkAccounts: profile.blinkAccounts,
     activeBlinkAccount: profile.activeBlinkAccount,
-    tippingSettings: profile.tippingSettings,
-    preferences: profile.preferences,
+    tippingSettings: profile.tippingSettings as StoredTippingSettings | null,
+    preferences: profile.preferences as StoredPreferences | null,
 
     // NWC data
     hasNWC: nwc.hasNWC,
@@ -526,10 +572,14 @@ export function useCombinedAuth(): UseCombinedAuthReturn {
     addNpubCashWallet: profile.addNpubCashAccount,
     removeBlinkAccount: profile.removeBlinkAccount,
     updateBlinkAccount: profile.updateBlinkAccount,
-    getActiveBlinkApiKey: profile.getActiveBlinkApiKey,
+    getActiveBlinkApiKey: profile.getActiveBlinkApiKey as () => Promise<string | null>,
     setActiveBlinkAccount: profile.setActiveBlinkAccount,
-    updateTippingSettings: profile.updateTippingSettings,
-    updatePreferences: profile.updatePreferences,
+    updateTippingSettings: profile.updateTippingSettings as (
+      settings: Partial<StoredTippingSettings>,
+    ) => { success: boolean; error?: string },
+    updatePreferences: profile.updatePreferences as (
+      preferences: Partial<StoredPreferences>,
+    ) => { success: boolean; error?: string },
     storeBlinkAccountOnServer,
 
     // NWC methods

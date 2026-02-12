@@ -1,12 +1,8 @@
 import BatchPayments from "../BatchPayments"
-
-interface VoucherWalletInfo {
-  apiKey: string
-  walletId: string
-}
+import type { VoucherWallet } from "../../lib/hooks/useVoucherWalletState"
 
 interface BatchPaymentsOverlayProps {
-  voucherWallet: VoucherWalletInfo
+  voucherWallet: VoucherWallet
   darkMode: boolean
   setShowBatchPayments: (show: boolean) => void
   setSideMenuOpen: (open: boolean) => void
@@ -53,7 +49,9 @@ export default function BatchPaymentsOverlay({
         <div className="max-w-md mx-auto px-4 py-6">
           <BatchPayments
             apiKey={voucherWallet.apiKey}
-            walletId={voucherWallet.walletId}
+            walletId={String(
+              voucherWallet.walletId ?? voucherWallet.btcWalletId ?? voucherWallet.id,
+            )}
             darkMode={darkMode}
             onClose={() => {
               setShowBatchPayments(false)

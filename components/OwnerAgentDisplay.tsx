@@ -1,64 +1,40 @@
 import React from "react"
 import ExpirySelector from "./ExpirySelector"
 import type { DashboardView } from "../lib/hooks/useViewNavigation"
-
-interface VoucherWallet {
-  label?: string
-  username?: string
-  apiKey?: string
-  [key: string]: unknown
-}
-
-interface BlinkAccount {
-  label?: string
-  username?: string
-  [key: string]: unknown
-}
-
-interface NWCConnection {
-  label: string
-  [key: string]: unknown
-}
-
-interface NpubCashWallet {
-  label?: string
-  lightningAddress?: string
-  [key: string]: unknown
-}
-
-interface SplitProfile {
-  label: string
-  recipients: Array<{ [key: string]: unknown }>
-  [key: string]: unknown
-}
+import type {
+  VoucherWallet,
+  VoucherCurrencyMode,
+  VoucherExpiry,
+} from "../lib/hooks/useVoucherWalletState"
+import type { LocalBlinkAccount } from "../lib/hooks/useProfile"
+import type { LocalNWCConnection } from "../lib/hooks/useNWC"
+import type { SplitProfile } from "../lib/hooks/useSplitProfiles"
 
 interface VoucherImperativeHandle {
   setSelectedExpiry?: (expiryId: string) => void
   [key: string]: unknown
 }
 
-type VoucherCurrencyMode = "BTC" | "USD"
-
 interface OwnerAgentDisplayProps {
   currentView: DashboardView
   showingInvoice: boolean
   showingVoucherQR: boolean
   voucherWallet: VoucherWallet | null
-  activeNWC: NWCConnection | null
-  activeNpubCashWallet: NpubCashWallet | null
-  activeBlinkAccount: BlinkAccount | null
-  voucherExpiry: string
+  activeNWC: LocalNWCConnection | null
+  activeNpubCashWallet: LocalBlinkAccount | null
+  activeBlinkAccount: LocalBlinkAccount | null
+  voucherExpiry: VoucherExpiry
   activeSplitProfile: SplitProfile | null
   voucherWalletBalanceLoading: boolean
   isBlinkClassic: boolean
   currentVoucherCurrencyMode: VoucherCurrencyMode
   currentAmountInUsdCents: number
   currentAmountInSats: number
-  voucherWalletUsdBalance: number
-  voucherWalletBalance: number
+  voucherWalletUsdBalance: number | null
+  voucherWalletBalance: number | null
   setShowVoucherWalletSettings: (show: boolean) => void
   setShowAccountSettings: (show: boolean) => void
-  setVoucherExpiry: (expiry: string) => void
+  setVoucherExpiry: (expiry: VoucherExpiry) => void
   voucherRef: React.RefObject<VoucherImperativeHandle | null>
   multiVoucherRef: React.RefObject<VoucherImperativeHandle | null>
   getCapacityColor: (currentAmount: number, walletBalance: number) => string
@@ -120,7 +96,9 @@ export default function OwnerAgentDisplay({
                       className="font-semibold text-purple-600 dark:text-purple-400"
                       style={{ fontSize: "11.2px" }}
                     >
-                      {voucherWallet.label || voucherWallet.username || "Voucher Wallet"}
+                      {voucherWallet.label ||
+                        String(voucherWallet.username ?? "") ||
+                        "Voucher Wallet"}
                     </span>
                   </div>
                 )
@@ -224,7 +202,7 @@ export default function OwnerAgentDisplay({
                   <ExpirySelector
                     value={voucherExpiry}
                     onChange={(expiryId: string) => {
-                      setVoucherExpiry(expiryId)
+                      setVoucherExpiry(expiryId as VoucherExpiry)
                       voucherRef.current?.setSelectedExpiry?.(expiryId)
                     }}
                   />
@@ -233,7 +211,7 @@ export default function OwnerAgentDisplay({
                   <ExpirySelector
                     value={voucherExpiry}
                     onChange={(expiryId: string) => {
-                      setVoucherExpiry(expiryId)
+                      setVoucherExpiry(expiryId as VoucherExpiry)
                       multiVoucherRef.current?.setSelectedExpiry?.(expiryId)
                     }}
                   />
@@ -289,8 +267,8 @@ export default function OwnerAgentDisplay({
                           ? currentAmountInUsdCents
                           : currentAmountInSats,
                         currentVoucherCurrencyMode === "USD"
-                          ? voucherWalletUsdBalance
-                          : voucherWalletBalance,
+                          ? (voucherWalletUsdBalance ?? 0)
+                          : (voucherWalletBalance ?? 0),
                       )}`}
                     ></div>
                   </>

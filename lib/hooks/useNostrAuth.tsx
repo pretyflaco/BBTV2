@@ -27,7 +27,7 @@ import { AUTH_VERSION_FULL, logAuth, logAuthError, logAuthWarn } from "../versio
 
 // ============= Interfaces =============
 
-interface NostrAuthState {
+export interface NostrAuthState {
   loading: boolean
   isAuthenticated: boolean
   publicKey: string | null
@@ -44,7 +44,7 @@ interface NostrConnectSignInOptions {
   timeout?: number
 }
 
-interface NostrAuthContextValue extends NostrAuthState {
+export interface NostrAuthContextValue extends NostrAuthState {
   // Computed
   availableMethods: any
   hasExtension: boolean

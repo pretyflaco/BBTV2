@@ -1,20 +1,7 @@
 import { getApiUrl } from "../../lib/config/api"
 import { formatNumber, NumberFormatPreference } from "../../lib/number-format"
-
-interface VoucherWallet {
-  apiKey: string
-  walletId: string
-  label: string
-  username: string
-  userId: string
-  displayCurrency: string
-  scopes: string[]
-  createdAt: number
-}
-
-interface EditingWalletLabel {
-  type: string
-}
+import type { VoucherWallet } from "../../lib/hooks/useVoucherWalletState"
+import type { EditingWalletLabel } from "../../lib/hooks/useAccountManagement"
 
 interface VoucherWalletOverlayProps {
   // State values
@@ -192,28 +179,31 @@ export default function VoucherWalletOverlay({
                     <p
                       className={`text-sm truncate ${darkMode ? "text-gray-400" : "text-gray-600"}`}
                     >
-                      @{voucherWallet.username}
+                      @{String(voucherWallet.username ?? "")}
                     </p>
-                    {voucherWallet.walletId && (
-                      <p
-                        className={`text-xs truncate ${darkMode ? "text-gray-500" : "text-gray-500"}`}
-                      >
-                        Wallet: {voucherWallet.walletId}
-                      </p>
-                    )}
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {voucherWallet.scopes?.map((scope) => (
-                        <span
-                          key={scope}
-                          className={`px-1.5 py-0.5 rounded text-xs ${
-                            scope === "WRITE"
-                              ? "bg-green-500/20 text-green-400"
-                              : "bg-gray-500/20 text-gray-400"
-                          }`}
+                    {typeof voucherWallet.walletId === "string" &&
+                      voucherWallet.walletId && (
+                        <p
+                          className={`text-xs truncate ${darkMode ? "text-gray-500" : "text-gray-500"}`}
                         >
-                          {scope}
-                        </span>
-                      ))}
+                          Wallet: {String(voucherWallet.walletId)}
+                        </p>
+                      )}
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {(voucherWallet.scopes as string[] | undefined)?.map(
+                        (scope: string) => (
+                          <span
+                            key={scope}
+                            className={`px-1.5 py-0.5 rounded text-xs ${
+                              scope === "WRITE"
+                                ? "bg-green-500/20 text-green-400"
+                                : "bg-gray-500/20 text-gray-400"
+                            }`}
+                          >
+                            {scope}
+                          </span>
+                        ),
+                      )}
                     </div>
                     {/* Balance Display Section */}
                     <div
@@ -486,6 +476,7 @@ export default function VoucherWalletOverlay({
 
                       // Save voucher wallet
                       const walletData: VoucherWallet = {
+                        id: btcWallet.id,
                         apiKey: voucherWalletApiKey.trim(),
                         walletId: btcWallet.id,
                         label: voucherWalletLabel.trim() || "Sending Wallet",

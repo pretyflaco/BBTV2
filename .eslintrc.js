@@ -36,7 +36,7 @@ module.exports = {
   rules: {
     // TypeScript-specific rules
     "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
-    "@typescript-eslint/no-explicit-any": "warn", // Start with warn, move to error in Phase 5
+    "@typescript-eslint/no-explicit-any": "warn", // Phase 5: all `as any` casts eliminated; remaining `: any` annotations to clean up separately
     "@typescript-eslint/prefer-for-of": "error",
     "@typescript-eslint/unified-signatures": "error",
     "@typescript-eslint/no-extra-semi": "off", // Prettier handles this
@@ -47,14 +47,7 @@ module.exports = {
     "import/order": [
       "error",
       {
-        "groups": [
-          "builtin",
-          "external",
-          "internal",
-          "parent",
-          "sibling",
-          "index",
-        ],
+        "groups": ["builtin", "external", "internal", "parent", "sibling", "index"],
         "newlines-between": "always",
         "alphabetize": {
           order: "asc",
@@ -82,7 +75,7 @@ module.exports = {
     "react-hooks/exhaustive-deps": "warn",
   },
   settings: {
-    react: {
+    "react": {
       version: "detect",
     },
     "import/resolver": {
@@ -98,7 +91,13 @@ module.exports = {
   overrides: [
     // Test files
     {
-      files: ["**/*.spec.ts", "**/*.spec.tsx", "**/*.test.ts", "**/*.test.js", "tests/**/*"],
+      files: [
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "**/*.test.ts",
+        "**/*.test.js",
+        "tests/**/*",
+      ],
       env: {
         jest: true,
       },

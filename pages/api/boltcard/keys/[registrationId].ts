@@ -44,7 +44,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   console.log(`[KeysAPI][${requestId}] Headers: ${JSON.stringify(req.headers)}`)
   console.log(`[KeysAPI][${requestId}] Body: ${JSON.stringify(req.body)}`)
   console.log(
-    `[KeysAPI][${requestId}] Remote IP: ${req.headers["x-forwarded-for"] || (req.socket as any)?.remoteAddress || "unknown"}`,
+    `[KeysAPI][${requestId}] Remote IP: ${req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown"}`,
   )
   console.log(
     `[KeysAPI][${requestId}] User-Agent: ${req.headers["user-agent"] || "none"}`,

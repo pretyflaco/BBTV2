@@ -42,11 +42,11 @@ describe("CryptoUtils", () => {
 
     it("should return falsy when crypto is not available", () => {
       const originalCrypto = global.crypto
-      ;(global as any).crypto = undefined
+      Object.defineProperty(global, "crypto", { value: undefined, writable: true })
 
       expect(CryptoUtils.isSupported()).toBeFalsy()
 
-      ;(global as any).crypto = originalCrypto
+      Object.defineProperty(global, "crypto", { value: originalCrypto, writable: true })
     })
   })
 

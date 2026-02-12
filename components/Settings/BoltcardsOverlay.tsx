@@ -1,20 +1,15 @@
 import { BoltcardSection } from "../boltcard"
 import type { BitcoinFormatPreference } from "../../lib/number-format"
-
-interface VoucherWalletInfo {
-  apiKey: string
-  walletId?: string
-  username?: string
-  [key: string]: unknown
-}
+import type { VoucherWallet } from "../../lib/hooks/useVoucherWalletState"
+import type { ExchangeRateData } from "../../lib/hooks/useExchangeRate"
 
 interface BoltcardsOverlayProps {
-  voucherWallet: VoucherWalletInfo | null
+  voucherWallet: VoucherWallet | null
   voucherWalletBtcId: string | null
   voucherWalletUsdId: string | null
-  voucherWalletBalance: number
-  voucherWalletUsdBalance: number
-  exchangeRate: number
+  voucherWalletBalance: number | null
+  voucherWalletUsdBalance: number | null
+  exchangeRate: ExchangeRateData | null
   bitcoinFormat: BitcoinFormatPreference
   setShowBoltcards: (show: boolean) => void
   getSubmenuBgClasses: () => string
@@ -70,11 +65,11 @@ export default function BoltcardsOverlay({
         <div className="max-w-md mx-auto px-4 py-6">
           <BoltcardSection
             voucherWallet={voucherWallet}
-            voucherWalletBtcId={voucherWalletBtcId as string}
-            voucherWalletUsdId={voucherWalletUsdId as string}
-            voucherWalletBtcBalance={voucherWalletBalance}
-            voucherWalletUsdBalance={voucherWalletUsdBalance}
-            exchangeRate={exchangeRate}
+            voucherWalletBtcId={voucherWalletBtcId}
+            voucherWalletUsdId={voucherWalletUsdId}
+            voucherWalletBtcBalance={voucherWalletBalance ?? 0}
+            voucherWalletUsdBalance={voucherWalletUsdBalance ?? 0}
+            exchangeRate={exchangeRate?.satPriceInCurrency ?? null}
             bitcoinFormat={bitcoinFormat}
           />
         </div>

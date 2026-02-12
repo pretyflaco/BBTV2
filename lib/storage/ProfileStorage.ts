@@ -60,6 +60,9 @@ export interface StoredTippingSettings {
   customAmountEnabled: boolean
   forwardToNWC: boolean
   forwardNWCId?: string | null
+  // Alternative field names used by TippingSection component
+  customPercentages?: number[]
+  allowCustomAmount?: boolean
 }
 
 /**
@@ -71,6 +74,9 @@ export interface StoredPreferences {
   sounds: boolean
   language: string
   numberFormat?: string
+  // Alternative field names used by PreferencesSection component
+  showSatsFirst?: boolean
+  soundEnabled?: boolean
 }
 
 /**

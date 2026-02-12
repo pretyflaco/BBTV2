@@ -5,17 +5,14 @@
 
 import type { Transaction } from "../../lib/hooks/useTransactionState"
 import type { DateRange } from "../../lib/hooks/useTransactionState"
-
-interface ExportUser {
-  username?: string
-}
+import type { CombinedUser } from "../../lib/hooks/useCombinedAuth"
 
 interface ExportOptionsOverlayProps {
   exportingData: boolean
   dateFilterActive: boolean
   filteredTransactions: Transaction[]
   selectedDateRange: DateRange | null
-  user: ExportUser | null
+  user: CombinedUser | null
   setShowExportOptions: (show: boolean) => void
   convertTransactionsToBasicCSV: (transactions: Transaction[]) => string
   downloadCSV: (csv: string, filename: string) => void

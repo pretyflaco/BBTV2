@@ -8,39 +8,30 @@ import { useTheme } from "../../lib/hooks/useTheme"
 
 const PRESET_PERCENTAGES = [5, 10, 15, 20, 25]
 
-interface TippingSettings {
-  enabled?: boolean
-  customPercentages?: number[]
-  allowCustomAmount?: boolean
-}
-
 interface ToggleProps {
   value: boolean
   onChange: () => void
 }
 
 export default function TippingSection() {
-  const { tippingSettings, updateTippingSettings } = useCombinedAuth() as any
+  const { tippingSettings, updateTippingSettings } = useCombinedAuth()
   const { darkMode } = useTheme()
 
-  const typedSettings = tippingSettings as TippingSettings | undefined
-
-  const [enabled, setEnabled] = useState<boolean>(typedSettings?.enabled ?? true)
+  const [enabled, setEnabled] = useState<boolean>(tippingSettings?.enabled ?? true)
   const [customPercentages, setCustomPercentages] = useState<number[]>(
-    typedSettings?.customPercentages ?? [10, 15, 20],
+    tippingSettings?.customPercentages ?? [10, 15, 20],
   )
   const [allowCustomAmount, setAllowCustomAmount] = useState<boolean>(
-    typedSettings?.allowCustomAmount ?? true,
+    tippingSettings?.allowCustomAmount ?? true,
   )
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     if (tippingSettings) {
-      const settings = tippingSettings as TippingSettings
-      setEnabled(settings.enabled ?? true)
-      setCustomPercentages(settings.customPercentages ?? [10, 15, 20])
-      setAllowCustomAmount(settings.allowCustomAmount ?? true)
+      setEnabled(tippingSettings.enabled ?? true)
+      setCustomPercentages(tippingSettings.customPercentages ?? [10, 15, 20])
+      setAllowCustomAmount(tippingSettings.allowCustomAmount ?? true)
     }
   }, [tippingSettings])
 

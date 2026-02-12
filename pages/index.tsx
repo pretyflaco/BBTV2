@@ -122,7 +122,7 @@ export default function Home() {
     return (
       <SessionEstablishmentModal
         hasServerSession={hasServerSession}
-        signInMethod={_nostr?.method || "extension"}
+        signInMethod={(_nostr?.method || "extension") as "extension" | "externalSigner"}
         onComplete={() => {
           console.log("[Home] Session modal complete - hiding modal")
           setShowSessionModal(false)

@@ -122,7 +122,7 @@ export default function NostrLoginForm() {
       method: localStorage.getItem("blinkpos_signin_method"),
       isPWA:
         window.matchMedia("(display-mode: standalone)").matches ||
-        (window.navigator as any).standalone,
+        window.navigator.standalone,
       userAgent: navigator.userAgent.substring(0, 100),
     }
     setDebugInfo(JSON.stringify(info, null, 2))

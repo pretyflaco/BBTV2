@@ -1,4 +1,6 @@
 import { useEffect, useRef } from "react"
+import type { DashboardView } from "./useViewNavigation"
+import type { VoucherWallet } from "./useVoucherWalletState"
 
 /**
  * Imperative handle for the POS component ref.
@@ -53,23 +55,15 @@ export interface CartRefHandle {
 }
 
 /**
- * VoucherWallet type used for null-check gating of voucher navigation.
- */
-interface VoucherWalletRef {
-  apiKey: string
-  [key: string]: unknown
-}
-
-/**
  * Parameters for the useNavigationHandlers hook.
  */
 interface UseNavigationHandlersParams {
-  currentView: string
-  handleViewTransition: (view: string) => void
+  currentView: DashboardView | string
+  handleViewTransition: (view: DashboardView) => void
   showingInvoice: boolean
   showingVoucherQR: boolean
   isViewTransitioning: boolean
-  voucherWallet: VoucherWalletRef | null
+  voucherWallet: VoucherWallet | null
   sideMenuOpen: boolean
   showAnimation: boolean
   hideAnimation: () => void

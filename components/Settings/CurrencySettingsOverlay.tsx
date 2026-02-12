@@ -3,6 +3,8 @@
  * Extracted from Dashboard.js
  */
 
+import type { DisplayCurrency } from "../../lib/hooks/useDisplaySettings"
+
 /** Local currency type for the overlay */
 interface CurrencyItem {
   id: string
@@ -27,7 +29,7 @@ interface CurrencySettingsOverlayProps {
   isBlinkClassic: boolean
   isBlinkClassicDark: boolean
   isBlinkClassicLight: boolean
-  setDisplayCurrency: (currency: string) => void
+  setDisplayCurrency: (currency: DisplayCurrency) => void
   setShowCurrencySettings: (show: boolean) => void
   setCurrencyFilter: (filter: string) => void
   getAllCurrencies: () => CurrencyGroups
@@ -72,7 +74,7 @@ export default function CurrencySettingsOverlay({
     <button
       key={currency.id}
       onClick={() => {
-        setDisplayCurrency(currency.id)
+        setDisplayCurrency(currency.id as DisplayCurrency)
         setShowCurrencySettings(false)
       }}
       className={`w-full p-3 text-left transition-all ${

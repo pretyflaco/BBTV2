@@ -66,12 +66,12 @@ interface VoucherProps {
   voucherWallet: VoucherWallet | null
   walletBalance?: number | null
   displayCurrency: string
-  numberFormat?: NumberFormatPreference | "auto"
+  numberFormat?: NumberFormatPreference
   bitcoinFormat?: BitcoinFormatPreference
   numpadLayout?: NumpadLayoutPreference
   currencies: CurrencyMetadata[]
   darkMode: boolean
-  theme?: Theme | string
+  theme?: Theme
   cycleTheme: () => void
   soundEnabled: boolean
   onInternalTransition?: () => void
@@ -261,10 +261,8 @@ const Voucher = forwardRef<VoucherHandle, VoucherProps>(
       const checkCompanionApp = async (): Promise<void> => {
         try {
           if ("getInstalledRelatedApps" in navigator) {
-            const apps = await (navigator as any).getInstalledRelatedApps()
-            const hasCompanion = apps.some(
-              (app: any) => app.id === "com.blink.pos.companion",
-            )
+            const apps = await navigator.getInstalledRelatedApps!()
+            const hasCompanion = apps.some((app) => app.id === "com.blink.pos.companion")
             setCompanionAppInstalled(hasCompanion)
             if (hasCompanion) {
               console.log("✅ POS companion app detected")
@@ -554,7 +552,7 @@ const Voucher = forwardRef<VoucherHandle, VoucherProps>(
       const fractionDigits = currency?.fractionDigits ?? 2
       const amountInMinorUnits = fiatAmount * Math.pow(10, fractionDigits)
       const sats = Math.round(amountInMinorUnits / exchangeRate.satPriceInCurrency)
-      return formatNumber(sats, numberFormat as any, 0)
+      return formatNumber(sats, numberFormat, 0)
     }
 
     // Calculate USD equivalent from any fiat/BTC amount (for Dollar Voucher bracket display)
@@ -2135,7 +2133,7 @@ const Voucher = forwardRef<VoucherHandle, VoucherProps>(
           {/* Spacer for consistent layout */}
           <div className="h-16 mb-2"></div>
           <Numpad
-            theme={theme as any}
+            theme={theme}
             layout={numpadLayout}
             onDigitPress={handleDigitPress}
             onClear={handleClear}

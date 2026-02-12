@@ -5,14 +5,10 @@
 import QRCode from "react-qr-code"
 import { bech32 } from "bech32"
 import { getPayUrl, getLnAddressDomain } from "../../lib/config/api"
-
-interface ActiveBlinkAccount {
-  username: string
-  [key: string]: unknown
-}
+import type { LocalBlinkAccount } from "../../lib/hooks/useCombinedAuth"
 
 interface PaycodesOverlayProps {
-  activeBlinkAccount: ActiveBlinkAccount
+  activeBlinkAccount: LocalBlinkAccount
   paycodeAmount: string
   paycodeGeneratingPdf: boolean
   darkMode: boolean

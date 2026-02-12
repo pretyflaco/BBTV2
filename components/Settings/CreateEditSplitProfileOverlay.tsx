@@ -4,36 +4,12 @@
  */
 import React from "react"
 import { getLnAddressDomain } from "../../lib/config/api"
-
-interface SplitRecipient {
-  username: string
-  type?: string
-  share?: number
-  weight?: number
-  locked?: boolean
-  validated?: boolean
-}
-
-interface SplitProfile {
-  id: string
-  label: string
-  recipients: SplitRecipient[]
-}
-
-interface RecipientValidation {
-  status: string | null
-  message: string
-  isValidating: boolean
-  type?: string
-  address?: string
-}
-
-interface SaveProfileData {
-  id?: string
-  label: string
-  recipients: { username: string; type: string; share: number }[]
-  useCustomWeights: boolean
-}
+import type {
+  SplitProfile,
+  SplitRecipient,
+  RecipientValidationState,
+  RecipientType,
+} from "../../lib/hooks/useSplitProfiles"
 
 interface CreateEditSplitProfileOverlayProps {
   darkMode: boolean
@@ -41,7 +17,7 @@ interface CreateEditSplitProfileOverlayProps {
   newSplitProfileLabel: string
   newSplitProfileRecipients: SplitRecipient[]
   newRecipientInput: string
-  recipientValidation: RecipientValidation
+  recipientValidation: RecipientValidationState
   splitProfileError: string | null
   useCustomWeights: boolean
   setShowCreateSplitProfile: (show: boolean) => void
@@ -52,12 +28,15 @@ interface CreateEditSplitProfileOverlayProps {
     recipients: SplitRecipient[] | ((prev: SplitRecipient[]) => SplitRecipient[]),
   ) => void
   setNewRecipientInput: (input: string) => void
-  setRecipientValidation: (validation: RecipientValidation) => void
+  setRecipientValidation: (validation: RecipientValidationState) => void
   setSplitProfileError: (error: string | null) => void
   setUseCustomWeights: (use: boolean) => void
   addRecipientToProfile: () => void
   removeRecipientFromProfile: (username: string) => void
-  saveSplitProfile: (profile: SaveProfileData, navigate: boolean) => Promise<boolean>
+  saveSplitProfile: (
+    profile: SplitProfile,
+    setActive?: boolean,
+  ) => Promise<SplitProfile | null>
   getSubmenuBgClasses: () => string
   getSubmenuHeaderClasses: () => string
 }
@@ -409,7 +388,7 @@ export default function CreateEditSplitProfileOverlay({
                 }
 
                 // Calculate shares based on custom weights or even split
-                let recipients: { username: string; type: string; share: number }[]
+                let recipients: { username: string; type: RecipientType; share: number }[]
                 if (useCustomWeights && newSplitProfileRecipients.length > 1) {
                   // Validate total weights equal 100%
                   const totalWeight = newSplitProfileRecipients.reduce(
@@ -425,7 +404,7 @@ export default function CreateEditSplitProfileOverlay({
 
                   recipients = newSplitProfileRecipients.map((r) => ({
                     username: r.username,
-                    type: r.type || "blink",
+                    type: r.type ?? ("blink" as RecipientType),
                     share: r.weight || 0,
                   }))
                 } else {
@@ -433,17 +412,21 @@ export default function CreateEditSplitProfileOverlay({
                   const sharePerRecipient = 100 / newSplitProfileRecipients.length
                   recipients = newSplitProfileRecipients.map((r) => ({
                     username: r.username,
-                    type: r.type || "blink",
+                    type: r.type ?? ("blink" as RecipientType),
                     share: sharePerRecipient,
                   }))
                 }
 
-                const profile: SaveProfileData = {
-                  id: editingSplitProfile?.id,
+                const profile: SplitProfile = {
+                  id: editingSplitProfile?.id ?? "",
                   label: newSplitProfileLabel.trim(),
-                  recipients,
-                  useCustomWeights:
-                    useCustomWeights && newSplitProfileRecipients.length > 1,
+                  recipients: recipients.map((r) => ({
+                    ...r,
+                    weight: r.share ?? 100 / recipients.length,
+                  })),
+                  ...(useCustomWeights && newSplitProfileRecipients.length > 1
+                    ? { useCustomWeights: true }
+                    : {}),
                 }
 
                 const saved = await saveSplitProfile(profile, true)

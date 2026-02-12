@@ -9,7 +9,8 @@ interface NetworkOverlayProps {
   cycleTheme: () => void
   setShowNetworkOverlay: (show: boolean) => void
   setSideMenuOpen: (open: boolean) => void
-  setTransitionColorIndex: (updater: (prev: number) => number) => void
+  transitionColorIndex: number
+  setTransitionColorIndex: (index: number) => void
   setIsViewTransitioning: (transitioning: boolean) => void
   getSubmenuBgClasses: () => string
   getSubmenuHeaderClasses: () => string
@@ -21,6 +22,7 @@ export default function NetworkOverlay({
   darkMode,
   setShowNetworkOverlay,
   setSideMenuOpen,
+  transitionColorIndex,
   setTransitionColorIndex,
   setIsViewTransitioning,
   getSubmenuBgClasses,
@@ -61,9 +63,7 @@ export default function NetworkOverlay({
             darkMode={darkMode}
             hideHeader={true}
             onInternalTransition={() => {
-              setTransitionColorIndex(
-                (prev: number) => (prev + 1) % SPINNER_COLORS.length,
-              )
+              setTransitionColorIndex((transitionColorIndex + 1) % SPINNER_COLORS.length)
               setIsViewTransitioning(true)
               setTimeout(() => setIsViewTransitioning(false), 120)
             }}

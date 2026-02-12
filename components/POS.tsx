@@ -9,9 +9,15 @@ import {
   getBaseCurrencyId,
 } from "../lib/currency-utils"
 import { formatNumber } from "../lib/number-format"
+import type {
+  NumberFormatPreference,
+  BitcoinFormatPreference,
+  NumpadLayoutPreference,
+} from "../lib/number-format"
 import { useNFC } from "./NFCPayment"
 import Numpad from "./Numpad"
 import { THEMES } from "../lib/hooks/useTheme"
+import type { Theme } from "../lib/hooks/useTheme"
 import { unlockAudioContext, playSound } from "../lib/audio-utils"
 import { getEnvironment } from "../lib/config/api"
 
@@ -19,9 +25,9 @@ interface POSProps {
   apiKey: string | null
   user: any
   displayCurrency: string
-  numberFormat?: string
-  bitcoinFormat?: string
-  numpadLayout?: string
+  numberFormat?: NumberFormatPreference
+  bitcoinFormat?: BitcoinFormatPreference
+  numpadLayout?: NumpadLayoutPreference
   currencies: any[]
   wallets: any[]
   onPaymentReceived: React.MutableRefObject<(() => void) | null>
@@ -35,7 +41,7 @@ interface POSProps {
   onInvoiceStateChange?: (showing: boolean) => void
   onInvoiceChange?: (invoice: InvoiceData | null) => void
   darkMode: boolean
-  theme?: string
+  theme?: Theme
   cycleTheme: () => void
   nfcState: any
   activeNWC?: any
@@ -695,13 +701,7 @@ const POS = forwardRef<POSRef, POSProps>(
 
     const formatDisplayAmount = (value: number | string, currency: string): string => {
       // Use dynamic currency formatting from currency-utils with numberFormat and bitcoinFormat preferences
-      return formatCurrency(
-        value,
-        currency,
-        currencies,
-        numberFormat as any,
-        bitcoinFormat as any,
-      )
+      return formatCurrency(value, currency, currencies, numberFormat, bitcoinFormat)
     }
 
     // Render amount with properly styled Bitcoin symbol (smaller ₿ for BIP-177)
@@ -711,7 +711,7 @@ const POS = forwardRef<POSRef, POSProps>(
       className: string = "",
     ): JSX.Element => {
       const formatted = formatDisplayAmount(value, currency)
-      const parts = parseAmountParts(formatted, currency, bitcoinFormat as any)
+      const parts = parseAmountParts(formatted, currency, bitcoinFormat)
 
       if (parts.isBip177) {
         // Render BIP-177 with smaller, lighter Bitcoin symbol moved up 10%
@@ -840,7 +840,7 @@ const POS = forwardRef<POSRef, POSProps>(
       const fractionDigits = currency?.fractionDigits ?? 2
       const amountInMinorUnits = fiatAmount * Math.pow(10, fractionDigits)
       const sats = Math.round(amountInMinorUnits / exchangeRate.satPriceInCurrency)
-      return formatNumber(sats, numberFormat as any, 0)
+      return formatNumber(sats, numberFormat, 0)
     }
 
     // Get tip amount in current display currency
@@ -1571,12 +1571,7 @@ const POS = forwardRef<POSRef, POSProps>(
                         )}
                       </div>
                       <div className="text-lg text-gray-600 dark:text-gray-400 mt-1">
-                        (
-                        {formatNumber(
-                          invoice.satAmount as number,
-                          numberFormat as any,
-                          0,
-                        )}{" "}
+                        ({formatNumber(invoice.satAmount as number, numberFormat, 0)}{" "}
                         sats)
                       </div>
                     </div>
@@ -1798,8 +1793,8 @@ const POS = forwardRef<POSRef, POSProps>(
           {/* Spacer to align numpad with item list (below Search/Add Item row level) */}
           <div className="h-16 mb-2"></div>
           <Numpad
-            theme={theme as any}
-            layout={numpadLayout as any}
+            theme={theme}
+            layout={numpadLayout}
             onDigitPress={handleDigitPress}
             onClear={handleClear}
             onBackspace={handleBackspace}

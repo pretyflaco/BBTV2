@@ -1,44 +1,29 @@
-import {
-  useEffect,
-  useRef,
-  useCallback,
-  Dispatch,
-  SetStateAction,
-  MutableRefObject,
-} from "react"
+import { useEffect, useRef, useCallback, MutableRefObject } from "react"
 import { getEnvironment } from "../config/api"
+import type { TransactionRecord } from "../../components/TransactionDetail"
+import type { CombinedUser } from "./useCombinedAuth"
+import type { LocalBlinkAccount } from "./useProfile"
+import type { LocalNWCConnection, NWCOperationResult } from "./useNWC"
+import type { VoucherWallet, VoucherCurrencyMode } from "./useVoucherWalletState"
+import type { WalletInfo } from "./useWalletState"
+import type { PaymentData } from "./useBlinkWebSocket"
+import type { DisplayCurrency } from "./useDisplaySettings"
 
 // ============================================================================
 // Interfaces
 // ============================================================================
 
-/**
- * Transaction object from Blink API or NWC
- */
-export interface Transaction {
-  id?: string
-  paymentHash?: string
-  direction: string
-  settlementAmount: number
-  settlementCurrency: string
-  status: string
-  createdAt: string
-  memo?: string
-  cursor?: string
-  date?: string
-  amount?: string
-  isNwc?: boolean
-  [key: string]: unknown
-}
+/** @deprecated Use TransactionRecord from TransactionDetail instead */
+export type Transaction = TransactionRecord
 
-/**
- * User object from combined auth
- */
-export interface User {
-  username: string
-  preferredCurrency?: string
-  [key: string]: unknown
-}
+/** @deprecated Use CombinedUser from useCombinedAuth instead */
+export type User = CombinedUser
+
+/** @deprecated Use WalletInfo from useWalletState instead */
+export type Wallet = WalletInfo
+
+// Re-export for backward compatibility
+export type { VoucherWallet }
 
 /**
  * Exchange rate data
@@ -66,60 +51,6 @@ interface NWCTransaction {
 }
 
 /**
- * NWC list transactions result
- */
-interface NWCListTransactionsResult {
-  success: boolean
-  transactions?: NWCTransaction[]
-  error?: string
-}
-
-/**
- * Wallet object from Blink API
- */
-export interface Wallet {
-  id: string
-  walletCurrency: string
-  balance: number
-  [key: string]: unknown
-}
-
-/**
- * Voucher wallet config
- */
-export interface VoucherWallet {
-  apiKey?: string
-  [key: string]: unknown
-}
-
-/**
- * Active wallet account reference
- */
-interface ActiveAccount {
-  id?: string
-  type?: string
-  username?: string
-  [key: string]: unknown
-}
-
-/**
- * Active NWC connection
- */
-interface ActiveNWC {
-  id?: string
-  label?: string
-  [key: string]: unknown
-}
-
-/**
- * Last payment from Blink WebSocket
- */
-interface LastPayment {
-  isForwarded?: boolean
-  [key: string]: unknown
-}
-
-/**
  * Ref handle for voucher/multivoucher child components
  */
 interface VoucherRefHandle {
@@ -134,47 +65,49 @@ interface VoucherRefHandle {
  */
 export interface UseDashboardDataParams {
   // From useCombinedAuth
-  user: User | null
+  user: CombinedUser | null
   getApiKey: () => Promise<string | null>
   hasServerSession: boolean
-  activeBlinkAccount: ActiveAccount | null
-  blinkAccounts: ActiveAccount[] | null
-  activeNWC: ActiveNWC | null
+  activeBlinkAccount: LocalBlinkAccount | null
+  blinkAccounts: LocalBlinkAccount[]
+  activeNWC: LocalNWCConnection | null
   nwcClientReady: boolean
-  nwcListTransactions: (params: { limit: number }) => Promise<NWCListTransactionsResult>
+  nwcListTransactions: (
+    params?: any,
+  ) => Promise<NWCOperationResult & { transactions?: any[] }>
   nwcHasCapability: (capability: string) => boolean
-  activeNpubCashWallet: unknown
+  activeNpubCashWallet: LocalBlinkAccount | null
   // From useViewNavigation
   currentView: string
   // From useDisplaySettings
-  setDisplayCurrency: (currency: string) => void
+  setDisplayCurrency: (currency: DisplayCurrency) => void
   // From useUIVisibility
   showVoucherWalletSettings: boolean
   showBoltcards: boolean
   // From useWalletState
   apiKey: string | null
-  setApiKey: Dispatch<SetStateAction<string | null>>
-  setWallets: Dispatch<SetStateAction<Wallet[]>>
+  setApiKey: (key: string | null) => void
+  setWallets: (wallets: WalletInfo[]) => void
   // From useTransactionState
-  setTransactions: Dispatch<SetStateAction<Transaction[]>>
-  setLoading: Dispatch<SetStateAction<boolean>>
-  setError: Dispatch<SetStateAction<string>>
-  setHasMoreTransactions: Dispatch<SetStateAction<boolean>>
-  setPastTransactionsLoaded: Dispatch<SetStateAction<boolean>>
-  setFilteredTransactions: Dispatch<SetStateAction<Transaction[]>>
-  setDateFilterActive: Dispatch<SetStateAction<boolean>>
+  setTransactions: (transactions: TransactionRecord[]) => void
+  setLoading: (loading: boolean) => void
+  setError: (error: string) => void
+  setHasMoreTransactions: (hasMore: boolean) => void
+  setPastTransactionsLoaded: (loaded: boolean) => void
+  setFilteredTransactions: (transactions: TransactionRecord[]) => void
+  setDateFilterActive: (active: boolean) => void
   // From useVoucherWalletState
   voucherWallet: VoucherWallet | null
-  setVoucherWalletBalance: Dispatch<SetStateAction<number | null>>
-  setVoucherWalletUsdBalance: Dispatch<SetStateAction<number | null>>
-  setVoucherWalletBalanceLoading: Dispatch<SetStateAction<boolean>>
-  setVoucherWalletBtcId: Dispatch<SetStateAction<string | null>>
-  setVoucherWalletUsdId: Dispatch<SetStateAction<string | null>>
-  setCurrentAmountInSats: Dispatch<SetStateAction<number>>
-  setCurrentAmountInUsdCents: Dispatch<SetStateAction<number>>
-  setCurrentVoucherCurrencyMode: Dispatch<SetStateAction<string>>
+  setVoucherWalletBalance: (balance: number | null) => void
+  setVoucherWalletUsdBalance: (balance: number | null) => void
+  setVoucherWalletBalanceLoading: (loading: boolean) => void
+  setVoucherWalletBtcId: (id: string | null) => void
+  setVoucherWalletUsdId: (id: string | null) => void
+  setCurrentAmountInSats: (amount: number) => void
+  setCurrentAmountInUsdCents: (amount: number) => void
+  setCurrentVoucherCurrencyMode: (mode: VoucherCurrencyMode) => void
   // From useBlinkWebSocket
-  lastPayment: LastPayment | null
+  lastPayment: PaymentData | null
   // Refs (created in Dashboard, passed in)
   posPaymentReceivedRef: MutableRefObject<(() => void) | null>
   voucherRef: MutableRefObject<VoucherRefHandle | null>
@@ -608,7 +541,7 @@ export function useDashboardData({
         console.log(
           `Setting display currency to user preference: ${user.preferredCurrency}`,
         )
-        setDisplayCurrency(user.preferredCurrency)
+        setDisplayCurrency(user.preferredCurrency as DisplayCurrency)
       }
     }
   }, [user])
@@ -644,7 +577,8 @@ export function useDashboardData({
       const ref = currentView === "voucher" ? voucherRef.current : multiVoucherRef.current
       const amountSats = ref?.getAmountInSats?.() || 0
       const amountUsdCents = ref?.getAmountInUsdCents?.() || 0
-      const currencyMode = ref?.getVoucherCurrencyMode?.() || "BTC"
+      const currencyMode = (ref?.getVoucherCurrencyMode?.() ||
+        "BTC") as VoucherCurrencyMode
       setCurrentAmountInSats(amountSats)
       setCurrentAmountInUsdCents(amountUsdCents)
       setCurrentVoucherCurrencyMode(currencyMode)

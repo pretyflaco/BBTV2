@@ -188,7 +188,7 @@ class WebSerialAdapter extends BaseAdapter {
     if (!(await this.isAvailable())) {
       return []
     }
-    return (navigator as any).serial.getPorts()
+    return navigator.serial.getPorts()
   }
 
   /**
@@ -211,7 +211,7 @@ class WebSerialAdapter extends BaseAdapter {
     }
 
     try {
-      const port = await (navigator as any).serial.requestPort({
+      const port = await navigator.serial.requestPort({
         filters: filters.length > 0 ? filters : undefined,
       })
       return port

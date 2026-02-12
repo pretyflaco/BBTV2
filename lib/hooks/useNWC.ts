@@ -27,7 +27,7 @@ import CryptoUtils from "../storage/CryptoUtils"
  * NOTE: This differs from the global NWCConnection type (which uses `uri: EncryptedField`).
  * The local shape stores `encryptedUri` (encrypted by CryptoUtils), `walletPubkey`, and `relays`.
  */
-interface LocalNWCConnection {
+export interface LocalNWCConnection {
   id: string
   label: string
   encryptedUri: any // Encrypted by CryptoUtils
@@ -54,30 +54,30 @@ interface ServerNWCConnection {
   lastUsed?: string
 }
 
-interface NWCOperationResult {
+export interface NWCOperationResult {
   success: boolean
   error?: string
 }
 
-interface NWCBalanceResult extends NWCOperationResult {
+export interface NWCBalanceResult extends NWCOperationResult {
   balance?: number
 }
 
-interface NWCPayResult extends NWCOperationResult {
+export interface NWCPayResult extends NWCOperationResult {
   preimage?: string
   fees_paid?: number
 }
 
-interface NWCInvoiceResult extends NWCOperationResult {
+export interface NWCInvoiceResult extends NWCOperationResult {
   invoice?: string
   payment_hash?: string
 }
 
-interface NWCConnectionResult extends NWCOperationResult {
+export interface NWCConnectionResult extends NWCOperationResult {
   connection?: LocalNWCConnection
 }
 
-interface NWCHookReturn {
+export interface NWCHookReturn {
   // State
   connections: LocalNWCConnection[]
   activeConnection: LocalNWCConnection | null

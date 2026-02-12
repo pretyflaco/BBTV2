@@ -5,27 +5,10 @@
 
 import { useState } from "react"
 import { useCombinedAuth } from "../../lib/hooks/useCombinedAuth"
+import type { LocalBlinkAccount } from "../../lib/hooks/useProfile"
 import { useTheme } from "../../lib/hooks/useTheme"
 import { isNpubCashAddress, probeNpubCashAddress } from "../../lib/lnurl"
 import { getApiUrl } from "../../lib/config/api"
-
-interface BlinkAccount {
-  id: string
-  label?: string
-  username?: string
-  type?: string
-  isActive?: boolean
-  lightningAddress?: string
-  apiKey?: string
-  defaultCurrency?: string
-}
-
-interface NpubCashWallet {
-  id: string
-  label?: string
-  lightningAddress?: string
-  isActive?: boolean
-}
 
 interface WalletInfo {
   username: string
@@ -52,7 +35,7 @@ export default function BlinkAccountsSection() {
     storeBlinkAccountOnServer,
     publicKey,
     npubCashWallets,
-  } = useCombinedAuth() as any
+  } = useCombinedAuth()
 
   const { darkMode } = useTheme()
   const [showAddForm, setShowAddForm] = useState<boolean>(false)
@@ -734,7 +717,7 @@ export default function BlinkAccountsSection() {
       {/* Accounts List */}
       <div className="space-y-2">
         {blinkAccounts && blinkAccounts.length > 0 ? (
-          blinkAccounts.map((account: BlinkAccount) => (
+          blinkAccounts.map((account: LocalBlinkAccount) => (
             <div
               key={account.id}
               className={`rounded-lg p-3 border transition-colors ${
@@ -854,7 +837,7 @@ export default function BlinkAccountsSection() {
                 npub.cash Wallets (Cashu)
               </h4>
             </div>
-            {npubCashWallets.map((wallet: NpubCashWallet) => (
+            {npubCashWallets.map((wallet: LocalBlinkAccount) => (
               <div
                 key={wallet.id}
                 className={`rounded-lg p-3 border transition-colors ${

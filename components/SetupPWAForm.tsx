@@ -18,13 +18,10 @@ import Image from "next/image"
 import { useTheme, THEMES } from "../lib/hooks/useTheme"
 import { getApiUrl } from "../lib/config/api"
 
-// Extend Window for MSStream (IE detection) and standalone (iOS Safari)
+// Extend Window for MSStream (IE detection)
 declare global {
   interface Window {
     MSStream?: unknown
-  }
-  interface Navigator {
-    standalone?: boolean
   }
 }
 

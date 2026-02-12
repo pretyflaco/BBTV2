@@ -2,18 +2,19 @@
  * SoundThemesOverlay - Sound theme selection overlay
  * Extracted from Dashboard.js
  */
+import type { SoundTheme } from "../../lib/hooks/useSoundSettings"
 
-interface SoundTheme {
-  id: string
+interface SoundThemeOption {
+  id: SoundTheme
   name: string
   description: string
 }
 
 interface SoundThemesOverlayProps {
   soundEnabled: boolean
-  soundTheme: string
+  soundTheme: SoundTheme | string
   setSoundEnabled: (enabled: boolean) => void
-  setSoundTheme: (theme: string) => void
+  setSoundTheme: (theme: SoundTheme) => void
   setShowSoundThemes: (show: boolean) => void
   getSubmenuBgClasses: () => string
   getSubmenuHeaderClasses: () => string
@@ -32,7 +33,7 @@ export default function SoundThemesOverlay({
   getSelectionTileClasses,
   getSelectionTileActiveClasses,
 }: SoundThemesOverlayProps) {
-  const THEMES: SoundTheme[] = [
+  const THEMES: SoundThemeOption[] = [
     { id: "success", name: "Success", description: "Classic payment sounds" },
     { id: "zelda", name: "Zelda", description: "Breath of the Wild sounds" },
     { id: "free", name: "Free", description: "Freedom sounds" },

@@ -16,58 +16,27 @@ import type { FilteredStats, MonthGroup } from "../lib/hooks/useTransactionActio
 import type { DateRange } from "../lib/hooks/useTransactionState"
 import type { Theme } from "../lib/hooks/useTheme"
 import type {
-  NumberFormatPreference,
-  BitcoinFormatPreference,
-  NumpadLayoutPreference,
-} from "../lib/number-format"
+  NumberFormat,
+  BitcoinFormat,
+  NumpadLayout,
+} from "../lib/hooks/useDisplaySettings"
 import type { SoundThemeName } from "../lib/audio-utils"
 import type { CurrencyMetadata } from "../lib/currency-utils"
 import type { ExchangeRateData } from "../lib/hooks/useExchangeRate"
-import type { User } from "../lib/hooks/useAuth"
-
-// ============================================================================
-// Shared local types for wallet/connection shapes
-// ============================================================================
-
-interface BlinkAccount {
-  label?: string
-  username?: string
-  [key: string]: unknown
-}
-
-interface NWCConnection {
-  label: string
-  [key: string]: unknown
-}
-
-interface NpubCashWallet {
-  label?: string
-  lightningAddress?: string
-  [key: string]: unknown
-}
-
-interface VoucherWallet {
-  label?: string
-  username?: string
-  apiKey?: string
-  walletId?: string
-  [key: string]: unknown
-}
-
-interface SplitProfile {
-  label: string
-  recipients: Array<Record<string, unknown>>
-  [key: string]: unknown
-}
-
-interface NFCState {
-  isNfcSupported: boolean
-  hasNFCPermission: boolean
-  isProcessing: boolean
-  activateNfcScan: () => Promise<void>
-}
-
-type VoucherCurrencyMode = "BTC" | "USD"
+import type { CombinedUser } from "../lib/hooks/useCombinedAuth"
+import type {
+  VoucherWallet,
+  VoucherCurrencyMode,
+} from "../lib/hooks/useVoucherWalletState"
+import type { LocalBlinkAccount } from "../lib/hooks/useProfile"
+import type {
+  LocalNWCConnection,
+  NWCInvoiceResult,
+  NWCOperationResult,
+} from "../lib/hooks/useNWC"
+import type { SplitProfile } from "../lib/hooks/useSplitProfiles"
+import type { InvoiceData } from "../lib/hooks/useInvoiceState"
+import type { PaymentData } from "../lib/hooks/useBlinkWebSocket"
 
 // ============================================================================
 // Component Props
@@ -77,9 +46,9 @@ interface DashboardViewSwitcherProps {
   currentView: DashboardView
   // Shared display props
   displayCurrency: string
-  numberFormat: NumberFormatPreference
-  bitcoinFormat: BitcoinFormatPreference
-  numpadLayout: NumpadLayoutPreference
+  numberFormat: NumberFormat
+  bitcoinFormat: BitcoinFormat
+  numpadLayout: NumpadLayout
   currencies: CurrencyMetadata[]
   darkMode: boolean
   theme: Theme
@@ -88,17 +57,18 @@ interface DashboardViewSwitcherProps {
   exchangeRate: ExchangeRateData | null
   // View transition
   isViewTransitioning: boolean
-  setTransitionColorIndex: React.Dispatch<React.SetStateAction<number>>
+  transitionColorIndex: number
+  setTransitionColorIndex: (index: number) => void
   setIsViewTransitioning: (transitioning: boolean) => void
   // Cart props
   cartRef: React.RefObject<ItemCartHandle>
-  publicKey: string
+  publicKey: string | null
   setCartCheckoutData: (data: CartCheckoutData | null) => void
   handleViewTransition: (view: DashboardView) => void
   // POS props
   posRef: React.RefObject<POSRef>
-  apiKey: string
-  user: User | null
+  apiKey: string | null
+  user: CombinedUser | null
   wallets: unknown[]
   posPaymentReceivedRef: React.MutableRefObject<(() => void) | null>
   connected: boolean
@@ -108,27 +78,33 @@ interface DashboardViewSwitcherProps {
   tipPresets: number[]
   activeSplitProfile: SplitProfile | null
   setShowingInvoice: (showing: boolean) => void
-  setCurrentInvoice: (invoice: unknown) => void
-  nfcState: NFCState
-  activeNWC: NWCConnection | null
+  setCurrentInvoice: (invoice: InvoiceData | null) => void
+  nfcState: unknown
+  activeNWC: LocalNWCConnection | null
   nwcClientReady: boolean
-  nwcMakeInvoice: (params: unknown) => Promise<unknown>
-  nwcLookupInvoice: (params: unknown) => Promise<unknown>
-  getActiveNWCUri: () => string | null
-  activeBlinkAccount: BlinkAccount | null
-  activeNpubCashWallet: NpubCashWallet | null
+  nwcMakeInvoice: (params: {
+    amount: number
+    description?: string
+    expiry?: number
+  }) => Promise<NWCInvoiceResult>
+  nwcLookupInvoice: (
+    paymentHash: string,
+  ) => Promise<NWCOperationResult & { invoice?: unknown }>
+  getActiveNWCUri: () => Promise<string | null>
+  activeBlinkAccount: LocalBlinkAccount | null
+  activeNpubCashWallet: LocalBlinkAccount | null
   cartCheckoutData: CartCheckoutData | null
-  triggerPaymentAnimation: (payment: unknown) => void
+  triggerPaymentAnimation: (data: PaymentData) => void
   // Voucher shared props
   voucherWallet: VoucherWallet | null
   voucherCurrencyMode: VoucherCurrencyMode
-  voucherWalletBalance: number
-  voucherWalletUsdBalance: number
+  voucherWalletBalance: number | null
+  voucherWalletUsdBalance: number | null
   commissionEnabled: boolean
   commissionPresets: number[]
   voucherWalletUsdId: string | null
-  setVoucherCurrencyMode: React.Dispatch<React.SetStateAction<VoucherCurrencyMode>>
-  usdExchangeRate: ExchangeRateData | null
+  setVoucherCurrencyMode: (mode: VoucherCurrencyMode) => void
+  usdExchangeRate: number | null
   voucherExpiry: string
   // Voucher-specific
   voucherRef: React.RefObject<VoucherHandle>
@@ -187,6 +163,7 @@ export default function DashboardViewSwitcher({
   exchangeRate,
   // View transition
   isViewTransitioning,
+  transitionColorIndex,
   setTransitionColorIndex,
   setIsViewTransitioning,
   // Cart props
@@ -269,20 +246,23 @@ export default function DashboardViewSwitcher({
 }: DashboardViewSwitcherProps) {
   // Shared transition handler for views that support internal transitions
   const onInternalTransition = () => {
-    setTransitionColorIndex((prev: number) => (prev + 1) % SPINNER_COLORS.length)
+    setTransitionColorIndex((transitionColorIndex + 1) % SPINNER_COLORS.length)
     setIsViewTransitioning(true)
     setTimeout(() => setIsViewTransitioning(false), 120)
   }
 
   const voucherCurrencyToggle = voucherWalletUsdId
-    ? () =>
-        setVoucherCurrencyMode((prev: VoucherCurrencyMode) =>
-          prev === "BTC" ? "USD" : "BTC",
-        )
+    ? () => setVoucherCurrencyMode(voucherCurrencyMode === "BTC" ? "USD" : "BTC")
     : undefined
 
   const walletBalance =
     voucherCurrencyMode === "USD" ? voucherWalletUsdBalance : voucherWalletBalance
+
+  // Convert numeric usdExchangeRate to ExchangeRateData for child components
+  const usdExchangeRateData: ExchangeRateData | null =
+    usdExchangeRate != null
+      ? { satPriceInCurrency: usdExchangeRate, currency: "USD" }
+      : null
 
   if (currentView === "cart") {
     return (
@@ -331,7 +311,7 @@ export default function DashboardViewSwitcher({
         soundEnabled={soundEnabled}
         onInvoiceStateChange={setShowingInvoice}
         onInvoiceChange={(invoiceData: unknown) => {
-          setCurrentInvoice(invoiceData)
+          setCurrentInvoice(invoiceData as InvoiceData | null)
         }}
         darkMode={darkMode}
         theme={theme}
@@ -372,7 +352,7 @@ export default function DashboardViewSwitcher({
           commissionPresets={commissionPresets}
           voucherCurrencyMode={voucherCurrencyMode}
           onVoucherCurrencyToggle={voucherCurrencyToggle}
-          usdExchangeRate={usdExchangeRate}
+          usdExchangeRate={usdExchangeRateData}
           usdWalletId={voucherWalletUsdId}
           initialExpiry={voucherExpiry}
           onInternalTransition={onInternalTransition}
@@ -401,7 +381,7 @@ export default function DashboardViewSwitcher({
         commissionPresets={commissionPresets}
         voucherCurrencyMode={voucherCurrencyMode}
         onVoucherCurrencyToggle={voucherCurrencyToggle}
-        usdExchangeRate={usdExchangeRate}
+        usdExchangeRate={usdExchangeRateData}
         usdWalletId={voucherWalletUsdId}
         initialExpiry={voucherExpiry}
         onInternalTransition={onInternalTransition}

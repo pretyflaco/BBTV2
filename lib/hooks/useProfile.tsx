@@ -27,6 +27,7 @@ import React, {
   useRef,
 } from "react"
 import ProfileStorage from "../storage/ProfileStorage"
+import type { StoredBlinkAccount } from "../storage/ProfileStorage"
 import CryptoUtils from "../storage/CryptoUtils"
 import { useNostrAuth } from "./useNostrAuth"
 
@@ -37,7 +38,7 @@ import { useNostrAuth } from "./useNostrAuth"
  * because the local version may carry extra fields from different wallet types
  * (ln-address, npub-cash, API-key).
  */
-interface LocalBlinkAccount {
+export interface LocalBlinkAccount {
   id: string
   label: string
   apiKey?: any // Encrypted blob from CryptoUtils
@@ -72,7 +73,7 @@ interface ProfileProviderProps {
   children: React.ReactNode
 }
 
-interface ProfileContextValue {
+export interface ProfileContextValue {
   // State
   loading: boolean
   error: string | null
@@ -1193,7 +1194,11 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
       updateState({ loading: true, error: null })
 
       try {
-        await ProfileStorage.updateBlinkAccount(profileId, accountId, updates as any)
+        await ProfileStorage.updateBlinkAccount(
+          profileId,
+          accountId,
+          updates as Partial<StoredBlinkAccount>,
+        )
 
         // Refresh auth profile state
         refreshAuthProfile()

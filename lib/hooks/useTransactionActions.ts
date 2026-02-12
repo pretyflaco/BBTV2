@@ -1,52 +1,24 @@
-import {
-  useCallback,
-  Dispatch,
-  SetStateAction,
-  MutableRefObject,
-  KeyboardEvent,
-} from "react"
+import { useCallback, MutableRefObject, KeyboardEvent } from "react"
 import { getEnvironment } from "../config/api"
 import { SPINNER_COLORS } from "./useViewNavigation"
 import type { DashboardView } from "./useViewNavigation"
 import type { TransactionRecord } from "../../components/TransactionDetail"
+import type { CombinedUser } from "./useCombinedAuth"
+import type { WalletInfo } from "./useWalletState"
+import type { DateRange } from "./useTransactionState"
 
 // ============================================================================
 // Interfaces
 // ============================================================================
 
-/**
- * @deprecated Use TransactionRecord from TransactionDetail instead
- */
+/** @deprecated Use TransactionRecord from TransactionDetail instead */
 export type Transaction = TransactionRecord
 
-/**
- * Payment result from Blink or NWC
- */
-export interface PaymentResult {
-  success: boolean
-  error?: string
-  paymentHash?: string
-  [key: string]: unknown
-}
+/** @deprecated Use CombinedUser from useCombinedAuth instead */
+export type User = CombinedUser
 
-/**
- * Invoice object
- */
-export interface Invoice {
-  paymentRequest: string
-  paymentHash?: string
-  satoshis?: number
-  amount?: number
-  memo?: string
-  [key: string]: unknown
-}
-
-/**
- * Split payment profile
- */
-export interface SplitProfile {
-  recipients: Array<{ username: string; weight: number; type?: string }>
-}
+/** @deprecated Use WalletInfo from useWalletState instead */
+export type Wallet = WalletInfo
 
 /**
  * Date range preset for filtering
@@ -56,7 +28,7 @@ export interface DateRangePreset {
   label: string
   start: Date
   end: Date
-  type?: string
+  type: "preset" | "custom"
 }
 
 /**
@@ -72,16 +44,6 @@ export interface FilteredStats {
 }
 
 /**
- * Wallet object from Blink API
- */
-export interface Wallet {
-  id: string
-  walletCurrency: string
-  balance: number
-  [key: string]: unknown
-}
-
-/**
  * Month group for transaction grouping
  */
 export interface MonthGroup {
@@ -89,14 +51,6 @@ export interface MonthGroup {
   transactions: Transaction[]
   year: number
   month: number
-}
-
-/**
- * User object
- */
-export interface User {
-  username: string
-  [key: string]: unknown
 }
 
 /**
@@ -113,42 +67,43 @@ interface CartRefHandle {
 export interface UseTransactionActionsParams {
   // From useWalletState
   apiKey: string | null
-  wallets: Wallet[]
+  wallets: WalletInfo[]
   // From useCombinedAuth
-  user: User | null
+  user: CombinedUser | null
   // From useTransactionState
   transactions: Transaction[]
-  setTransactions: Dispatch<SetStateAction<Transaction[]>>
+  setTransactions: (transactions: Transaction[]) => void
   loadingMore: boolean
-  setLoadingMore: Dispatch<SetStateAction<boolean>>
+  setLoadingMore: (loading: boolean) => void
   hasMoreTransactions: boolean
-  setHasMoreTransactions: Dispatch<SetStateAction<boolean>>
-  setPastTransactionsLoaded: Dispatch<SetStateAction<boolean>>
-  setDateFilterActive: Dispatch<SetStateAction<boolean>>
-  setSelectedDateRange: Dispatch<SetStateAction<DateRangePreset | null>>
-  setFilteredTransactions: Dispatch<SetStateAction<Transaction[]>>
-  setExportingData: Dispatch<SetStateAction<boolean>>
+  setHasMoreTransactions: (hasMore: boolean) => void
+  setPastTransactionsLoaded: (loaded: boolean) => void
+  setDateFilterActive: (active: boolean) => void
+  setSelectedDateRange: (range: DateRange | null) => void
+  setFilteredTransactions: (transactions: Transaction[]) => void
+  setExportingData: (exporting: boolean) => void
   dateFilterActive: boolean
   filteredTransactions: Transaction[]
   clearDateFilter: () => void
   txSearchQuery: string
   txSearchInput: string
-  setIsSearchingTx: Dispatch<SetStateAction<boolean>>
-  setTxSearchInput: Dispatch<SetStateAction<string>>
-  setIsSearchLoading: Dispatch<SetStateAction<boolean>>
-  setTxSearchQuery: Dispatch<SetStateAction<string>>
+  setIsSearchingTx: (searching: boolean) => void
+  setTxSearchInput: (input: string) => void
+  setIsSearchLoading: (loading: boolean) => void
+  setTxSearchQuery: (query: string) => void
   expandedMonths: Set<string>
-  setExpandedMonths: Dispatch<SetStateAction<Set<string>>>
+  setExpandedMonths: (months: Set<string>) => void
   // From useUIVisibility
   showTimeInputs: boolean
-  setShowTimeInputs: Dispatch<SetStateAction<boolean>>
-  setShowDateRangeSelector: Dispatch<SetStateAction<boolean>>
-  setShowExportOptions: Dispatch<SetStateAction<boolean>>
+  setShowTimeInputs: (show: boolean) => void
+  setShowDateRangeSelector: (show: boolean) => void
+  setShowExportOptions: (show: boolean) => void
   // From useViewNavigation
   currentView: DashboardView | string
   setCurrentView: (view: DashboardView) => void
-  setTransitionColorIndex: Dispatch<SetStateAction<number>>
-  setIsViewTransitioning: Dispatch<SetStateAction<boolean>>
+  transitionColorIndex: number
+  setTransitionColorIndex: (index: number) => void
+  setIsViewTransitioning: (transitioning: boolean) => void
   // From useTransactionState (custom date range inputs)
   customDateStart: string
   customDateEnd: string
@@ -244,6 +199,7 @@ export function useTransactionActions({
   // From useViewNavigation
   currentView,
   setCurrentView,
+  transitionColorIndex,
   setTransitionColorIndex,
   setIsViewTransitioning,
   // From useTransactionState (custom date range inputs)
@@ -357,7 +313,7 @@ export function useTransactionActions({
         const newTransactions: Transaction[] = data.transactions
 
         if (newTransactions.length > 0) {
-          setTransactions((prev) => [...prev, ...newTransactions])
+          setTransactions([...transactions, ...newTransactions])
           setHasMoreTransactions(data.pageInfo?.hasNextPage || false)
         } else {
           setHasMoreTransactions(false)
@@ -393,36 +349,42 @@ export function useTransactionActions({
         label: "Today",
         start: today,
         end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1), // End of today
+        type: "preset" as const,
       },
       {
         id: "yesterday",
         label: "Yesterday",
         start: yesterday,
         end: new Date(yesterday.getTime() + 24 * 60 * 60 * 1000 - 1),
+        type: "preset" as const,
       },
       {
         id: "last7days",
         label: "Last 7 Days",
         start: last7Days,
         end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1),
+        type: "preset" as const,
       },
       {
         id: "last30days",
         label: "Last 30 Days",
         start: last30Days,
         end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1),
+        type: "preset" as const,
       },
       {
         id: "thismonth",
         label: "This Month",
         start: thisMonthStart,
         end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1),
+        type: "preset" as const,
       },
       {
         id: "lastmonth",
         label: "Last Month",
         start: lastMonthStart,
         end: lastMonthEnd,
+        type: "preset" as const,
       },
     ]
   }
@@ -800,7 +762,7 @@ export function useTransactionActions({
     if (newView === currentView) return
 
     // Rotate to next spinner color
-    setTransitionColorIndex((prev) => (prev + 1) % SPINNER_COLORS.length)
+    setTransitionColorIndex((transitionColorIndex + 1) % SPINNER_COLORS.length)
 
     // Show loading animation
     setIsViewTransitioning(true)

@@ -898,7 +898,7 @@ class BlinkAPI {
           }
         }
       } else {
-        date = new Date(dateString as any)
+        date = new Date(String(dateString))
       }
 
       // Validate the date

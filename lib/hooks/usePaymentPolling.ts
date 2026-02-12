@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react"
 import { useNFC } from "../../components/NFCPayment"
+import type { SoundTheme } from "./useSoundSettings"
+import type { PaymentData } from "./useBlinkWebSocket"
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -11,20 +13,16 @@ export interface PaymentPollingInvoice {
   memo?: string
 }
 
-export interface PaymentAnimationData {
-  amount: number
-  currency: string
-  memo: string
-  isForwarded: boolean
-}
+/** @deprecated Use PaymentData from useBlinkWebSocket instead */
+export type PaymentAnimationData = PaymentData
 
 export interface UsePaymentPollingParams {
   currentInvoice: PaymentPollingInvoice | null
-  triggerPaymentAnimation: (data: PaymentAnimationData) => void
+  triggerPaymentAnimation: (data: PaymentData) => void
   posPaymentReceivedRef: React.RefObject<(() => void) | null>
   fetchData: () => void
   soundEnabled: boolean
-  soundTheme: string
+  soundTheme: SoundTheme | string
 }
 
 export interface UsePaymentPollingReturn {

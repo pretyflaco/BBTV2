@@ -19,7 +19,7 @@ const DEFAULT_RELAYS: string[] = [
 /**
  * Nostr profile metadata (kind 0 event content).
  */
-interface NostrProfile {
+export interface NostrProfile {
   name?: string
   display_name?: string
   picture?: string
@@ -254,4 +254,3 @@ class NostrProfileService {
 
 export default NostrProfileService
 export { NostrProfileService }
-export type { NostrProfile }

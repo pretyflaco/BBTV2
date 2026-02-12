@@ -20,8 +20,7 @@ interface CurrencyItem {
 }
 
 export default function PreferencesSection() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { preferences, updatePreferences } = useCombinedAuth() as any
+  const { preferences, updatePreferences } = useCombinedAuth()
   const { theme, setTheme, darkMode } = useTheme()
   const { currencies, getAllCurrencies } = useCurrencies()
 

@@ -16,8 +16,9 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 import WebSocket from "ws"
-if (typeof global !== "undefined" && !(global as any).WebSocket) {
-  ;(global as any).WebSocket = WebSocket
+// Polyfill globalThis.WebSocket with the 'ws' package for Node.js server-side
+if (typeof global !== "undefined" && typeof global.WebSocket === "undefined") {
+  Object.assign(global, { WebSocket })
 }
 
 import BlinkAPI from "../../../lib/blink-api"

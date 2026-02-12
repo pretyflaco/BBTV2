@@ -5,44 +5,25 @@ import {
   validateNpubCashAddress,
   probeNpubCashAddress,
 } from "../lnurl"
+import type {
+  SplitRecipient,
+  SplitProfile,
+  RecipientValidationState,
+  RecipientType,
+} from "./useSplitProfiles"
+import type { AuthMode } from "./useCombinedAuth"
 
-/**
- * A single recipient in a split profile.
- */
-export interface SplitRecipient {
-  username: string
-  validated?: boolean
-  type?: "blink" | "npub_cash"
-  weight: number
-}
+/** @deprecated Use RecipientValidationState from useSplitProfiles instead */
+export type RecipientValidation = RecipientValidationState
 
-/**
- * A split profile containing one or more recipients.
- */
-export interface SplitProfile {
-  id: string
-  name?: string
-  recipients: SplitRecipient[]
-  [key: string]: unknown
-}
-
-/**
- * Validation state for a recipient being added.
- */
-export interface RecipientValidation {
-  status: "success" | "error" | null
-  message: string
-  isValidating: boolean
-  type?: "blink" | "npub_cash"
-  address?: string
-}
+export type { SplitRecipient, SplitProfile }
 
 /**
  * Parameters for the useSplitProfileActions hook.
  */
 interface UseSplitProfileActionsParams {
   publicKey: string | null
-  authMode: string
+  authMode: AuthMode | string
   splitProfiles: SplitProfile[]
   setSplitProfiles: (value: SplitProfile[]) => void
   setActiveSplitProfile: (value: SplitProfile | null) => void
@@ -50,8 +31,8 @@ interface UseSplitProfileActionsParams {
   setSplitProfileError: (value: string | null) => void
   setTipsEnabled: (value: boolean) => void
   setTipRecipient: (value: string) => void
-  setRecipientValidation: (value: RecipientValidation) => void
-  recipientValidation: RecipientValidation
+  setRecipientValidation: (value: RecipientValidationState) => void
+  recipientValidation: RecipientValidationState
   newRecipientInput: string
   setNewRecipientInput: (value: string) => void
   newSplitProfileRecipients: SplitRecipient[]
@@ -412,7 +393,7 @@ export function useSplitProfileActions({
     if (recipientValidation.status !== "success" || !newRecipientInput.trim()) return
 
     // Use the address from validation for npub.cash, or cleaned username for Blink
-    const recipientType: "blink" | "npub_cash" = recipientValidation.type || "blink"
+    const recipientType: RecipientType = recipientValidation.type || "blink"
     let recipientAddress: string =
       recipientType === "npub_cash"
         ? recipientValidation.address || newRecipientInput.trim().toLowerCase()

@@ -3,30 +3,15 @@
  * Extracted from Dashboard.js
  */
 import { getLnAddressDomain } from "../../lib/config/api"
-
-interface SplitRecipient {
-  username: string
-  type?: string
-  share?: number
-  weight?: number
-  locked?: boolean
-  validated?: boolean
-}
-
-interface SplitProfile {
-  id: string
-  label: string
-  recipients: SplitRecipient[]
-}
-
-interface RecipientValidation {
-  status: string | null
-  message: string
-  isValidating: boolean
-}
+import type { AuthMode } from "../../lib/hooks/useCombinedAuth"
+import type {
+  SplitProfile,
+  SplitRecipient,
+  RecipientValidationState,
+} from "../../lib/hooks/useSplitProfiles"
 
 interface SplitSettingsOverlayProps {
-  authMode: string
+  authMode: AuthMode
   activeSplitProfile: SplitProfile | null
   splitProfiles: SplitProfile[]
   splitProfilesLoading: boolean
@@ -40,10 +25,10 @@ interface SplitSettingsOverlayProps {
   setNewSplitProfileLabel: (label: string) => void
   setNewSplitProfileRecipients: (recipients: SplitRecipient[]) => void
   setNewRecipientInput: (input: string) => void
-  setRecipientValidation: (validation: RecipientValidation) => void
+  setRecipientValidation: (validation: RecipientValidationState) => void
   setSplitProfileError: (error: string | null) => void
   setUseCustomWeights: (use: boolean) => void
-  deleteSplitProfile: (id: string) => Promise<void>
+  deleteSplitProfile: (id: string) => Promise<boolean | void>
   getSubmenuBgClasses: () => string
   getSubmenuHeaderClasses: () => string
   getSubmenuOptionClasses: () => string

@@ -1,18 +1,6 @@
 import Network from "../Network"
 import { SPINNER_COLORS } from "../../lib/hooks/useViewNavigation"
 
-// Network is a JS forwardRef component — TS strips its props.
-// Cast to a typed component to avoid TS2322.
-const NetworkComponent = Network as React.ComponentType<{
-  publicKey: string | null
-  nostrProfile: unknown
-  darkMode: boolean
-  theme: string
-  cycleTheme: () => void
-  hideHeader?: boolean
-  onInternalTransition?: () => void
-}>
-
 interface NetworkOverlayProps {
   publicKey: string | null
   nostrProfile: unknown
@@ -31,8 +19,6 @@ export default function NetworkOverlay({
   publicKey,
   nostrProfile,
   darkMode,
-  theme,
-  cycleTheme,
   setShowNetworkOverlay,
   setSideMenuOpen,
   setTransitionColorIndex,
@@ -69,12 +55,10 @@ export default function NetworkOverlay({
         </div>
         {/* Content */}
         <div className="flex-1 overflow-hidden">
-          <NetworkComponent
+          <Network
             publicKey={publicKey}
             nostrProfile={nostrProfile}
             darkMode={darkMode}
-            theme={theme}
-            cycleTheme={cycleTheme}
             hideHeader={true}
             onInternalTransition={() => {
               setTransitionColorIndex(

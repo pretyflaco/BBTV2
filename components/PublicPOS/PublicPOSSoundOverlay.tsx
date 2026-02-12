@@ -4,8 +4,10 @@
  * Sound theme selection: None, Success, Zelda, Free, Retro
  */
 
+import type { SoundThemeName } from "../../lib/audio-utils"
+
 interface SoundOption {
-  id: string
+  id: SoundThemeName | "none"
   label: string
   description: string
   isSelected: boolean
@@ -15,8 +17,8 @@ interface PublicPOSSoundOverlayProps {
   onClose: () => void
   soundEnabled: boolean
   setSoundEnabled: (enabled: boolean) => void
-  soundTheme: string
-  setSoundTheme: (theme: string) => void
+  soundTheme: SoundThemeName
+  setSoundTheme: (theme: SoundThemeName) => void
   getSubmenuBgClasses: () => string
   getSubmenuHeaderClasses: () => string
   getSelectionTileClasses: () => string
@@ -67,7 +69,7 @@ export default function PublicPOSSoundOverlay({
     },
   ]
 
-  const handleSelect = (optionId: string): void => {
+  const handleSelect = (optionId: SoundThemeName | "none"): void => {
     if (optionId === "none") {
       setSoundEnabled(false)
     } else {

@@ -4,7 +4,7 @@ import { getApiUrl, getEnvironment } from "../config/api"
 interface ValidationError {
   message: string
   suggestion: string
-  environment: string
+  environment: "production" | "staging"
   canSwitchEnv: boolean
 }
 

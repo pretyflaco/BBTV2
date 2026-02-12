@@ -8,40 +8,16 @@ import {
 import { getEnvironment } from "../config/api"
 import { SPINNER_COLORS } from "./useViewNavigation"
 import type { DashboardView } from "./useViewNavigation"
+import type { TransactionRecord } from "../../components/TransactionDetail"
 
 // ============================================================================
 // Interfaces
 // ============================================================================
 
 /**
- * Transaction object from Blink API
+ * @deprecated Use TransactionRecord from TransactionDetail instead
  */
-export interface Transaction {
-  id?: string
-  paymentHash?: string
-  direction: string
-  settlementAmount: number
-  settlementCurrency?: string
-  settlementFee?: number
-  status: string
-  createdAt: string
-  memo?: string
-  cursor?: string
-  date?: string
-  amount?: string
-  isNwc?: boolean
-  settlementVia?: {
-    __typename?: string
-    counterPartyUsername?: string
-    [key: string]: unknown
-  }
-  initiationVia?: {
-    __typename?: string
-    counterPartyUsername?: string
-    [key: string]: unknown
-  }
-  [key: string]: unknown
-}
+export type Transaction = TransactionRecord
 
 /**
  * Payment result from Blink or NWC
@@ -344,7 +320,7 @@ export function useTransactionActions({
       if (lastTransaction?.cursor) {
         // Load historical transactions (same logic as before, but triggered by user)
         const finalHasMore = await loadMoreHistoricalTransactions(
-          lastTransaction.cursor,
+          lastTransaction.cursor as string,
           transactions,
         )
         setHasMoreTransactions(finalHasMore)
@@ -574,7 +550,7 @@ export function useTransactionActions({
       let allTransactions: Transaction[] = [...transactions]
       let cursor: string | undefined =
         allTransactions.length > 0
-          ? allTransactions[allTransactions.length - 1]?.cursor
+          ? (allTransactions[allTransactions.length - 1]?.cursor as string | undefined)
           : undefined
       let hasMore = hasMoreTransactions
       let batchCount = 0
@@ -1162,7 +1138,7 @@ export function useTransactionActions({
           date = new Date(tx.date)
         } else {
           // Try parsing as is
-          date = new Date(tx.date || tx.createdAt)
+          date = new Date(tx.date || tx.createdAt || "")
         }
 
         // Validate the date

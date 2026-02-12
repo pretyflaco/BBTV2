@@ -9,18 +9,21 @@ export interface PosRefHandle {
   handleBackspace: () => void
   handleClear: () => void
   handleSubmit: () => void
-  hasValidAmount?: () => boolean
+  hasValidAmount: () => boolean
   handlePlusPress: () => void
+  hasInvoice: () => boolean
+  isTipDialogOpen: () => boolean
+  handleTipDialogKey: (key: string) => boolean
 }
 
 /**
  * Handle interface for Cart component ref methods
  */
 export interface CartRefHandle {
-  isCartNavActive?: () => boolean
+  isCartNavActive: () => boolean
   handleCartKey: (key: string) => boolean
-  enterLocalNav?: () => void
-  resetNavigation?: () => void
+  enterLocalNav: () => void
+  resetNavigation: () => void
 }
 
 /**

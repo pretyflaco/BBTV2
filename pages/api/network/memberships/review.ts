@@ -6,7 +6,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const db = require("../../../../lib/network/db")
+import * as db from "../../../../lib/network/db"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -83,8 +83,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       applicationId,
       reviewerNpub,
       approved,
-      rejectionReason,
+      rejectionReason ?? null,
     )
+
+    if (!updatedMembership) {
+      return res.status(500).json({
+        success: false,
+        error: "Failed to update application",
+      })
+    }
 
     console.log(
       `[Review] Application ${applicationId} ${updatedMembership.status} by ${reviewerNpub.substring(0, 20)}...`,

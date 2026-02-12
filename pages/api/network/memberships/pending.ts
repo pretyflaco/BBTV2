@@ -6,7 +6,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const db = require("../../../../lib/network/db")
+import * as db from "../../../../lib/network/db"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -62,7 +62,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Super admin sees all pending applications across all communities
       const allCommunities = await db.listCommunities()
       for (const community of allCommunities) {
-        const pending = await db.getPendingApplications(community.id)
+        const pending = await db.getPendingApplications(community.id as string)
         applications = applications.concat(pending)
       }
     } else {
@@ -70,7 +70,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const allCommunities = await db.listCommunities()
       for (const community of allCommunities) {
         if (community.leader_npub === userNpub) {
-          const pending = await db.getPendingApplications(community.id)
+          const pending = await db.getPendingApplications(community.id as string)
           applications = applications.concat(pending)
         }
       }

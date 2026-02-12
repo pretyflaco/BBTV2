@@ -21,8 +21,8 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const AuthManager = require("../../lib/auth")
-const StorageManager = require("../../lib/storage")
+import AuthManager from "../../lib/auth"
+import StorageManager from "../../lib/storage"
 
 /** Recipient in a split profile */
 interface SplitRecipient {
@@ -124,7 +124,7 @@ async function handleGet(
   const userData = await StorageManager.loadUserData(username)
 
   // Return split profiles (or empty array if none)
-  const splitProfiles = userData?.splitProfiles || []
+  const splitProfiles = (userData?.splitProfiles || []) as SplitProfile[]
   const activeSplitProfileId = userData?.activeSplitProfileId || null
 
   console.log("[split-profiles] Found", splitProfiles.length, "profiles")
@@ -189,7 +189,7 @@ async function handlePost(
 
   // Load existing data
   const userData = (await StorageManager.loadUserData(username)) || {}
-  const splitProfiles = userData.splitProfiles || []
+  const splitProfiles = (userData.splitProfiles || []) as SplitProfile[]
 
   // Generate ID if new profile
   const profileId = profile.id || require("crypto").randomUUID()
@@ -272,11 +272,11 @@ async function handleDelete(
     return res.status(404).json({ error: "No profiles found" })
   }
 
-  const splitProfiles = userData.splitProfiles.filter(
+  const splitProfiles = (userData.splitProfiles as SplitProfile[]).filter(
     (p: SplitProfile) => p.id !== profileId,
   )
 
-  if (splitProfiles.length === userData.splitProfiles.length) {
+  if (splitProfiles.length === (userData.splitProfiles as SplitProfile[]).length) {
     return res.status(404).json({ error: "Profile not found" })
   }
 

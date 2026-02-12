@@ -2,9 +2,9 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 import type { EnvironmentName } from "../../../lib/config/api"
 
-const voucherStore = require("../../../lib/voucher-store")
-const BlinkAPI = require("../../../lib/blink-api")
-const { getApiUrlForEnvironment } = require("../../../lib/config/api")
+import voucherStore from "../../../lib/voucher-store"
+import BlinkAPI from "../../../lib/blink-api"
+import { getApiUrlForEnvironment } from "../../../lib/config/api"
 
 /**
  * LNURL-withdraw callback endpoint
@@ -120,7 +120,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const apiUrl = getApiUrlForEnvironment(
         (voucher.environment || "production") as EnvironmentName,
       )
-      const blinkAPI = new BlinkAPI(voucher.apiKey, apiUrl)
+      const blinkAPI = new BlinkAPI(voucher.apiKey ?? "", apiUrl)
 
       console.log(
         "🌐 Using API environment:",

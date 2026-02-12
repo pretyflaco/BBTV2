@@ -1,8 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 import type { EnvironmentName } from "../../../lib/config/api"
 
-const voucherStore = require("../../../lib/voucher-store")
-const { isValidExpiryId, DEFAULT_EXPIRY_ID } = require("../../../lib/voucher-expiry")
+import voucherStore from "../../../lib/voucher-store"
+import { isValidExpiryId, DEFAULT_EXPIRY_ID } from "../../../lib/voucher-expiry"
 
 /**
  * API endpoint to create a new voucher charge
@@ -95,11 +95,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const voucher = await voucherStore.createVoucher(amountNum, apiKey, walletId, {
       expiryId: validExpiryId,
       commissionPercent: commissionPercent || 0,
-      displayAmount: displayAmount || null,
-      displayCurrency: displayCurrency || null,
+      displayAmount: displayAmount || undefined,
+      displayCurrency: displayCurrency || undefined,
       environment: environment,
       walletCurrency: walletCurrency,
-      usdAmount: walletCurrency === "USD" ? parseInt(String(usdAmount)) : null,
+      usdAmount: walletCurrency === "USD" ? parseInt(String(usdAmount)) : undefined,
     })
 
     console.log("✅ Voucher created successfully:", {

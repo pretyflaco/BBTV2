@@ -23,8 +23,19 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const AuthManager = require("../../../lib/auth")
-const StorageManager = require("../../../lib/storage")
+import AuthManager from "../../../lib/auth"
+import StorageManager from "../../../lib/storage"
+
+/** Cart item shape */
+interface CartItem {
+  id: string
+  name: string
+  price: number
+  currency: string
+  createdAt?: string
+  updatedAt?: string
+  [key: string]: unknown
+}
 
 /**
  * Verify request has valid NIP-98 session
@@ -157,7 +168,7 @@ async function handlePost(
 
   // Load existing data
   const userData = (await StorageManager.loadUserData(username)) || {}
-  const cartItems = userData.cartItems || []
+  const cartItems = (userData.cartItems || []) as CartItem[]
 
   // Create new item
   const newItem = {
@@ -209,7 +220,7 @@ async function handleDelete(
 
   // Load existing data
   const userData = (await StorageManager.loadUserData(username)) || {}
-  const cartItems = userData.cartItems || []
+  const cartItems = (userData.cartItems || []) as CartItem[]
 
   // Find and remove item
   const itemIndex = cartItems.findIndex((item: { id: string }) => item.id === itemId)
@@ -263,7 +274,7 @@ async function handlePatch(
 
   // Load existing data
   const userData = (await StorageManager.loadUserData(username)) || {}
-  const cartItems = userData.cartItems || []
+  const cartItems = (userData.cartItems || []) as CartItem[]
 
   // Find item
   const itemIndex = cartItems.findIndex((item: { id: string }) => item.id === itemId)

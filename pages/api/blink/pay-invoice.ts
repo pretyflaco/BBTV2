@@ -3,7 +3,7 @@ import type { NextApiRequest, NextApiResponse } from "next"
 import BlinkAPI from "../../../lib/blink-api"
 import { getApiUrlForEnvironment, type EnvironmentName } from "../../../lib/config/api"
 import type { HybridStore } from "../../../lib/storage/hybrid-store"
-const { getHybridStore } = require("../../../lib/storage/hybrid-store")
+import { getHybridStore } from "../../../lib/storage/hybrid-store"
 
 /**
  * API endpoint to pay a lightning invoice from BlinkPOS account

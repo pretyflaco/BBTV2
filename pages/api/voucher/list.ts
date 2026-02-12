@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const voucherStore = require("../../../lib/voucher-store")
+import voucherStore from "../../../lib/voucher-store"
 
 /** Shape of a voucher record from the store */
 interface VoucherRecord {
@@ -12,7 +12,7 @@ interface VoucherRecord {
   expiresAt?: number | null
   expiryId?: string | null
   cancelledAt?: number | null
-  displayAmount?: number | null
+  displayAmount?: string | null
   displayCurrency?: string | null
   commissionPercent?: number
   status: string

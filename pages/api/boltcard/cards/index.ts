@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const boltcard = require("../../../../lib/boltcard")
+import * as boltcard from "../../../../lib/boltcard"
 
 /**
  * API endpoint to list user's Boltcards
@@ -22,7 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { ownerPubkey } = req.query
+    const ownerPubkey = req.query.ownerPubkey as string | undefined
 
     if (!ownerPubkey) {
       return res.status(400).json({
@@ -31,7 +31,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Validate pubkey format (64 hex chars)
-    if (!/^[0-9a-fA-F]{64}$/.test(ownerPubkey as string)) {
+    if (!/^[0-9a-fA-F]{64}$/.test(ownerPubkey)) {
       return res.status(400).json({
         error: "Invalid ownerPubkey format: expected 64 hex characters",
       })

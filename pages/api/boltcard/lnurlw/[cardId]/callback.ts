@@ -1,11 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 import type { EnvironmentName } from "../../../../../lib/config/api"
 
-const boltcard = require("../../../../../lib/boltcard")
-const BlinkAPI =
-  require("../../../../../lib/blink-api").default ||
-  require("../../../../../lib/blink-api")
-const { getApiUrlForEnvironment } = require("../../../../../lib/config/api")
+import * as boltcard from "../../../../../lib/boltcard"
+import BlinkAPI from "../../../../../lib/blink-api"
+import { getApiUrlForEnvironment } from "../../../../../lib/config/api"
 
 /**
  * LNURL-withdraw callback endpoint
@@ -23,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ status: "ERROR", reason: "Method not allowed" })
   }
 
-  const { cardId } = req.query
+  const cardId = req.query.cardId as string | undefined
 
   if (!cardId) {
     return res.status(400).json({ status: "ERROR", reason: "Missing cardId" })
@@ -31,8 +29,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // LNURL-withdraw callback parameters (support both query and body)
-    const k1 = req.body?.k1 || req.query.k1
-    const pr = req.body?.pr || req.query.pr
+    const k1 = (req.body?.k1 || req.query.k1) as string | undefined
+    const pr = (req.body?.pr || req.query.pr) as string | undefined
 
     if (!pr) {
       return res.status(400).json({

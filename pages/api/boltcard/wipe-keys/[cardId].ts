@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const boltcard = require("../../../../lib/boltcard")
-const AuthManager = require("../../../../lib/auth")
+import * as boltcard from "../../../../lib/boltcard"
+import AuthManager from "../../../../lib/auth"
 
 /**
  * API endpoint to get wipe keys for a registered Boltcard
@@ -54,7 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" })
   }
 
-  const { cardId } = req.query
+  const cardId = req.query.cardId as string | undefined
 
   if (!cardId) {
     return res.status(400).json({ error: "Missing cardId" })

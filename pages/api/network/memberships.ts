@@ -6,7 +6,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const db = require("../../../lib/network/db")
+import * as db from "../../../lib/network/db"
 
 interface MembershipRecord {
   id: string | null
@@ -59,46 +59,52 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (isSuperAdmin) {
       const allCommunities = await db.listCommunities()
       const memberCommunityIds = new Set(
-        memberships.map((m: MembershipRecord) => m.community_id),
+        (memberships as unknown as MembershipRecord[]).map(
+          (m: MembershipRecord) => m.community_id,
+        ),
       )
 
       // Add admin view for communities they're not already a member of
-      allCommunities.forEach((community: CommunityRecord) => {
-        if (!memberCommunityIds.has(community.id)) {
-          memberships.push({
-            id: null, // No membership record yet
-            community_id: community.id,
-            community_name: community.name,
-            community_slug: community.slug,
-            user_npub: userNpub,
-            role: "admin",
-            status: "approved",
-            member_count: community.member_count || community.member_count_live || 0,
-            data_sharing_member_count: community.data_sharing_member_count || 0,
-            applied_at: null,
-            approved_at: null,
-            consent_given: false,
-          })
-        }
-      })
+      ;(allCommunities as unknown as CommunityRecord[]).forEach(
+        (community: CommunityRecord) => {
+          if (!memberCommunityIds.has(community.id)) {
+            memberships.push({
+              id: null, // No membership record yet
+              community_id: community.id,
+              community_name: community.name,
+              community_slug: community.slug,
+              user_npub: userNpub,
+              role: "admin",
+              status: "approved",
+              member_count: community.member_count || community.member_count_live || 0,
+              data_sharing_member_count: community.data_sharing_member_count || 0,
+              applied_at: null,
+              approved_at: null,
+              consent_given: false,
+            })
+          }
+        },
+      )
     }
 
     // Get consent status for each membership
     const membershipsWithConsent = await Promise.all(
-      memberships.map(async (membership: MembershipRecord) => {
-        if (!membership.id) {
-          // Admin view without actual membership
-          return membership
-        }
+      (memberships as unknown as MembershipRecord[]).map(
+        async (membership: MembershipRecord) => {
+          if (!membership.id) {
+            // Admin view without actual membership
+            return membership
+          }
 
-        const consent = await db.getConsent(membership.id)
-        return {
-          ...membership,
-          consent_given: consent?.consent_given || false,
-          sync_status: consent?.sync_status || null,
-          last_sync_at: consent?.last_sync_at || null,
-        }
-      }),
+          const consent = await db.getConsent(membership.id)
+          return {
+            ...membership,
+            consent_given: consent?.consent_given || false,
+            sync_status: consent?.sync_status || null,
+            last_sync_at: consent?.last_sync_at || null,
+          }
+        },
+      ),
     )
 
     return res.status(200).json({

@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const tipStore = require("../../../lib/tip-store")
+import tipStore from "../../../lib/tip-store"
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "GET") {

@@ -13,13 +13,13 @@ import type { HybridStore } from "../../../lib/storage/hybrid-store"
 
 import BlinkAPI from "../../../lib/blink-api"
 import { getInvoiceFromLightningAddress } from "../../../lib/lnurl"
-const { getHybridStore } = require("../../../lib/storage/hybrid-store")
-const {
+import { getHybridStore } from "../../../lib/storage/hybrid-store"
+import {
   formatCurrencyServer,
   isBitcoinCurrency,
-} = require("../../../lib/currency-formatter-server")
+} from "../../../lib/currency-formatter-server"
 import type { EnvironmentName } from "../../../lib/config/api"
-const { getApiUrl, getApiUrlForEnvironment } = require("../../../lib/config/api")
+import { getApiUrl, getApiUrlForEnvironment } from "../../../lib/config/api"
 
 interface ApiTipRecipient {
   username: string

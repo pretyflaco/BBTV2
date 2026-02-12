@@ -19,13 +19,13 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const BlinkAPI = require("../../../lib/blink-api")
-const { getCitrusrateAPI } = require("../../../lib/rate-providers/citrusrate")
-const {
+import BlinkAPI from "../../../lib/blink-api"
+import { getCitrusrateAPI } from "../../../lib/rate-providers/citrusrate"
+import {
   getProviderForCurrency,
   getBaseCurrency,
-} = require("../../../lib/rate-providers/index")
-const { getCachedRate, setCachedRate } = require("../../../lib/rate-providers/cache")
+} from "../../../lib/rate-providers/index"
+import { getCachedRate, setCachedRate } from "../../../lib/rate-providers/cache"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {

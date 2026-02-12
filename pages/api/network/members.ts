@@ -7,7 +7,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const db = require("../../../lib/network/db")
+import * as db from "../../../lib/network/db"
 
 interface MemberRecord {
   id: string
@@ -73,7 +73,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       return res.status(200).json({
         success: true,
-        members: members.map((m: MemberRecord) => ({
+        members: (members as unknown as MemberRecord[]).map((m: MemberRecord) => ({
           id: m.id,
           user_npub: m.user_npub,
           role: m.role,

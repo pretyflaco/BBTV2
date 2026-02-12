@@ -13,7 +13,7 @@ import type { NextApiRequest, NextApiResponse } from "next"
  */
 
 import type { EnvironmentName } from "../../../lib/config/api"
-const BlinkAPI = require("../../../lib/blink-api")
+import BlinkAPI from "../../../lib/blink-api"
 
 // API URLs for each environment
 const API_URLS: Record<string, string> = {

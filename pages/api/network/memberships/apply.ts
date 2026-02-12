@@ -6,7 +6,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const db = require("../../../../lib/network/db")
+import * as db from "../../../../lib/network/db"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -64,8 +64,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const membership = await db.applyToJoinCommunity(
       communityId,
       userNpub,
-      userPubkeyHex,
-      applicationNote,
+      userPubkeyHex ?? "",
+      applicationNote ?? null,
     )
 
     return res.status(200).json({

@@ -33,10 +33,10 @@ import type { EnvironmentName } from "../../../lib/config/api"
  * }
  */
 
-const boltcardStore = require("../../../lib/boltcard/store")
-const boltcardCrypto = require("../../../lib/boltcard/crypto")
-const lnurlw = require("../../../lib/boltcard/lnurlw")
-const lnurlp = require("../../../lib/boltcard/lnurlp")
+import boltcardStore from "../../../lib/boltcard/store"
+import * as boltcardCrypto from "../../../lib/boltcard/crypto"
+import * as lnurlw from "../../../lib/boltcard/lnurlw"
+import * as lnurlp from "../../../lib/boltcard/lnurlp"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -162,8 +162,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       options,
     )
 
+    if (!card) {
+      return res.status(500).json({ error: "Failed to create card" })
+    }
+
     // Get card with keys for response
     const cardWithKeys = await boltcardStore.getCard(card.id, true)
+
+    if (!cardWithKeys) {
+      return res.status(500).json({ error: "Failed to retrieve created card" })
+    }
 
     // Generate QR codes for programming and top-up
     const qrCodes = generateCardQRs(serverUrl, cardWithKeys)
@@ -232,19 +240,19 @@ interface CardWithKeys {
   id: string
   cardUid: string
   cardIdHash: string
-  name: string
+  name: string | null
   walletCurrency: string
   balance: number
   maxTxAmount: number | null
   dailyLimit: number | null
   status: string
   version: number
-  createdAt: string
-  k0: string
-  k1: string
-  k2: string
-  k3: string
-  k4: string
+  createdAt: string | number
+  k0?: string | null
+  k1?: string | null
+  k2?: string | null
+  k3?: string | null
+  k4?: string | null
 }
 
 function generateCardQRs(serverUrl: string, card: CardWithKeys) {
@@ -254,11 +262,11 @@ function generateCardQRs(serverUrl: string, card: CardWithKeys) {
 
   // Keys response for NFC Programmer (can be used in alternative flow)
   const keysResponse = boltcardCrypto.generateKeysResponse(lnurlwUrl, {
-    k0: card.k0,
-    k1: card.k1,
-    k2: card.k2,
-    k3: card.k3,
-    k4: card.k4,
+    k0: card.k0 ?? "",
+    k1: card.k1 ?? "",
+    k2: card.k2 ?? "",
+    k3: card.k3 ?? "",
+    k4: card.k4 ?? "",
   })
 
   // LNURL-pay for top-up

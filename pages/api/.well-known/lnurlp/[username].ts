@@ -9,7 +9,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const BlinkAPI = require("../../../../lib/blink-api")
+import BlinkAPI from "../../../../lib/blink-api"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {

@@ -5,6 +5,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 import { getHybridStore } from "../../lib/storage/hybrid-store"
+import voucherStore from "../../lib/voucher-store"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const startTime = Date.now()
@@ -71,7 +72,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Check voucher store (PostgreSQL)
     try {
-      const voucherStore = require("../../lib/voucher-store")
       const voucherStats = await voucherStore.getStats()
       health.checks.vouchers = {
         status: "up",

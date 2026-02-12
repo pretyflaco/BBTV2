@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const boltcard = require("../../../lib/boltcard")
-const AuthManager = require("../../../lib/auth")
+import * as boltcard from "../../../lib/boltcard"
+import AuthManager from "../../../lib/auth"
 
 /**
  * API endpoint to recover wipe keys for an orphaned Boltcard

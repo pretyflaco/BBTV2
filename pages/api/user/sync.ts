@@ -23,8 +23,8 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const AuthManager = require("../../../lib/auth")
-const StorageManager = require("../../../lib/storage")
+import AuthManager from "../../../lib/auth"
+import StorageManager from "../../../lib/storage"
 
 /** Blink API account shape for sync */
 interface BlinkApiAccount {
@@ -223,7 +223,7 @@ async function handleGet(
   }
 
   // Decrypt Blink API account API keys for the client
-  const blinkApiAccounts = (userData.blinkApiAccounts || []).map(
+  const blinkApiAccounts = ((userData.blinkApiAccounts || []) as BlinkApiAccount[]).map(
     (account: BlinkApiAccount) => ({
       ...account,
       apiKey: decryptSensitiveData(account.apiKey),
@@ -231,15 +231,18 @@ async function handleGet(
   )
 
   // Decrypt NWC connection URIs for the client
-  const nwcConnections = (userData.nwcConnections || []).map((conn: NWCConnection) => ({
-    ...conn,
-    uri: decryptNWCUri(conn.uri),
-  }))
+  const nwcConnections = ((userData.nwcConnections || []) as NWCConnection[]).map(
+    (conn: NWCConnection) => ({
+      ...conn,
+      uri: decryptNWCUri(conn.uri),
+    }),
+  )
 
   // Decrypt Voucher Wallet API key for the client
   let voucherWallet = null
   if (userData.voucherWallet) {
-    const encryptedApiKey = userData.voucherWallet.apiKey
+    const vw = userData.voucherWallet as VoucherWalletData
+    const encryptedApiKey = vw.apiKey
     const decryptedApiKey = decryptSensitiveData(encryptedApiKey)
     console.log(
       "[user/sync] voucherWallet found, encrypted apiKey length:",

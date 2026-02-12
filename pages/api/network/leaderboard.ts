@@ -9,7 +9,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const db = require("../../../lib/network/db")
+import * as db from "../../../lib/network/db"
 
 /** Community data from database */
 interface CommunityData {
@@ -129,44 +129,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Build leaderboard with real metrics from database
     const leaderboard: LeaderboardEntry[] = await Promise.all(
-      communitiesData.map(async (community: CommunityData) => {
-        // Get member count from database
-        const memberCount = await db.getMemberCount(community.id)
+      (communitiesData as unknown as CommunityData[]).map(
+        async (community: CommunityData) => {
+          // Get member count from database
+          const memberCount = await db.getMemberCount(community.id)
 
-        // Get data sharing count from database
-        const dataSharingCount = await db.getConsentCount(community.id)
+          // Get data sharing count from database
+          const dataSharingCount = await db.getConsentCount(community.id)
 
-        // Calculate metrics for the period from database
-        const metrics = await db.calculateMetricsForPeriod(
-          community.id,
-          periodRange.start,
-          periodRange.end,
-        )
+          // Calculate metrics for the period from database
+          const metrics = await db.calculateMetricsForPeriod(
+            community.id,
+            periodRange.start,
+            periodRange.end,
+          )
 
-        // Get BTC preference for the community
-        const btcPreference = await db.getCommunityBitcoinPreference(
-          community.id,
-          periodRange.end,
-        )
+          // Get BTC preference for the community
+          const btcPreference = await db.getCommunityBitcoinPreference(
+            community.id,
+            periodRange.end,
+          )
 
-        return {
-          id: community.id,
-          name: community.name,
-          slug: community.slug,
-          country_code: community.country_code,
-          city: community.city,
-          leader_npub: community.leader_npub,
-          member_count: memberCount,
-          data_sharing_count: dataSharingCount,
-          transaction_count: metrics.transaction_count,
-          transaction_volume_sats: metrics.total_volume_sats,
-          intra_community_count: metrics.intra_community_count,
-          closed_loop_ratio: metrics.closed_loop_ratio,
-          velocity: metrics.velocity,
-          avg_tx_size: metrics.avg_tx_size,
-          btc_preference_pct: btcPreference.btc_preference_pct,
-        }
-      }),
+          return {
+            id: community.id,
+            name: community.name,
+            slug: community.slug,
+            country_code: community.country_code,
+            city: community.city,
+            leader_npub: community.leader_npub,
+            member_count: memberCount,
+            data_sharing_count: dataSharingCount,
+            transaction_count: metrics.transaction_count,
+            transaction_volume_sats: metrics.total_volume_sats,
+            intra_community_count: metrics.intra_community_count,
+            closed_loop_ratio: metrics.closed_loop_ratio,
+            velocity: metrics.velocity,
+            avg_tx_size: metrics.avg_tx_size,
+            btc_preference_pct: btcPreference.btc_preference_pct ?? 0,
+          }
+        },
+      ),
     )
 
     // Add milestones

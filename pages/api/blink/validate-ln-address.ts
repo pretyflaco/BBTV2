@@ -1,5 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
+import {
+  getApiUrl,
+  getAllValidDomains,
+  getLnAddressDomain,
+} from "../../../lib/config/api"
+
 /**
  * API endpoint to validate a Blink Lightning Address and get wallet ID
  *
@@ -9,12 +15,6 @@ import type { NextApiRequest, NextApiResponse } from "next"
  *
  * Used for connecting wallets via Lightning Address instead of API key.
  */
-
-const {
-  getApiUrl,
-  getAllValidDomains,
-  getLnAddressDomain,
-} = require("../../../lib/config/api")
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {

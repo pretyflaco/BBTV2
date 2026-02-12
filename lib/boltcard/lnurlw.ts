@@ -20,6 +20,7 @@
  */
 
 import { bech32 } from "bech32"
+import type { EnvironmentName } from "../config/api"
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const boltcardStore = require("./store")
@@ -95,7 +96,7 @@ type PayInvoiceFn = (
   amount: number,
   invoice: string,
   apiKey: string,
-  environment: string,
+  environment: EnvironmentName,
   walletCurrency: string,
 ) => Promise<PayInvoiceResult>
 
@@ -453,7 +454,7 @@ async function handleWithdrawCallback(
     invoiceAmount.sats,
     invoice,
     card.apiKey as string,
-    card.environment,
+    card.environment as EnvironmentName,
     card.walletCurrency,
   )
 

@@ -19,9 +19,9 @@ import type { EnvironmentName } from "../../../lib/config/api"
  * Response includes a 'warning' field if card balance exceeds wallet balance (soft limit).
  */
 
-const boltcard = require("../../../lib/boltcard")
-const BlinkAPI = require("../../../lib/blink-api")
-const { getApiUrlForEnvironment } = require("../../../lib/config/api")
+import * as boltcard from "../../../lib/boltcard"
+import BlinkAPI from "../../../lib/blink-api"
+import { getApiUrlForEnvironment } from "../../../lib/config/api"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {

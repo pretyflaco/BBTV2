@@ -1,10 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const AuthManager = require("../../../lib/auth")
-const StorageManager = require("../../../lib/storage")
-const BlinkAPI = require("../../../lib/blink-api")
+import AuthManager from "../../../lib/auth"
+import StorageManager from "../../../lib/storage"
+import BlinkAPI from "../../../lib/blink-api"
 import type { EnvironmentName } from "../../../lib/config/api"
-const { getApiUrlForEnvironment } = require("../../../lib/config/api")
+import { getApiUrlForEnvironment } from "../../../lib/config/api"
 
 /**
  * Transactions API - Supports both legacy and Nostr authentication
@@ -87,7 +87,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Format transactions for display (preserving all raw data for CSV export)
     const formattedTransactions = transactionData.edges.map(
       (edge: { node: Record<string, unknown>; cursor: string }) => {
-        const tx = edge.node
+        const tx = edge.node as Record<string, unknown> & {
+          settlementAmount: number
+          direction: string
+          settlementCurrency: string
+        }
         return {
           // Display fields (for UI)
           id: tx.id,
@@ -95,7 +99,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           status: tx.status,
           amount: BlinkAPI.getTransactionAmount(tx),
           currency: tx.settlementCurrency,
-          date: BlinkAPI.formatDate(tx.createdAt),
+          date: BlinkAPI.formatDate(tx.createdAt as string),
           memo: tx.memo || "-",
           cursor: edge.cursor,
           // Raw fields (for CSV export) - pass through all data

@@ -4,11 +4,11 @@ import type { HybridStore } from "../../../lib/storage/hybrid-store"
 import BlinkAPI from "../../../lib/blink-api"
 import { getInvoiceFromLightningAddress, isNpubCashAddress } from "../../../lib/lnurl"
 import { getApiUrlForEnvironment, type EnvironmentName } from "../../../lib/config/api"
-const { getHybridStore } = require("../../../lib/storage/hybrid-store")
-const {
+import { getHybridStore } from "../../../lib/storage/hybrid-store"
+import {
   formatCurrencyServer,
   isBitcoinCurrency,
-} = require("../../../lib/currency-formatter-server")
+} from "../../../lib/currency-formatter-server"
 
 interface ApiTipRecipient {
   username: string

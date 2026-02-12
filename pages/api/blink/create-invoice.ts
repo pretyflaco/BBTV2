@@ -2,8 +2,8 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 import BlinkAPI from "../../../lib/blink-api"
 import { getApiUrlForEnvironment, type EnvironmentName } from "../../../lib/config/api"
-const AuthManager = require("../../../lib/auth")
-const { getHybridStore } = require("../../../lib/storage/hybrid-store")
+import AuthManager from "../../../lib/auth"
+import { getHybridStore } from "../../../lib/storage/hybrid-store"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -188,12 +188,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           baseAmount: baseAmount || numericAmount,
           tipAmount: tipAmount || 0,
           tipPercent: tipPercent || 0,
-          tipRecipients: tipRecipients || [], // Array of { username, share }
-          userApiKey: apiKey || null, // May be null for NWC-only, LN Address, or npub.cash users
-          userWalletId: userWalletId || walletId || null, // May be null for NWC-only, LN Address, or npub.cash users
+          tipRecipients: (tipRecipients || []).map((r) => ({
+            username: r.username,
+            share: r.share ?? 100,
+          })),
+          userApiKey: apiKey || undefined, // May be undefined for NWC-only, LN Address, or npub.cash users
+          userWalletId: userWalletId || walletId || undefined, // May be undefined for NWC-only, LN Address, or npub.cash users
           displayCurrency: displayCurrency || "BTC", // Store display currency for tip memo
-          baseAmountDisplay: baseAmountDisplay, // Base amount in display currency
-          tipAmountDisplay: tipAmountDisplay, // Tip amount in display currency
+          baseAmountDisplay:
+            baseAmountDisplay != null ? String(baseAmountDisplay) : undefined,
+          tipAmountDisplay:
+            tipAmountDisplay != null ? String(tipAmountDisplay) : undefined,
           memo: memo,
           nwcActive: !!nwcActive, // Flag for NWC forwarding
           nwcConnectionUri: encryptedNwcUri, // Encrypted NWC connection string for server-side forwarding

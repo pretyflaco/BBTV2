@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const boltcard = require("../../../../lib/boltcard")
+import * as boltcard from "../../../../lib/boltcard"
 
 /**
  * API endpoint for individual Boltcard management
@@ -18,7 +18,7 @@ const boltcard = require("../../../../lib/boltcard")
  * - Actions: activate, disable, enable, topup
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { cardId } = req.query
+  const cardId = req.query.cardId as string | undefined
 
   if (!cardId) {
     return res.status(400).json({ error: "Missing cardId" })
@@ -26,13 +26,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   switch (req.method) {
     case "GET":
-      return handleGet(req, res, cardId as string)
+      return handleGet(req, res, cardId)
     case "PUT":
-      return handleUpdate(req, res, cardId as string)
+      return handleUpdate(req, res, cardId)
     case "DELETE":
-      return handleDelete(req, res, cardId as string)
+      return handleDelete(req, res, cardId)
     case "POST":
-      return handleAction(req, res, cardId as string)
+      return handleAction(req, res, cardId)
     default:
       return res.status(405).json({ error: "Method not allowed" })
   }

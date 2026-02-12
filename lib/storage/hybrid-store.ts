@@ -72,6 +72,7 @@ interface TipDataInput {
   npubCashLightningAddress?: string | null
   environment?: string
   forwardingType?: string
+  createdAt?: number
 }
 
 interface StoredPaymentData {

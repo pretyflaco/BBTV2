@@ -44,10 +44,10 @@ import type { NextApiRequest, NextApiResponse } from "next"
  * - Paid top-ups are automatically credited to the card balance
  */
 
-const boltcard = require("../../../../lib/boltcard")
+import * as boltcard from "../../../../lib/boltcard"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { cardId } = req.query
+  const cardId = req.query.cardId as string | undefined
 
   if (!cardId) {
     return res.status(400).json({ status: "ERROR", reason: "Missing cardId" })
@@ -57,7 +57,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ status: "ERROR", reason: "Method not allowed" })
   }
 
-  return handleBalanceGet(req, res, cardId as string)
+  return handleBalanceGet(req, res, cardId)
 }
 
 /**
@@ -69,7 +69,8 @@ async function handleBalanceGet(
   cardId: string,
 ) {
   try {
-    const { p: piccData, c: sunMac } = req.query
+    const piccData = req.query.p as string | undefined
+    const sunMac = req.query.c as string | undefined
 
     console.log(`[BALANCE] Balance request for card: ${cardId}`)
 
@@ -82,14 +83,14 @@ async function handleBalanceGet(
     }
 
     // Validate parameter formats
-    if (!/^[0-9a-fA-F]{32}$/.test(piccData as string)) {
+    if (!/^[0-9a-fA-F]{32}$/.test(piccData)) {
       return res.status(400).json({
         status: "ERROR",
         reason: `Invalid PICCData format: expected 32 hex characters`,
       })
     }
 
-    if (!/^[0-9a-fA-F]{16}$/.test(sunMac as string)) {
+    if (!/^[0-9a-fA-F]{16}$/.test(sunMac)) {
       return res.status(400).json({
         status: "ERROR",
         reason: `Invalid SunMAC format: expected 16 hex characters`,

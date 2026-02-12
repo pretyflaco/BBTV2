@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const boltcard = require("../../../lib/boltcard")
+import * as boltcard from "../../../lib/boltcard"
 
 /**
  * Webhook endpoint for Boltcard payment notifications

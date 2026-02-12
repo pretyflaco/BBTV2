@@ -8,7 +8,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const db = require("../../../lib/network/db")
+import * as db from "../../../lib/network/db"
 import BlinkAPI from "../../../lib/blink-api"
 
 // Simple encryption for API keys (in production, use proper encryption)
@@ -56,7 +56,7 @@ async function isUserMemberOfCommunity(
 
     // Check if user has approved membership
     const membership = await db.getMembership(communityId, userNpub)
-    return membership && membership.status === "approved"
+    return !!membership && membership.status === "approved"
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error"
     console.error("Error checking membership:", message)
@@ -106,14 +106,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }[] = []
 
         for (const membership of memberships) {
-          const consent = await db.getConsentByUser(membership.community_id, userNpub)
+          const consent = await db.getConsentByUser(
+            membership.community_id as string,
+            userNpub,
+          )
           if (consent) {
             consents.push({
-              id: consent.id,
-              community_id: membership.community_id,
+              id: consent.id as string,
+              community_id: membership.community_id as string,
               status: consent.consent_given ? "active" : "inactive",
-              blink_username: consent.blink_username,
-              consented_at: consent.consented_at,
+              blink_username: consent.blink_username as string,
+              consented_at: consent.consented_at as string,
             })
           }
         }
@@ -184,12 +187,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         membership = await db.applyToJoinCommunity(
           communityId,
           userNpub,
-          null,
+          null as unknown as string,
           "Super admin auto-join for data sharing",
         )
         // Auto-approve the super admin
         if (membership) {
-          membership = await db.reviewApplication(membership.id, userNpub, true, null)
+          membership = await db.reviewApplication(
+            membership.id as string,
+            userNpub,
+            true,
+            null,
+          )
         }
       }
 
@@ -226,7 +234,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const encryptedKey = encryptApiKey(apiKey)
 
       const consent = await db.createOrUpdateConsent(
-        membership.id, // membershipId
+        membership.id as string, // membershipId
         userNpub,
         communityId,
         {
@@ -285,7 +293,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // Revoke consent by setting consent_given to false
       const consent = await db.createOrUpdateConsent(
-        membership.id, // membershipId
+        membership.id as string, // membershipId
         userNpub,
         communityId,
         {

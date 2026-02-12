@@ -27,16 +27,16 @@ import { getInvoiceFromLightningAddress } from "../../../lib/lnurl"
 import NWCClient from "../../../lib/nwc/NWCClient"
 import type { NWCResponse, MakeInvoiceResult } from "../../../lib/nwc/NWCClient"
 import type { HybridStore } from "../../../lib/storage/hybrid-store"
-const AuthManager = require("../../../lib/auth")
-const { getHybridStore } = require("../../../lib/storage/hybrid-store")
-const {
+import AuthManager from "../../../lib/auth"
+import { getHybridStore } from "../../../lib/storage/hybrid-store"
+import {
   formatCurrencyServer,
   isBitcoinCurrency,
-} = require("../../../lib/currency-formatter-server")
+} from "../../../lib/currency-formatter-server"
 import type { EnvironmentName } from "../../../lib/config/api"
-const { getApiUrlForEnvironment } = require("../../../lib/config/api")
+import { getApiUrlForEnvironment } from "../../../lib/config/api"
 // Import boltcard LNURL-pay for top-up processing
-const boltcardLnurlp = require("../../../lib/boltcard/lnurlp")
+import * as boltcardLnurlp from "../../../lib/boltcard/lnurlp"
 
 /** Result of forwarding a payment */
 interface ForwardResult {
@@ -903,10 +903,6 @@ async function sendTips(
   tipRecipients: TipRecipient[],
   forwardingData: ForwardingData,
 ): Promise<TipResult> {
-  const {
-    formatCurrencyServer: formatCurrency,
-  } = require("../../../lib/currency-formatter-server")
-
   const displayCurrency = forwardingData.displayCurrency || "BTC"
   const tipAmountDisplay = forwardingData.tipAmountDisplay || tipAmount
 
@@ -967,7 +963,10 @@ async function sendTips(
     if (isBitcoinCurrency(displayCurrency)) {
       tipMemo = `BlinkPOS Tip${splitInfo}: ${recipientTipAmount} sats`
     } else {
-      const formattedAmount = formatCurrency(recipientDisplayAmount, displayCurrency)
+      const formattedAmount = formatCurrencyServer(
+        recipientDisplayAmount,
+        displayCurrency,
+      )
       tipMemo = `BlinkPOS Tip${splitInfo}: ${formattedAmount} (${recipientTipAmount} sats)`
     }
 

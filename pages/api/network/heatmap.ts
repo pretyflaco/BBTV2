@@ -6,7 +6,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const db = require("../../../lib/network/db")
+import * as db from "../../../lib/network/db"
 
 /** Community data from database */
 interface CommunityData {
@@ -87,36 +87,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Build community data with real metrics
     const communities = await Promise.all(
-      communitiesData.map(async (community: CommunityData) => {
-        // Get member count from database
-        const memberCount = await db.getMemberCount(community.id)
+      (communitiesData as unknown as CommunityData[]).map(
+        async (community: CommunityData) => {
+          // Get member count from database
+          const memberCount = await db.getMemberCount(community.id)
 
-        // Get consent count from database
-        const consentCount = await db.getConsentCount(community.id)
+          // Get consent count from database
+          const consentCount = await db.getConsentCount(community.id)
 
-        // Calculate metrics from database
-        const metrics = await db.calculateMetricsForPeriod(community.id, start, end)
+          // Calculate metrics from database
+          const metrics = await db.calculateMetricsForPeriod(community.id, start, end)
 
-        // Calculate intensity score
-        const intensity = calculateIntensity(metrics, memberCount)
+          // Calculate intensity score
+          const intensity = calculateIntensity(metrics, memberCount)
 
-        return {
-          id: community.id,
-          name: community.name,
-          slug: community.slug,
-          latitude: parseFloat(community.latitude) || 0,
-          longitude: parseFloat(community.longitude) || 0,
-          country_code: community.country_code,
-          city: community.city,
-          region: community.region,
-          member_count: memberCount,
-          data_sharing_count: consentCount,
-          transaction_count: metrics.transaction_count,
-          volume_sats: metrics.total_volume_sats,
-          closed_loop_ratio: metrics.closed_loop_ratio,
-          intensity_score: intensity,
-        }
-      }),
+          return {
+            id: community.id,
+            name: community.name,
+            slug: community.slug,
+            latitude: parseFloat(community.latitude) || 0,
+            longitude: parseFloat(community.longitude) || 0,
+            country_code: community.country_code,
+            city: community.city,
+            region: community.region,
+            member_count: memberCount,
+            data_sharing_count: consentCount,
+            transaction_count: metrics.transaction_count,
+            volume_sats: metrics.total_volume_sats,
+            closed_loop_ratio: metrics.closed_loop_ratio,
+            intensity_score: intensity,
+          }
+        },
+      ),
     )
 
     // Filter out communities without valid coordinates

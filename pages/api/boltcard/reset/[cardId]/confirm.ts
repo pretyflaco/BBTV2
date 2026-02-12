@@ -13,7 +13,7 @@ import type { NextApiRequest, NextApiResponse } from "next"
  * { status: 'OK' }
  */
 
-const boltcardStore = require("../../../../../lib/boltcard/store")
+import boltcardStore from "../../../../../lib/boltcard/store"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Set CORS headers for NFC Programmer app
@@ -33,7 +33,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 
-  const { cardId } = req.query
+  const cardId = req.query.cardId as string | undefined
 
   if (!cardId) {
     return res.status(400).json({

@@ -1,11 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
+import { getApiUrl } from "../../../lib/config/api"
+
 /**
  * API endpoint to fetch the list of supported currencies from Blink
  * This is a public query and doesn't require authentication
  */
-
-const { getApiUrl } = require("../../../lib/config/api")
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {

@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const voucherStore = require("../../../../lib/voucher-store")
+import voucherStore from "../../../../lib/voucher-store"
 
 /**
  * API endpoint to check voucher status

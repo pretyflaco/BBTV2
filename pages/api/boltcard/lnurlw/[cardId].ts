@@ -1,10 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 import type { EnvironmentName } from "../../../../lib/config/api"
 
-const boltcard = require("../../../../lib/boltcard")
-const BlinkAPI =
-  require("../../../../lib/blink-api").default || require("../../../../lib/blink-api")
-const { getApiUrlForEnvironment } = require("../../../../lib/config/api")
+import * as boltcard from "../../../../lib/boltcard"
+import BlinkAPI from "../../../../lib/blink-api"
+import { getApiUrlForEnvironment } from "../../../../lib/config/api"
 
 /**
  * LNURL-withdraw endpoint for Boltcard payments (card tap)
@@ -54,7 +53,7 @@ async function handleWithdrawGet(
   cardId: string,
 ) {
   try {
-    const { p: piccData, c: sunMac } = req.query
+    const { p: piccData, c: sunMac } = req.query as { p?: string; c?: string }
 
     // Check if this is a browser request - redirect to cardholder balance page
     // Browsers send Accept headers like "text/html,application/xhtml+xml,..."

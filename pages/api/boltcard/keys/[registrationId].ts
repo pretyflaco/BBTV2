@@ -27,9 +27,9 @@ import type { NextApiRequest, NextApiResponse } from "next"
  * - https://github.com/boltcard/boltcard/blob/main/docs/DEEPLINK.md
  */
 
-const boltcardStore = require("../../../../lib/boltcard/store")
-const boltcardCrypto = require("../../../../lib/boltcard/crypto")
-const lnurlw = require("../../../../lib/boltcard/lnurlw")
+import boltcardStore from "../../../../lib/boltcard/store"
+import * as boltcardCrypto from "../../../../lib/boltcard/crypto"
+import * as lnurlw from "../../../../lib/boltcard/lnurlw"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Enhanced logging for debugging NFC Programmer app requests
@@ -81,7 +81,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 
-  const { registrationId } = req.query
+  const registrationId = req.query.registrationId as string | undefined
 
   if (!registrationId) {
     return res.status(400).json({
@@ -156,11 +156,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const keysResponse = boltcardCrypto.generateKeysResponse(
       lnurlwUrl,
       {
-        k0: card.k0,
-        k1: card.k1,
-        k2: card.k2,
-        k3: card.k3,
-        k4: card.k4,
+        k0: card.k0 ?? "",
+        k1: card.k1 ?? "",
+        k2: card.k2 ?? "",
+        k3: card.k3 ?? "",
+        k4: card.k4 ?? "",
       },
       card.name || "Boltcard",
     )

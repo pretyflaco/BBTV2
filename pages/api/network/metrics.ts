@@ -8,7 +8,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const db = require("../../../lib/network/db")
+import * as db from "../../../lib/network/db"
 
 /**
  * Get date range for a period
@@ -129,7 +129,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Get Bitcoin Preference metric (latest snapshot)
     let bitcoinPreference: {
       has_data: boolean
-      btc_preference_pct: number
+      btc_preference_pct: number | null
       total_btc_sats: number
       total_stablesats_sats: number
       total_balance_sats: number

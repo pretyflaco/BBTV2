@@ -1,10 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 import type { EnvironmentName } from "../../../../lib/config/api"
 
-const boltcard = require("../../../../lib/boltcard")
-const BlinkAPI =
-  require("../../../../lib/blink-api").default || require("../../../../lib/blink-api")
-const { getApiUrlForEnvironment } = require("../../../../lib/config/api")
+import * as boltcard from "../../../../lib/boltcard"
+import BlinkAPI from "../../../../lib/blink-api"
+import { getApiUrlForEnvironment } from "../../../../lib/config/api"
 
 /**
  * LNURL-pay endpoint for Boltcard top-up
@@ -16,7 +15,7 @@ const { getApiUrlForEnvironment } = require("../../../../lib/config/api")
  * Returns invoice for the specified amount (callback)
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { cardId } = req.query
+  const cardId = req.query.cardId as string | undefined
 
   if (!cardId) {
     return res.status(400).json({ status: "ERROR", reason: "Missing cardId" })
@@ -27,12 +26,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // Check if this is a callback request (has amount parameter)
-  const amount = req.query.amount
+  const amount = req.query.amount as string | undefined
 
   if (amount) {
-    return handlePayCallback(req, res, cardId as string, amount as string)
+    return handlePayCallback(req, res, cardId, amount)
   } else {
-    return handlePayRequest(req, res, cardId as string)
+    return handlePayRequest(req, res, cardId)
   }
 }
 

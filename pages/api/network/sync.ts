@@ -11,7 +11,7 @@ import {
   syncCommunityTransactions,
   syncAllCommunities,
 } from "../../../lib/network/syncService"
-const db = require("../../../lib/network/db")
+import * as db from "../../../lib/network/db"
 
 async function canTriggerSync(userNpub: string, communityId?: string): Promise<boolean> {
   try {
@@ -61,7 +61,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
            WHERE cm.community_id = $1 AND dsc.consent_given = true`,
           [communityId],
         )
-        const consentCount = parseInt(consents.rows[0]?.count || 0)
+        const consentCount = parseInt(String(consents.rows[0]?.count ?? 0))
 
         return res.status(200).json({
           success: true,
@@ -82,7 +82,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const metricsArray: Record<string, unknown>[] = []
 
         for (const community of communities) {
-          const metrics = await db.getLatestMetrics(community.id)
+          const metrics = await db.getLatestMetrics(community.id as string)
           if (metrics) {
             metricsArray.push({
               community_id: community.id,

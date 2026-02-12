@@ -1,8 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const BlinkAPI = require("../../../lib/blink-api")
-const { verifyToken } = require("../../../lib/auth")
-const { getApiUrlForEnvironment } = require("../../../lib/config/api")
+import AuthManager from "../../../lib/auth"
+import StorageManager from "../../../lib/storage"
+import BlinkAPI from "../../../lib/blink-api"
+import { getApiUrlForEnvironment } from "../../../lib/config/api"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -11,14 +12,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Get user from JWT token
-    const token = req.cookies.token
+    const token = req.cookies["auth-token"]
     if (!token) {
       return res.status(401).json({ error: "No authentication token" })
     }
 
-    const userData = verifyToken(token)
-    if (!userData || !userData.apiKey) {
-      return res.status(401).json({ error: "Invalid token or missing API key" })
+    const session = AuthManager.verifySession(token)
+    if (!session) {
+      return res.status(401).json({ error: "Invalid token" })
+    }
+
+    // Get user's API key from server storage
+    const userData = await StorageManager.loadUserData(session.username)
+    if (!userData?.apiKey) {
+      return res.status(400).json({ error: "No API key found" })
     }
 
     // Get environment from query parameter (client passes it)

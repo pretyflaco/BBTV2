@@ -33,8 +33,8 @@ import type { NextApiRequest, NextApiResponse } from "next"
  * - https://github.com/boltcard/boltcard/blob/main/docs/DEEPLINK.md
  */
 
-const boltcardStore = require("../../../../lib/boltcard/store")
-const boltcardCrypto = require("../../../../lib/boltcard/crypto")
+import boltcardStore from "../../../../lib/boltcard/store"
+import * as boltcardCrypto from "../../../../lib/boltcard/crypto"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Set CORS headers for NFC Programmer app
@@ -54,7 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 
-  const { cardId } = req.query
+  const cardId = req.query.cardId as string | undefined
 
   if (!cardId) {
     return res.status(400).json({
@@ -108,8 +108,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const verifyResult = boltcardCrypto.verifyCardTap(
       piccDataHex,
       sunMacHex,
-      card.k1,
-      card.k2,
+      card.k1 ?? "",
+      card.k2 ?? "",
       card.cardUid,
       card.lastCounter,
     )
@@ -125,7 +125,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Update counter for replay protection
-    await boltcardStore.updateLastCounter(cardId, verifyResult.counter)
+    await boltcardStore.updateLastCounter(cardId, verifyResult.counter ?? 0)
 
     console.log(
       `[ResetAPI] Card ${cardId} verified for reset. Counter: ${verifyResult.counter}`,
@@ -141,11 +141,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Reset response format uses UPPERCASE keys per spec
     res.status(200).json({
       LNURLW: lnurlwUrl,
-      K0: card.k0.toUpperCase(),
-      K1: card.k1.toUpperCase(),
-      K2: card.k2.toUpperCase(),
-      K3: (card.k3 || card.k0).toUpperCase(), // Fallback to k0 if k3 not set
-      K4: (card.k4 || card.k0).toUpperCase(), // Fallback to k0 if k4 not set
+      K0: (card.k0 ?? "").toUpperCase(),
+      K1: (card.k1 ?? "").toUpperCase(),
+      K2: (card.k2 ?? "").toUpperCase(),
+      K3: (card.k3 || card.k0 || "").toUpperCase(),
+      K4: (card.k4 || card.k0 || "").toUpperCase(),
     })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error"

@@ -1,8 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const AuthManager = require("../../../lib/auth")
-const StorageManager = require("../../../lib/storage")
-const BlinkAPI = require("../../../lib/blink-api")
+import AuthManager from "../../../lib/auth"
+import StorageManager from "../../../lib/storage"
+import BlinkAPI from "../../../lib/blink-api"
 
 /**
  * CSV Export API - Supports both legacy and Nostr authentication

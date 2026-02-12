@@ -22,6 +22,7 @@
  */
 
 import { bech32 } from "bech32"
+import type { EnvironmentName } from "../config/api"
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const boltcardStore = require("./store")
 const { CardStatus, TxType } = require("./store") as {
@@ -124,7 +125,7 @@ type CreateInvoiceFn = (
   memo: string,
   walletId: string,
   apiKey: string,
-  environment: string,
+  environment: EnvironmentName,
   walletCurrency: string,
 ) => Promise<InvoiceResult>
 
@@ -357,7 +358,7 @@ async function handleTopUpCallback(
     memo,
     card.walletId,
     card.apiKey as string,
-    card.environment,
+    card.environment as EnvironmentName,
     card.walletCurrency,
   )
 

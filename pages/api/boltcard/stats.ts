@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
-const boltcard = require("../../../lib/boltcard")
+import * as boltcard from "../../../lib/boltcard"
 
 /**
  * API endpoint for Boltcard statistics
@@ -18,7 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const stats = await boltcard.store.getStats()
 
     // Get pending top-ups count
-    const pendingTopUps = boltcard.lnurlp.getAllPendingTopUps()
+    const pendingTopUps = await boltcard.lnurlp.getAllPendingTopUps()
 
     res.status(200).json({
       success: true,

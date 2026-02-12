@@ -36,7 +36,7 @@ module.exports = {
   rules: {
     // TypeScript-specific rules
     "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
-    "@typescript-eslint/no-explicit-any": "warn", // Phase 5: all `as any` casts eliminated; remaining `: any` annotations to clean up separately
+    "@typescript-eslint/no-explicit-any": "error", // Phase 5b complete: all `any` eliminated; 6 justified exceptions use eslint-disable
     "@typescript-eslint/prefer-for-of": "error",
     "@typescript-eslint/unified-signatures": "error",
     "@typescript-eslint/no-extra-semi": "off", // Prettier handles this

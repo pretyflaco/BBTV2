@@ -8,22 +8,22 @@ import type { NextApiRequest, NextApiResponse } from "next"
  */
 
 import BlinkAPI from "../../../lib/blink-api"
-import { getApiUrlForEnvironment, type EnvironmentName } from "../../../lib/config/api"
+import { getApiUrlForEnvironment } from "../../../lib/config/api"
+import { withRateLimit, RATE_LIMIT_READ } from "../../../lib/rate-limit"
+import { validateBody, checkPaymentSchema } from "../../../lib/validation"
+import { baseLogger } from "../../../lib/logger"
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+const logger = baseLogger.child({ module: "check-payment" })
+
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" })
   }
 
   try {
-    const { paymentHash, environment = "production" } = req.body as {
-      paymentHash: string
-      environment?: EnvironmentName
-    }
-
-    if (!paymentHash) {
-      return res.status(400).json({ error: "Payment hash is required" })
-    }
+    const parsed = validateBody(req, res, checkPaymentSchema)
+    if (!parsed) return
+    const { paymentHash, environment } = parsed
 
     // Get BlinkPOS credentials based on environment
     const isStaging = environment === "staging"
@@ -99,9 +99,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       )
 
       if (matchingTx) {
-        console.log(
-          `✅ [CheckPayment] Payment found for hash ${paymentHash.substring(0, 16)}...`,
-        )
+        logger.info({ paymentHash: paymentHash.substring(0, 16) }, "Payment found")
         return res.status(200).json({
           paid: true,
           transaction: {
@@ -113,14 +111,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         })
       }
 
-      console.log(
-        `ℹ️ [CheckPayment] No payment found for hash ${paymentHash.substring(0, 16)}...`,
-      )
+      logger.debug({ paymentHash: paymentHash.substring(0, 16) }, "No payment found")
       return res.status(200).json({ paid: false })
     } catch (queryError: unknown) {
       const queryMessage =
         queryError instanceof Error ? queryError.message : "Unknown error"
-      console.error("❌ [CheckPayment] Query error:", queryMessage)
+      logger.error({ err: queryMessage }, "Query error")
       return res.status(200).json({
         paid: false,
         error: "Could not verify payment status",
@@ -128,10 +124,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error"
-    console.error("❌ [CheckPayment] Error:", error)
+    logger.error({ err: error }, "Failed to check payment status")
     return res.status(500).json({
       error: "Failed to check payment status",
       details: message,
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_READ)

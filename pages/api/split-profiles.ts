@@ -23,6 +23,7 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 import AuthManager from "../../lib/auth"
 import StorageManager from "../../lib/storage"
+import { withRateLimit, RATE_LIMIT_READ } from "../../lib/rate-limit"
 
 /** Recipient in a split profile */
 interface SplitRecipient {
@@ -69,7 +70,7 @@ function verifySession(req: NextApiRequest): {
   return { valid: true, pubkey, username: session.username }
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   console.log("[split-profiles] Request method:", req.method)
 
   // SECURITY: Require NIP-98 session authentication
@@ -297,3 +298,5 @@ async function handleDelete(
 
   return res.status(200).json({ success: true })
 }
+
+export default withRateLimit(handler, RATE_LIMIT_READ)

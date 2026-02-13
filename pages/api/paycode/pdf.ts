@@ -2,6 +2,7 @@ import type ReactPDF from "@react-pdf/renderer"
 import type { NextApiRequest, NextApiResponse } from "next"
 import React from "react"
 import { renderToBuffer } from "@react-pdf/renderer"
+import { withRateLimit, RATE_LIMIT_PUBLIC } from "../../../lib/rate-limit"
 
 // Dynamic import to avoid issues with font registration at module load time
 let pdfModule: typeof import("../../../lib/pdf/PaycodePDF") | null = null
@@ -26,7 +27,7 @@ const getPdfModule = async () => {
  *
  * Returns: PDF as base64 string
  */
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({
       error: "Method not allowed",
@@ -111,6 +112,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_PUBLIC)
 
 // Disable body parser limit for large QR data URLs
 export const config = {

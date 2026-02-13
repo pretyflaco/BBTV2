@@ -8,6 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
 import * as db from "../../../lib/network/db"
+import { withRateLimit, RATE_LIMIT_READ } from "../../../lib/rate-limit"
 
 interface CommunityRecord {
   id: string
@@ -27,7 +28,7 @@ interface CommunityRecord {
   created_at: string
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "GET") {
     try {
       // Fetch communities from database
@@ -72,7 +73,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               avg_tx_size: metrics?.avg_tx_size || 0,
               period_start: metrics?.period_start || null,
               period_end: metrics?.period_end || null,
-              metrics_last_updated: metrics?.computed_at || null,
+              metrics_last_updated: metrics?.created_at || null,
               // Bitcoin Preference metric
               bitcoin_preference: btcPreference?.has_data
                 ? {
@@ -204,3 +205,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(405).json({ error: "Method not allowed" })
 }
+
+export default withRateLimit(handler, RATE_LIMIT_READ)

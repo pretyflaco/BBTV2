@@ -6,9 +6,11 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
+import type { MembershipRow } from "../../../../lib/network/db"
 import * as db from "../../../../lib/network/db"
+import { withRateLimit, RATE_LIMIT_WRITE } from "../../../../lib/rate-limit"
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" })
   }
@@ -56,13 +58,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // No specific community - return all accessible applications
-    let applications: Record<string, unknown>[] = []
+    let applications: MembershipRow[] = []
 
     if (isSuperAdmin) {
       // Super admin sees all pending applications across all communities
       const allCommunities = await db.listCommunities()
       for (const community of allCommunities) {
-        const pending = await db.getPendingApplications(community.id as string)
+        const pending = await db.getPendingApplications(community.id)
         applications = applications.concat(pending)
       }
     } else {
@@ -70,7 +72,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const allCommunities = await db.listCommunities()
       for (const community of allCommunities) {
         if (community.leader_npub === userNpub) {
-          const pending = await db.getPendingApplications(community.id as string)
+          const pending = await db.getPendingApplications(community.id)
           applications = applications.concat(pending)
         }
       }
@@ -89,3 +91,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_WRITE)

@@ -29,6 +29,7 @@
     "@noble/secp256k1": "^2.1.0",
     "@nostr-dev-kit/ndk": "^2.18.1",
     "@react-pdf/renderer": "^3.4.5",
+    "@t3-oss/env-nextjs": "^0.6.1",
     "bcryptjs": "^2.4.3",
     "bech32": "^2.0.0",
     "bolt11": "^1.4.1",
@@ -38,13 +39,15 @@
     "next": "12.3.4",
     "nostr-tools": "^2.22.1",
     "pg": "^8.16.3",
+    "pino": "^8.20.0",
     "qrcode": "^1.5.4",
     "qrcode.react": "^4.2.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-qr-code": "^2.0.18",
     "redis": "^4.7.0",
-    "ws": "^8.18.3"
+    "ws": "^8.18.3",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.1",
@@ -73,6 +76,7 @@
     "jest-environment-jsdom": "^30.2.0",
     "lnurl-pay": "^5.0.2",
     "patch-package": "^8.0.1",
+    "pino-pretty": "^11.0.0",
     "postcss": "^8.0.0",
     "prettier": "^3.8.1",
     "tailwindcss": "^3.0.0",

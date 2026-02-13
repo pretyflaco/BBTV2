@@ -15,7 +15,8 @@
  */
 
 import crypto from "crypto"
-import { Pool, QueryResult, QueryResultRow } from "pg"
+import type { QueryResult, QueryResultRow } from "pg"
+import { getSharedPool } from "../db"
 import AuthManager from "../auth"
 import * as boltcardCrypto from "./crypto"
 
@@ -233,33 +234,14 @@ const PendingStatus = {
 const REGISTRATION_EXPIRY_MS: number = 15 * 60 * 1000
 
 // ==========================================================================
-// Database connection pool (singleton)
+// Database connection pool (delegates to shared pool)
 // ==========================================================================
 
-let pool: Pool | null = null
+let pool: ReturnType<typeof getSharedPool> | null = null
 
-function getPool(): Pool {
+function getPool() {
   if (!pool) {
-    const config: Record<string, unknown> = process.env.DATABASE_URL
-      ? { connectionString: process.env.DATABASE_URL }
-      : {
-          host: process.env.POSTGRES_HOST || "localhost",
-          port: process.env.POSTGRES_PORT || 5432,
-          database: process.env.POSTGRES_DB || "blinkpos",
-          user: process.env.POSTGRES_USER || "blinkpos",
-          password: process.env.POSTGRES_PASSWORD || "blinkpos_dev_password",
-        }
-
-    pool = new Pool({
-      ...config,
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-    })
-
-    pool.on("error", (err: Error) => {
-      console.error("[BoltcardStore] Unexpected pool error:", err)
-    })
+    pool = getSharedPool()
   }
   return pool
 }

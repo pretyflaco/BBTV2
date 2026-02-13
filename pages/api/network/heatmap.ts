@@ -7,6 +7,7 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
 import * as db from "../../../lib/network/db"
+import { withRateLimit, RATE_LIMIT_READ } from "../../../lib/rate-limit"
 
 /** Community data from database */
 interface CommunityData {
@@ -71,7 +72,7 @@ function calculateIntensity(metrics: CommunityMetrics, memberCount: number): num
   return Math.round(Math.min(score, 100))
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" })
   }
@@ -162,3 +163,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_READ)

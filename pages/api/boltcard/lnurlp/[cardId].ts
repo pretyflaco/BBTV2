@@ -4,6 +4,7 @@ import type { EnvironmentName } from "../../../../lib/config/api"
 import * as boltcard from "../../../../lib/boltcard"
 import BlinkAPI from "../../../../lib/blink-api"
 import { getApiUrlForEnvironment } from "../../../../lib/config/api"
+import { withRateLimit, RATE_LIMIT_WRITE } from "../../../../lib/rate-limit"
 
 /**
  * LNURL-pay endpoint for Boltcard top-up
@@ -14,7 +15,7 @@ import { getApiUrlForEnvironment } from "../../../../lib/config/api"
  * GET /api/boltcard/lnurlp/[cardId]?amount=...
  * Returns invoice for the specified amount (callback)
  */
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   const cardId = req.query.cardId as string | undefined
 
   if (!cardId) {
@@ -173,3 +174,5 @@ function getServerUrl(req: NextApiRequest) {
 
   return `${protocol}://${host}`
 }
+
+export default withRateLimit(handler, RATE_LIMIT_WRITE)

@@ -14,6 +14,7 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 import type { EnvironmentName } from "../../../lib/config/api"
 import BlinkAPI from "../../../lib/blink-api"
+import { withRateLimit, RATE_LIMIT_PUBLIC } from "../../../lib/rate-limit"
 
 // API URLs for each environment
 const API_URLS: Record<string, string> = {
@@ -21,60 +22,10 @@ const API_URLS: Record<string, string> = {
   staging: "https://api.staging.blink.sv/graphql",
 }
 
-// Rate limiting: simple in-memory store (per-IP)
-const rateLimitStore = new Map<string, { count: number; resetAt: number }>()
-const RATE_LIMIT_WINDOW = 60 * 1000 // 1 minute
-const RATE_LIMIT_MAX = 30 // max 30 requests per minute per IP
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now()
-  const record = rateLimitStore.get(ip)
-
-  if (!record) {
-    rateLimitStore.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW })
-    return true
-  }
-
-  if (now > record.resetAt) {
-    rateLimitStore.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW })
-    return true
-  }
-
-  if (record.count >= RATE_LIMIT_MAX) {
-    return false
-  }
-
-  record.count++
-  return true
-}
-
-// Clean up old rate limit records periodically
-setInterval(() => {
-  const now = Date.now()
-  for (const [ip, record] of rateLimitStore.entries()) {
-    if (now > record.resetAt) {
-      rateLimitStore.delete(ip)
-    }
-  }
-}, 60 * 1000)
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Only allow POST
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" })
-  }
-
-  // Rate limiting
-  const clientIp =
-    (req.headers["x-forwarded-for"] as string)?.split(",")[0] ||
-    (req.headers["x-real-ip"] as string) ||
-    req.socket?.remoteAddress ||
-    "unknown"
-
-  if (!checkRateLimit(clientIp)) {
-    return res.status(429).json({
-      error: "Too many requests. Please wait a moment and try again.",
-    })
   }
 
   try {
@@ -119,7 +70,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       walletCurrency,
       environment: validEnvironment,
       apiUrl,
-      ip: clientIp.substring(0, 10) + "...",
+      ip:
+        (
+          (req.headers["x-forwarded-for"] as string)?.split(",")[0] || "unknown"
+        ).substring(0, 10) + "...",
     })
 
     // Determine which wallet to use (BTC or default)
@@ -214,3 +168,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_PUBLIC)

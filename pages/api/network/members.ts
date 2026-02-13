@@ -8,6 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
 import * as db from "../../../lib/network/db"
+import { withRateLimit, RATE_LIMIT_READ } from "../../../lib/rate-limit"
 
 interface MemberRecord {
   id: string
@@ -23,7 +24,7 @@ interface MemberRecord {
   total_transactions_synced?: number
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   const userNpub = req.headers["x-user-npub"] as string | undefined
 
   if (!userNpub) {
@@ -120,7 +121,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         })
       }
 
-      if (membership.community_id !== communityId) {
+      if (String(membership.community_id) !== String(communityId)) {
         return res.status(403).json({
           success: false,
           error: "Membership does not belong to this community",
@@ -154,3 +155,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(405).json({ error: "Method not allowed" })
 }
+
+export default withRateLimit(handler, RATE_LIMIT_READ)

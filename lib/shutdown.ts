@@ -1,0 +1,83 @@
+/**
+ * Coordinated graceful shutdown handler
+ *
+ * Registers a single SIGTERM/SIGINT handler that runs all cleanup callbacks
+ * in registration order. This replaces scattered `process.on` calls and
+ * prevents the "only the last handler runs" race.
+ *
+ * Phase 1 (current — Next.js 12): Register callbacks manually.
+ * Phase 2 (after Next.js 14 upgrade): Move to `instrumentation.ts` hook
+ *   and integrate with OTEL SDK shutdown (#513).
+ *
+ * Usage:
+ *   import { onShutdown } from "../lib/shutdown"
+ *   onShutdown("SharedPool", async () => { await pool.end() })
+ *
+ * @module lib/shutdown
+ */
+
+import { baseLogger } from "./logger"
+
+const logger = baseLogger.child({ module: "shutdown" })
+
+type ShutdownCallback = () => Promise<void> | void
+
+interface ShutdownEntry {
+  name: string
+  callback: ShutdownCallback
+}
+
+const callbacks: ShutdownEntry[] = []
+let registered = false
+let shuttingDown = false
+
+/** Timeout for the entire shutdown sequence (ms). */
+const SHUTDOWN_TIMEOUT_MS = 10_000
+
+/**
+ * Register a named cleanup callback to run during graceful shutdown.
+ * Callbacks execute in registration order.
+ */
+export function onShutdown(name: string, callback: ShutdownCallback): void {
+  callbacks.push({ name, callback })
+  ensureHandlersRegistered()
+}
+
+function ensureHandlersRegistered(): void {
+  if (registered) return
+  registered = true
+
+  const shutdown = async (signal: string): Promise<void> => {
+    if (shuttingDown) return // prevent double-shutdown
+    shuttingDown = true
+
+    logger.info({ signal, callbackCount: callbacks.length }, "Shutdown initiated")
+
+    // Force-exit after timeout
+    const timer = setTimeout(() => {
+      console.error(`[Shutdown] Timed out after ${SHUTDOWN_TIMEOUT_MS}ms, forcing exit`)
+      process.exit(1)
+    }, SHUTDOWN_TIMEOUT_MS)
+
+    // Allow the timer to not keep the event loop alive on its own
+    if (timer.unref) {
+      timer.unref()
+    }
+
+    for (const entry of callbacks) {
+      try {
+        logger.info({ name: entry.name }, "Running shutdown callback")
+        await entry.callback()
+      } catch (err) {
+        logger.error({ name: entry.name, err }, "Shutdown callback failed")
+      }
+    }
+
+    logger.info("All shutdown callbacks completed")
+    clearTimeout(timer)
+    process.exit(0)
+  }
+
+  process.on("SIGTERM", () => void shutdown("SIGTERM"))
+  process.on("SIGINT", () => void shutdown("SIGINT"))
+}

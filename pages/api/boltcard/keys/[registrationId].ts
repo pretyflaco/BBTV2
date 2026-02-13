@@ -30,8 +30,9 @@ import type { NextApiRequest, NextApiResponse } from "next"
 import boltcardStore from "../../../../lib/boltcard/store"
 import * as boltcardCrypto from "../../../../lib/boltcard/crypto"
 import * as lnurlw from "../../../../lib/boltcard/lnurlw"
+import { withRateLimit, RATE_LIMIT_READ } from "../../../../lib/rate-limit"
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Enhanced logging for debugging NFC Programmer app requests
   const requestId = Math.random().toString(36).substring(7)
   const timestamp = new Date().toISOString()
@@ -209,3 +210,5 @@ function getServerUrl(req: NextApiRequest) {
 
   return `${protocol}://${host}`
 }
+
+export default withRateLimit(handler, RATE_LIMIT_READ)

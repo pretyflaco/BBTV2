@@ -3,10 +3,15 @@
  * Handles all PostgreSQL operations for communities, memberships, and metrics
  */
 
-import { Pool, PoolClient, QueryResult } from "pg"
+import type { Pool, PoolClient, QueryResult, QueryResultRow } from "pg"
+
+import { getSharedPool, getClient as getSharedClient } from "../db"
+import { baseLogger } from "../logger"
+
+const logger = baseLogger.child({ module: "network-db" })
 
 // ============================================
-// INTERFACES
+// INTERFACES — Input types
 // ============================================
 
 export interface CommunityCreateData {
@@ -86,63 +91,248 @@ export interface DataCoverage {
 }
 
 // ============================================
-// CONNECTION POOL
+// INTERFACES — Database row types
+// ============================================
+
+/** Row shape returned by `super_admins` table queries */
+export interface SuperAdminRow {
+  id: number
+  npub: string
+  display_name: string | null
+  status: string
+  added_at: string
+}
+
+/** Row shape returned by `community_leader_whitelist` table queries */
+export interface WhitelistRow {
+  id: number
+  npub: string
+  pubkey_hex: string
+  display_name: string | null
+  status: string
+  added_by: string
+  reason: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+/** Row shape returned by `communities` table queries */
+export interface CommunityRow {
+  id: number
+  name: string
+  slug: string
+  description: string | null
+  country_code: string | null
+  region: string | null
+  city: string | null
+  latitude: number | null
+  longitude: number | null
+  leader_npub: string
+  leader_pubkey_hex: string
+  settings: Record<string, unknown> | null
+  status: string
+  member_count: number
+  data_sharing_member_count: number
+  created_at: string
+  updated_at: string | null
+  // Computed fields from JOINs
+  member_count_live?: number
+}
+
+/** Row shape returned by `community_memberships` table queries */
+export interface MembershipRow {
+  id: number
+  community_id: number
+  user_npub: string
+  user_pubkey_hex: string | null
+  role: string
+  status: string
+  application_note: string | null
+  applied_at: string
+  approved_at: string | null
+  approved_by_npub: string | null
+  reviewed_at: string | null
+  rejection_reason: string | null
+  left_at: string | null
+  removed_at: string | null
+  removed_by_npub: string | null
+  // Computed fields from JOINs
+  community_name?: string
+  community_slug?: string
+  leader_npub?: string
+  member_count?: number
+  data_sharing_member_count?: number
+  // From LEFT JOIN with data_sharing_consents
+  consent_given?: boolean
+  blink_username?: string | null
+  total_transactions_synced?: number
+}
+
+/** Row shape returned by `data_sharing_consents` table queries */
+export interface ConsentRow {
+  id: number
+  membership_id: number
+  user_npub: string
+  community_id: number
+  consent_given: boolean
+  blink_api_key_encrypted: string | null
+  blink_wallet_ids: string | null
+  blink_username: string | null
+  sync_from_date: string | null
+  consented_at: string | null
+  revoked_at: string | null
+  sync_status: string
+  last_sync_at: string | null
+  last_sync_error: string | null
+  total_transactions_synced: number
+  next_sync_at: string | null
+  updated_at: string | null
+}
+
+/** Row shape returned by `getCommunityConsents` (aliased columns) */
+export interface ConsentForSyncRow {
+  consent_id: number
+  membership_id: number
+  user_npub: string
+  community_id: number
+  encrypted_api_key: string | null
+  blink_username: string | null
+  blink_wallet_ids: string | null
+  sync_status: string
+  last_sync_at: string | null
+  total_transactions_synced: number
+}
+
+/** Row shape returned by `community_metrics` table queries */
+export interface MetricsRow {
+  id: number
+  community_id: number
+  period_type: string
+  period_start: string
+  period_end: string
+  transaction_count: number
+  total_volume_sats: number
+  intra_community_count: number
+  intra_volume_sats: number
+  unique_members: number
+  closed_loop_ratio: number
+  velocity: number
+  avg_tx_size: number
+  created_at: string
+}
+
+/** Row shape returned by `community_milestones` table queries */
+export interface MilestoneRow {
+  id: number
+  community_id: number
+  milestone_type: string
+  milestone_value: string
+  achieved_at: string
+}
+
+/** Row shape returned by `member_balance_snapshots` table queries */
+export interface BalanceSnapshotRow {
+  id: number
+  consent_id: number
+  community_id: number
+  btc_balance_sats: number
+  stablesats_balance_sats: number
+  total_balance_sats: number
+  snapshot_date: string
+  created_at: string
+}
+
+/** Row shape returned by `getBitcoinPreferenceHistory` (aggregated) */
+export interface BalanceHistoryRow {
+  snapshot_date: string
+  total_btc_sats: number
+  total_stablesats_sats: number
+  total_balance_sats: number
+  btc_preference_pct: number
+  member_count: number
+}
+
+/** Row shape for member_transactions with computed intra-community flag */
+export interface TransactionRow {
+  id: number
+  consent_id: number
+  community_id: number
+  tx_id: string
+  direction: string
+  settlement_amount: number
+  settlement_currency: string
+  status: string
+  counterparty_username: string | null
+  counterparty_wallet_id: string | null
+  counterparty_in_community: boolean | null
+  initiation_type: string | null
+  settlement_type: string | null
+  tx_created_at: string
+  memo: string | null
+  created_at: string
+  /** Computed: true if counterparty is in the same community */
+  is_intra: boolean
+}
+
+/** Row shape for blink_username lookup in calculateMetricsForPeriod */
+interface BlinkUsernameRow {
+  blink_username: string
+}
+
+/** Row shape for getDataCoverage aggregate query */
+interface DataCoverageRow {
+  oldest: Date | null
+  newest: Date | null
+  total_transactions: string
+}
+
+/** Row shape for COUNT(*) aggregate queries */
+interface CountRow {
+  count: string
+}
+
+/** Row shape returned by `calculate_community_btc_preference` SQL function */
+interface BtcPreferenceFunctionRow {
+  btc_preference_pct: string | null
+  total_btc_sats: string
+  total_stablesats_sats: string
+  total_balance_sats: string
+  member_count: string
+  members_with_balance: string
+}
+
+// ============================================
+// CONNECTION POOL (delegates to shared pool)
 // ============================================
 
 // Create connection pool
-let pool: Pool | null = null
-
 export function getPool(): Pool {
-  if (!pool) {
-    // Build connection config from environment variables
-    // Prefer individual env vars to avoid URL encoding issues with special characters in passwords
-    const config = process.env.DATABASE_URL
-      ? { connectionString: process.env.DATABASE_URL }
-      : {
-          host: process.env.POSTGRES_HOST || "localhost",
-          port: parseInt(String(process.env.POSTGRES_PORT || 5432), 10),
-          database: process.env.POSTGRES_DB || "blinkpos",
-          user: process.env.POSTGRES_USER || "blinkpos",
-          password: process.env.POSTGRES_PASSWORD || "blinkpos_dev_password",
-        }
-
-    pool = new Pool({
-      ...config,
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-    })
-
-    pool.on("error", (err: Error) => {
-      console.error("Unexpected error on idle client", err)
-    })
-  }
-  return pool
+  return getSharedPool()
 }
 
 /**
  * Execute a query with parameters
  */
-export async function query(
+export async function query<T extends QueryResultRow = QueryResultRow>(
   text: string,
   params?: unknown[],
-): Promise<QueryResult<Record<string, unknown>>> {
+): Promise<QueryResult<T>> {
   const start = Date.now()
-  const result = await getPool().query(text, params)
+  const result = await getPool().query<T>(text, params)
   const duration = Date.now() - start
 
   if (duration > 1000) {
-    console.warn(`Slow query (${duration}ms):`, text.substring(0, 100))
+    logger.warn({ duration, query: text.substring(0, 100) }, "Slow query detected")
   }
 
   return result
 }
 
 /**
- * Get a client for transactions
+ * Get a client from pool for transactions
  */
 export async function getClient(): Promise<PoolClient> {
-  return await getPool().connect()
+  return getSharedClient()
 }
 
 // ============================================
@@ -167,8 +357,8 @@ export async function isSuperAdmin(npub: string | null | undefined): Promise<boo
   return result.rows.length > 0
 }
 
-export async function getSuperAdmins(): Promise<Record<string, unknown>[]> {
-  const result = await query(
+export async function getSuperAdmins(): Promise<SuperAdminRow[]> {
+  const result = await query<SuperAdminRow>(
     `SELECT npub, display_name, added_at FROM super_admins WHERE status = 'active'`,
   )
   return result.rows
@@ -201,14 +391,14 @@ export async function addToWhitelist(
   displayName: string,
   addedByNpub: string,
   reason: string,
-): Promise<Record<string, unknown>> {
+): Promise<WhitelistRow> {
   // Verify the caller is a super admin
   const isAdmin = await isSuperAdmin(addedByNpub)
   if (!isAdmin) {
     throw new Error("Only super admins can whitelist community leaders")
   }
 
-  const result = await query(
+  const result = await query<WhitelistRow>(
     `INSERT INTO community_leader_whitelist 
      (npub, pubkey_hex, display_name, added_by, reason)
      VALUES ($1, $2, $3, $4, $5)
@@ -221,14 +411,14 @@ export async function addToWhitelist(
 export async function removeFromWhitelist(
   npub: string,
   removedByNpub: string,
-): Promise<Record<string, unknown> | undefined> {
+): Promise<WhitelistRow | undefined> {
   // Verify the caller is a super admin
   const isAdmin = await isSuperAdmin(removedByNpub)
   if (!isAdmin) {
     throw new Error("Only super admins can remove community leaders from whitelist")
   }
 
-  const result = await query(
+  const result = await query<WhitelistRow>(
     `UPDATE community_leader_whitelist 
      SET status = 'revoked', updated_at = NOW()
      WHERE npub = $1
@@ -238,8 +428,8 @@ export async function removeFromWhitelist(
   return result.rows[0]
 }
 
-export async function getWhitelistedLeaders(): Promise<Record<string, unknown>[]> {
-  const result = await query(
+export async function getWhitelistedLeaders(): Promise<WhitelistRow[]> {
+  const result = await query<WhitelistRow>(
     `SELECT * FROM community_leader_whitelist WHERE status = 'active' ORDER BY created_at DESC`,
   )
   return result.rows
@@ -249,9 +439,7 @@ export async function getWhitelistedLeaders(): Promise<Record<string, unknown>[]
 // COMMUNITY OPERATIONS
 // ============================================
 
-export async function createCommunity(
-  data: CommunityCreateData,
-): Promise<Record<string, unknown>> {
+export async function createCommunity(data: CommunityCreateData): Promise<CommunityRow> {
   const {
     name,
     slug,
@@ -266,7 +454,7 @@ export async function createCommunity(
     settings,
   } = data
 
-  const result = await query(
+  const result = await query<CommunityRow>(
     `INSERT INTO communities 
      (name, slug, description, country_code, region, city, latitude, longitude,
        leader_npub, leader_pubkey_hex, settings)
@@ -300,24 +488,28 @@ export async function createCommunity(
 
 export async function getCommunityBySlug(
   slug: string,
-): Promise<Record<string, unknown> | undefined> {
-  const result = await query("SELECT * FROM communities WHERE slug = $1", [slug])
+): Promise<CommunityRow | undefined> {
+  const result = await query<CommunityRow>("SELECT * FROM communities WHERE slug = $1", [
+    slug,
+  ])
   return result.rows[0]
 }
 
 export async function getCommunityById(
   id: string | number,
-): Promise<Record<string, unknown> | undefined> {
-  const result = await query("SELECT * FROM communities WHERE id = $1", [id])
+): Promise<CommunityRow | undefined> {
+  const result = await query<CommunityRow>("SELECT * FROM communities WHERE id = $1", [
+    id,
+  ])
   return result.rows[0]
 }
 
 export async function listCommunities(
   options: ListOptions = {},
-): Promise<Record<string, unknown>[]> {
+): Promise<CommunityRow[]> {
   const { status = "active", limit = 50, offset = 0 } = options
 
-  const result = await query(
+  const result = await query<CommunityRow>(
     `SELECT c.*, 
             (SELECT COUNT(*) FROM community_memberships 
              WHERE community_id = c.id AND status = 'approved') as member_count_live
@@ -330,13 +522,15 @@ export async function listCommunities(
   return result.rows
 }
 
-export async function getCommunitiesForHeatmap(): Promise<Record<string, unknown>[]> {
-  const result = await query(`SELECT * FROM community_heatmap`)
+export async function getCommunitiesForHeatmap(): Promise<CommunityRow[]> {
+  const result = await query<CommunityRow>(`SELECT * FROM community_heatmap`)
   return result.rows
 }
 
-export async function getLeaderboard(): Promise<Record<string, unknown>[]> {
-  const result = await query(`SELECT * FROM community_leaderboard LIMIT 100`)
+export async function getLeaderboard(): Promise<CommunityRow[]> {
+  const result = await query<CommunityRow>(
+    `SELECT * FROM community_leaderboard LIMIT 100`,
+  )
   return result.rows
 }
 
@@ -349,8 +543,8 @@ export async function applyToJoinCommunity(
   userNpub: string,
   userPubkeyHex: string,
   applicationNote: string | null,
-): Promise<Record<string, unknown>> {
-  const result = await query(
+): Promise<MembershipRow> {
+  const result = await query<MembershipRow>(
     `INSERT INTO community_memberships 
      (community_id, user_npub, user_pubkey_hex, application_note, status)
      VALUES ($1, $2, $3, $4, 'pending')
@@ -371,8 +565,8 @@ export async function applyToJoinCommunity(
 export async function getMembership(
   communityId: string | number,
   userNpub: string,
-): Promise<Record<string, unknown> | undefined> {
-  const result = await query(
+): Promise<MembershipRow | undefined> {
+  const result = await query<MembershipRow>(
     `SELECT cm.*, c.name as community_name, c.slug as community_slug
      FROM community_memberships cm
      JOIN communities c ON c.id = cm.community_id
@@ -387,8 +581,8 @@ export async function getMembership(
  */
 export async function getMembershipById(
   membershipId: string | number,
-): Promise<Record<string, unknown> | undefined> {
-  const result = await query(
+): Promise<MembershipRow | undefined> {
+  const result = await query<MembershipRow>(
     `SELECT cm.*, c.name as community_name, c.slug as community_slug, c.leader_npub
      FROM community_memberships cm
      JOIN communities c ON c.id = cm.community_id
@@ -398,10 +592,8 @@ export async function getMembershipById(
   return result.rows[0]
 }
 
-export async function getUserMemberships(
-  userNpub: string,
-): Promise<Record<string, unknown>[]> {
-  const result = await query(
+export async function getUserMemberships(userNpub: string): Promise<MembershipRow[]> {
+  const result = await query<MembershipRow>(
     `SELECT cm.*, c.name as community_name, c.slug as community_slug,
             c.member_count, c.data_sharing_member_count
      FROM community_memberships cm
@@ -415,8 +607,8 @@ export async function getUserMemberships(
 
 export async function getPendingApplications(
   communityId: string | number,
-): Promise<Record<string, unknown>[]> {
-  const result = await query(
+): Promise<MembershipRow[]> {
+  const result = await query<MembershipRow>(
     `SELECT * FROM pending_applications WHERE community_id = $1`,
     [communityId],
   )
@@ -428,8 +620,8 @@ export async function reviewApplication(
   approvedByNpub: string,
   approved: boolean,
   rejectionReason: string | null,
-): Promise<Record<string, unknown> | undefined> {
-  const result = await query(
+): Promise<MembershipRow | undefined> {
+  const result = await query<MembershipRow>(
     `UPDATE community_memberships 
      SET status = $1::varchar,
          reviewed_at = NOW(),
@@ -451,8 +643,8 @@ export async function reviewApplication(
 export async function leaveCommunity(
   communityId: string | number,
   userNpub: string,
-): Promise<Record<string, unknown> | undefined> {
-  const result = await query(
+): Promise<MembershipRow | undefined> {
+  const result = await query<MembershipRow>(
     `UPDATE community_memberships 
      SET status = 'left', left_at = NOW()
      WHERE community_id = $1 AND user_npub = $2
@@ -469,8 +661,8 @@ export async function leaveCommunity(
 export async function removeMember(
   membershipId: string | number,
   removedByNpub: string,
-): Promise<Record<string, unknown> | undefined> {
-  const result = await query(
+): Promise<MembershipRow | undefined> {
+  const result = await query<MembershipRow>(
     `UPDATE community_memberships 
      SET status = 'removed', 
          removed_at = NOW(),
@@ -495,10 +687,10 @@ export async function removeMember(
 export async function getCommunityMembers(
   communityId: string | number,
   options: ListOptions = {},
-): Promise<Record<string, unknown>[]> {
+): Promise<MembershipRow[]> {
   const { status = "approved", limit = 100, offset = 0 } = options
 
-  const result = await query(
+  const result = await query<MembershipRow>(
     `SELECT cm.*, 
             dsc.consent_given,
             dsc.blink_username,
@@ -522,7 +714,7 @@ export async function createOrUpdateConsent(
   userNpub: string,
   communityId: string | number,
   consentData: ConsentData,
-): Promise<Record<string, unknown>> {
+): Promise<ConsentRow> {
   const {
     consentGiven,
     blinkApiKeyEncrypted,
@@ -531,7 +723,7 @@ export async function createOrUpdateConsent(
     syncFromDate,
   } = consentData
 
-  const result = await query(
+  const result = await query<ConsentRow>(
     `INSERT INTO data_sharing_consents 
      (membership_id, user_npub, community_id, consent_given, 
       blink_api_key_encrypted, blink_wallet_ids, blink_username,
@@ -569,8 +761,8 @@ export async function createOrUpdateConsent(
 
 export async function getConsent(
   membershipId: string | number,
-): Promise<Record<string, unknown> | undefined> {
-  const result = await query(
+): Promise<ConsentRow | undefined> {
+  const result = await query<ConsentRow>(
     `SELECT * FROM data_sharing_consents WHERE membership_id = $1`,
     [membershipId],
   )
@@ -580,8 +772,8 @@ export async function getConsent(
 export async function getConsentByUser(
   communityId: string | number,
   userNpub: string,
-): Promise<Record<string, unknown> | undefined> {
-  const result = await query(
+): Promise<ConsentRow | undefined> {
+  const result = await query<ConsentRow>(
     `SELECT dsc.* 
      FROM data_sharing_consents dsc
      JOIN community_memberships cm ON cm.id = dsc.membership_id
@@ -591,18 +783,18 @@ export async function getConsentByUser(
   return result.rows[0]
 }
 
-export async function getConsentsForSync(
-  limit: number = 10,
-): Promise<Record<string, unknown>[]> {
-  const result = await query(`SELECT * FROM data_sync_queue LIMIT $1`, [limit])
+export async function getConsentsForSync(limit: number = 10): Promise<ConsentRow[]> {
+  const result = await query<ConsentRow>(`SELECT * FROM data_sync_queue LIMIT $1`, [
+    limit,
+  ])
   return result.rows
 }
 
 export async function getCommunityConsents(
   communityId: string | number,
-): Promise<Record<string, unknown>[]> {
+): Promise<ConsentForSyncRow[]> {
   // Get all active consents for a specific community with API keys for syncing
-  const result = await query(
+  const result = await query<ConsentForSyncRow>(
     `SELECT 
        dsc.id as consent_id,
        dsc.membership_id,
@@ -628,8 +820,8 @@ export async function updateSyncStatus(
   status: string,
   error: string | null = null,
   transactionsSynced: number = 0,
-): Promise<Record<string, unknown> | undefined> {
-  const result = await query(
+): Promise<ConsentRow | undefined> {
+  const result = await query<ConsentRow>(
     `UPDATE data_sharing_consents 
      SET sync_status = $1::varchar,
          last_sync_at = NOW(),
@@ -704,8 +896,9 @@ export async function insertMemberTransactions(
         const txCreatedAt = parseTransactionTimestamp(tx.createdAt)
 
         if (!txCreatedAt || isNaN(txCreatedAt.getTime())) {
-          console.warn(
-            `[DB] Skipping transaction ${tx.id} - invalid timestamp: ${tx.createdAt}`,
+          logger.warn(
+            { txId: tx.id, timestamp: tx.createdAt },
+            "Skipping transaction with invalid timestamp",
           )
           continue
         }
@@ -745,10 +938,7 @@ export async function insertMemberTransactions(
 
         // Only log if it's not a duplicate (which is handled by ON CONFLICT)
         if ((err as Record<string, unknown>).code !== "23505") {
-          console.error(
-            `[DB] Error inserting transaction ${tx.id}:`,
-            (err as Error).message,
-          )
+          logger.error({ txId: tx.id, err }, "Error inserting transaction")
         }
       }
     }
@@ -766,8 +956,11 @@ export async function insertMemberTransactions(
 
 export async function markInternalTransactions(
   communityId: string | number,
-): Promise<unknown> {
-  const result = await query(`SELECT mark_internal_transactions($1)`, [communityId])
+): Promise<number> {
+  const result = await query<{ mark_internal_transactions: number }>(
+    `SELECT mark_internal_transactions($1)`,
+    [communityId],
+  )
   return result.rows[0].mark_internal_transactions
 }
 
@@ -792,8 +985,8 @@ export async function computeMetrics(
 export async function getLatestMetrics(
   communityId: string | number,
   periodType: string = "monthly",
-): Promise<Record<string, unknown> | undefined> {
-  const result = await query(
+): Promise<MetricsRow | undefined> {
+  const result = await query<MetricsRow>(
     `SELECT * FROM community_metrics 
      WHERE community_id = $1 AND period_type = $2
      ORDER BY period_start DESC
@@ -807,8 +1000,8 @@ export async function getMetricsHistory(
   communityId: string | number,
   periodType: string = "monthly",
   limit: number = 12,
-): Promise<Record<string, unknown>[]> {
-  const result = await query(
+): Promise<MetricsRow[]> {
+  const result = await query<MetricsRow>(
     `SELECT * FROM community_metrics 
      WHERE community_id = $1 AND period_type = $2
      ORDER BY period_start DESC
@@ -827,18 +1020,18 @@ export async function calculateMetricsForPeriod(
   periodEnd: Date | string,
 ): Promise<CalculatedMetrics> {
   // Get member usernames for intra-community detection
-  const consentsResult = await query(
+  const consentsResult = await query<BlinkUsernameRow>(
     `SELECT blink_username FROM data_sharing_consents 
      WHERE community_id = $1 AND consent_given = true AND blink_username IS NOT NULL`,
     [communityId],
   )
-  const memberUsernames: string[] = consentsResult.rows.map(
-    (r: Record<string, unknown>) => (r.blink_username as string).toLowerCase(),
+  const memberUsernames: string[] = consentsResult.rows.map((r) =>
+    r.blink_username.toLowerCase(),
   )
   const memberSet = new Set(memberUsernames)
 
   // Get transactions for the period
-  const txResult = await query(
+  const txResult = await query<TransactionRow>(
     `SELECT 
        mt.*,
        CASE WHEN LOWER(mt.counterparty_username) = ANY($4::text[]) THEN true ELSE mt.counterparty_in_community END as is_intra
@@ -850,7 +1043,7 @@ export async function calculateMetricsForPeriod(
     [communityId, periodStart, periodEnd, memberUsernames],
   )
 
-  const transactions: Record<string, unknown>[] = txResult.rows
+  const transactions = txResult.rows
 
   if (transactions.length === 0) {
     return {
@@ -868,7 +1061,7 @@ export async function calculateMetricsForPeriod(
   // Calculate metrics
   const uniqueMembers = new Set(transactions.map((tx) => tx.consent_id))
   const totalVolume = transactions.reduce(
-    (sum, tx) => sum + parseInt(String(tx.settlement_amount || 0), 10),
+    (sum, tx) => sum + Number(tx.settlement_amount || 0),
     0,
   )
 
@@ -876,11 +1069,11 @@ export async function calculateMetricsForPeriod(
   const intraCommunityTxs = transactions.filter((tx) => {
     if (tx.counterparty_in_community) return true
     if (!tx.counterparty_username) return false
-    return memberSet.has((tx.counterparty_username as string).toLowerCase())
+    return memberSet.has(tx.counterparty_username.toLowerCase())
   })
 
   const intraVolume = intraCommunityTxs.reduce(
-    (sum, tx) => sum + parseInt(String(tx.settlement_amount || 0), 10),
+    (sum, tx) => sum + Number(tx.settlement_amount || 0),
     0,
   )
 
@@ -913,7 +1106,7 @@ export async function calculateMetricsForPeriod(
 export async function getDataCoverage(
   communityId: string | number,
 ): Promise<DataCoverage> {
-  const result = await query(
+  const result = await query<DataCoverageRow>(
     `SELECT 
        MIN(tx_created_at) as oldest,
        MAX(tx_created_at) as newest,
@@ -923,10 +1116,10 @@ export async function getDataCoverage(
     [communityId],
   )
 
-  const row: Record<string, unknown> = result.rows[0]
+  const row = result.rows[0]
   return {
-    oldest: row.oldest ? (row.oldest as Date).toISOString() : null,
-    newest: row.newest ? (row.newest as Date).toISOString() : null,
+    oldest: row.oldest ? row.oldest.toISOString() : null,
+    newest: row.newest ? row.newest.toISOString() : null,
     total_transactions: parseInt(String(row.total_transactions || 0), 10),
   }
 }
@@ -996,7 +1189,7 @@ export function getDateRange(period: string): DateRange {
  * Get member count for a community (approved members)
  */
 export async function getMemberCount(communityId: string | number): Promise<number> {
-  const result = await query(
+  const result = await query<CountRow>(
     `SELECT COUNT(*) as count FROM community_memberships 
      WHERE community_id = $1 AND status = 'approved'`,
     [communityId],
@@ -1008,7 +1201,7 @@ export async function getMemberCount(communityId: string | number): Promise<numb
  * Get count of members who have given data sharing consent
  */
 export async function getConsentCount(communityId: string | number): Promise<number> {
-  const result = await query(
+  const result = await query<CountRow>(
     `SELECT COUNT(*) as count FROM data_sharing_consents 
      WHERE community_id = $1 AND consent_given = true`,
     [communityId],
@@ -1019,8 +1212,8 @@ export async function getConsentCount(communityId: string | number): Promise<num
 /**
  * Get all communities with basic info for heatmap/leaderboard
  */
-export async function getAllCommunities(): Promise<Record<string, unknown>[]> {
-  const result = await query(
+export async function getAllCommunities(): Promise<CommunityRow[]> {
+  const result = await query<CommunityRow>(
     `SELECT 
        id, name, slug, 
        country_code, region, city, 
@@ -1041,8 +1234,8 @@ export async function checkAndRecordMilestone(
   communityId: string | number,
   milestoneType: string,
   value: number | string,
-): Promise<Record<string, unknown> | undefined> {
-  const result = await query(
+): Promise<MilestoneRow | undefined> {
+  const result = await query<MilestoneRow>(
     `INSERT INTO community_milestones (community_id, milestone_type, milestone_value)
      VALUES ($1, $2, $3)
      ON CONFLICT (community_id, milestone_type) DO NOTHING
@@ -1054,8 +1247,8 @@ export async function checkAndRecordMilestone(
 
 export async function getCommunityMilestones(
   communityId: string | number,
-): Promise<Record<string, unknown>[]> {
-  const result = await query(
+): Promise<MilestoneRow[]> {
+  const result = await query<MilestoneRow>(
     `SELECT * FROM community_milestones 
      WHERE community_id = $1 
      ORDER BY achieved_at DESC`,
@@ -1078,8 +1271,8 @@ export async function insertBalanceSnapshot(
   communityId: string | number,
   btcBalanceSats: number,
   stablesatsBalanceSats: number,
-): Promise<Record<string, unknown>> {
-  const result = await query(
+): Promise<BalanceSnapshotRow> {
+  const result = await query<BalanceSnapshotRow>(
     `INSERT INTO member_balance_snapshots 
      (consent_id, community_id, btc_balance_sats, stablesats_balance_sats, snapshot_date)
      VALUES ($1, $2, $3, $4, CURRENT_DATE)
@@ -1099,8 +1292,8 @@ export async function insertBalanceSnapshot(
  */
 export async function getLatestBalanceSnapshot(
   consentId: string | number,
-): Promise<Record<string, unknown> | null> {
-  const result = await query(
+): Promise<BalanceSnapshotRow | null> {
+  const result = await query<BalanceSnapshotRow>(
     `SELECT * FROM member_balance_snapshots 
      WHERE consent_id = $1 
      ORDER BY snapshot_date DESC 
@@ -1120,7 +1313,7 @@ export async function getCommunityBitcoinPreference(
 ): Promise<BitcoinPreference> {
   const dateStr = asOfDate.toISOString().split("T")[0]
 
-  const result = await query(
+  const result = await query<BtcPreferenceFunctionRow>(
     `SELECT * FROM calculate_community_btc_preference($1, $2::date)`,
     [communityId, dateStr],
   )
@@ -1138,10 +1331,10 @@ export async function getCommunityBitcoinPreference(
     }
   }
 
-  const row: Record<string, unknown> = result.rows[0]
+  const row = result.rows[0]
   return {
     community_id: communityId,
-    btc_preference_pct: parseFloat(row.btc_preference_pct as string) || null,
+    btc_preference_pct: parseFloat(row.btc_preference_pct ?? "") || null,
     total_btc_sats: parseInt(String(row.total_btc_sats), 10) || 0,
     total_stablesats_sats: parseInt(String(row.total_stablesats_sats), 10) || 0,
     total_balance_sats: parseInt(String(row.total_balance_sats), 10) || 0,
@@ -1157,8 +1350,8 @@ export async function getCommunityBitcoinPreference(
 export async function getBitcoinPreferenceHistory(
   communityId: string | number,
   days: number = 30,
-): Promise<Record<string, unknown>[]> {
-  const result = await query(
+): Promise<BalanceHistoryRow[]> {
+  const result = await query<BalanceHistoryRow>(
     `SELECT 
        snapshot_date,
        SUM(btc_balance_sats) as total_btc_sats,

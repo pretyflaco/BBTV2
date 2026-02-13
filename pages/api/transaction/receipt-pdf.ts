@@ -4,6 +4,7 @@ import React from "react"
 import { renderToBuffer } from "@react-pdf/renderer"
 import fs from "fs"
 import path from "path"
+import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
 
 // Dynamic import to avoid issues with font registration at module load time
 let pdfModule: typeof import("../../../lib/pdf/TransactionReceiptPDF") | null = null
@@ -66,7 +67,7 @@ interface TransactionInput {
  *
  * Returns: PDF as base64 string
  */
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({
       error: "Method not allowed",
@@ -154,6 +155,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_WRITE)
 
 // Disable body parser limit for safety
 export const config = {

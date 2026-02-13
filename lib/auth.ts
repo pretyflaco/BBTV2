@@ -3,7 +3,13 @@ import jwt from "jsonwebtoken"
 import CryptoJS from "crypto-js"
 import { getApiUrl } from "./config/api"
 
-const JWT_SECRET: string = process.env.JWT_SECRET || "blink-balance-tracker-secret-key"
+const JWT_SECRET: string = (() => {
+  const secret = process.env.JWT_SECRET
+  if (!secret) {
+    throw new Error("JWT_SECRET environment variable is required")
+  }
+  return secret
+})()
 
 interface SessionPayload {
   username: string
@@ -23,7 +29,11 @@ interface BlinkApiResponse {
 
 // Helper to get encryption key at runtime (not captured at module load time)
 function getEncryptionKey(): string {
-  return process.env.ENCRYPTION_KEY || "blink-encryption-key-2025"
+  const key = process.env.ENCRYPTION_KEY
+  if (!key) {
+    throw new Error("ENCRYPTION_KEY environment variable is required")
+  }
+  return key
 }
 
 class AuthManager {
@@ -85,11 +95,6 @@ class AuthManager {
       console.error("API validation error:", err)
       return false
     }
-  }
-
-  // Hash password for storage (if we add user accounts later)
-  static hashPassword(password: string): string {
-    return crypto.pbkdf2Sync(password, "salt", 1000, 64, "sha512").toString("hex")
   }
 }
 

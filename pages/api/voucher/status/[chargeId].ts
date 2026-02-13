@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
 import voucherStore from "../../../../lib/voucher-store"
+import { withRateLimit, RATE_LIMIT_READ } from "../../../../lib/rate-limit"
 
 /**
  * API endpoint to check voucher status
@@ -8,7 +9,7 @@ import voucherStore from "../../../../lib/voucher-store"
  *
  * GET /api/voucher/status/[chargeId]
  */
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Add CORS headers for compatibility
   res.setHeader("Access-Control-Allow-Origin", "*")
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS")
@@ -62,3 +63,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_READ)

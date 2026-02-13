@@ -25,6 +25,7 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 import AuthManager from "../../../lib/auth"
 import StorageManager from "../../../lib/storage"
+import { withRateLimit, RATE_LIMIT_READ } from "../../../lib/rate-limit"
 
 /** Cart item shape */
 interface CartItem {
@@ -67,7 +68,7 @@ function verifySession(req: NextApiRequest): {
   return { valid: true, pubkey, username: session.username }
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   console.log("[cart-items] Request method:", req.method)
 
   // SECURITY: Require NIP-98 session authentication
@@ -320,3 +321,5 @@ async function handlePatch(
     item: cartItems[itemIndex],
   })
 }
+
+export default withRateLimit(handler, RATE_LIMIT_READ)

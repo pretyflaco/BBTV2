@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
 import voucherStore from "../../../../../lib/voucher-store"
+import { withRateLimit, RATE_LIMIT_WRITE } from "../../../../../lib/rate-limit"
 
 /**
  * LNURL-withdraw endpoint for vouchers
@@ -11,7 +12,7 @@ import voucherStore from "../../../../../lib/voucher-store"
  * Following LUD-03 spec: https://github.com/lnurl/luds/blob/luds/03.md
  * Always returns HTTP 200 with status in JSON body
  */
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Add CORS headers for LNURL compatibility
   res.setHeader("Access-Control-Allow-Origin", "*")
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS")
@@ -123,3 +124,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_WRITE)

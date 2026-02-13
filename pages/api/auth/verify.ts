@@ -2,8 +2,9 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 import AuthManager from "../../../lib/auth"
 import StorageManager from "../../../lib/storage"
+import { withRateLimit, RATE_LIMIT_AUTH } from "../../../lib/rate-limit"
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" })
   }
@@ -42,3 +43,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(500).json({ error: "Verification failed" })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_AUTH)

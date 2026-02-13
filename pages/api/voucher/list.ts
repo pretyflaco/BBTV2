@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
 import voucherStore from "../../../lib/voucher-store"
+import { withRateLimit, RATE_LIMIT_READ } from "../../../lib/rate-limit"
 
 /** Shape of a voucher record from the store */
 interface VoucherRecord {
@@ -30,7 +31,7 @@ interface VoucherRecord {
  * - status: Filter by status (optional): 'ACTIVE', 'CLAIMED', 'CANCELLED', 'EXPIRED', 'all'
  *   Default: returns all vouchers
  */
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Add CORS headers for compatibility
   res.setHeader("Access-Control-Allow-Origin", "*")
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS")
@@ -121,3 +122,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_READ)

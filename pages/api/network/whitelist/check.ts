@@ -8,6 +8,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from "next"
+import { withRateLimit, RATE_LIMIT_READ } from "../../../../lib/rate-limit"
 
 // Super admin - can create communities and whitelist new leaders
 const SUPER_ADMIN_NPUB = "npub1flac02t5hw6jljk8x7mec22uq37ert8d3y3mpwzcma726g5pz4lsmfzlk6"
@@ -19,7 +20,7 @@ const WHITELISTED_LEADERS = [
   "npub1kk20h7w79xd79nzm9fj9aqugwf57qpx0letx6rncfjecrhd4x4yqn7rq3x", // Bitbiashara - Nairobi, Kenya
 ]
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" })
   }
@@ -60,3 +61,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_READ)

@@ -15,6 +15,7 @@ import type { NextApiRequest, NextApiResponse } from "next"
 import AuthManager from "../../../lib/auth"
 import StorageManager from "../../../lib/storage"
 import BlinkAPI from "../../../lib/blink-api"
+import { withRateLimit, RATE_LIMIT_AUTH } from "../../../lib/rate-limit"
 
 /**
  * Extract Nostr pubkey from session username
@@ -52,7 +53,7 @@ function verifyNostrSession(req: NextApiRequest): {
   return { valid: true, session, pubkey }
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   console.log("[nostr-blink-account] Request method:", req.method)
 
   // SECURITY FIX: Remove unauthenticated pubkey-based access
@@ -279,3 +280,5 @@ async function handleDelete(
 
   return res.status(200).json({ success: true })
 }
+
+export default withRateLimit(handler, RATE_LIMIT_AUTH)

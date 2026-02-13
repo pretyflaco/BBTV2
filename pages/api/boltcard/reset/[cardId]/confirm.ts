@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next"
+import { withRateLimit, RATE_LIMIT_WRITE } from "../../../../../lib/rate-limit"
 
 /**
  * API endpoint to confirm card reset completion
@@ -15,7 +16,7 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 import boltcardStore from "../../../../../lib/boltcard/store"
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Set CORS headers for NFC Programmer app
   res.setHeader("Access-Control-Allow-Origin", "*")
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS")
@@ -87,3 +88,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_WRITE)

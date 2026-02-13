@@ -4,6 +4,7 @@ import type { EnvironmentName } from "../../../../../lib/config/api"
 import * as boltcard from "../../../../../lib/boltcard"
 import BlinkAPI from "../../../../../lib/blink-api"
 import { getApiUrlForEnvironment } from "../../../../../lib/config/api"
+import { withRateLimit, RATE_LIMIT_WRITE } from "../../../../../lib/rate-limit"
 
 /**
  * LNURL-withdraw callback endpoint
@@ -16,7 +17,7 @@ import { getApiUrlForEnvironment } from "../../../../../lib/config/api"
  * - k1: Card ID (for verification)
  * - pr: BOLT11 invoice to pay
  */
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST" && req.method !== "GET") {
     return res.status(405).json({ status: "ERROR", reason: "Method not allowed" })
   }
@@ -136,3 +137,5 @@ function extractPaymentHash(invoice: string) {
     return null
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_WRITE)

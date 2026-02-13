@@ -9,6 +9,7 @@ import {
   formatCurrencyServer,
   isBitcoinCurrency,
 } from "../../../lib/currency-formatter-server"
+import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
 
 interface ApiTipRecipient {
   username: string
@@ -52,7 +53,7 @@ interface NwcTipDataInput {
  *
  * Returns: { success: true, tipResult: object }
  */
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" })
   }
@@ -319,3 +320,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_WRITE)

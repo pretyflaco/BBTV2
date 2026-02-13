@@ -12,7 +12,9 @@
  */
 
 import { createClient } from "redis"
-import { Pool, PoolClient } from "pg"
+import type { Pool, PoolClient } from "pg"
+import { getSharedPool, closePool } from "../db"
+import { onShutdown } from "../shutdown"
 import crypto from "crypto"
 
 // ============= Interfaces =============
@@ -160,6 +162,7 @@ class HybridStore {
   private pg: Pool | null
   private isRedisConnected: boolean
   private isPostgresConnected: boolean
+  private cleanupInterval: ReturnType<typeof setInterval> | null
   private config: HybridStoreConfig
 
   constructor() {
@@ -167,6 +170,7 @@ class HybridStore {
     this.pg = null
     this.isRedisConnected = false
     this.isPostgresConnected = false
+    this.cleanupInterval = null
 
     // Configuration from environment
     this.config = {
@@ -225,13 +229,13 @@ class HybridStore {
       console.log("⚠️  Running in fallback mode without Redis cache")
     }
 
-    // Connect to PostgreSQL
+    // Connect to PostgreSQL via shared pool
     try {
-      this.pg = new Pool(this.config.postgres)
+      this.pg = getSharedPool()
 
       // Test connection
       const client: PoolClient = await this.pg.connect()
-      console.log("✅ PostgreSQL connected")
+      console.log("✅ PostgreSQL connected (shared pool)")
       this.isPostgresConnected = true
       client.release()
     } catch (error: unknown) {
@@ -248,13 +252,20 @@ class HybridStore {
    * Disconnect from Redis and PostgreSQL
    */
   async disconnect(): Promise<void> {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval)
+      this.cleanupInterval = null
+      console.log("Cleanup job stopped")
+    }
     if (this.redis && this.isRedisConnected) {
       await this.redis.quit()
       console.log("Redis disconnected")
     }
     if (this.pg && this.isPostgresConnected) {
-      await this.pg.end()
-      console.log("PostgreSQL disconnected")
+      await closePool()
+      this.pg = null
+      this.isPostgresConnected = false
+      console.log("PostgreSQL disconnected (shared pool)")
     }
   }
 
@@ -918,7 +929,7 @@ class HybridStore {
    */
   startCleanupJob(): void {
     // Run every 5 minutes
-    setInterval(
+    this.cleanupInterval = setInterval(
       (): void => {
         this.expireOldPayments().catch((error: unknown): void => {
           console.error("Cleanup job error:", error)
@@ -969,16 +980,42 @@ class HybridStore {
 
 // Singleton instance
 let instance: HybridStore | null = null
+let initPromise: Promise<HybridStore> | null = null
 
 /**
- * Get singleton instance of HybridStore
+ * Register HybridStore cleanup with the centralized shutdown handler.
+ */
+function registerShutdownHandlers(): void {
+  onShutdown("HybridStore", async () => {
+    if (instance) {
+      await instance.disconnect()
+      instance = null
+      initPromise = null
+    }
+  })
+}
+
+/**
+ * Get singleton instance of HybridStore.
+ *
+ * Uses a cached promise to prevent TOCTOU race conditions — concurrent
+ * callers will await the same initialization promise rather than each
+ * creating their own instance.
  */
 async function getHybridStore(): Promise<HybridStore> {
-  if (!instance) {
-    instance = new HybridStore()
-    await instance.connect()
+  if (instance) {
+    return instance
   }
-  return instance
+  if (!initPromise) {
+    initPromise = (async () => {
+      const store = new HybridStore()
+      await store.connect()
+      instance = store
+      registerShutdownHandlers()
+      return store
+    })()
+  }
+  return initPromise
 }
 
 export { HybridStore, getHybridStore }

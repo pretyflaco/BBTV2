@@ -177,9 +177,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(401).json({ error: "Invalid webhook signature" })
       }
     } else {
-      console.warn(
-        "[Webhook] No webhook secrets configured - skipping signature verification",
+      console.error(
+        "[Webhook] CRITICAL: No webhook secrets configured - rejecting request",
       )
+      return res
+        .status(500)
+        .json({ error: "Webhook signature verification not configured" })
     }
 
     // Step 2: Parse the webhook payload

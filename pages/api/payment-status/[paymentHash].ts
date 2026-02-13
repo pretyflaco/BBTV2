@@ -19,8 +19,9 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 import { getHybridStore } from "../../../lib/storage/hybrid-store"
+import { withRateLimit, RATE_LIMIT_READ } from "../../../lib/rate-limit"
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Only allow GET requests
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" })
@@ -66,3 +67,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_READ)

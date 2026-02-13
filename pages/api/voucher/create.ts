@@ -3,6 +3,7 @@ import type { EnvironmentName } from "../../../lib/config/api"
 
 import voucherStore from "../../../lib/voucher-store"
 import { isValidExpiryId, DEFAULT_EXPIRY_ID } from "../../../lib/voucher-expiry"
+import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
 
 /**
  * API endpoint to create a new voucher charge
@@ -21,7 +22,7 @@ import { isValidExpiryId, DEFAULT_EXPIRY_ID } from "../../../lib/voucher-expiry"
  *   usdAmount: number (optional, USD cents - required if walletCurrency is 'USD')
  * }
  */
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" })
   }
@@ -144,3 +145,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_WRITE)

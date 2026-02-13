@@ -9,6 +9,7 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
 import * as db from "../../../lib/network/db"
+import { withRateLimit, RATE_LIMIT_READ } from "../../../lib/rate-limit"
 
 /**
  * Get date range for a period
@@ -86,7 +87,7 @@ function getWeekNumber(date: Date): { year: number; week: number } {
   return { year: d.getUTCFullYear(), week: weekNo }
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" })
   }
@@ -236,3 +237,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_READ)

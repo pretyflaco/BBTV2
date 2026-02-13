@@ -10,6 +10,7 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
 import { bech32 } from "bech32"
+import { withRateLimit, RATE_LIMIT_READ } from "../../../lib/rate-limit"
 
 import type WebSocket from "ws"
 
@@ -122,7 +123,7 @@ async function fetchProfile(pubkeyHex: string): Promise<Record<string, unknown> 
   return null
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" })
   }
@@ -181,3 +182,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_READ)

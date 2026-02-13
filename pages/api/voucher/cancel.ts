@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
 import voucherStore from "../../../lib/voucher-store"
+import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
 
 /**
  * API endpoint to cancel a voucher
@@ -14,7 +15,7 @@ import voucherStore from "../../../lib/voucher-store"
  * - 404: { error: string } - Voucher not found
  * - 405: { error: string } - Method not allowed
  */
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Add CORS headers for compatibility
   res.setHeader("Access-Control-Allow-Origin", "*")
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS")
@@ -86,3 +87,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_WRITE)

@@ -17,7 +17,8 @@
  */
 
 import crypto from "crypto"
-import { Pool, QueryResult, PoolConfig } from "pg"
+import type { QueryResult } from "pg"
+import { getSharedPool } from "./db"
 import AuthManager from "./auth"
 import {
   MAX_UNCLAIMED_PER_WALLET,
@@ -86,33 +87,9 @@ interface VoucherRow {
   [key: string]: unknown
 }
 
-// Database connection pool (singleton)
-let pool: Pool | null = null
-
-function getPool(): Pool {
-  if (!pool) {
-    const config: PoolConfig = process.env.DATABASE_URL
-      ? { connectionString: process.env.DATABASE_URL }
-      : {
-          host: process.env.POSTGRES_HOST || "localhost",
-          port: parseInt(process.env.POSTGRES_PORT || "5432", 10),
-          database: process.env.POSTGRES_DB || "blinkpos",
-          user: process.env.POSTGRES_USER || "blinkpos",
-          password: process.env.POSTGRES_PASSWORD || "blinkpos_dev_password",
-        }
-
-    pool = new Pool({
-      ...config,
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-    })
-
-    pool.on("error", (err: Error) => {
-      console.error("[VoucherStore] Unexpected pool error:", err)
-    })
-  }
-  return pool
+// Database connection pool (delegates to shared pool)
+function getPool() {
+  return getSharedPool()
 }
 
 /**

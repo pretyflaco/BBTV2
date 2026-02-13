@@ -10,8 +10,9 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
 import BlinkAPI from "../../../../lib/blink-api"
+import { withRateLimit, RATE_LIMIT_PUBLIC } from "../../../../lib/rate-limit"
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ status: "ERROR", reason: "Method not allowed" })
   }
@@ -75,3 +76,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_PUBLIC)

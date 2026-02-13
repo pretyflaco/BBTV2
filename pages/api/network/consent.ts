@@ -10,13 +10,8 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 import * as db from "../../../lib/network/db"
 import BlinkAPI from "../../../lib/blink-api"
-
-// Simple encryption for API keys (in production, use proper encryption)
-function encryptApiKey(apiKey: string): string {
-  // Base64 encode with a simple transform (NOT secure - use proper encryption in production)
-  const encoded = Buffer.from(apiKey).toString("base64")
-  return encoded.split("").reverse().join("")
-}
+import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
+import AuthManager from "../../../lib/auth"
 
 /**
  * Fetch Blink username using the provided API key
@@ -64,7 +59,7 @@ async function isUserMemberOfCommunity(
   }
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   const userNpub = req.headers["x-user-npub"] as string | undefined
 
   if (!userNpub) {
@@ -106,17 +101,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }[] = []
 
         for (const membership of memberships) {
-          const consent = await db.getConsentByUser(
-            membership.community_id as string,
-            userNpub,
-          )
+          const consent = await db.getConsentByUser(membership.community_id, userNpub)
           if (consent) {
             consents.push({
-              id: consent.id as string,
-              community_id: membership.community_id as string,
+              id: String(consent.id),
+              community_id: String(membership.community_id),
               status: consent.consent_given ? "active" : "inactive",
-              blink_username: consent.blink_username as string,
-              consented_at: consent.consented_at as string,
+              blink_username: consent.blink_username ?? "",
+              consented_at: consent.consented_at ?? "",
             })
           }
         }
@@ -192,12 +184,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         )
         // Auto-approve the super admin
         if (membership) {
-          membership = await db.reviewApplication(
-            membership.id as string,
-            userNpub,
-            true,
-            null,
-          )
+          membership = await db.reviewApplication(membership.id, userNpub, true, null)
         }
       }
 
@@ -231,10 +218,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       // Encrypt and store
-      const encryptedKey = encryptApiKey(apiKey)
+      const encryptedKey = AuthManager.encryptApiKey(apiKey)
 
       const consent = await db.createOrUpdateConsent(
-        membership.id as string, // membershipId
+        membership.id, // membershipId
         userNpub,
         communityId,
         {
@@ -293,7 +280,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // Revoke consent by setting consent_given to false
       const consent = await db.createOrUpdateConsent(
-        membership.id as string, // membershipId
+        membership.id, // membershipId
         userNpub,
         communityId,
         {
@@ -332,3 +319,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(405).json({ error: "Method not allowed" })
 }
+
+export default withRateLimit(handler, RATE_LIMIT_WRITE)

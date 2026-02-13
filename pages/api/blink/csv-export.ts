@@ -3,6 +3,7 @@ import type { NextApiRequest, NextApiResponse } from "next"
 import AuthManager from "../../../lib/auth"
 import StorageManager from "../../../lib/storage"
 import BlinkAPI from "../../../lib/blink-api"
+import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
 
 /**
  * CSV Export API - Supports both legacy and Nostr authentication
@@ -14,7 +15,7 @@ import BlinkAPI from "../../../lib/blink-api"
  * Note: API keys should NEVER be accepted in request body
  * as bodies are commonly logged by proxies, CDNs, and WAFs.
  */
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" })
   }
@@ -83,3 +84,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_WRITE)

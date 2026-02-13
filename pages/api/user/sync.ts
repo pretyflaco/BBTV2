@@ -25,6 +25,7 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 import AuthManager from "../../../lib/auth"
 import StorageManager from "../../../lib/storage"
+import { withRateLimit, RATE_LIMIT_READ } from "../../../lib/rate-limit"
 
 /** Blink API account shape for sync */
 interface BlinkApiAccount {
@@ -154,7 +155,7 @@ function decryptSensitiveData(encrypted: string | null | undefined): string | nu
 const encryptNWCUri = encryptSensitiveData
 const decryptNWCUri = decryptSensitiveData
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   console.log("[user/sync] Request method:", req.method)
 
   // SECURITY: Require NIP-98 session authentication
@@ -196,6 +197,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_READ)
 
 /**
  * GET - Retrieve all synced data

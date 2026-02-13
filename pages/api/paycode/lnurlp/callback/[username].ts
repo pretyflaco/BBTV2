@@ -7,8 +7,9 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from "next"
+import { withRateLimit, RATE_LIMIT_PUBLIC } from "../../../../../lib/rate-limit"
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Add CORS headers for LNURL compatibility
   res.setHeader("Access-Control-Allow-Origin", "*")
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS")
@@ -100,3 +101,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_PUBLIC)

@@ -7,11 +7,13 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
+import type { MetricsRow } from "../../../lib/network/db"
 import {
   syncCommunityTransactions,
   syncAllCommunities,
 } from "../../../lib/network/syncService"
 import * as db from "../../../lib/network/db"
+import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
 
 async function canTriggerSync(userNpub: string, communityId?: string): Promise<boolean> {
   try {
@@ -35,7 +37,7 @@ async function canTriggerSync(userNpub: string, communityId?: string): Promise<b
   }
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   const userNpub = req.headers["x-user-npub"] as string | undefined
 
   if (!userNpub) {
@@ -79,15 +81,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } else {
         // Get metrics for all communities from database
         const communities = await db.listCommunities()
-        const metricsArray: Record<string, unknown>[] = []
+        const metricsArray: MetricsRow[] = []
 
         for (const community of communities) {
-          const metrics = await db.getLatestMetrics(community.id as string)
+          const metrics = await db.getLatestMetrics(community.id)
           if (metrics) {
-            metricsArray.push({
-              community_id: community.id,
-              ...metrics,
-            })
+            metricsArray.push(metrics)
           }
         }
 
@@ -171,3 +170,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(405).json({ error: "Method not allowed" })
 }
+
+export default withRateLimit(handler, RATE_LIMIT_WRITE)

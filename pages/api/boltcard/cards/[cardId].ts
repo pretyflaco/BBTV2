@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
 import * as boltcard from "../../../../lib/boltcard"
+import { withRateLimit, RATE_LIMIT_READ } from "../../../../lib/rate-limit"
 
 /**
  * API endpoint for individual Boltcard management
@@ -17,7 +18,7 @@ import * as boltcard from "../../../../lib/boltcard"
  * POST /api/boltcard/cards/[cardId]
  * - Actions: activate, disable, enable, topup
  */
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   const cardId = req.query.cardId as string | undefined
 
   if (!cardId) {
@@ -322,3 +323,5 @@ function getServerUrl(req: NextApiRequest) {
 
   return `${protocol}://${host}`
 }
+
+export default withRateLimit(handler, RATE_LIMIT_READ)

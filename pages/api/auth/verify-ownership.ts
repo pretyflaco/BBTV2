@@ -29,6 +29,7 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 import { verifyChallenge } from "../../../lib/auth/challengeStore"
 import AuthManager from "../../../lib/auth"
+import { withRateLimit, RATE_LIMIT_AUTH } from "../../../lib/rate-limit"
 
 import crypto from "crypto"
 
@@ -259,7 +260,7 @@ function validateSignedEvent(event: SignedEvent): { valid: boolean; error?: stri
   return { valid: true }
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Only accept POST requests
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" })
@@ -395,3 +396,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_AUTH)

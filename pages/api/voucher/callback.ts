@@ -5,6 +5,7 @@ import type { EnvironmentName } from "../../../lib/config/api"
 import voucherStore from "../../../lib/voucher-store"
 import BlinkAPI from "../../../lib/blink-api"
 import { getApiUrlForEnvironment } from "../../../lib/config/api"
+import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
 
 /**
  * LNURL-withdraw callback endpoint
@@ -14,7 +15,7 @@ import { getApiUrlForEnvironment } from "../../../lib/config/api"
  *
  * Following LUD-03 spec: https://github.com/lnurl/luds/blob/luds/03.md
  */
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Add CORS headers for LNURL compatibility
   res.setHeader("Access-Control-Allow-Origin", "*")
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS")
@@ -231,3 +232,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withRateLimit(handler, RATE_LIMIT_WRITE)

@@ -36,6 +36,67 @@ PROD_USER="ubuntu"
 PROD_PATH="/var/www/blinkpos"
 GITHUB_REPO="https://github.com/pretyflaco/BBTV2.git"
 BRANCH="main"
+BACKUP_DIR="${PROD_PATH}/backups"
+MAX_BACKUPS=10  # Keep only the last N backups
+ROLLBACK_FILE="${PROD_PATH}/.last-deploy-commit"
+
+# ============================================================================
+# Rollback mode: ./deploy-prod.sh --rollback
+# ============================================================================
+if [ "${1}" = "--rollback" ]; then
+    print_header "🔙 ROLLBACK: Reverting to previous deployment"
+
+    echo ""
+    print_info "Target Server: ${GREEN}${PROD_SERVER}${NC}"
+    print_info "Deployment Path: ${CYAN}${PROD_PATH}${NC}"
+    echo ""
+
+    confirm "Roll back to the previous deployment?"
+
+    ssh ${PROD_USER}@${PROD_SERVER} bash <<ROLLBACK_EOF
+        set -e
+        cd ${PROD_PATH}
+
+        if [ ! -f "${ROLLBACK_FILE}" ]; then
+            echo "❌ No rollback info found. No previous deployment to revert to."
+            exit 1
+        fi
+
+        PREV_COMMIT=\$(cat "${ROLLBACK_FILE}")
+        echo "🔙 Rolling back to commit: \${PREV_COMMIT}"
+
+        git fetch origin
+        git checkout \${PREV_COMMIT}
+
+        echo "🐳 Stopping containers..."
+        docker-compose -f docker-compose.prod.yml down
+
+        echo "🔨 Rebuilding with previous version..."
+        export GIT_COMMIT=\$(git rev-parse --short HEAD)
+        docker-compose -f docker-compose.prod.yml up --build -d
+
+        echo "⏳ Waiting for containers to be healthy..."
+        sleep 15
+
+        echo ""
+        echo "🏥 Health check:"
+        curl -s http://localhost:3000/api/health | head -3 || echo "Health check failed"
+
+        echo ""
+        echo "📌 Rolled back to: \$(git log -1 --oneline)"
+        echo "✅ Rollback complete!"
+ROLLBACK_EOF
+
+    print_success "Rollback completed!"
+    print_info "Verify at: ${CYAN}https://${PROD_SERVER}${NC}"
+    echo ""
+    print_info "To restore the database from backup:"
+    print_info "  ssh ${PROD_USER}@${PROD_SERVER}"
+    print_info "  cd ${PROD_PATH}"
+    print_info "  gunzip -c backups/backup-YYYYMMDD-HHMMSS.sql.gz | docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos"
+    echo ""
+    exit 0
+fi
 
 # Functions
 print_header() {
@@ -147,6 +208,10 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     echo "📁 Navigating to deployment directory..."
     cd ${PROD_PATH}
     
+    # Ensure persistent backup directory exists
+    mkdir -p ${BACKUP_DIR}
+    echo "✅ Backup directory ready: ${BACKUP_DIR}"
+    
     # ============================================================================
     # CRITICAL: Stop PM2 if running - Docker is the ONLY deployment method
     # ============================================================================
@@ -172,7 +237,7 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     echo "💾 Pre-deployment backup: voucher store..."
     if [ -f ".voucher-store.json" ]; then
         VOUCHER_BACKUP="voucher-store-backup-\$(date +%Y%m%d-%H%M%S).json"
-        cp .voucher-store.json "/tmp/\${VOUCHER_BACKUP}"
+        cp .voucher-store.json "${BACKUP_DIR}/\${VOUCHER_BACKUP}"
         VOUCHER_COUNT=\$(grep -o '"id":' .voucher-store.json 2>/dev/null | wc -l || echo "0")
         echo "✅ Voucher store backed up: \${VOUCHER_BACKUP} (\${VOUCHER_COUNT} vouchers)"
     else
@@ -181,6 +246,12 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     
     echo ""
     echo "📥 Pulling latest changes from GitHub..."
+    
+    # Save current commit for rollback before overwriting
+    PREV_COMMIT=\$(git rev-parse HEAD)
+    echo "\${PREV_COMMIT}" > "${ROLLBACK_FILE}"
+    echo "📌 Saved rollback point: \$(git log -1 --oneline)"
+    
     git fetch origin
     git reset --hard origin/${BRANCH}
     
@@ -216,9 +287,17 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     # Create timestamped backup
     BACKUP_FILE="backup-\$(date +%Y%m%d-%H%M%S).sql.gz"
     
-    if docker-compose -f docker-compose.prod.yml exec -T postgres pg_dump -U blinkpos blinkpos 2>/dev/null | gzip > "/tmp/\${BACKUP_FILE}"; then
-        BACKUP_SIZE=\$(ls -lh "/tmp/\${BACKUP_FILE}" 2>/dev/null | awk '{print \$5}')
+    if docker-compose -f docker-compose.prod.yml exec -T postgres pg_dump -U blinkpos blinkpos 2>/dev/null | gzip > "${BACKUP_DIR}/\${BACKUP_FILE}"; then
+        BACKUP_SIZE=\$(ls -lh "${BACKUP_DIR}/\${BACKUP_FILE}" 2>/dev/null | awk '{print \$5}')
         echo "✅ Database backup created: \${BACKUP_FILE} (\${BACKUP_SIZE})"
+        
+        # Rotate old backups: keep only the last MAX_BACKUPS
+        BACKUP_COUNT=\$(ls -1 ${BACKUP_DIR}/backup-*.sql.gz 2>/dev/null | wc -l)
+        if [ "\${BACKUP_COUNT}" -gt ${MAX_BACKUPS} ]; then
+            REMOVE_COUNT=\$(( BACKUP_COUNT - ${MAX_BACKUPS} ))
+            ls -1t ${BACKUP_DIR}/backup-*.sql.gz | tail -n \${REMOVE_COUNT} | xargs rm -f
+            echo "🗑️  Rotated \${REMOVE_COUNT} old backup(s), keeping last ${MAX_BACKUPS}"
+        fi
     else
         echo "⚠️  Database backup failed (continuing with deployment)"
     fi
@@ -241,10 +320,10 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     if [ "\${SCHEMA_VERSION}" -lt 2 ]; then
         echo "🔄 Applying migration 002 (network communities schema)..."
         
-        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/002_network_communities.sql 2>&1 | tee /tmp/migration-002.log | grep -v "^$" | tail -20; then
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/002_network_communities.sql 2>&1 | tee ${BACKUP_DIR}/migration-002.log | grep -v "^$" | tail -20; then
             echo ""
             echo "❌ MIGRATION 002 FAILED!"
-            echo "📋 Check logs: /tmp/migration-002.log"
+            echo "📋 Check logs: ${BACKUP_DIR}/migration-002.log"
             echo ""
             echo "🔙 Rolling back deployment..."
             docker-compose -f docker-compose.prod.yml down
@@ -264,10 +343,10 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     if [ "\${SCHEMA_VERSION}" -lt 3 ]; then
         echo "🔄 Applying migration 003 (seed initial communities & leaders)..."
         
-        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/003_seed_initial_data.sql 2>&1 | tee /tmp/migration-003.log | grep -v "^$" | tail -20; then
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/003_seed_initial_data.sql 2>&1 | tee ${BACKUP_DIR}/migration-003.log | grep -v "^$" | tail -20; then
             echo ""
             echo "❌ MIGRATION 003 FAILED!"
-            echo "📋 Check logs: /tmp/migration-003.log"
+            echo "📋 Check logs: ${BACKUP_DIR}/migration-003.log"
             echo ""
             echo "🔙 Rolling back deployment..."
             docker-compose -f docker-compose.prod.yml down
@@ -287,10 +366,10 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     if [ "\${SCHEMA_VERSION}" -lt 4 ]; then
         echo "🔄 Applying migration 004 (add Blink Team community)..."
         
-        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/004_add_blink_team.sql 2>&1 | tee /tmp/migration-004.log | grep -v "^$" | tail -20; then
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/004_add_blink_team.sql 2>&1 | tee ${BACKUP_DIR}/migration-004.log | grep -v "^$" | tail -20; then
             echo ""
             echo "❌ MIGRATION 004 FAILED!"
-            echo "📋 Check logs: /tmp/migration-004.log"
+            echo "📋 Check logs: ${BACKUP_DIR}/migration-004.log"
             echo ""
             echo "🔙 Rolling back deployment..."
             docker-compose -f docker-compose.prod.yml down
@@ -310,10 +389,10 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     if [ "\${SCHEMA_VERSION}" -lt 5 ]; then
         echo "🔄 Applying migration 005 (fix pending_applications view)..."
         
-        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/005_fix_pending_applications_view.sql 2>&1 | tee /tmp/migration-005.log | grep -v "^$" | tail -20; then
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/005_fix_pending_applications_view.sql 2>&1 | tee ${BACKUP_DIR}/migration-005.log | grep -v "^$" | tail -20; then
             echo ""
             echo "❌ MIGRATION 005 FAILED!"
-            echo "📋 Check logs: /tmp/migration-005.log"
+            echo "📋 Check logs: ${BACKUP_DIR}/migration-005.log"
             echo ""
             echo "🔙 Rolling back deployment..."
             docker-compose -f docker-compose.prod.yml down
@@ -333,10 +412,10 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     if [ "\${SCHEMA_VERSION}" -lt 6 ]; then
         echo "🔄 Applying migration 006 (update Blink Team location)..."
         
-        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/006_update_blink_team.sql 2>&1 | tee /tmp/migration-006.log | grep -v "^$" | tail -20; then
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/006_update_blink_team.sql 2>&1 | tee ${BACKUP_DIR}/migration-006.log | grep -v "^$" | tail -20; then
             echo ""
             echo "❌ MIGRATION 006 FAILED!"
-            echo "📋 Check logs: /tmp/migration-006.log"
+            echo "📋 Check logs: ${BACKUP_DIR}/migration-006.log"
             echo ""
             echo "🔙 Rolling back deployment..."
             docker-compose -f docker-compose.prod.yml down
@@ -356,10 +435,10 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     if [ "\${SCHEMA_VERSION}" -lt 7 ]; then
         echo "🔄 Applying migration 007 (fix metrics overflow)..."
         
-        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/007_fix_metrics_overflow.sql 2>&1 | tee /tmp/migration-007.log | grep -v "^$" | tail -20; then
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/007_fix_metrics_overflow.sql 2>&1 | tee ${BACKUP_DIR}/migration-007.log | grep -v "^$" | tail -20; then
             echo ""
             echo "❌ MIGRATION 007 FAILED!"
-            echo "📋 Check logs: /tmp/migration-007.log"
+            echo "📋 Check logs: ${BACKUP_DIR}/migration-007.log"
             echo ""
             echo "🔙 Rolling back deployment..."
             docker-compose -f docker-compose.prod.yml down
@@ -379,10 +458,10 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     if [ "\${SCHEMA_VERSION}" -lt 8 ]; then
         echo "🔄 Applying migration 008 (vouchers table for persistent storage)..."
         
-        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/008_vouchers_table.sql 2>&1 | tee /tmp/migration-008.log | grep -v "^$" | tail -20; then
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/008_vouchers_table.sql 2>&1 | tee ${BACKUP_DIR}/migration-008.log | grep -v "^$" | tail -20; then
             echo ""
             echo "❌ MIGRATION 008 FAILED!"
-            echo "📋 Check logs: /tmp/migration-008.log"
+            echo "📋 Check logs: ${BACKUP_DIR}/migration-008.log"
             echo ""
             echo "🔙 Rolling back deployment..."
             docker-compose -f docker-compose.prod.yml down
@@ -412,10 +491,10 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     if [ "\${SCHEMA_VERSION}" -lt 9 ]; then
         echo "🔄 Applying migration 009 (add Bitbiashara community)..."
         
-        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/009_add_bitbiashara.sql 2>&1 | tee /tmp/migration-009.log | grep -v "^$" | tail -20; then
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/009_add_bitbiashara.sql 2>&1 | tee ${BACKUP_DIR}/migration-009.log | grep -v "^$" | tail -20; then
             echo ""
             echo "❌ MIGRATION 009 FAILED!"
-            echo "📋 Check logs: /tmp/migration-009.log"
+            echo "📋 Check logs: ${BACKUP_DIR}/migration-009.log"
             echo ""
             echo "🔙 Rolling back deployment..."
             docker-compose -f docker-compose.prod.yml down
@@ -435,10 +514,10 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     if [ "\${SCHEMA_VERSION}" -lt 10 ]; then
         echo "🔄 Applying migration 010 (add Afribit Kibera community)..."
         
-        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/010_add_afribit.sql 2>&1 | tee /tmp/migration-010.log | grep -v "^$" | tail -20; then
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/010_add_afribit.sql 2>&1 | tee ${BACKUP_DIR}/migration-010.log | grep -v "^$" | tail -20; then
             echo ""
             echo "❌ MIGRATION 010 FAILED!"
-            echo "📋 Check logs: /tmp/migration-010.log"
+            echo "📋 Check logs: ${BACKUP_DIR}/migration-010.log"
             echo ""
             echo "🔙 Rolling back deployment..."
             docker-compose -f docker-compose.prod.yml down
@@ -458,10 +537,10 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     if [ "\${SCHEMA_VERSION}" -lt 11 ]; then
         echo "🔄 Applying migration 011 (fix Victoria Falls country to Zambia)..."
         
-        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/011_fix_victoria_falls_country.sql 2>&1 | tee /tmp/migration-011.log | grep -v "^$" | tail -20; then
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/011_fix_victoria_falls_country.sql 2>&1 | tee ${BACKUP_DIR}/migration-011.log | grep -v "^$" | tail -20; then
             echo ""
             echo "❌ MIGRATION 011 FAILED!"
-            echo "📋 Check logs: /tmp/migration-011.log"
+            echo "📋 Check logs: ${BACKUP_DIR}/migration-011.log"
             echo ""
             echo "🔙 Rolling back deployment..."
             docker-compose -f docker-compose.prod.yml down
@@ -481,10 +560,10 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     if [ "\${SCHEMA_VERSION}" -lt 12 ]; then
         echo "🔄 Applying migration 012 (member balance snapshots for Bitcoin Preference)..."
         
-        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/012_member_balance_snapshots.sql 2>&1 | tee /tmp/migration-012.log | grep -v "^$" | tail -20; then
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/012_member_balance_snapshots.sql 2>&1 | tee ${BACKUP_DIR}/migration-012.log | grep -v "^$" | tail -20; then
             echo ""
             echo "❌ MIGRATION 012 FAILED!"
-            echo "📋 Check logs: /tmp/migration-012.log"
+            echo "📋 Check logs: ${BACKUP_DIR}/migration-012.log"
             echo ""
             echo "🔙 Rolling back deployment..."
             docker-compose -f docker-compose.prod.yml down
@@ -504,10 +583,10 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     if [ "\${SCHEMA_VERSION}" -lt 13 ]; then
         echo "🔄 Applying migration 013 (member removal columns)..."
         
-        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/013_add_member_removal.sql 2>&1 | tee /tmp/migration-013.log | grep -v "^$" | tail -20; then
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/013_add_member_removal.sql 2>&1 | tee ${BACKUP_DIR}/migration-013.log | grep -v "^$" | tail -20; then
             echo ""
             echo "❌ MIGRATION 013 FAILED!"
-            echo "📋 Check logs: /tmp/migration-013.log"
+            echo "📋 Check logs: ${BACKUP_DIR}/migration-013.log"
             echo ""
             echo "🔙 Rolling back deployment..."
             docker-compose -f docker-compose.prod.yml down
@@ -527,10 +606,10 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     if [ "\${SCHEMA_VERSION}" -lt 14 ]; then
         echo "🔄 Applying migration 014 (add Bitcoin Paraguay community)..."
         
-        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/014_add_bitcoin_paraguay.sql 2>&1 | tee /tmp/migration-014.log | grep -v "^$" | tail -20; then
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/014_add_bitcoin_paraguay.sql 2>&1 | tee ${BACKUP_DIR}/migration-014.log | grep -v "^$" | tail -20; then
             echo ""
             echo "❌ MIGRATION 014 FAILED!"
-            echo "📋 Check logs: /tmp/migration-014.log"
+            echo "📋 Check logs: ${BACKUP_DIR}/migration-014.log"
             echo ""
             echo "🔙 Rolling back deployment..."
             docker-compose -f docker-compose.prod.yml down
@@ -550,10 +629,10 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     if [ "\${SCHEMA_VERSION}" -lt 15 ]; then
         echo "🔄 Applying migration 015 (USD/Stablesats voucher support)..."
         
-        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/015_add_usd_voucher_support.sql 2>&1 | tee /tmp/migration-015.log | grep -v "^$" | tail -20; then
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/015_add_usd_voucher_support.sql 2>&1 | tee ${BACKUP_DIR}/migration-015.log | grep -v "^$" | tail -20; then
             echo ""
             echo "❌ MIGRATION 015 FAILED!"
-            echo "📋 Check logs: /tmp/migration-015.log"
+            echo "📋 Check logs: ${BACKUP_DIR}/migration-015.log"
             echo ""
             echo "🔙 Rolling back deployment..."
             docker-compose -f docker-compose.prod.yml down
@@ -573,10 +652,10 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     if [ "\${SCHEMA_VERSION}" -lt 16 ]; then
         echo "🔄 Applying migration 016 (boltcards base table)..."
         
-        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/016_boltcards_table.sql 2>&1 | tee /tmp/migration-016.log | grep -v "^$" | tail -20; then
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/016_boltcards_table.sql 2>&1 | tee ${BACKUP_DIR}/migration-016.log | grep -v "^$" | tail -20; then
             echo ""
             echo "❌ MIGRATION 016 FAILED!"
-            echo "📋 Check logs: /tmp/migration-016.log"
+            echo "📋 Check logs: ${BACKUP_DIR}/migration-016.log"
             echo ""
             echo "🔙 Rolling back deployment..."
             docker-compose -f docker-compose.prod.yml down
@@ -596,10 +675,10 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
     if [ "\${SCHEMA_VERSION}" -lt 17 ]; then
         echo "🔄 Applying migration 017 (boltcard spec compliance)..."
         
-        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/017_boltcard_spec_compliance.sql 2>&1 | tee /tmp/migration-017.log | grep -v "^$" | tail -20; then
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/017_boltcard_spec_compliance.sql 2>&1 | tee ${BACKUP_DIR}/migration-017.log | grep -v "^$" | tail -20; then
             echo ""
             echo "❌ MIGRATION 017 FAILED!"
-            echo "📋 Check logs: /tmp/migration-017.log"
+            echo "📋 Check logs: ${BACKUP_DIR}/migration-017.log"
             echo ""
             echo "🔙 Rolling back deployment..."
             docker-compose -f docker-compose.prod.yml down
@@ -610,6 +689,29 @@ ssh ${PROD_USER}@${PROD_SERVER} bash <<EOF
         echo "✅ Migration 017 applied successfully"
     else
         echo "✅ Migration 017 already applied (skipping)"
+    fi
+    
+    # Refresh schema version
+    SCHEMA_VERSION=\$(get_schema_version)
+    
+    # Apply migration 018 (boltcard pending topups)
+    if [ "\${SCHEMA_VERSION}" -lt 18 ]; then
+        echo "🔄 Applying migration 018 (boltcard pending topups)..."
+        
+        if ! docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos < database/migrations/018_boltcard_pending_topups.sql 2>&1 | tee ${BACKUP_DIR}/migration-018.log | grep -v "^$" | tail -20; then
+            echo ""
+            echo "❌ MIGRATION 018 FAILED!"
+            echo "📋 Check logs: ${BACKUP_DIR}/migration-018.log"
+            echo ""
+            echo "🔙 Rolling back deployment..."
+            docker-compose -f docker-compose.prod.yml down
+            echo "❌ Deployment stopped due to migration failure"
+            exit 1
+        fi
+        
+        echo "✅ Migration 018 applied successfully"
+    else
+        echo "✅ Migration 018 already applied (skipping)"
     fi
     
     # Display final schema version
@@ -723,10 +825,10 @@ print_info "Verifying database migrations..."
 # Check schema version
 DEPLOYED_SCHEMA=$(ssh ${PROD_USER}@${PROD_SERVER} "cd ${PROD_PATH} && docker-compose -f docker-compose.prod.yml exec -T postgres psql -U blinkpos -d blinkpos -t -c \"SELECT COALESCE(MAX(metric_value::int), 0) FROM system_metrics WHERE metric_name = 'schema_version';\" 2>/dev/null | tr -d ' \n\r'" || echo "0")
 
-if [ "${DEPLOYED_SCHEMA}" -ge 17 ]; then
+if [ "${DEPLOYED_SCHEMA}" -ge 18 ]; then
     print_success "Database schema up to date (version ${DEPLOYED_SCHEMA})"
 else
-    print_warning "Database schema may need attention (version ${DEPLOYED_SCHEMA}, expected 17+)"
+    print_warning "Database schema may need attention (version ${DEPLOYED_SCHEMA}, expected 18+)"
 fi
 
 # Check voucher persistence

@@ -7,6 +7,7 @@
  */
 
 import BlinkAPI from "../blink-api"
+import AuthManager from "../auth"
 import * as db from "./db"
 
 // ---------------------------------------------------------------------------
@@ -186,11 +187,14 @@ const SYNC_CONFIG = {
 // ---------------------------------------------------------------------------
 
 /**
- * Decrypt API key (reverse of consent.js encryption)
+ * Decrypt API key using AuthManager (AES encryption)
  */
-export function decryptApiKey(encryptedKey: string): string {
-  const reversed = encryptedKey.split("").reverse().join("")
-  return Buffer.from(reversed, "base64").toString("utf8")
+function decryptApiKey(encryptedKey: string): string {
+  const decrypted = AuthManager.decryptApiKey(encryptedKey)
+  if (!decrypted) {
+    throw new Error("Failed to decrypt API key")
+  }
+  return decrypted
 }
 
 /**

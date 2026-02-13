@@ -5,9 +5,8 @@
  * in registration order. This replaces scattered `process.on` calls and
  * prevents the "only the last handler runs" race.
  *
- * Phase 1 (current — Next.js 12): Register callbacks manually.
- * Phase 2 (after Next.js 14 upgrade): Move to `instrumentation.ts` hook
- *   and integrate with OTEL SDK shutdown (#513).
+ * OTEL SDK shutdown is integrated: the SDK is flushed/shut down as the
+ * last step to ensure all pending spans are exported before exit.
  *
  * Usage:
  *   import { onShutdown } from "../lib/shutdown"
@@ -71,6 +70,16 @@ function ensureHandlersRegistered(): void {
       } catch (err) {
         logger.error({ name: entry.name, err }, "Shutdown callback failed")
       }
+    }
+
+    // Flush and shut down the OTEL SDK last, so all pending spans
+    // (including those generated during earlier callbacks) are exported.
+    try {
+      const { otelSdk } = await import("../instrumentation.node")
+      await otelSdk.shutdown()
+      logger.info("OTEL SDK shut down")
+    } catch (_err) {
+      // OTEL may not be initialised (e.g. tests, edge runtime) — that's fine.
     }
 
     logger.info("All shutdown callbacks completed")

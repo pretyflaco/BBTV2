@@ -1,5 +1,10 @@
 // Import centralized API configuration
+import { SpanStatusCode } from "@opentelemetry/api"
+
 import { getApiUrl } from "./config/api"
+import { getTracer, injectTraceHeaders } from "./tracing"
+
+const tracer = getTracer("bbt-blink-api")
 
 // =============================================================================
 // Interfaces
@@ -126,54 +131,78 @@ class BlinkAPI {
     query: string,
     variables: Record<string, unknown> = {},
   ): Promise<GraphQLData> {
-    try {
-      const response = await fetch(this.baseUrl, {
-        method: "POST",
-        headers: {
+    // Extract operation name from "query Foo" or "mutation Foo" for span naming
+    const operationName = query.match(/(?:query|mutation)\s+(\w+)/)?.[1] || "anonymous"
+    const operationType = query.trimStart().startsWith("mutation") ? "mutation" : "query"
+
+    return tracer.startActiveSpan(`blink.graphql ${operationName}`, async (span) => {
+      span.setAttribute("graphql.operation.name", operationName)
+      span.setAttribute("graphql.operation.type", operationType)
+      span.setAttribute("http.url", this.baseUrl)
+      span.setAttribute("http.method", "POST")
+
+      try {
+        // Build headers with W3C trace context injection
+        const headers: Record<string, string> = {
           "Content-Type": "application/json",
           "X-API-KEY": this.apiKey,
-        },
-        body: JSON.stringify({ query, variables }),
-      })
+        }
+        injectTraceHeaders(headers)
 
-      // Check if response is OK before parsing JSON
-      if (!response.ok) {
-        const contentType = response.headers.get("content-type")
-        let errorMessage = `Blink API HTTP error: ${response.status}`
+        const response = await fetch(this.baseUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ query, variables }),
+        })
 
-        // Try to get error details if it's JSON
-        if (contentType && contentType.includes("application/json")) {
-          try {
-            const errorData = await response.json()
-            errorMessage = errorData.message || errorData.error || errorMessage
-          } catch (_e: unknown) {
-            // Failed to parse error as JSON, use default message
+        span.setAttribute("http.status_code", response.status)
+
+        // Check if response is OK before parsing JSON
+        if (!response.ok) {
+          const contentType = response.headers.get("content-type")
+          let errorMessage = `Blink API HTTP error: ${response.status}`
+
+          // Try to get error details if it's JSON
+          if (contentType && contentType.includes("application/json")) {
+            try {
+              const errorData = await response.json()
+              errorMessage = errorData.message || errorData.error || errorMessage
+            } catch (_e: unknown) {
+              // Failed to parse error as JSON, use default message
+            }
+          } else {
+            // Response is not JSON (likely HTML error page)
+            const text = await response.text()
+            console.error("Blink API non-JSON response:", text.substring(0, 200))
+            errorMessage = `Blink API returned non-JSON response (${response.status})`
           }
-        } else {
-          // Response is not JSON (likely HTML error page)
-          const text = await response.text()
-          console.error("Blink API non-JSON response:", text.substring(0, 200))
-          errorMessage = `Blink API returned non-JSON response (${response.status})`
+
+          throw new Error(errorMessage)
         }
 
-        throw new Error(errorMessage)
+        const data: GraphQLResponse = await response.json()
+
+        if (data.errors) {
+          throw new Error(data.errors[0]?.message || "GraphQL error")
+        }
+
+        if (!data.data) {
+          throw new Error("GraphQL response contained no data")
+        }
+
+        span.setStatus({ code: SpanStatusCode.OK })
+        return data.data
+      } catch (error: unknown) {
+        console.error("Blink API error:", error)
+        span.setStatus({ code: SpanStatusCode.ERROR })
+        if (error instanceof Error) {
+          span.recordException(error)
+        }
+        throw error
+      } finally {
+        span.end()
       }
-
-      const data: GraphQLResponse = await response.json()
-
-      if (data.errors) {
-        throw new Error(data.errors[0]?.message || "GraphQL error")
-      }
-
-      if (!data.data) {
-        throw new Error("GraphQL response contained no data")
-      }
-
-      return data.data
-    } catch (error: unknown) {
-      console.error("Blink API error:", error)
-      throw error
-    }
+    })
   }
 
   // Get user information including display currency

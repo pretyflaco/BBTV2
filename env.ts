@@ -60,6 +60,10 @@ export const env = createEnv({
     LOGLEVEL: z
       .enum(["fatal", "error", "warn", "info", "debug", "trace"])
       .default("info"),
+
+    // --- Observability (OpenTelemetry) ---
+    OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),
+    TRACING_SERVICE_NAME: z.string().default("bbt"),
   },
 
   client: {
@@ -107,6 +111,10 @@ export const env = createEnv({
 
     // Logging
     LOGLEVEL: process.env.LOGLEVEL,
+
+    // Observability (OpenTelemetry)
+    OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+    TRACING_SERVICE_NAME: process.env.TRACING_SERVICE_NAME,
 
     // Client
     NEXT_PUBLIC_BASE_URL: process.env.NEXT_PUBLIC_BASE_URL,

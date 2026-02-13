@@ -35,8 +35,11 @@ import NWCClient, {
   type MakeInvoiceResult,
 } from "../../../lib/nwc/NWCClient"
 import { getHybridStore, type HybridStore } from "../../../lib/storage/hybrid-store"
+import { getTracer, withSpan, getActiveTraceId } from "../../../lib/tracing"
 import { verifyWebhookSignature } from "../../../lib/webhook-verify"
 // Import boltcard LNURL-pay for top-up processing
+
+const tracer = getTracer("bbt-payment")
 
 /** Result of forwarding a payment */
 interface ForwardResult {
@@ -143,308 +146,374 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" })
   }
 
-  const startTime = Date.now()
-  let paymentHash: string | null = null
-  let hybridStore: HybridStore | null = null
+  return withSpan(tracer, "webhook.handle", async (rootSpan) => {
+    let paymentHash: string | null = null
+    let hybridStore: HybridStore | null = null
 
-  try {
-    // Step 1: Verify webhook signature (try both production and staging secrets)
-    // We don't know which environment the webhook is from until we verify the signature
-    const productionSecret = process.env.BLINK_WEBHOOK_SECRET
-    const stagingSecret = process.env.BLINK_STAGING_WEBHOOK_SECRET
-
-    let isValid = false
-    let _webhookEnvironment: string | null = null
-
-    if (productionSecret || stagingSecret) {
-      // Try production secret first
-      if (productionSecret && verifyWebhookSignature(req, productionSecret)) {
-        isValid = true
-        _webhookEnvironment = "production"
-        console.log("[Webhook] Signature verified with PRODUCTION secret")
-      }
-      // Try staging secret if production didn't work
-      else if (stagingSecret && verifyWebhookSignature(req, stagingSecret)) {
-        isValid = true
-        _webhookEnvironment = "staging"
-        console.log("[Webhook] Signature verified with STAGING secret")
-      }
-
-      if (!isValid) {
-        console.error(
-          "[Webhook] Invalid signature - tried both production and staging secrets",
-        )
-        return res.status(401).json({ error: "Invalid webhook signature" })
-      }
-    } else {
-      console.error(
-        "[Webhook] CRITICAL: No webhook secrets configured - rejecting request",
-      )
-      return res
-        .status(500)
-        .json({ error: "Webhook signature verification not configured" })
+    // Set trace ID response header for request correlation
+    const traceId = getActiveTraceId()
+    if (traceId) {
+      res.setHeader("X-Trace-Id", traceId)
     }
 
-    // Step 2: Parse the webhook payload
-    const payload = req.body
-
-    console.log("[Webhook] Received event:", {
-      eventType: payload.eventType,
-      transactionId: payload.transaction?.id,
-      amount: payload.transaction?.settlementAmount,
-      status: payload.transaction?.status,
-    })
-
-    // Only process receive events
-    if (!payload.eventType?.startsWith("receive.")) {
-      console.log("[Webhook] Ignoring non-receive event:", payload.eventType)
-      return res.status(200).json({ status: "ignored", reason: "Not a receive event" })
-    }
-
-    // Only process successful transactions
-    if (payload.transaction?.status !== "success") {
-      console.log(
-        "[Webhook] Ignoring non-success transaction:",
-        payload.transaction?.status,
-      )
-      return res
-        .status(200)
-        .json({ status: "ignored", reason: "Transaction not successful" })
-    }
-
-    // Extract payment hash from the transaction
-    const transaction = payload.transaction
-    paymentHash = transaction.initiationVia?.paymentHash
-
-    if (!paymentHash) {
-      console.log(
-        "[Webhook] No payment hash in transaction - may be on-chain or intraledger without hash",
-      )
-      return res.status(200).json({ status: "ignored", reason: "No payment hash" })
-    }
-
-    console.log("[Webhook] Processing payment:", {
-      paymentHash: paymentHash.substring(0, 16) + "...",
-      amount: transaction.settlementAmount,
-      eventType: payload.eventType,
-    })
-
-    // Step 3a: Check if this is a Boltcard top-up payment
-    // Boltcard top-ups are tracked separately from BlinkPOS forwarding
     try {
-      const boltcardTopUp = await boltcardLnurlp.getPendingTopUp(paymentHash)
+      // Step 1: Verify webhook signature (try both production and staging secrets)
+      // We don't know which environment the webhook is from until we verify the signature
+      const productionSecret = process.env.BLINK_WEBHOOK_SECRET
+      const stagingSecret = process.env.BLINK_STAGING_WEBHOOK_SECRET
 
-      if (boltcardTopUp) {
-        console.log("[Webhook] Processing Boltcard top-up:", {
-          cardId: boltcardTopUp.cardId,
-          amount: boltcardTopUp.amount,
-          currency: boltcardTopUp.currency,
-        })
+      let isValid = false
+      let _webhookEnvironment: string | null = null
 
-        const topUpResult = await boltcardLnurlp.processTopUpPayment(paymentHash)
-
-        if (topUpResult.success) {
-          console.log("[Webhook] Boltcard top-up processed:", {
-            cardId: topUpResult.cardId,
-            amount: topUpResult.amount,
-            newBalance: topUpResult.balance,
-          })
-
-          return res.status(200).json({
-            status: "boltcard_topup",
-            cardId: topUpResult.cardId,
-            amount: topUpResult.amount,
-            balance: topUpResult.balance,
-          })
-        } else {
-          console.error("[Webhook] Boltcard top-up failed:", topUpResult.error)
-          // Return 500 so Svix will retry
-          return res.status(500).json({
-            error: "Boltcard top-up failed",
-            details: topUpResult.error,
-          })
+      if (productionSecret || stagingSecret) {
+        // Try production secret first
+        if (productionSecret && verifyWebhookSignature(req, productionSecret)) {
+          isValid = true
+          _webhookEnvironment = "production"
+          console.log("[Webhook] Signature verified with PRODUCTION secret")
         }
-      }
-    } catch (boltcardError: unknown) {
-      console.error("[Webhook] Error checking boltcard top-up:", boltcardError)
-      // Continue to normal forwarding flow - this payment may not be a boltcard top-up
-    }
+        // Try staging secret if production didn't work
+        else if (stagingSecret && verifyWebhookSignature(req, stagingSecret)) {
+          isValid = true
+          _webhookEnvironment = "staging"
+          console.log("[Webhook] Signature verified with STAGING secret")
+        }
 
-    // Step 3b: Try to claim the payment for BlinkPOS forwarding (atomic deduplication)
-    // This prevents duplicate forwarding if both webhook and client try to process
-    hybridStore = await getHybridStore()
-    const claimResult = await hybridStore!.claimPaymentForProcessing(paymentHash)
-
-    if (!claimResult.claimed) {
-      console.log(`[Webhook] Payment not claimed: ${claimResult.reason}`)
-      return res.status(200).json({
-        status: claimResult.reason === "not_found" ? "ignored" : "already_claimed",
-        reason: claimResult.reason,
-      })
-    }
-
-    const forwardingData = claimResult.paymentData as ForwardingData
-
-    // Extract additional fields from metadata (they're stored in JSONB)
-    if (forwardingData.metadata) {
-      const md = forwardingData.metadata
-      forwardingData.nwcActive = (md.nwcActive as boolean) || false
-      forwardingData.nwcConnectionUri = (md.nwcConnectionUri as string) || null
-      forwardingData.blinkLnAddress = (md.blinkLnAddress as boolean) || false
-      forwardingData.blinkLnAddressWalletId =
-        (md.blinkLnAddressWalletId as string) || null
-      forwardingData.blinkLnAddressUsername =
-        (md.blinkLnAddressUsername as string) || null
-      forwardingData.npubCashActive = (md.npubCashActive as boolean) || false
-      forwardingData.npubCashLightningAddress =
-        (md.npubCashLightningAddress as string) || null
-      forwardingData.displayCurrency = (md.displayCurrency as string) || "BTC"
-      forwardingData.tipAmountDisplay = (md.tipAmountDisplay as number) || null
-      // Environment for staging/production API calls
-      forwardingData.environment = (md.environment as EnvironmentName) || "production"
-    }
-
-    console.log("[Webhook] Forwarding data found:", {
-      environment: forwardingData.environment,
-      nwcActive: forwardingData.nwcActive,
-      hasNwcConnectionUri: !!forwardingData.nwcConnectionUri,
-      blinkLnAddress: forwardingData.blinkLnAddress,
-      blinkLnAddressUsername: forwardingData.blinkLnAddressUsername,
-      npubCashActive: forwardingData.npubCashActive,
-      hasUserApiKey: !!forwardingData.userApiKey,
-      baseAmount: forwardingData.baseAmount,
-      tipAmount: forwardingData.tipAmount,
-    })
-
-    console.log("[Webhook] Payment claimed for forwarding")
-
-    // Step 5: Forward the payment based on the forwarding type
-    let forwardResult: ForwardResult
-    const amount = transaction.settlementAmount
-
-    try {
-      if (forwardingData.blinkLnAddress && forwardingData.blinkLnAddressUsername) {
-        // Forward to Blink Lightning Address
-        console.log(
-          "[Webhook] Forwarding to Blink Lightning Address:",
-          forwardingData.blinkLnAddressUsername,
-        )
-        forwardResult = await forwardToLnAddress(
-          paymentHash,
-          amount,
-          forwardingData,
-          hybridStore!,
-        )
-      } else if (
-        forwardingData.npubCashActive &&
-        forwardingData.npubCashLightningAddress
-      ) {
-        // Forward to npub.cash
-        console.log(
-          "[Webhook] Forwarding to npub.cash:",
-          forwardingData.npubCashLightningAddress,
-        )
-        forwardResult = await forwardToNpubCash(
-          paymentHash,
-          amount,
-          forwardingData,
-          hybridStore!,
-        )
-      } else if (forwardingData.nwcActive && forwardingData.nwcConnectionUri) {
-        // Forward to NWC wallet using stored encrypted connection URI
-        console.log("[Webhook] Forwarding to NWC wallet")
-        forwardResult = await forwardToNWCWallet(
-          paymentHash,
-          amount,
-          forwardingData,
-          hybridStore!,
-        )
-      } else if (forwardingData.nwcActive) {
-        // NWC active but no URI stored (legacy invoice or error)
-        console.log("[Webhook] NWC payment but no connection URI - client must handle")
-        // Release the claim so client can try
-        await hybridStore!.releaseFailedClaim(
-          paymentHash,
-          "NWC requires client-side forwarding (no URI stored)",
-        )
-        return res.status(200).json({
-          status: "nwc_requires_client",
-          reason: "NWC forwarding requires connection URI (not stored with invoice)",
-        })
-      } else if (forwardingData.userApiKey && forwardingData.userWalletId) {
-        // Forward to user's Blink wallet via API key
-        console.log("[Webhook] Forwarding to user Blink wallet")
-        forwardResult = await forwardToUserWallet(
-          paymentHash,
-          amount,
-          forwardingData,
-          hybridStore!,
-        )
+        if (!isValid) {
+          console.error(
+            "[Webhook] Invalid signature - tried both production and staging secrets",
+          )
+          rootSpan.setAttribute("webhook.signature_valid", false)
+          return res.status(401).json({ error: "Invalid webhook signature" })
+        }
       } else {
-        console.warn("[Webhook] No valid forwarding destination found")
-        await hybridStore!.releaseFailedClaim(
-          paymentHash,
-          "No valid forwarding destination",
+        console.error(
+          "[Webhook] CRITICAL: No webhook secrets configured - rejecting request",
         )
         return res
-          .status(200)
-          .json({ status: "no_destination", reason: "No valid forwarding destination" })
+          .status(500)
+          .json({ error: "Webhook signature verification not configured" })
       }
 
-      const elapsed = Date.now() - startTime
-      console.log(`[Webhook] Forwarding completed in ${elapsed}ms:`, forwardResult)
+      rootSpan.setAttribute("webhook.signature_valid", true)
 
-      // Log success event
-      await hybridStore!.logEvent(paymentHash, "webhook_forward", "success", {
-        forwardType: forwardResult.type,
-        amount,
-        elapsed,
+      // Step 2: Parse the webhook payload
+      const payload = req.body
+
+      console.log("[Webhook] Received event:", {
+        eventType: payload.eventType,
+        transactionId: payload.transaction?.id,
+        amount: payload.transaction?.settlementAmount,
+        status: payload.transaction?.status,
       })
 
-      return res.status(200).json({
-        status: "forwarded",
-        ...forwardResult,
+      rootSpan.setAttribute("webhook.event_type", payload.eventType || "unknown")
+
+      // Only process receive events
+      if (!payload.eventType?.startsWith("receive.")) {
+        console.log("[Webhook] Ignoring non-receive event:", payload.eventType)
+        rootSpan.setAttribute("webhook.ignored", true)
+        rootSpan.setAttribute("webhook.ignore_reason", "not_receive_event")
+        return res.status(200).json({ status: "ignored", reason: "Not a receive event" })
+      }
+
+      // Only process successful transactions
+      if (payload.transaction?.status !== "success") {
+        console.log(
+          "[Webhook] Ignoring non-success transaction:",
+          payload.transaction?.status,
+        )
+        rootSpan.setAttribute("webhook.ignored", true)
+        rootSpan.setAttribute("webhook.ignore_reason", "not_success_status")
+        return res
+          .status(200)
+          .json({ status: "ignored", reason: "Transaction not successful" })
+      }
+
+      // Extract payment hash from the transaction
+      const transaction = payload.transaction
+      paymentHash = transaction.initiationVia?.paymentHash
+
+      if (!paymentHash) {
+        console.log(
+          "[Webhook] No payment hash in transaction - may be on-chain or intraledger without hash",
+        )
+        rootSpan.setAttribute("webhook.ignored", true)
+        rootSpan.setAttribute("webhook.ignore_reason", "no_payment_hash")
+        return res.status(200).json({ status: "ignored", reason: "No payment hash" })
+      }
+
+      rootSpan.setAttribute("payment.hash", paymentHash)
+      rootSpan.setAttribute("payment.amount_sats", transaction.settlementAmount)
+
+      console.log("[Webhook] Processing payment:", {
+        paymentHash: paymentHash.substring(0, 16) + "...",
+        amount: transaction.settlementAmount,
+        eventType: payload.eventType,
       })
-    } catch (forwardError: unknown) {
-      console.error("[Webhook] Forwarding failed:", forwardError)
 
-      const errorMessage =
-        forwardError instanceof Error ? forwardError.message : "Unknown error"
+      // Step 3a: Check if this is a Boltcard top-up payment
+      // Boltcard top-ups are tracked separately from BlinkPOS forwarding
+      try {
+        const boltcardTopUp = await boltcardLnurlp.getPendingTopUp(paymentHash)
 
-      // Release the claim so it can be retried
-      await hybridStore!.releaseFailedClaim(paymentHash, errorMessage)
+        if (boltcardTopUp) {
+          rootSpan.setAttribute("webhook.type", "boltcard_topup")
+          console.log("[Webhook] Processing Boltcard top-up:", {
+            cardId: boltcardTopUp.cardId,
+            amount: boltcardTopUp.amount,
+            currency: boltcardTopUp.currency,
+          })
 
-      // Log failure event
-      await hybridStore!.logEvent(paymentHash, "webhook_forward", "failed", {
-        error: errorMessage,
+          const topUpResult = await boltcardLnurlp.processTopUpPayment(paymentHash)
+
+          if (topUpResult.success) {
+            console.log("[Webhook] Boltcard top-up processed:", {
+              cardId: topUpResult.cardId,
+              amount: topUpResult.amount,
+              newBalance: topUpResult.balance,
+            })
+
+            return res.status(200).json({
+              status: "boltcard_topup",
+              cardId: topUpResult.cardId,
+              amount: topUpResult.amount,
+              balance: topUpResult.balance,
+            })
+          } else {
+            console.error("[Webhook] Boltcard top-up failed:", topUpResult.error)
+            // Return 500 so Svix will retry
+            return res.status(500).json({
+              error: "Boltcard top-up failed",
+              details: topUpResult.error,
+            })
+          }
+        }
+      } catch (boltcardError: unknown) {
+        console.error("[Webhook] Error checking boltcard top-up:", boltcardError)
+        // Continue to normal forwarding flow - this payment may not be a boltcard top-up
+      }
+
+      // Step 3b: Try to claim the payment for BlinkPOS forwarding (atomic deduplication)
+      // This prevents duplicate forwarding if both webhook and client try to process
+      hybridStore = await getHybridStore()
+      const claimResult = await hybridStore!.claimPaymentForProcessing(paymentHash)
+
+      if (!claimResult.claimed) {
+        console.log(`[Webhook] Payment not claimed: ${claimResult.reason}`)
+        rootSpan.setAttribute("webhook.claim_result", claimResult.reason || "unknown")
+        return res.status(200).json({
+          status: claimResult.reason === "not_found" ? "ignored" : "already_claimed",
+          reason: claimResult.reason,
+        })
+      }
+
+      const forwardingData = claimResult.paymentData as ForwardingData
+
+      // Extract additional fields from metadata (they're stored in JSONB)
+      if (forwardingData.metadata) {
+        const md = forwardingData.metadata
+        forwardingData.nwcActive = (md.nwcActive as boolean) || false
+        forwardingData.nwcConnectionUri = (md.nwcConnectionUri as string) || null
+        forwardingData.blinkLnAddress = (md.blinkLnAddress as boolean) || false
+        forwardingData.blinkLnAddressWalletId =
+          (md.blinkLnAddressWalletId as string) || null
+        forwardingData.blinkLnAddressUsername =
+          (md.blinkLnAddressUsername as string) || null
+        forwardingData.npubCashActive = (md.npubCashActive as boolean) || false
+        forwardingData.npubCashLightningAddress =
+          (md.npubCashLightningAddress as string) || null
+        forwardingData.displayCurrency = (md.displayCurrency as string) || "BTC"
+        forwardingData.tipAmountDisplay = (md.tipAmountDisplay as number) || null
+        // Environment for staging/production API calls
+        forwardingData.environment = (md.environment as EnvironmentName) || "production"
+      }
+
+      // Determine forwarding type for span attributes
+      const forwardingType = forwardingData.blinkLnAddress
+        ? "ln_address"
+        : forwardingData.npubCashActive
+          ? "npub_cash"
+          : forwardingData.nwcActive
+            ? "nwc"
+            : forwardingData.userApiKey
+              ? "user_wallet"
+              : "unknown"
+      rootSpan.setAttribute("webhook.type", "payment_forward")
+      rootSpan.setAttribute("payment.forwarding_type", forwardingType)
+      rootSpan.setAttribute("payment.base_amount_sats", forwardingData.baseAmount || 0)
+      rootSpan.setAttribute("payment.tip_amount_sats", forwardingData.tipAmount || 0)
+
+      console.log("[Webhook] Forwarding data found:", {
+        environment: forwardingData.environment,
+        nwcActive: forwardingData.nwcActive,
+        hasNwcConnectionUri: !!forwardingData.nwcConnectionUri,
+        blinkLnAddress: forwardingData.blinkLnAddress,
+        blinkLnAddressUsername: forwardingData.blinkLnAddressUsername,
+        npubCashActive: forwardingData.npubCashActive,
+        hasUserApiKey: !!forwardingData.userApiKey,
+        baseAmount: forwardingData.baseAmount,
+        tipAmount: forwardingData.tipAmount,
       })
+
+      console.log("[Webhook] Payment claimed for forwarding")
+
+      // Step 5: Forward the payment based on the forwarding type
+      let forwardResult: ForwardResult
+      const amount = transaction.settlementAmount
+
+      try {
+        if (forwardingData.blinkLnAddress && forwardingData.blinkLnAddressUsername) {
+          // Forward to Blink Lightning Address
+          console.log(
+            "[Webhook] Forwarding to Blink Lightning Address:",
+            forwardingData.blinkLnAddressUsername,
+          )
+          forwardResult = await withSpan(
+            tracer,
+            "webhook.forward.ln_address",
+            async (span) => {
+              span.setAttribute(
+                "payment.recipient",
+                forwardingData.blinkLnAddressUsername || "",
+              )
+              return forwardToLnAddress(
+                paymentHash!,
+                amount,
+                forwardingData,
+                hybridStore!,
+              )
+            },
+          )
+        } else if (
+          forwardingData.npubCashActive &&
+          forwardingData.npubCashLightningAddress
+        ) {
+          // Forward to npub.cash
+          console.log(
+            "[Webhook] Forwarding to npub.cash:",
+            forwardingData.npubCashLightningAddress,
+          )
+          forwardResult = await withSpan(
+            tracer,
+            "webhook.forward.npub_cash",
+            async (span) => {
+              span.setAttribute(
+                "payment.recipient",
+                forwardingData.npubCashLightningAddress || "",
+              )
+              return forwardToNpubCash(paymentHash!, amount, forwardingData, hybridStore!)
+            },
+          )
+        } else if (forwardingData.nwcActive && forwardingData.nwcConnectionUri) {
+          // Forward to NWC wallet using stored encrypted connection URI
+          console.log("[Webhook] Forwarding to NWC wallet")
+          forwardResult = await withSpan(tracer, "webhook.forward.nwc", async () => {
+            return forwardToNWCWallet(paymentHash!, amount, forwardingData, hybridStore!)
+          })
+        } else if (forwardingData.nwcActive) {
+          // NWC active but no URI stored (legacy invoice or error)
+          console.log("[Webhook] NWC payment but no connection URI - client must handle")
+          // Release the claim so client can try
+          await hybridStore!.releaseFailedClaim(
+            paymentHash,
+            "NWC requires client-side forwarding (no URI stored)",
+          )
+          rootSpan.setAttribute("webhook.result", "nwc_requires_client")
+          return res.status(200).json({
+            status: "nwc_requires_client",
+            reason: "NWC forwarding requires connection URI (not stored with invoice)",
+          })
+        } else if (forwardingData.userApiKey && forwardingData.userWalletId) {
+          // Forward to user's Blink wallet via API key
+          console.log("[Webhook] Forwarding to user Blink wallet")
+          forwardResult = await withSpan(
+            tracer,
+            "webhook.forward.user_wallet",
+            async () => {
+              return forwardToUserWallet(
+                paymentHash!,
+                amount,
+                forwardingData,
+                hybridStore!,
+              )
+            },
+          )
+        } else {
+          console.warn("[Webhook] No valid forwarding destination found")
+          await hybridStore!.releaseFailedClaim(
+            paymentHash,
+            "No valid forwarding destination",
+          )
+          rootSpan.setAttribute("webhook.result", "no_destination")
+          return res
+            .status(200)
+            .json({ status: "no_destination", reason: "No valid forwarding destination" })
+        }
+
+        console.log("[Webhook] Forwarding completed:", forwardResult)
+
+        rootSpan.setAttribute("webhook.result", "forwarded")
+
+        // Log success event
+        const traceId = getActiveTraceId()
+        await hybridStore!.logEvent(paymentHash, "webhook_forward", "success", {
+          forwardType: forwardResult.type,
+          amount,
+          ...(traceId ? { traceId } : {}),
+        })
+
+        return res.status(200).json({
+          status: "forwarded",
+          ...forwardResult,
+        })
+      } catch (forwardError: unknown) {
+        console.error("[Webhook] Forwarding failed:", forwardError)
+
+        const errorMessage =
+          forwardError instanceof Error ? forwardError.message : "Unknown error"
+
+        // Release the claim so it can be retried
+        await hybridStore!.releaseFailedClaim(paymentHash, errorMessage)
+
+        // Log failure event
+        const traceId = getActiveTraceId()
+        await hybridStore!.logEvent(paymentHash, "webhook_forward", "failed", {
+          error: errorMessage,
+          ...(traceId ? { traceId } : {}),
+        })
+
+        rootSpan.setAttribute("webhook.result", "forward_failed")
+
+        // Return 500 so Svix will retry
+        return res.status(500).json({
+          error: "Forwarding failed",
+          details: errorMessage,
+        })
+      }
+    } catch (error: unknown) {
+      console.error("[Webhook] Handler error:", error)
+
+      const errorMessage = error instanceof Error ? error.message : "Unknown error"
+
+      // Release claim if we have one
+      if (hybridStore && paymentHash) {
+        try {
+          await hybridStore.releaseFailedClaim(paymentHash, errorMessage)
+        } catch (releaseError: unknown) {
+          console.error("[Webhook] Failed to release claim:", releaseError)
+        }
+      }
+
+      rootSpan.setAttribute("webhook.result", "handler_error")
 
       // Return 500 so Svix will retry
       return res.status(500).json({
-        error: "Forwarding failed",
+        error: "Webhook handler error",
         details: errorMessage,
       })
     }
-  } catch (error: unknown) {
-    console.error("[Webhook] Handler error:", error)
-
-    const errorMessage = error instanceof Error ? error.message : "Unknown error"
-
-    // Release claim if we have one
-    if (hybridStore && paymentHash) {
-      try {
-        await hybridStore.releaseFailedClaim(paymentHash, errorMessage)
-      } catch (releaseError: unknown) {
-        console.error("[Webhook] Failed to release claim:", releaseError)
-      }
-    }
-
-    // Return 500 so Svix will retry
-    return res.status(500).json({
-      error: "Webhook handler error",
-      details: errorMessage,
-    })
-  }
+  })
 }
 
 /**

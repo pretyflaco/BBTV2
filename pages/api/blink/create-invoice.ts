@@ -185,6 +185,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           ? AuthManager.encryptApiKey(nwcConnectionUri)
           : null
 
+        // Encrypt user API key if present (sensitive credential)
+        const encryptedApiKey = apiKey ? AuthManager.encryptApiKey(apiKey) : undefined
+
         await hybridStore.storeTipData(invoice.paymentHash, {
           baseAmount: baseAmount || numericAmount,
           tipAmount: tipAmount || 0,
@@ -193,7 +196,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             username: r.username,
             share: r.share ?? 100,
           })),
-          userApiKey: apiKey || undefined, // May be undefined for NWC-only, LN Address, or npub.cash users
+          userApiKey: encryptedApiKey, // Encrypted — decrypted on read by hybrid-store
           userWalletId: userWalletId || walletId || undefined, // May be undefined for NWC-only, LN Address, or npub.cash users
           displayCurrency: displayCurrency || "BTC", // Store display currency for tip memo
           baseAmountDisplay:

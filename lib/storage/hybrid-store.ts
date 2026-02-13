@@ -15,6 +15,7 @@ import { createClient } from "redis"
 import type { Pool, PoolClient } from "pg"
 import { getSharedPool, closePool } from "../db"
 import { onShutdown } from "../shutdown"
+import AuthManager from "../auth"
 import crypto from "crypto"
 
 // ============= Interfaces =============
@@ -350,7 +351,7 @@ class HybridStore {
         tipRecipients:
           tipRecipients || (tipRecipient ? [{ username: tipRecipient, share: 100 }] : []),
         userApiKeyHash,
-        userApiKey: userApiKey || null, // May be null for NWC-only users
+        userApiKey: userApiKey || null, // Encrypted by caller (may be null for NWC-only users)
         userWalletId: userWalletId || null, // May be null for NWC-only users
         displayCurrency,
         baseAmountDisplay: baseAmountDisplay || null,
@@ -372,9 +373,10 @@ class HybridStore {
       }
 
       // 1. Store in PostgreSQL (primary storage)
-      // Note: Store userApiKey, tipRecipients, and forwarding info in metadata JSONB
+      // Note: userApiKey is encrypted before reaching this point (via AuthManager.encryptApiKey)
+      // Store tipRecipients and forwarding info in metadata JSONB
       const metadata: PaymentMetadata = {
-        userApiKey: userApiKey || null, // TODO: Encrypt this in production (may be null for NWC)
+        userApiKey: userApiKey || null, // Already encrypted by caller (may be null for NWC)
         baseAmountDisplay,
         tipAmountDisplay,
         tipRecipients: paymentData.tipRecipients, // Store full recipients array in metadata
@@ -536,8 +538,10 @@ class HybridStore {
       if (paymentData.metadata) {
         const meta = paymentData.metadata as PaymentMetadata
         if (meta.userApiKey) {
+          // Decrypt the API key (stored encrypted in metadata JSONB)
+          const decryptedKey = AuthManager.decryptApiKey(meta.userApiKey)
           ;(paymentData as unknown as Record<string, unknown>).userApiKey =
-            meta.userApiKey
+            decryptedKey || meta.userApiKey // Fall back to raw value for backward compat with pre-encryption data
         }
         if (meta.tipRecipients) {
           paymentData.tipRecipients = meta.tipRecipients
@@ -652,8 +656,10 @@ class HybridStore {
       if (paymentData.metadata) {
         const meta = paymentData.metadata as PaymentMetadata
         if (meta.userApiKey) {
+          // Decrypt the API key (stored encrypted in metadata JSONB)
+          const decryptedKey = AuthManager.decryptApiKey(meta.userApiKey)
           ;(paymentData as unknown as Record<string, unknown>).userApiKey =
-            meta.userApiKey
+            decryptedKey || meta.userApiKey // Fall back to raw value for backward compat with pre-encryption data
         }
         if (meta.tipRecipients) {
           paymentData.tipRecipients = meta.tipRecipients

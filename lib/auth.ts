@@ -69,7 +69,8 @@ class AuthManager {
     try {
       const key: string = getEncryptionKey()
       const bytes: CryptoJS.lib.WordArray = CryptoJS.AES.decrypt(encryptedKey, key)
-      return bytes.toString(CryptoJS.enc.Utf8)
+      const decrypted: string = bytes.toString(CryptoJS.enc.Utf8)
+      return decrypted || null
     } catch (err: unknown) {
       return null
     }

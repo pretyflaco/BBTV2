@@ -8,7 +8,7 @@
  * @module lib/hooks/useInvoiceState
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback } from "react"
 
 // ============================================================================
 // Types
@@ -17,39 +17,39 @@ import { useState, useCallback } from 'react';
 /** Invoice data structure matching Dashboard.js usage */
 export interface InvoiceData {
   /** BOLT11 payment request string */
-  paymentRequest: string;
+  paymentRequest: string
   /** Payment hash for status tracking */
-  paymentHash: string;
+  paymentHash: string
   /** Amount in satoshis */
-  satoshis?: number;
+  satoshis?: number
   /** Alternative amount field */
-  amount?: number;
+  amount?: number
   /** Invoice description/memo */
-  memo?: string;
+  memo?: string
 }
 
 /** Callback data for payment received events */
 export interface PaymentReceivedData {
-  amount: number;
-  currency: string;
-  memo: string;
-  paymentHash: string;
-  timestamp: number;
+  amount: number
+  currency: string
+  memo: string
+  paymentHash: string
+  timestamp: number
 }
 
 /** Return type for the useInvoiceState hook */
 export interface UseInvoiceStateReturn {
   // Core state
-  currentInvoice: InvoiceData | null;
-  setCurrentInvoice: (invoice: InvoiceData | null) => void;
-  clearInvoice: () => void;
+  currentInvoice: InvoiceData | null
+  setCurrentInvoice: (invoice: InvoiceData | null) => void
+  clearInvoice: () => void
 
   // Derived state
-  hasInvoice: boolean;
+  hasInvoice: boolean
 }
 
 // Keep for backward compatibility with useDashboardState types
-export type UseInvoiceStateOptions = Record<string, never>;
+export type UseInvoiceStateOptions = Record<string, never>
 
 // ============================================================================
 // Hook Implementation
@@ -72,21 +72,23 @@ export type UseInvoiceStateOptions = Record<string, never>;
  * clearInvoice();
  * ```
  */
-export function useInvoiceState(_options?: UseInvoiceStateOptions): UseInvoiceStateReturn {
-  const [currentInvoice, setCurrentInvoice] = useState<InvoiceData | null>(null);
+export function useInvoiceState(
+  _options?: UseInvoiceStateOptions,
+): UseInvoiceStateReturn {
+  const [currentInvoice, setCurrentInvoice] = useState<InvoiceData | null>(null)
 
   const clearInvoice = useCallback(() => {
-    setCurrentInvoice(null);
-  }, []);
+    setCurrentInvoice(null)
+  }, [])
 
-  const hasInvoice = currentInvoice !== null;
+  const hasInvoice = currentInvoice !== null
 
   return {
     currentInvoice,
     setCurrentInvoice,
     clearInvoice,
     hasInvoice,
-  };
+  }
 }
 
-export default useInvoiceState;
+export default useInvoiceState

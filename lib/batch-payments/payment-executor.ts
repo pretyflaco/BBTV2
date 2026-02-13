@@ -7,8 +7,9 @@
  * - External LNURL: Fetches invoice from callback, then pays
  */
 
-import { RECIPIENT_TYPES, type ParsedRecipient } from "./csv-parser"
 import { getApiUrl } from "../config/api"
+
+import { RECIPIENT_TYPES, type ParsedRecipient } from "./csv-parser"
 
 // Execution settings
 // Process sequentially to avoid Redlock conflicts (Blink API uses Redis locks per wallet)

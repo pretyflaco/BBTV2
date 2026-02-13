@@ -14,8 +14,7 @@
  * - WebSocket for real-time status updates (optional)
  */
 
-import BaseAdapter from "./BaseAdapter"
-import { AdapterStatus } from "./BaseAdapter"
+import BaseAdapter, { AdapterStatus } from "./BaseAdapter"
 
 interface LocalPrintOptions {
   serverUrl?: string
@@ -103,7 +102,7 @@ class LocalPrintAdapter extends BaseAdapter {
         this.isServerAvailable = true
         return this.printerStatus!.connected
       }
-    } catch (err: unknown) {
+    } catch (_err: unknown) {
       this.isServerAvailable = false
       this.printerStatus = null
     }
@@ -172,7 +171,7 @@ class LocalPrintAdapter extends BaseAdapter {
         try {
           const data: ServerMessage = JSON.parse(event.data as string)
           this._handleServerMessage(data)
-        } catch (err: unknown) {
+        } catch (_err: unknown) {
           console.warn("[LocalPrintAdapter] Invalid WebSocket message")
         }
       }
@@ -303,8 +302,8 @@ class LocalPrintAdapter extends BaseAdapter {
   private _arrayBufferToBase64(buffer: Uint8Array | ArrayBuffer): string {
     const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer)
     let binary = ""
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i])
+    for (const byte of bytes) {
+      binary += String.fromCharCode(byte)
     }
     return btoa(binary)
   }

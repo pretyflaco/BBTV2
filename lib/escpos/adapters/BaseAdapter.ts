@@ -139,7 +139,7 @@ class BaseAdapter {
    * @param {object} connectionOptions - Connection-specific options
    * @returns {Promise<boolean>} True if connected successfully
    */
-  async connect(connectionOptions: Record<string, unknown> = {}): Promise<boolean> {
+  async connect(_connectionOptions: Record<string, unknown> = {}): Promise<boolean> {
     throw new Error("BaseAdapter.connect() must be implemented by subclass")
   }
 
@@ -158,7 +158,7 @@ class BaseAdapter {
    * @param {Uint8Array} data - ESC/POS command bytes
    * @returns {Promise<boolean>} True if printed successfully
    */
-  async print(data: Uint8Array): Promise<boolean> {
+  async print(_data: Uint8Array): Promise<boolean> {
     throw new Error("BaseAdapter.print() must be implemented by subclass")
   }
 

@@ -1,12 +1,13 @@
 import "../styles/globals.css"
+import type { AppProps } from "next/app"
+import Head from "next/head"
+import { useEffect } from "react"
+
+import StagingBanner from "../components/StagingBanner"
+import { initRemoteLogger } from "../lib/debug/remoteLogger"
 import { AuthProvider } from "../lib/hooks/useAuth"
 import { NostrAuthProvider } from "../lib/hooks/useNostrAuth"
 import { ProfileProvider } from "../lib/hooks/useProfile"
-import { useEffect } from "react"
-import Head from "next/head"
-import { initRemoteLogger } from "../lib/debug/remoteLogger"
-import StagingBanner from "../components/StagingBanner"
-import type { AppProps } from "next/app"
 
 /**
  * BlinkPOS App - Supports dual authentication methods:
@@ -42,7 +43,7 @@ function MyApp({ Component, pageProps }: AppProps) {
       try {
         const result = initRemoteLogger()
         console.log("[App] v39: Remote logging enabled, device:", result?.deviceId)
-      } catch (e) {
+      } catch (_e) {
         // Silent fail if remote logger has issues
       }
     }
@@ -157,7 +158,7 @@ function MyApp({ Component, pageProps }: AppProps) {
       if (lastUpdate && window.location.reload) {
         // Clear only specific non-PWA caches to preserve install functionality
         if ("caches" in window) {
-          caches.keys().then(function (names) {
+          caches.keys().then((names) => {
             for (const name of names) {
               // Don't delete the service worker cache (PWA cache)
               if (!name.includes("blink-tracker") && !name.includes("workbox")) {

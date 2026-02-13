@@ -8,7 +8,7 @@
  * @module lib/hooks/useWalletState
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback } from "react"
 
 // ============================================================================
 // Types
@@ -16,32 +16,32 @@ import { useState, useCallback } from 'react';
 
 /** Wallet information from Blink API */
 export interface WalletInfo {
-  id: string;
-  walletCurrency: 'BTC' | 'USD';
-  balance: number;
-  pendingIncomingBalance?: number;
+  id: string
+  walletCurrency: "BTC" | "USD"
+  balance: number
+  pendingIncomingBalance?: number
 }
 
 /** Return type for the useWalletState hook */
 export interface UseWalletStateReturn {
   // Core state
-  apiKey: string | null;
-  setApiKey: (key: string | null) => void;
-  wallets: WalletInfo[];
-  setWallets: (wallets: WalletInfo[]) => void;
+  apiKey: string | null
+  setApiKey: (key: string | null) => void
+  wallets: WalletInfo[]
+  setWallets: (wallets: WalletInfo[]) => void
 
   // Convenience actions
-  clearApiKey: () => void;
-  clearWallets: () => void;
-  clearAll: () => void;
+  clearApiKey: () => void
+  clearWallets: () => void
+  clearAll: () => void
 
   // Derived state
-  hasApiKey: boolean;
-  hasWallets: boolean;
+  hasApiKey: boolean
+  hasWallets: boolean
 }
 
 // Keep these for backward compatibility with useDashboardState types
-export type UseWalletStateOptions = Record<string, never>;
+export type UseWalletStateOptions = Record<string, never>
 
 // ============================================================================
 // Hook Implementation
@@ -66,24 +66,24 @@ export type UseWalletStateOptions = Record<string, never>;
  * ```
  */
 export function useWalletState(_options?: UseWalletStateOptions): UseWalletStateReturn {
-  const [apiKey, setApiKey] = useState<string | null>(null);
-  const [wallets, setWallets] = useState<WalletInfo[]>([]);
+  const [apiKey, setApiKey] = useState<string | null>(null)
+  const [wallets, setWallets] = useState<WalletInfo[]>([])
 
   const clearApiKey = useCallback(() => {
-    setApiKey(null);
-  }, []);
+    setApiKey(null)
+  }, [])
 
   const clearWallets = useCallback(() => {
-    setWallets([]);
-  }, []);
+    setWallets([])
+  }, [])
 
   const clearAll = useCallback(() => {
-    setApiKey(null);
-    setWallets([]);
-  }, []);
+    setApiKey(null)
+    setWallets([])
+  }, [])
 
-  const hasApiKey = apiKey !== null && apiKey.length > 0;
-  const hasWallets = wallets.length > 0;
+  const hasApiKey = apiKey !== null && apiKey.length > 0
+  const hasWallets = wallets.length > 0
 
   return {
     apiKey,
@@ -95,7 +95,7 @@ export function useWalletState(_options?: UseWalletStateOptions): UseWalletState
     clearAll,
     hasApiKey,
     hasWallets,
-  };
+  }
 }
 
-export default useWalletState;
+export default useWalletState

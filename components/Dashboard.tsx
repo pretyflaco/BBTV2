@@ -1,56 +1,57 @@
 import { useEffect, useRef } from "react"
-import { useCombinedAuth } from "../lib/hooks/useCombinedAuth"
+
+import { useAccountManagement } from "../lib/hooks/useAccountManagement"
 import { useBlinkWebSocket } from "../lib/hooks/useBlinkWebSocket"
+import { useCombinedAuth } from "../lib/hooks/useCombinedAuth"
+import { useCommissionSettings } from "../lib/hooks/useCommissionSettings"
 import { useCurrencies } from "../lib/hooks/useCurrencies"
+import { useDashboardData } from "../lib/hooks/useDashboardData"
+import { useDisplaySettings } from "../lib/hooks/useDisplaySettings"
+import { useExchangeRate } from "../lib/hooks/useExchangeRate"
+import { useExchangeRateFetcher } from "../lib/hooks/useExchangeRateFetcher"
+import { useInvoiceState } from "../lib/hooks/useInvoiceState"
+import { useNavigationHandlers } from "../lib/hooks/useNavigationHandlers"
+import { usePaycodeState } from "../lib/hooks/usePaycodeState"
+import { usePaymentPolling } from "../lib/hooks/usePaymentPolling"
+import { usePWAInstall, type BeforeInstallPromptEvent } from "../lib/hooks/usePWAInstall"
+import { useServerSync, getVoucherWalletKey } from "../lib/hooks/useServerSync"
+import { useSoundSettings } from "../lib/hooks/useSoundSettings"
+import { useSplitProfileActions } from "../lib/hooks/useSplitProfileActions"
+import { useSplitProfiles } from "../lib/hooks/useSplitProfiles"
 import { useTheme } from "../lib/hooks/useTheme"
 import { useThemeStyles } from "../lib/hooks/useThemeStyles"
-import { useViewNavigation, SPINNER_COLORS } from "../lib/hooks/useViewNavigation"
-import { useDisplaySettings } from "../lib/hooks/useDisplaySettings"
-import { useSoundSettings } from "../lib/hooks/useSoundSettings"
-import { useCommissionSettings } from "../lib/hooks/useCommissionSettings"
-import { usePaycodeState } from "../lib/hooks/usePaycodeState"
-import { usePWAInstall, type BeforeInstallPromptEvent } from "../lib/hooks/usePWAInstall"
-import { useAccountManagement } from "../lib/hooks/useAccountManagement"
-import { useVoucherWalletState } from "../lib/hooks/useVoucherWalletState"
-import { useTransactionState } from "../lib/hooks/useTransactionState"
-import { useSplitProfiles } from "../lib/hooks/useSplitProfiles"
-import { useUIVisibility } from "../lib/hooks/useUIVisibility"
-import { useTipSettings } from "../lib/hooks/useTipSettings"
 import { useTipRecipientValidation } from "../lib/hooks/useTipRecipientValidation"
-import { useExchangeRateFetcher } from "../lib/hooks/useExchangeRateFetcher"
-import { useServerSync, getVoucherWalletKey } from "../lib/hooks/useServerSync"
-import { usePaymentPolling } from "../lib/hooks/usePaymentPolling"
-import { useSplitProfileActions } from "../lib/hooks/useSplitProfileActions"
-import { useDashboardData } from "../lib/hooks/useDashboardData"
+import { useTipSettings } from "../lib/hooks/useTipSettings"
 import { useTransactionActions } from "../lib/hooks/useTransactionActions"
-import { useNavigationHandlers } from "../lib/hooks/useNavigationHandlers"
-import { useExchangeRate } from "../lib/hooks/useExchangeRate"
+import { useTransactionState } from "../lib/hooks/useTransactionState"
+import { useUIVisibility } from "../lib/hooks/useUIVisibility"
+import { useViewNavigation } from "../lib/hooks/useViewNavigation"
+import { useVoucherWalletState } from "../lib/hooks/useVoucherWalletState"
 import { useWalletState } from "../lib/hooks/useWalletState"
-import { useInvoiceState } from "../lib/hooks/useInvoiceState"
-import PaymentAnimation from "./PaymentAnimation"
-import DashboardViewSwitcher from "./DashboardViewSwitcher"
-import KeyManagementOverlay from "./Settings/KeyManagementOverlay"
-import BoltcardsOverlay from "./Settings/BoltcardsOverlay"
-import BatchPaymentsOverlay from "./Settings/BatchPaymentsOverlay"
-import NetworkOverlay from "./Settings/NetworkOverlay"
 
-import TransactionDetail from "./TransactionDetail"
-import SoundThemesOverlay from "./Settings/SoundThemesOverlay"
-import PercentSettingsOverlay from "./Settings/PercentSettingsOverlay"
-import CommissionSettingsOverlay from "./Settings/CommissionSettingsOverlay"
-import TipProfileSettingsOverlay from "./Settings/TipProfileSettingsOverlay"
-import PaycodesOverlay from "./Settings/PaycodesOverlay"
-import CurrencySettingsOverlay from "./Settings/CurrencySettingsOverlay"
-import RegionalSettingsOverlay from "./Settings/RegionalSettingsOverlay"
-import SplitSettingsOverlay from "./Settings/SplitSettingsOverlay"
-import CreateEditSplitProfileOverlay from "./Settings/CreateEditSplitProfileOverlay"
-import ExportOptionsOverlay from "./Settings/ExportOptionsOverlay"
-import DateRangeSelectorOverlay from "./Settings/DateRangeSelectorOverlay"
-import WalletsOverlay from "./Settings/WalletsOverlay"
-import VoucherWalletOverlay from "./Settings/VoucherWalletOverlay"
+import DashboardViewSwitcher from "./DashboardViewSwitcher"
 import MobileHeader from "./MobileHeader"
-import SideMenuOverlay from "./SideMenuOverlay"
 import OwnerAgentDisplay from "./OwnerAgentDisplay"
+import PaymentAnimation from "./PaymentAnimation"
+import BatchPaymentsOverlay from "./Settings/BatchPaymentsOverlay"
+import BoltcardsOverlay from "./Settings/BoltcardsOverlay"
+import CommissionSettingsOverlay from "./Settings/CommissionSettingsOverlay"
+import CreateEditSplitProfileOverlay from "./Settings/CreateEditSplitProfileOverlay"
+import CurrencySettingsOverlay from "./Settings/CurrencySettingsOverlay"
+import DateRangeSelectorOverlay from "./Settings/DateRangeSelectorOverlay"
+import ExportOptionsOverlay from "./Settings/ExportOptionsOverlay"
+import KeyManagementOverlay from "./Settings/KeyManagementOverlay"
+import NetworkOverlay from "./Settings/NetworkOverlay"
+import PaycodesOverlay from "./Settings/PaycodesOverlay"
+import PercentSettingsOverlay from "./Settings/PercentSettingsOverlay"
+import RegionalSettingsOverlay from "./Settings/RegionalSettingsOverlay"
+import SoundThemesOverlay from "./Settings/SoundThemesOverlay"
+import SplitSettingsOverlay from "./Settings/SplitSettingsOverlay"
+import TipProfileSettingsOverlay from "./Settings/TipProfileSettingsOverlay"
+import VoucherWalletOverlay from "./Settings/VoucherWalletOverlay"
+import WalletsOverlay from "./Settings/WalletsOverlay"
+import SideMenuOverlay from "./SideMenuOverlay"
+import TransactionDetail from "./TransactionDetail"
 
 // Predefined Tip Profiles for different regions
 interface TipProfile {
@@ -85,8 +86,8 @@ export default function Dashboard() {
     updateBlinkAccount,
     setActiveBlinkAccount,
     storeBlinkAccountOnServer,
-    tippingSettings: profileTippingSettings,
-    updateTippingSettings: updateProfileTippingSettings,
+    tippingSettings: _profileTippingSettings,
+    updateTippingSettings: _updateProfileTippingSettings,
     nostrProfile,
     // NWC data from useCombinedAuth (user-scoped)
     nwcConnections,
@@ -110,7 +111,7 @@ export default function Dashboard() {
     currencies,
     loading: currenciesLoading,
     getAllCurrencies,
-    popularCurrencyIds,
+    popularCurrencyIds: _popularCurrencyIds,
     addToPopular,
     removeFromPopular,
     isPopularCurrency,
@@ -135,7 +136,7 @@ export default function Dashboard() {
     getWalletIconClasses,
     getWalletUseButtonClasses,
     getWalletActiveBadgeClasses,
-    getWalletDeleteButtonClasses,
+    getWalletDeleteButtonClasses: _getWalletDeleteButtonClasses,
     getSubmenuOptionClasses,
     getSubmenuOptionActiveClasses,
     getPreviewBoxClasses,
@@ -157,10 +158,10 @@ export default function Dashboard() {
     setCartCheckoutData,
     sideMenuOpen,
     setSideMenuOpen,
-    toggleSideMenu,
-    navigateToView,
+    toggleSideMenu: _toggleSideMenu,
+    navigateToView: _navigateToView,
     currentSpinnerColor,
-    isVoucherRelatedView,
+    isVoucherRelatedView: _isVoucherRelatedView,
   } = useViewNavigation()
 
   // Display and regional settings - extracted to useDisplaySettings hook
@@ -215,8 +216,8 @@ export default function Dashboard() {
     setShowingInvoice,
     showingVoucherQR,
     setShowingVoucherQR,
-    closeAllOverlays,
-    closeAllSettings,
+    closeAllOverlays: _closeAllOverlays,
+    closeAllSettings: _closeAllSettings,
   } = useUIVisibility()
 
   // Wallet state (API key and wallet list) managed by useWalletState hook
@@ -232,9 +233,9 @@ export default function Dashboard() {
     setError,
     expandedMonths,
     setExpandedMonths,
-    toggleExpandedMonth,
-    monthlyTransactions,
-    setMonthlyTransactions,
+    toggleExpandedMonth: _toggleExpandedMonth,
+    monthlyTransactions: _monthlyTransactions,
+    setMonthlyTransactions: _setMonthlyTransactions,
     hasMoreTransactions,
     setHasMoreTransactions,
     loadingMore,
@@ -259,7 +260,7 @@ export default function Dashboard() {
     setDateFilterActive,
     selectedTransaction,
     setSelectedTransaction,
-    labelUpdateTrigger,
+    labelUpdateTrigger: _labelUpdateTrigger,
     triggerLabelUpdate,
     isSearchingTx,
     setIsSearchingTx,
@@ -269,14 +270,14 @@ export default function Dashboard() {
     setTxSearchQuery,
     isSearchLoading,
     setIsSearchLoading,
-    clearTransactions,
+    clearTransactions: _clearTransactions,
     clearDateFilter,
-    clearSearch,
+    clearSearch: _clearSearch,
   } = useTransactionState()
 
   // PWA install state - extracted to usePWAInstall hook
   const {
-    deferredPrompt,
+    deferredPrompt: _deferredPrompt,
     setDeferredPrompt,
     showInstallPrompt,
     setShowInstallPrompt,
@@ -291,7 +292,7 @@ export default function Dashboard() {
     setSoundTheme,
     showSoundThemes,
     setShowSoundThemes,
-    toggleSoundEnabled,
+    toggleSoundEnabled: _toggleSoundEnabled,
   } = useSoundSettings()
 
   // Tip functionality state - extracted to useTipSettings hook
@@ -306,13 +307,13 @@ export default function Dashboard() {
     setUsernameValidation,
     activeTipProfile,
     setActiveTipProfile,
-    clearUsernameValidation,
+    clearUsernameValidation: _clearUsernameValidation,
     resetTipRecipient,
-    toggleTipsEnabled,
+    toggleTipsEnabled: _toggleTipsEnabled,
   } = useTipSettings()
 
   // Tip recipient validation - extracted to useTipRecipientValidation hook
-  const { validateBlinkUsername } = useTipRecipientValidation({
+  const { validateBlinkUsername: _validateBlinkUsername } = useTipRecipientValidation({
     tipRecipient,
     setUsernameValidation,
     setTipsEnabled,
@@ -349,13 +350,13 @@ export default function Dashboard() {
     setNpubCashValidating,
     npubCashValidated,
     setNpubCashValidated,
-    confirmDeleteWallet,
+    confirmDeleteWallet: _confirmDeleteWallet,
     setConfirmDeleteWallet,
     editingWalletLabel,
     setEditingWalletLabel,
     editedWalletLabel,
     setEditedWalletLabel,
-    resetNewAccountForm,
+    resetNewAccountForm: _resetNewAccountForm,
   } = useAccountManagement()
 
   // Voucher Wallet state - extracted to useVoucherWalletState hook
@@ -407,7 +408,7 @@ export default function Dashboard() {
     setCommissionPresets,
     showCommissionSettings,
     setShowCommissionSettings,
-    toggleCommissionEnabled,
+    toggleCommissionEnabled: _toggleCommissionEnabled,
   } = useCommissionSettings()
 
   // Paycode state - extracted to usePaycodeState hook
@@ -446,11 +447,16 @@ export default function Dashboard() {
     setRecipientValidation,
     useCustomWeights,
     setUseCustomWeights,
-    resetSplitProfileForm,
+    resetSplitProfileForm: _resetSplitProfileForm,
   } = useSplitProfiles()
 
   // Exchange rate state for sats equivalent display in ItemCart (managed by useExchangeRate hook)
-  const { exchangeRate, setExchangeRate, loadingRate, setLoadingRate } = useExchangeRate()
+  const {
+    exchangeRate,
+    setExchangeRate,
+    loadingRate: _loadingRate,
+    setLoadingRate,
+  } = useExchangeRate()
 
   // Exchange rate fetching & tip sync - extracted to useExchangeRateFetcher hook
   useExchangeRateFetcher({
@@ -495,11 +501,11 @@ export default function Dashboard() {
 
   // Split profile CRUD & recipient validation - extracted to useSplitProfileActions hook
   const {
-    fetchSplitProfiles,
+    fetchSplitProfiles: _fetchSplitProfiles,
     saveSplitProfile,
     deleteSplitProfile,
     setActiveSplitProfileById,
-    validateRecipientUsername,
+    validateRecipientUsername: _validateRecipientUsername,
     addRecipientToProfile,
     removeRecipientFromProfile,
   } = useSplitProfileActions({
@@ -568,8 +574,12 @@ export default function Dashboard() {
 
   // Track current invoice for NFC payments and payment hash for polling
   // Stores { paymentRequest, paymentHash, satoshis, memo } object
-  const { currentInvoice, setCurrentInvoice, clearInvoice, hasInvoice } =
-    useInvoiceState()
+  const {
+    currentInvoice,
+    setCurrentInvoice,
+    clearInvoice: _clearInvoice,
+    hasInvoice: _hasInvoice,
+  } = useInvoiceState()
 
   // NOTE: transactions, loading, error state now provided by useTransactionState hook
 
@@ -630,7 +640,7 @@ export default function Dashboard() {
   const {
     handleViewTransition,
     loadMoreMonths,
-    loadPastTransactions,
+    loadPastTransactions: _loadPastTransactions,
     getDateRangePresets,
     loadTransactionsForDateRange,
     handleCustomDateRange,
@@ -647,11 +657,11 @@ export default function Dashboard() {
     exportBasicTransactions,
     exportFullTransactions,
     exportFullFilteredTransactions,
-    groupTransactionsByMonth,
+    groupTransactionsByMonth: _groupTransactionsByMonth,
     getMonthGroups,
     toggleMonth,
-    loadMoreTransactionsForMonth,
-    handleRefresh,
+    loadMoreTransactionsForMonth: _loadMoreTransactionsForMonth,
+    handleRefresh: _handleRefresh,
   } = useTransactionActions({
     apiKey,
     wallets,

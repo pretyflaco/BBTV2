@@ -44,7 +44,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             let btcPreference = null
             try {
               btcPreference = await db.getCommunityBitcoinPreference(community.id)
-            } catch (btcPrefError: unknown) {
+            } catch (_btcPrefError: unknown) {
               // Table doesn't exist yet - that's OK
             }
 

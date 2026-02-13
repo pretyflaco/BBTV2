@@ -79,8 +79,10 @@ export type {
 } from "./PrintService"
 
 // Local imports for convenience functions below
-import { getPrintService as _getPrintService } from "./PrintService"
-import type { AvailableMethod as _AvailableMethod } from "./PrintService"
+import {
+  getPrintService as _getPrintService,
+  type AvailableMethod as _AvailableMethod,
+} from "./PrintService"
 
 // Adapters
 export {

@@ -1,29 +1,31 @@
 import { useRef } from "react"
-import { usePublicPOSSettings } from "../lib/hooks/usePublicPOSSettings"
-import { usePublicPOSViewState } from "../lib/hooks/usePublicPOSViewState"
-import { usePublicPOSPayment } from "../lib/hooks/usePublicPOSPayment"
-import { usePublicPOSMenuState } from "../lib/hooks/usePublicPOSMenuState"
-import { usePublicPOSValidation } from "../lib/hooks/usePublicPOSValidation"
+
+import { useCurrencies } from "../lib/hooks/useCurrencies"
 import { usePublicPOSExchangeRate } from "../lib/hooks/usePublicPOSExchangeRate"
+import { usePublicPOSMenuState } from "../lib/hooks/usePublicPOSMenuState"
 import {
   usePublicPOSNavigation,
   type PosRefHandle,
   type CartRefHandle,
 } from "../lib/hooks/usePublicPOSNavigation"
-import PublicPOSSideMenu from "./PublicPOS/PublicPOSSideMenu"
-import PublicPOSCurrencyOverlay from "./PublicPOS/PublicPOSCurrencyOverlay"
-import PublicPOSRegionalOverlay from "./PublicPOS/PublicPOSRegionalOverlay"
-import PublicPOSSoundOverlay from "./PublicPOS/PublicPOSSoundOverlay"
-import PublicPOSPaycodeOverlay from "./PublicPOS/PublicPOSPaycodeOverlay"
-import PublicPOSValidationOverlay from "./PublicPOS/PublicPOSValidationOverlay"
-import { useCurrencies } from "../lib/hooks/useCurrencies"
+import { usePublicPOSPayment } from "../lib/hooks/usePublicPOSPayment"
+import { usePublicPOSSettings } from "../lib/hooks/usePublicPOSSettings"
+import { usePublicPOSValidation } from "../lib/hooks/usePublicPOSValidation"
+import { usePublicPOSViewState } from "../lib/hooks/usePublicPOSViewState"
 import { useTheme } from "../lib/hooks/useTheme"
-import { useNFC } from "./NFCPayment"
 import type { CartCheckoutData } from "../lib/hooks/useViewNavigation"
-import StagingBanner from "./StagingBanner"
-import POS from "./POS"
+
 import ItemCart from "./ItemCart"
+import { useNFC } from "./NFCPayment"
 import PaymentAnimation from "./PaymentAnimation"
+import POS from "./POS"
+import PublicPOSCurrencyOverlay from "./PublicPOS/PublicPOSCurrencyOverlay"
+import PublicPOSPaycodeOverlay from "./PublicPOS/PublicPOSPaycodeOverlay"
+import PublicPOSRegionalOverlay from "./PublicPOS/PublicPOSRegionalOverlay"
+import PublicPOSSideMenu from "./PublicPOS/PublicPOSSideMenu"
+import PublicPOSSoundOverlay from "./PublicPOS/PublicPOSSoundOverlay"
+import PublicPOSValidationOverlay from "./PublicPOS/PublicPOSValidationOverlay"
+import StagingBanner from "./StagingBanner"
 
 /**
  * PublicPOSDashboard - Public-facing POS for any Blink username
@@ -46,7 +48,7 @@ export default function PublicPOSDashboard({ username }: PublicPOSDashboardProps
     currencies,
     loading: currenciesLoading,
     getAllCurrencies,
-    popularCurrencyIds,
+    popularCurrencyIds: _popularCurrencyIds,
     addToPopular,
     removeFromPopular,
     isPopularCurrency,
@@ -54,12 +56,15 @@ export default function PublicPOSDashboard({ username }: PublicPOSDashboardProps
   const { theme, cycleTheme, darkMode } = useTheme()
 
   // Username validation - validates against current environment (production or staging)
-  const { validationError, validating, validatedWalletCurrency } = usePublicPOSValidation(
-    { username },
-  )
+  const {
+    validationError,
+    validating,
+    validatedWalletCurrency: _validatedWalletCurrency,
+  } = usePublicPOSValidation({ username })
 
   // Helper functions for consistent theme styling across all menus/submenus
-  const isBlinkClassic = theme === "blink-classic-dark" || theme === "blink-classic-light"
+  const _isBlinkClassic =
+    theme === "blink-classic-dark" || theme === "blink-classic-light"
 
   // Menu tile styling (for main menu items)
   const getMenuTileClasses = (): string => {
@@ -170,7 +175,9 @@ export default function PublicPOSDashboard({ username }: PublicPOSDashboardProps
   } = usePublicPOSPayment({ showingInvoice, soundEnabled, posPaymentReceivedRef })
 
   // Exchange rate for sats equivalent display
-  const { exchangeRate, loadingRate } = usePublicPOSExchangeRate({ displayCurrency })
+  const { exchangeRate, loadingRate: _loadingRate } = usePublicPOSExchangeRate({
+    displayCurrency,
+  })
 
   // Setup NFC for Boltcard payments (after soundEnabled/soundTheme are declared)
   const nfcState = useNFC({

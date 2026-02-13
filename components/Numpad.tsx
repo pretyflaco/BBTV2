@@ -1,6 +1,6 @@
 import React from "react"
-import { THEMES } from "../lib/hooks/useTheme"
-import type { Theme } from "../lib/hooks/useTheme"
+
+import { THEMES, type Theme } from "../lib/hooks/useTheme"
 import type { NumpadLayoutPreference } from "../lib/number-format"
 
 type ButtonType =

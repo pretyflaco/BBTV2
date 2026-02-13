@@ -20,7 +20,7 @@ beforeAll(async () => {
 })
 
 // Check if real crypto API is available (not mocked)
-const hasCryptoSupport = (): boolean => {
+const _hasCryptoSupport = (): boolean => {
   return (
     typeof window !== "undefined" &&
     window.crypto &&

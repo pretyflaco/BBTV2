@@ -197,7 +197,7 @@ class WebSerialAdapter extends BaseAdapter {
    * @returns {Promise<SerialPort|undefined>}
    */
   async requestPort(
-    options: Record<string, unknown> = {},
+    _options: Record<string, unknown> = {},
   ): Promise<SerialPort | undefined> {
     if (!(await this.isAvailable())) {
       throw new Error("Web Serial API not available")

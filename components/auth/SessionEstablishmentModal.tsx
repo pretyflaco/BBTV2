@@ -17,6 +17,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react"
+
 import ProgressStepper from "./ProgressStepper"
 
 // Session establishment timeout (10 seconds)
@@ -287,8 +288,8 @@ export default function SessionEstablishmentModal({
               </p>
               <ul className="text-sm text-gray-500 dark:text-gray-400 text-left list-disc list-inside mb-4 space-y-1">
                 <li>The signing request was rejected</li>
-                <li>Your extension didn't respond in time</li>
-                <li>There's a network connectivity issue</li>
+                <li>Your extension didn&apos;t respond in time</li>
+                <li>There&apos;s a network connectivity issue</li>
               </ul>
 
               <div className="flex gap-3 mt-6">

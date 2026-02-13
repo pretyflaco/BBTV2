@@ -1,3 +1,5 @@
+import Link from "next/link"
+
 import { isStaging } from "../../lib/config/api"
 
 /**
@@ -73,14 +75,14 @@ export default function PublicPOSValidationOverlay({
 
             <div className="mt-6 flex gap-3">
               {validationError.canSwitchEnv && (
-                <a
+                <Link
                   href="/signin"
                   className="flex-1 px-4 py-2 text-center rounded-lg bg-blink-accent hover:bg-blue-600 text-white text-sm font-medium transition-colors"
                 >
                   Switch Environment
-                </a>
+                </Link>
               )}
-              <a
+              <Link
                 href="/setuppwa"
                 className={`flex-1 px-4 py-2 text-center rounded-lg text-sm font-medium transition-colors ${
                   darkMode
@@ -89,7 +91,7 @@ export default function PublicPOSValidationOverlay({
                 }`}
               >
                 Change User
-              </a>
+              </Link>
             </div>
           </div>
         </div>

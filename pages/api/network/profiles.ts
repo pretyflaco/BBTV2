@@ -7,12 +7,11 @@
  * Uses server-side caching to avoid repeated relay queries.
  */
 
-import type { NextApiRequest, NextApiResponse } from "next"
-
 import { bech32 } from "bech32"
-import { withRateLimit, RATE_LIMIT_READ } from "../../../lib/rate-limit"
-
+import type { NextApiRequest, NextApiResponse } from "next"
 import type WebSocket from "ws"
+
+import { withRateLimit, RATE_LIMIT_READ } from "../../../lib/rate-limit"
 
 // Default relays to query
 const RELAYS = ["wss://relay.damus.io", "wss://nos.lol", "wss://purplepag.es"]
@@ -51,6 +50,15 @@ async function fetchProfileFromRelay(
   relayUrl: string,
   timeoutMs: number = 5000,
 ): Promise<Record<string, unknown> | null> {
+  // Dynamic import for WebSocket in Node.js
+  let WSConstructor: typeof import("ws").WebSocket
+  try {
+    const wsModule = await import("ws")
+    WSConstructor = wsModule.default ?? wsModule.WebSocket
+  } catch (_e: unknown) {
+    return null
+  }
+
   return new Promise((resolve) => {
     let ws: WebSocket | undefined
     const timeout = setTimeout(() => {
@@ -59,9 +67,7 @@ async function fetchProfileFromRelay(
     }, timeoutMs)
 
     try {
-      // Dynamic import for WebSocket in Node.js
-      const WebSocket = require("ws")
-      const socket: WebSocket = new WebSocket(relayUrl)
+      const socket: WebSocket = new WSConstructor(relayUrl) as unknown as WebSocket
       ws = socket
 
       socket.on("open", () => {
@@ -89,7 +95,7 @@ async function fetchProfileFromRelay(
             socket.close()
             resolve(null)
           }
-        } catch (e: unknown) {
+        } catch (_e: unknown) {
           // Ignore parse errors
         }
       })
@@ -98,7 +104,7 @@ async function fetchProfileFromRelay(
         clearTimeout(timeout)
         resolve(null)
       })
-    } catch (e: unknown) {
+    } catch (_e: unknown) {
       clearTimeout(timeout)
       resolve(null)
     }
@@ -116,7 +122,7 @@ async function fetchProfile(pubkeyHex: string): Promise<Record<string, unknown> 
       if (profile) {
         return profile
       }
-    } catch (e: unknown) {
+    } catch (_e: unknown) {
       // Continue to next relay
     }
   }

@@ -1,13 +1,15 @@
 import { useEffect, useRef, useCallback } from "react"
-import { getApiUrl } from "../config/api"
+
 import { initTransactionLabels } from "../../components/TransactionDetail"
+import { getApiUrl } from "../config/api"
+
+import type { NumberFormat, NumpadLayout, DisplayCurrency } from "./useDisplaySettings"
+import type { SoundTheme } from "./useSoundSettings"
 import type {
   VoucherWallet,
   VoucherCurrencyMode,
   VoucherExpiry,
 } from "./useVoucherWalletState"
-import type { SoundTheme } from "./useSoundSettings"
-import type { NumberFormat, NumpadLayout, DisplayCurrency } from "./useDisplaySettings"
 
 // Voucher Wallet storage key (user-scoped for security)
 const VOUCHER_WALLET_OLD_KEY = "blinkpos-voucher-wallet" // Old global key (for cleanup)

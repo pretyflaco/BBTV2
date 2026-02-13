@@ -18,23 +18,22 @@ import React, {
   createContext,
   useContext,
 } from "react"
-import NostrAuthService from "../nostr/NostrAuthService"
-import type {
-  SignInMethod,
-  AuthResult,
-  ChallengeFlowData,
-  Nip98LoginResult,
-  ServerSessionResult,
-  EncryptedNsecData,
+
+import NostrAuthService, {
+  type SignInMethod,
+  type AuthResult,
+  type ChallengeFlowData,
+  type Nip98LoginResult,
+  type ServerSessionResult,
+  type EncryptedNsecData,
 } from "../nostr/NostrAuthService"
-import type { ConnectionResult } from "../nostr/NostrConnectService"
-import type { NostrProfile } from "../nostr/NostrProfileService"
-import type { EncryptedData } from "../storage/CryptoUtils"
-import NostrProfileService from "../nostr/NostrProfileService"
-import ProfileStorage from "../storage/ProfileStorage"
-import type { StoredProfile, StoredBlinkAccount } from "../storage/ProfileStorage"
-import CryptoUtils from "../storage/CryptoUtils"
-import NostrConnectService from "../nostr/NostrConnectService"
+import { type ConnectionResult } from "../nostr/NostrConnectService"
+import NostrProfileService, { type NostrProfile } from "../nostr/NostrProfileService"
+import CryptoUtils, { type EncryptedData } from "../storage/CryptoUtils"
+import ProfileStorage, {
+  type StoredProfile,
+  type StoredBlinkAccount,
+} from "../storage/ProfileStorage"
 import { AUTH_VERSION_FULL, logAuth, logAuthError, logAuthWarn } from "../version"
 
 // ============= Helper Types =============
@@ -190,7 +189,7 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
 
       // DIAGNOSTIC: Trace auth state changes
       if (
-        updates.hasOwnProperty("isAuthenticated") ||
+        Object.prototype.hasOwnProperty.call(updates, "isAuthenticated") ||
         newState.isAuthenticated !== prev.isAuthenticated
       ) {
         console.log("[useNostrAuth] AUTH STATE CHANGE:", {
@@ -939,7 +938,7 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
    *
    * @deprecated This function is no longer functional for security reasons
    */
-  const syncBlinkAccountByPubkey = useCallback(
+  const _syncBlinkAccountByPubkey = useCallback(
     async (_publicKey: string): Promise<SyncResult> => {
       console.warn(
         "[useNostrAuth] syncBlinkAccountByPubkey is disabled for security reasons",
@@ -1485,7 +1484,7 @@ export function NostrAuthProvider({ children }: NostrAuthProviderProps): JSX.Ele
             encryptedNsec as unknown as EncryptedData,
             password,
           )
-        } catch (decryptError: unknown) {
+        } catch (_decryptError: unknown) {
           updateState({ loading: false, error: "Incorrect password" })
           return { success: false, error: "Incorrect password" }
         }

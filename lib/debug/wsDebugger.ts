@@ -62,7 +62,7 @@ export function installWebSocketDebugger(): void {
             "[WSDebug] >>> Parsed JSON:",
             JSON.stringify(parsed, null, 2).slice(0, 1000),
           )
-        } catch (e: unknown) {
+        } catch (_e: unknown) {
           // Not JSON, that's fine
         }
 
@@ -104,7 +104,7 @@ export function installWebSocketDebugger(): void {
     }
 
     // Log open event
-    ws.addEventListener("open", (event: Event) => {
+    ws.addEventListener("open", (_event: Event) => {
       console.log(`[WSDebug] <<< CONNECTED to ${url}`)
       console.log("[WSDebug] <<< readyState:", ws.readyState)
       console.log("[WSDebug] <<< protocol:", ws.protocol)
@@ -167,7 +167,7 @@ export function installWebSocketDebugger(): void {
               console.log("[WSDebug] <<< Auth challenge received")
             }
           }
-        } catch (e: unknown) {
+        } catch (_e: unknown) {
           // Not JSON
         }
       } else {

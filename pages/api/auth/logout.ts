@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next"
+
 import { withRateLimit, RATE_LIMIT_AUTH } from "../../../lib/rate-limit"
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {

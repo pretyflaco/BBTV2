@@ -382,7 +382,7 @@ export async function isLeaderWhitelisted(
 
 export async function canCreateCommunity(npub: string): Promise<boolean> {
   // Only super admin can create new communities (whitelist new leaders)
-  return await isSuperAdmin(npub)
+  return isSuperAdmin(npub)
 }
 
 export async function addToWhitelist(

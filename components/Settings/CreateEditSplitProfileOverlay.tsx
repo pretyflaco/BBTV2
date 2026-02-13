@@ -3,6 +3,7 @@
  * Extracted from Dashboard.js
  */
 import React from "react"
+
 import { getLnAddressDomain } from "../../lib/config/api"
 import type {
   SplitProfile,
@@ -56,7 +57,7 @@ export default function CreateEditSplitProfileOverlay({
   setNewSplitProfileLabel,
   setNewSplitProfileRecipients,
   setNewRecipientInput,
-  setRecipientValidation,
+  setRecipientValidation: _setRecipientValidation,
   setSplitProfileError,
   setUseCustomWeights,
   addRecipientToProfile,

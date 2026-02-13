@@ -144,8 +144,7 @@ export function useDashboardUI(): UseDashboardUIReturn {
 
   // Settings panels
   const [showAccountSettings, setShowAccountSettings] = useState(false)
-  const [showVoucherWalletSettings, setShowVoucherWalletSettings] =
-    useState(false)
+  const [showVoucherWalletSettings, setShowVoucherWalletSettings] = useState(false)
   const [showCurrencySettings, setShowCurrencySettings] = useState(false)
   const [showRegionalSettings, setShowRegionalSettings] = useState(false)
   const [showTipSettings, setShowTipSettings] = useState(false)

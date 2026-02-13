@@ -46,7 +46,7 @@ export default function SplitSettingsOverlay({
   splitProfilesLoading,
   isBlinkClassic,
   isBlinkClassicDark,
-  isBlinkClassicLight,
+  isBlinkClassicLight: _isBlinkClassicLight,
   setShowTipSettings,
   setShowCreateSplitProfile,
   setActiveSplitProfileById,

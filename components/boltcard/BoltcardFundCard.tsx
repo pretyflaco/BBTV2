@@ -6,8 +6,10 @@
  */
 
 import { useState } from "react"
+
 import { useTheme } from "../../lib/hooks/useTheme"
 import { formatBitcoinAmount, BitcoinFormatPreference } from "../../lib/number-format"
+
 import { BoltcardRecord } from "./useBoltcards"
 
 /**
@@ -59,7 +61,7 @@ export default function BoltcardFundCard({
   walletBalance,
   onFund,
   onClose,
-  loading = false,
+  loading: _loading = false,
   exchangeRate = null,
   bitcoinFormat = "sats",
 }: BoltcardFundCardProps) {
@@ -391,7 +393,8 @@ export default function BoltcardFundCard({
           <p
             className={`text-xs text-center ${darkMode ? "text-gray-500" : "text-gray-400"}`}
           >
-            Funds are allocated from your Sending Wallet to this card's spending limit.
+            Funds are allocated from your Sending Wallet to this card&apos;s spending
+            limit.
           </p>
         </div>
       </div>

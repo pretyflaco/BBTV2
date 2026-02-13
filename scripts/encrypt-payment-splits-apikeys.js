@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Backfill Script: Encrypt plaintext userApiKey values in payment_splits.metadata
  *

@@ -18,8 +18,9 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from "next"
-import { getHybridStore } from "../../../lib/storage/hybrid-store"
+
 import { withRateLimit, RATE_LIMIT_READ } from "../../../lib/rate-limit"
+import { getHybridStore } from "../../../lib/storage/hybrid-store"
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Only allow GET requests

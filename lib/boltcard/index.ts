@@ -62,13 +62,11 @@
  * - Boltcard Spec: https://github.com/boltcard/boltcard/blob/main/docs/SPEC.md
  */
 
-import boltcardStore from "./store"
-import { CardStatus, TxType, PendingStatus } from "./store"
 import * as boltcardCrypto from "./crypto"
-import { KeySlot, PICCDATA_TAG_BOLTCARD } from "./crypto"
-
-import * as lnurlw from "./lnurlw"
+import { KeySlot, PICCDATA_TAG_BOLTCARD, type KeysResponse } from "./crypto"
 import * as lnurlp from "./lnurlp"
+import * as lnurlw from "./lnurlw"
+import boltcardStore, { CardStatus, TxType, PendingStatus } from "./store"
 
 // Preserve original names for re-export and internal usage
 const store = boltcardStore
@@ -159,8 +157,6 @@ interface CreatePendingResult {
   keysRequestUrl: string
   qrPayload: string
 }
-
-import type { KeysResponse } from "./crypto"
 
 interface ProgrammingQR {
   keysJson: string

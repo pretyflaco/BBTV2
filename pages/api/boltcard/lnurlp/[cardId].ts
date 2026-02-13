@@ -1,9 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next"
-import type { EnvironmentName } from "../../../../lib/config/api"
 
-import * as boltcard from "../../../../lib/boltcard"
 import BlinkAPI from "../../../../lib/blink-api"
-import { getApiUrlForEnvironment } from "../../../../lib/config/api"
+import * as boltcard from "../../../../lib/boltcard"
+import { getApiUrlForEnvironment, type EnvironmentName } from "../../../../lib/config/api"
 import { withRateLimit, RATE_LIMIT_WRITE } from "../../../../lib/rate-limit"
 
 /**
@@ -96,7 +95,6 @@ async function handlePayCallback(
         const apiUrl = getApiUrlForEnvironment(environment)
         const blinkAPI = new BlinkAPI(apiKey, apiUrl)
 
-        let invoice
         let btcWalletId = walletId
 
         // For USD cards, we need to find the account's BTC wallet
@@ -119,7 +117,7 @@ async function handlePayCallback(
         }
 
         // Always create BTC invoice for exact sat amount (LUD-06 compliance)
-        invoice = await blinkAPI.createLnInvoice(btcWalletId, amountSats, memo)
+        const invoice = await blinkAPI.createLnInvoice(btcWalletId, amountSats, memo)
 
         if (!invoice) {
           return { error: "Failed to create invoice" }

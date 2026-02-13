@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+
 import { getWsUrl } from "../config/api"
 
 /**
@@ -240,7 +241,8 @@ export function useBlinkWebSocket(
   }, [connected, apiKey, username])
 
   // Suppress unused variable warning — lastActivity is set but used to track activity timing
-  void lastActivity
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _lastActivity = lastActivity
 
   // Manual reconnection function
   const manualReconnect = (): void => {

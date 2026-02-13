@@ -1,5 +1,5 @@
-import React from "react"
 import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer"
+import React from "react"
 
 // --- Type Definitions ---
 
@@ -178,8 +178,8 @@ export const PaycodeDocument: React.FC<PaycodeDocumentProps> = ({ paycode }) => 
           <View style={styles.instructions}>
             <Text style={styles.instructionsTitle}>Having trouble scanning?</Text>
             <Text style={styles.instructionsText}>
-              Some wallets don't support static LNURL QR codes.{"\n"}
-              Scan with your phone's camera app to open a webpage{"\n"}
+              Some wallets don&apos;t support static LNURL QR codes.{"\n"}
+              Scan with your phone&apos;s camera app to open a webpage{"\n"}
               where you can create a fresh invoice.
             </Text>
           </View>

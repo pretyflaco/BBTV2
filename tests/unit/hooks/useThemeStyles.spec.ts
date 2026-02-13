@@ -45,9 +45,7 @@ describe("useThemeStyles", () => {
 
     it("returns correct menu tile classes", () => {
       const { result } = renderHook(() => useThemeStyles())
-      expect(result.current.getMenuTileClasses()).toBe(
-        "bg-gray-900 hover:bg-gray-800"
-      )
+      expect(result.current.getMenuTileClasses()).toBe("bg-gray-900 hover:bg-gray-800")
     })
 
     it("returns correct submenu bg classes", () => {
@@ -68,7 +66,7 @@ describe("useThemeStyles", () => {
     it("returns correct wallet use button classes", () => {
       const { result } = renderHook(() => useThemeStyles())
       expect(result.current.getWalletUseButtonClasses()).toBe(
-        "bg-gray-800 text-gray-300 hover:bg-gray-700"
+        "bg-gray-800 text-gray-300 hover:bg-gray-700",
       )
     })
 
@@ -139,7 +137,7 @@ describe("useThemeStyles", () => {
     it("returns correct menu tile classes", () => {
       const { result } = renderHook(() => useThemeStyles())
       expect(result.current.getMenuTileClasses()).toBe(
-        "bg-transparent border border-blink-classic-border hover:bg-blink-classic-bg hover:border-blink-classic-amber"
+        "bg-transparent border border-blink-classic-border hover:bg-blink-classic-bg hover:border-blink-classic-amber",
       )
     })
 
@@ -151,7 +149,7 @@ describe("useThemeStyles", () => {
     it("returns correct submenu header classes", () => {
       const { result } = renderHook(() => useThemeStyles())
       expect(result.current.getSubmenuHeaderClasses()).toBe(
-        "bg-black border-b border-blink-classic-border"
+        "bg-black border-b border-blink-classic-border",
       )
     })
 
@@ -168,14 +166,14 @@ describe("useThemeStyles", () => {
     it("returns correct wallet card active classes", () => {
       const { result } = renderHook(() => useThemeStyles())
       expect(result.current.getWalletCardActiveClasses()).toBe(
-        "bg-blink-classic-bg border border-blink-classic-amber rounded-xl"
+        "bg-blink-classic-bg border border-blink-classic-amber rounded-xl",
       )
     })
 
     it("returns correct input classes", () => {
       const { result } = renderHook(() => useThemeStyles())
       expect(result.current.getInputClasses()).toBe(
-        "bg-transparent border-blink-classic-border text-white placeholder-gray-500 focus:border-blink-classic-amber focus:ring-blink-classic-amber"
+        "bg-transparent border-blink-classic-border text-white placeholder-gray-500 focus:border-blink-classic-amber focus:ring-blink-classic-amber",
       )
     })
   })
@@ -199,7 +197,7 @@ describe("useThemeStyles", () => {
     it("returns correct menu tile classes", () => {
       const { result } = renderHook(() => useThemeStyles())
       expect(result.current.getMenuTileClasses()).toBe(
-        "bg-transparent border border-blink-classic-border-light hover:bg-blink-classic-hover-light hover:border-blink-classic-amber"
+        "bg-transparent border border-blink-classic-border-light hover:bg-blink-classic-hover-light hover:border-blink-classic-amber",
       )
     })
 
@@ -211,7 +209,7 @@ describe("useThemeStyles", () => {
     it("returns correct submenu header classes", () => {
       const { result } = renderHook(() => useThemeStyles())
       expect(result.current.getSubmenuHeaderClasses()).toBe(
-        "bg-white border-b border-blink-classic-border-light"
+        "bg-white border-b border-blink-classic-border-light",
       )
     })
 
@@ -244,16 +242,12 @@ describe("useThemeStyles", () => {
 
     it("returns correct classes for amber accent (default)", () => {
       const { result } = renderHook(() => useThemeStyles())
-      expect(result.current.getWalletCardActiveClasses()).toContain(
-        "border-blink-accent"
-      )
+      expect(result.current.getWalletCardActiveClasses()).toContain("border-blink-accent")
     })
 
     it("returns correct classes for purple accent", () => {
       const { result } = renderHook(() => useThemeStyles())
-      expect(result.current.getWalletCardActiveClasses("purple")).toContain(
-        "purple"
-      )
+      expect(result.current.getWalletCardActiveClasses("purple")).toContain("purple")
     })
 
     it("returns correct classes for teal accent", () => {
@@ -281,21 +275,21 @@ describe("useThemeStyles", () => {
     it("returns correct badge classes for amber accent (default)", () => {
       const { result } = renderHook(() => useThemeStyles())
       expect(result.current.getWalletActiveBadgeClasses()).toBe(
-        "bg-blink-accent/20 text-blink-accent"
+        "bg-blink-accent/20 text-blink-accent",
       )
     })
 
     it("returns correct badge classes for purple accent", () => {
       const { result } = renderHook(() => useThemeStyles())
       expect(result.current.getWalletActiveBadgeClasses("purple")).toBe(
-        "bg-purple-500/20 text-purple-400"
+        "bg-purple-500/20 text-purple-400",
       )
     })
 
     it("returns correct badge classes for teal accent", () => {
       const { result } = renderHook(() => useThemeStyles())
       expect(result.current.getWalletActiveBadgeClasses("teal")).toBe(
-        "bg-teal-500/20 text-teal-400"
+        "bg-teal-500/20 text-teal-400",
       )
     })
   })
@@ -386,7 +380,7 @@ describe("useThemeStyles", () => {
       })
       const { result } = renderHook(() => useThemeStyles())
       expect(result.current.getSelectionTileActiveClasses()).toContain(
-        "border-blink-accent"
+        "border-blink-accent",
       )
     })
 
@@ -405,7 +399,7 @@ describe("useThemeStyles", () => {
       })
       const { result } = renderHook(() => useThemeStyles())
       expect(result.current.getSelectionTileClasses()).toContain(
-        "border-blink-classic-border"
+        "border-blink-classic-border",
       )
     })
 
@@ -424,7 +418,7 @@ describe("useThemeStyles", () => {
       })
       const { result } = renderHook(() => useThemeStyles())
       expect(result.current.getSelectionTileActiveClasses()).toContain(
-        "border-blink-classic-amber"
+        "border-blink-classic-amber",
       )
     })
   })

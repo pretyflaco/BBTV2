@@ -9,22 +9,23 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { useNostrAuth } from "../../lib/hooks/useNostrAuth"
-import { useTheme } from "../../lib/hooks/useTheme"
-import NostrAuthService from "../../lib/nostr/NostrAuthService"
-import NostrConnectService from "../../lib/nostr/NostrConnectService"
-import NostrConnectServiceNDK from "../../lib/nostr/NostrConnectServiceNDK"
-import NostrConnectModal from "./NostrConnectModal"
-import { AUTH_VERSION_FULL, logAuth, logAuthError } from "../../lib/version"
+
 import {
   getEnvironment,
   setEnvironment,
   isStaging,
   getEnvironmentConfig,
 } from "../../lib/config/api"
+import { useNostrAuth } from "../../lib/hooks/useNostrAuth"
+import { useTheme } from "../../lib/hooks/useTheme"
+import NostrAuthService from "../../lib/nostr/NostrAuthService"
+import NostrConnectService from "../../lib/nostr/NostrConnectService"
+import { AUTH_VERSION_FULL, logAuth, logAuthError } from "../../lib/version"
+
+import NostrConnectModal from "./NostrConnectModal"
 
 // Feature flag to use NDK implementation for bunker:// URLs
-const USE_NDK = process.env.NEXT_PUBLIC_USE_NDK_NIP46 === "true"
+const _USE_NDK = process.env.NEXT_PUBLIC_USE_NDK_NIP46 === "true"
 
 /** Auth mode for the form's view state */
 type AuthMode = "main" | "create" | "password"
@@ -37,13 +38,13 @@ interface DiagnosticResultsDisplay {
 }
 
 export default function NostrLoginForm() {
-  const { darkMode } = useTheme()
+  const { darkMode: _darkMode } = useTheme()
   const {
     loading,
     error,
     hasExtension,
     isMobile,
-    availableMethods,
+    availableMethods: _availableMethods,
     signInWithExtension,
     signInWithExternalSigner,
     signInWithNostrConnect,

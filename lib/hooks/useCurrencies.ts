@@ -1,4 +1,9 @@
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback } from "react"
+
+import {
+  CITRUSRATE_EXCLUSIVE_CURRENCIES,
+  CITRUSRATE_ALT_CURRENCIES,
+} from "../citrusrate-currencies-client"
 import {
   formatDisplayAmount,
   getCurrencyById,
@@ -6,10 +11,6 @@ import {
   STREET_RATE_CURRENCIES,
   CurrencyMetadata,
 } from "../currency-utils"
-import {
-  CITRUSRATE_EXCLUSIVE_CURRENCIES,
-  CITRUSRATE_ALT_CURRENCIES,
-} from "../citrusrate-currencies-client"
 
 /**
  * Currency data structure — extends CurrencyMetadata with index signature

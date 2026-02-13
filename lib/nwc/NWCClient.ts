@@ -7,14 +7,17 @@
  * @see https://github.com/nostr-protocol/nips/blob/master/47.md
  */
 
-import { nip04, nip19, finalizeEvent, getPublicKey, SimplePool } from "nostr-tools"
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils"
 import {
-  isBlinkInvoice,
-  getNonBlinkWalletError,
-  BLINK_NODE_PUBKEYS,
-} from "../invoice-decoder"
-import type { Event as NostrEvent } from "nostr-tools"
+  nip04,
+  nip19,
+  finalizeEvent,
+  getPublicKey,
+  SimplePool,
+  type Event as NostrEvent,
+} from "nostr-tools"
+
+import { isBlinkInvoice, getNonBlinkWalletError } from "../invoice-decoder"
 
 /** Minimal type for the object returned by SimplePool.subscribe() */
 interface PoolSubCloser {
@@ -331,7 +334,7 @@ class NWCClient {
    * @returns Promise resolving to NWC response with pay invoice result
    */
   async payInvoice(invoice: string): Promise<NWCResponse<PayInvoiceResult>> {
-    return await this.sendRequest<PayInvoiceResult>({
+    return this.sendRequest<PayInvoiceResult>({
       method: "pay_invoice",
       params: { invoice },
     })
@@ -342,7 +345,7 @@ class NWCClient {
    * @returns Promise resolving to NWC response with balance result
    */
   async getBalance(): Promise<NWCResponse<GetBalanceResult>> {
-    return await this.sendRequest<GetBalanceResult>({
+    return this.sendRequest<GetBalanceResult>({
       method: "get_balance",
       params: {},
     })
@@ -358,7 +361,7 @@ class NWCClient {
    * @returns Promise resolving to NWC response with make invoice result
    */
   async makeInvoice(params: MakeInvoiceParams): Promise<NWCResponse<MakeInvoiceResult>> {
-    return await this.sendRequest<MakeInvoiceResult>({
+    return this.sendRequest<MakeInvoiceResult>({
       method: "make_invoice",
       params: params as unknown as Record<string, unknown>,
     })
@@ -370,7 +373,7 @@ class NWCClient {
    * @returns Promise resolving to NWC response
    */
   async lookupInvoice(paymentHash: string): Promise<NWCResponse> {
-    return await this.sendRequest({
+    return this.sendRequest({
       method: "lookup_invoice",
       params: { payment_hash: paymentHash },
     })
@@ -388,7 +391,7 @@ class NWCClient {
    * @returns Promise resolving to NWC response
    */
   async listTransactions(params: ListTransactionsParams = {}): Promise<NWCResponse> {
-    return await this.sendRequest({
+    return this.sendRequest({
       method: "list_transactions",
       params: params as unknown as Record<string, unknown>,
     })

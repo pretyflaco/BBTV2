@@ -5,10 +5,10 @@
  */
 
 import { renderHook, act } from "@testing-library/react"
+
 import {
   useVoucherWalletState,
   type VoucherWallet,
-  type VoucherCurrencyMode,
   type VoucherExpiry,
 } from "@/lib/hooks/useVoucherWalletState"
 

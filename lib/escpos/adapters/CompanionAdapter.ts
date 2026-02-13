@@ -154,7 +154,7 @@ class CompanionAdapter extends BaseAdapter {
     }
 
     // Deep links work on mobile browsers
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    const _isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
 
     // Also available on desktop (will prompt to install app or use fallback)
     // Return true to allow user to try companion app workflow
@@ -473,8 +473,8 @@ class CompanionAdapter extends BaseAdapter {
   private _toBase64(data: Uint8Array): string {
     if (typeof btoa !== "undefined") {
       let binary = ""
-      for (let i = 0; i < data.length; i++) {
-        binary += String.fromCharCode(data[i])
+      for (const byte of data) {
+        binary += String.fromCharCode(byte)
       }
       return btoa(binary)
     } else if (typeof Buffer !== "undefined") {

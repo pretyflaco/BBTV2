@@ -17,9 +17,11 @@
  */
 
 import crypto from "crypto"
+
 import type { QueryResult } from "pg"
-import { getSharedPool } from "./db"
+
 import AuthManager from "./auth"
+import { getSharedPool } from "./db"
 import {
   MAX_UNCLAIMED_PER_WALLET,
   getExpiryMs,

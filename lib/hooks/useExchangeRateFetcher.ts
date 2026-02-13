@@ -1,9 +1,11 @@
 import { useEffect } from "react"
+
 import { isBitcoinCurrency } from "../currency-utils"
-import type { ExchangeRateData } from "./useExchangeRate"
-import type { VoucherWallet } from "./useVoucherWalletState"
-import type { TipProfile } from "./useTipSettings"
+
 import type { CombinedUser } from "./useCombinedAuth"
+import type { ExchangeRateData } from "./useExchangeRate"
+import type { TipProfile } from "./useTipSettings"
+import type { VoucherWallet } from "./useVoucherWalletState"
 
 // ─── Types ────────────────────────────────────────────────────────
 

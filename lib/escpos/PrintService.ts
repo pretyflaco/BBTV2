@@ -24,14 +24,9 @@
  * ```
  */
 
-import VoucherReceipt from "./VoucherReceipt"
-import type { VoucherData as VoucherReceiptData } from "./VoucherReceipt"
-import { getConnectionManager } from "./ConnectionManager"
-import { AdapterStatus } from "./adapters/BaseAdapter"
-import { preloadLogo, getBlinkLogoUrl } from "./LogoRasterizer"
-
-import type ConnectionManager from "./ConnectionManager"
-import type BaseAdapter from "./adapters/BaseAdapter"
+import BaseAdapter from "./adapters/BaseAdapter"
+import ConnectionManager, { getConnectionManager } from "./ConnectionManager"
+import VoucherReceipt, { type VoucherData as VoucherReceiptData } from "./VoucherReceipt"
 
 /**
  * Print job status

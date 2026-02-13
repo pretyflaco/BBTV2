@@ -1,38 +1,38 @@
 /**
  * API Helpers for E2E Tests
- * 
+ *
  * Direct Blink API calls for test setup and verification.
  * These helpers bypass the UI to perform actions needed for testing.
  */
 
-import { API_ENDPOINTS, TEST_CREDENTIALS } from './test-data';
+import { API_ENDPOINTS, TEST_CREDENTIALS } from "./test-data"
 
 // Types
 export interface WalletInfo {
-  id: string;
-  walletCurrency: 'BTC' | 'USD';
-  balance: number;
+  id: string
+  walletCurrency: "BTC" | "USD"
+  balance: number
 }
 
 export interface BalanceResult {
-  btcWallet: WalletInfo | null;
-  usdWallet: WalletInfo | null;
-  btcBalance: number;
-  usdBalance: number;
+  btcWallet: WalletInfo | null
+  usdWallet: WalletInfo | null
+  btcBalance: number
+  usdBalance: number
 }
 
 export interface PaymentResult {
-  success: boolean;
-  status?: string;
+  success: boolean
+  status?: string
   error?: {
-    code: string;
-    message: string;
-  };
+    code: string
+    message: string
+  }
 }
 
 export interface UserInfo {
-  username: string;
-  displayCurrency: string;
+  username: string
+  displayCurrency: string
 }
 
 /**
@@ -42,37 +42,37 @@ async function blinkQuery<T>(
   apiKey: string,
   query: string,
   variables: Record<string, unknown> = {},
-  useStaging = true
+  useStaging = true,
 ): Promise<T> {
-  const url = useStaging ? API_ENDPOINTS.staging : API_ENDPOINTS.production;
-  
+  const url = useStaging ? API_ENDPOINTS.staging : API_ENDPOINTS.production
+
   const response = await fetch(url, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'X-API-KEY': apiKey,
+      "Content-Type": "application/json",
+      "X-API-KEY": apiKey,
     },
     body: JSON.stringify({ query, variables }),
-  });
+  })
 
   if (!response.ok) {
-    throw new Error(`Blink API HTTP error: ${response.status}`);
+    throw new Error(`Blink API HTTP error: ${response.status}`)
   }
 
-  const data = await response.json();
+  const data = await response.json()
 
   if (data.errors && data.errors.length > 0) {
-    throw new Error(`Blink API error: ${data.errors[0].message}`);
+    throw new Error(`Blink API error: ${data.errors[0].message}`)
   }
 
-  return data.data as T;
+  return data.data as T
 }
 
 /**
  * Get user info (username and display currency)
  */
 export async function getUserInfo(
-  apiKey: string = TEST_CREDENTIALS.apiKeys.readReceiveWrite
+  apiKey: string = TEST_CREDENTIALS.apiKeys.readReceiveWrite,
 ): Promise<UserInfo> {
   const query = `
     query Me {
@@ -83,24 +83,23 @@ export async function getUserInfo(
         }
       }
     }
-  `;
+  `
 
-  const data = await blinkQuery<{ me: { username: string; defaultAccount: { displayCurrency: string } } }>(
-    apiKey,
-    query
-  );
+  const data = await blinkQuery<{
+    me: { username: string; defaultAccount: { displayCurrency: string } }
+  }>(apiKey, query)
 
   return {
     username: data.me.username,
     displayCurrency: data.me.defaultAccount.displayCurrency,
-  };
+  }
 }
 
 /**
  * Get wallet balances
  */
 export async function getWalletBalance(
-  apiKey: string = TEST_CREDENTIALS.apiKeys.readReceiveWrite
+  apiKey: string = TEST_CREDENTIALS.apiKeys.readReceiveWrite,
 ): Promise<BalanceResult> {
   const query = `
     query {
@@ -114,26 +113,26 @@ export async function getWalletBalance(
         }
       }
     }
-  `;
+  `
 
   const data = await blinkQuery<{
     me: {
       defaultAccount: {
-        wallets: WalletInfo[];
-      };
-    };
-  }>(apiKey, query);
+        wallets: WalletInfo[]
+      }
+    }
+  }>(apiKey, query)
 
-  const wallets = data.me.defaultAccount.wallets;
-  const btcWallet = wallets.find(w => w.walletCurrency === 'BTC') || null;
-  const usdWallet = wallets.find(w => w.walletCurrency === 'USD') || null;
+  const wallets = data.me.defaultAccount.wallets
+  const btcWallet = wallets.find((w) => w.walletCurrency === "BTC") || null
+  const usdWallet = wallets.find((w) => w.walletCurrency === "USD") || null
 
   return {
     btcWallet,
     usdWallet,
     btcBalance: btcWallet?.balance ?? 0,
     usdBalance: usdWallet?.balance ?? 0,
-  };
+  }
 }
 
 /**
@@ -141,22 +140,22 @@ export async function getWalletBalance(
  */
 export async function getWalletId(
   apiKey: string = TEST_CREDENTIALS.apiKeys.readReceiveWrite,
-  currency: 'BTC' | 'USD' = 'BTC'
+  currency: "BTC" | "USD" = "BTC",
 ): Promise<string | null> {
-  const balance = await getWalletBalance(apiKey);
-  
-  if (currency === 'BTC') {
-    return balance.btcWallet?.id ?? null;
+  const balance = await getWalletBalance(apiKey)
+
+  if (currency === "BTC") {
+    return balance.btcWallet?.id ?? null
   } else {
-    return balance.usdWallet?.id ?? null;
+    return balance.usdWallet?.id ?? null
   }
 }
 
 /**
  * Send payment to a Lightning Address
- * 
+ *
  * Uses lnAddressPaymentSend mutation
- * 
+ *
  * @param apiKey - Blink API key with write permissions
  * @param lnAddress - Recipient's Lightning Address (e.g., test@pay.staging.blink.sv)
  * @param amountSats - Amount in satoshis
@@ -166,19 +165,20 @@ export async function sendPaymentToLightningAddress(
   apiKey: string = TEST_CREDENTIALS.apiKeys.readReceiveWrite,
   lnAddress: string,
   amountSats: number,
-  walletId?: string
+  walletId?: string,
 ): Promise<PaymentResult> {
   // Get wallet ID if not provided
-  if (!walletId) {
-    walletId = await getWalletId(apiKey, 'BTC') ?? undefined;
-    if (!walletId) {
+  let effectiveWalletId = walletId
+  if (!effectiveWalletId) {
+    effectiveWalletId = (await getWalletId(apiKey, "BTC")) ?? undefined
+    if (!effectiveWalletId) {
       return {
         success: false,
         error: {
-          code: 'NO_WALLET',
-          message: 'Could not find BTC wallet',
+          code: "NO_WALLET",
+          message: "Could not find BTC wallet",
         },
-      };
+      }
     }
   }
 
@@ -192,49 +192,49 @@ export async function sendPaymentToLightningAddress(
         }
       }
     }
-  `;
+  `
 
   const variables = {
     input: {
-      walletId,
+      walletId: effectiveWalletId,
       lnAddress,
       amount: amountSats,
     },
-  };
+  }
 
   try {
     const data = await blinkQuery<{
       lnAddressPaymentSend: {
-        status: string;
-        errors: Array<{ message: string; code: string }>;
-      };
-    }>(apiKey, mutation, variables);
+        status: string
+        errors: Array<{ message: string; code: string }>
+      }
+    }>(apiKey, mutation, variables)
 
-    const result = data.lnAddressPaymentSend;
+    const result = data.lnAddressPaymentSend
 
     if (result.errors && result.errors.length > 0) {
       return {
         success: false,
         status: result.status,
         error: {
-          code: result.errors[0].code || 'PAYMENT_FAILED',
+          code: result.errors[0].code || "PAYMENT_FAILED",
           message: result.errors[0].message,
         },
-      };
+      }
     }
 
     return {
       success: true,
       status: result.status,
-    };
+    }
   } catch (error) {
     return {
       success: false,
       error: {
-        code: 'NETWORK_ERROR',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        code: "NETWORK_ERROR",
+        message: error instanceof Error ? error.message : "Unknown error",
       },
-    };
+    }
   }
 }
 
@@ -243,14 +243,16 @@ export async function sendPaymentToLightningAddress(
  */
 export async function getTransactionHistory(
   apiKey: string = TEST_CREDENTIALS.apiKeys.readReceiveWrite,
-  first: number = 10
-): Promise<Array<{
-  id: string;
-  status: string;
-  direction: string;
-  settlementAmount: number;
-  createdAt: string;
-}>> {
+  first: number = 10,
+): Promise<
+  Array<{
+    id: string
+    status: string
+    direction: string
+    settlementAmount: number
+    createdAt: string
+  }>
+> {
   const query = `
     query TransactionHistory($first: Int) {
       me {
@@ -269,7 +271,7 @@ export async function getTransactionHistory(
         }
       }
     }
-  `;
+  `
 
   const data = await blinkQuery<{
     me: {
@@ -277,19 +279,19 @@ export async function getTransactionHistory(
         transactions: {
           edges: Array<{
             node: {
-              id: string;
-              status: string;
-              direction: string;
-              settlementAmount: number;
-              createdAt: string;
-            };
-          }>;
-        };
-      };
-    };
-  }>(apiKey, query, { first });
+              id: string
+              status: string
+              direction: string
+              settlementAmount: number
+              createdAt: string
+            }
+          }>
+        }
+      }
+    }
+  }>(apiKey, query, { first })
 
-  return data.me.defaultAccount.transactions.edges.map(edge => edge.node);
+  return data.me.defaultAccount.transactions.edges.map((edge) => edge.node)
 }
 
 /**
@@ -299,21 +301,22 @@ export async function createInvoice(
   apiKey: string = TEST_CREDENTIALS.apiKeys.readReceive,
   amountSats: number,
   memo?: string,
-  walletId?: string
+  walletId?: string,
 ): Promise<{
-  success: boolean;
-  paymentRequest?: string;
-  paymentHash?: string;
-  error?: string;
+  success: boolean
+  paymentRequest?: string
+  paymentHash?: string
+  error?: string
 }> {
   // Get wallet ID if not provided
-  if (!walletId) {
-    walletId = await getWalletId(apiKey, 'BTC') ?? undefined;
-    if (!walletId) {
+  let effectiveWalletId = walletId
+  if (!effectiveWalletId) {
+    effectiveWalletId = (await getWalletId(apiKey, "BTC")) ?? undefined
+    if (!effectiveWalletId) {
       return {
         success: false,
-        error: 'Could not find BTC wallet',
-      };
+        error: "Could not find BTC wallet",
+      }
     }
   }
 
@@ -329,54 +332,54 @@ export async function createInvoice(
         }
       }
     }
-  `;
+  `
 
   const variables = {
     input: {
-      walletId,
+      walletId: effectiveWalletId,
       amount: amountSats,
       memo: memo || undefined,
     },
-  };
+  }
 
   try {
     const data = await blinkQuery<{
       lnInvoiceCreate: {
         invoice: {
-          paymentRequest: string;
-          paymentHash: string;
-        };
-        errors: Array<{ message: string }>;
-      };
-    }>(apiKey, mutation, variables);
+          paymentRequest: string
+          paymentHash: string
+        }
+        errors: Array<{ message: string }>
+      }
+    }>(apiKey, mutation, variables)
 
-    const result = data.lnInvoiceCreate;
+    const result = data.lnInvoiceCreate
 
     if (result.errors && result.errors.length > 0) {
       return {
         success: false,
         error: result.errors[0].message,
-      };
+      }
     }
 
     return {
       success: true,
       paymentRequest: result.invoice.paymentRequest,
       paymentHash: result.invoice.paymentHash,
-    };
+    }
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
+      error: error instanceof Error ? error.message : "Unknown error",
+    }
   }
 }
 
 /**
  * Poll for balance change
- * 
+ *
  * Useful for waiting for a transaction to settle
- * 
+ *
  * @param apiKey - Blink API key
  * @param initialBalance - Starting balance to compare against
  * @param direction - 'increase' or 'decrease'
@@ -386,41 +389,42 @@ export async function createInvoice(
 export async function waitForBalanceChange(
   apiKey: string = TEST_CREDENTIALS.apiKeys.readReceiveWrite,
   initialBalance: number,
-  direction: 'increase' | 'decrease' = 'decrease',
+  direction: "increase" | "decrease" = "decrease",
   timeoutMs: number = 10000,
-  intervalMs: number = 1000
+  intervalMs: number = 1000,
 ): Promise<{
-  changed: boolean;
-  newBalance: number;
-  difference: number;
+  changed: boolean
+  newBalance: number
+  difference: number
 }> {
-  const startTime = Date.now();
-  
+  const startTime = Date.now()
+
   while (Date.now() - startTime < timeoutMs) {
-    const balance = await getWalletBalance(apiKey);
-    const currentBalance = balance.btcBalance;
-    
-    const hasChanged = direction === 'increase'
-      ? currentBalance > initialBalance
-      : currentBalance < initialBalance;
-    
+    const balance = await getWalletBalance(apiKey)
+    const currentBalance = balance.btcBalance
+
+    const hasChanged =
+      direction === "increase"
+        ? currentBalance > initialBalance
+        : currentBalance < initialBalance
+
     if (hasChanged) {
       return {
         changed: true,
         newBalance: currentBalance,
         difference: currentBalance - initialBalance,
-      };
+      }
     }
-    
+
     // Wait before next poll
-    await new Promise(resolve => setTimeout(resolve, intervalMs));
+    await new Promise((resolve) => setTimeout(resolve, intervalMs))
   }
-  
+
   // Timeout - return current state
-  const finalBalance = await getWalletBalance(apiKey);
+  const finalBalance = await getWalletBalance(apiKey)
   return {
     changed: false,
     newBalance: finalBalance.btcBalance,
     difference: finalBalance.btcBalance - initialBalance,
-  };
+  }
 }

@@ -9,10 +9,12 @@
  * - Soft limit warning when card balance exceeds wallet
  */
 
-import { useState, useEffect, useCallback } from "react"
-import { useTheme } from "../../lib/hooks/useTheme"
 import { QRCodeSVG } from "qrcode.react"
+import { useState, useEffect, useCallback } from "react"
+
+import { useTheme } from "../../lib/hooks/useTheme"
 import { formatBitcoinAmount, BitcoinFormatPreference } from "../../lib/number-format"
+
 import type { BoltcardRecord, TopUpQRData, FundResult } from "./useBoltcards"
 
 // ============================================================================

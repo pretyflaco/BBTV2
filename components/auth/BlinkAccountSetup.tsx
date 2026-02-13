@@ -6,11 +6,12 @@
  */
 
 import { useState } from "react"
-import { useProfile } from "../../lib/hooks/useProfile"
-import { useNostrAuth } from "../../lib/hooks/useNostrAuth"
-import { useCombinedAuth } from "../../lib/hooks/useCombinedAuth"
-import { useTheme } from "../../lib/hooks/useTheme"
+
 import { getApiUrl } from "../../lib/config/api"
+import { useCombinedAuth } from "../../lib/hooks/useCombinedAuth"
+import { useNostrAuth } from "../../lib/hooks/useNostrAuth"
+import { useProfile } from "../../lib/hooks/useProfile"
+import { useTheme } from "../../lib/hooks/useTheme"
 
 interface BlinkAccountSetupProps {
   onComplete?: (account: BlinkAccount) => void

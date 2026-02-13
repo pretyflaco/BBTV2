@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
-import { playSound, SOUND_THEMES } from "../lib/audio-utils"
-import type { SoundThemeName } from "../lib/audio-utils"
+
+import { playSound, SOUND_THEMES, type SoundThemeName } from "../lib/audio-utils"
 
 const decodeNDEFRecord = (record: NDEFRecord): string => {
   if (!record.data) {
@@ -121,7 +121,7 @@ export const useNFC = ({
 
       let result: PermissionStatus
       try {
-        // @ts-ignore - NFC permission is not in TypeScript's navigator.permissions
+        // @ts-expect-error NFC permission is not in TypeScript's navigator.permissions
         result = await navigator.permissions.query({ name: "nfc" })
       } catch (err: unknown) {
         console.error("Error querying NFC permission:", err)
@@ -235,7 +235,7 @@ export const useNFC = ({
             if (decoded.message) {
               errorMessage += decoded.message
             }
-          } catch (e: unknown) {
+          } catch (_e: unknown) {
             errorMessage = "Unknown error"
           }
 

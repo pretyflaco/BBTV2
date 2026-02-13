@@ -6,8 +6,9 @@
  * IMPORTANT: This service uses DATABASE storage, not in-memory stores
  */
 
-import BlinkAPI from "../blink-api"
 import AuthManager from "../auth"
+import BlinkAPI from "../blink-api"
+
 import * as db from "./db"
 
 // ---------------------------------------------------------------------------

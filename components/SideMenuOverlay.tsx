@@ -1,7 +1,5 @@
 import React from "react"
-import { FORMAT_LABELS } from "../lib/number-format"
-import type { NumberFormatPreference } from "../lib/number-format"
-import type { Theme } from "../lib/hooks/useTheme"
+
 import type { SoundThemeName } from "../lib/audio-utils"
 import type {
   AuthMode,
@@ -11,8 +9,10 @@ import type {
   NostrProfile,
 } from "../lib/hooks/useCombinedAuth"
 import type { SplitProfile } from "../lib/hooks/useSplitProfiles"
+import type { Theme } from "../lib/hooks/useTheme"
 import type { TipProfile } from "../lib/hooks/useTipSettings"
 import type { VoucherWallet } from "../lib/hooks/useVoucherWalletState"
+import { FORMAT_LABELS, type NumberFormatPreference } from "../lib/number-format"
 
 // ============================================================================
 // Component Props

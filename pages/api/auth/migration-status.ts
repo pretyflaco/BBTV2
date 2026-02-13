@@ -7,8 +7,8 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-import StorageManager from "../../../lib/storage"
 import { withRateLimit, RATE_LIMIT_AUTH } from "../../../lib/rate-limit"
+import StorageManager from "../../../lib/storage"
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {

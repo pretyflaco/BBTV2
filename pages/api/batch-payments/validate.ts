@@ -19,9 +19,12 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from "next"
+
 import { parseCSV, quickValidate } from "../../../lib/batch-payments/csv-parser"
-import type { ValidationResult } from "../../../lib/batch-payments/recipient-validator"
-import { validateAllRecipients } from "../../../lib/batch-payments/recipient-validator"
+import {
+  validateAllRecipients,
+  type ValidationResult,
+} from "../../../lib/batch-payments/recipient-validator"
 import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {

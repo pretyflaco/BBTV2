@@ -8,6 +8,7 @@
  */
 
 import { useState, useCallback } from "react"
+
 import type { TransactionRecord } from "../../components/TransactionDetail"
 
 export interface DateRange {

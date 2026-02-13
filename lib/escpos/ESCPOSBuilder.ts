@@ -641,8 +641,8 @@ class ESCPOSBuilder {
   toBase64(): string {
     const bytes = this.build()
     let binary = ""
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i])
+    for (const byte of bytes) {
+      binary += String.fromCharCode(byte)
     }
     // Use btoa in browser, Buffer in Node
     if (typeof btoa !== "undefined") {

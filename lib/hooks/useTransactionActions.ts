@@ -1,11 +1,12 @@
-import { useCallback, MutableRefObject, KeyboardEvent } from "react"
-import { getEnvironment } from "../config/api"
-import { SPINNER_COLORS } from "./useViewNavigation"
-import type { DashboardView } from "./useViewNavigation"
+import { MutableRefObject, KeyboardEvent } from "react"
+
 import type { TransactionRecord } from "../../components/TransactionDetail"
+import { getEnvironment } from "../config/api"
+
 import type { CombinedUser } from "./useCombinedAuth"
-import type { WalletInfo } from "./useWalletState"
 import type { DateRange } from "./useTransactionState"
+import { SPINNER_COLORS, type DashboardView } from "./useViewNavigation"
+import type { WalletInfo } from "./useWalletState"
 
 // ============================================================================
 // Interfaces
@@ -526,7 +527,7 @@ export function useTransactionActions({
       const maxBatches = 10 // Load up to 10 batches (1000 transactions)
 
       // Check if we already have transactions covering the date range
-      const existingFiltered = filterTransactionsByDateRange(
+      const _existingFiltered = filterTransactionsByDateRange(
         allTransactions,
         dateRange.start,
         dateRange.end,
@@ -535,7 +536,7 @@ export function useTransactionActions({
       // If we have existing transactions and the oldest one is older than our range start,
       // we might have enough data
       const oldestTx = allTransactions[allTransactions.length - 1]
-      let oldestDate: Date | null =
+      const oldestDate: Date | null =
         parseCreatedAt(oldestTx?.createdAt) || parseTransactionDate(oldestTx?.date)
 
       // Load more if we don't have enough data covering the date range

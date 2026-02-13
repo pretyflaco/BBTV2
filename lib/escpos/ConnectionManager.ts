@@ -25,11 +25,11 @@
  * - User preference persistence
  */
 
-import CompanionAdapter from "./adapters/CompanionAdapter"
-import WebSerialAdapter from "./adapters/WebSerialAdapter"
-import PDFAdapter from "./adapters/PDFAdapter"
-import LocalPrintAdapter from "./adapters/LocalPrintAdapter"
 import type BaseAdapter from "./adapters/BaseAdapter"
+import CompanionAdapter from "./adapters/CompanionAdapter"
+import LocalPrintAdapter from "./adapters/LocalPrintAdapter"
+import PDFAdapter from "./adapters/PDFAdapter"
+import WebSerialAdapter from "./adapters/WebSerialAdapter"
 
 interface PlatformCapabilities {
   webSerial: boolean
@@ -504,7 +504,7 @@ class ConnectionManager {
     try {
       const stored = localStorage.getItem("blink-print-preferences")
       return stored ? (JSON.parse(stored) as PrintPreferences) : {}
-    } catch (e) {
+    } catch (_e) {
       return {}
     }
   }
@@ -520,8 +520,8 @@ class ConnectionManager {
 
     try {
       localStorage.setItem("blink-print-preferences", JSON.stringify(this._preferences))
-    } catch (e) {
-      console.warn("Could not save print preferences:", e)
+    } catch (_e) {
+      console.warn("Could not save print preferences:", _e)
     }
   }
 
@@ -590,8 +590,8 @@ class ConnectionManager {
       listeners.forEach((cb) => {
         try {
           cb(data)
-        } catch (e) {
-          console.error("Error in ConnectionManager event handler:", e)
+        } catch (_e) {
+          console.error("Error in ConnectionManager event handler:", _e)
         }
       })
     }

@@ -28,10 +28,9 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { getPrintService, PrintStatus, ReceiptType } from "../PrintService"
-import { getConnectionManager } from "../ConnectionManager"
-import type PrintService from "../PrintService"
-import type ConnectionManager from "../ConnectionManager"
+
+import ConnectionManager, { getConnectionManager } from "../ConnectionManager"
+import PrintService, { getPrintService, PrintStatus, ReceiptType } from "../PrintService"
 
 interface PrintMethod {
   type: string
@@ -308,7 +307,7 @@ export function useThermalPrint(
       if (!printServiceRef.current) return null
       try {
         return await printServiceRef.current.getDeepLinkUrl(voucher as never, opts)
-      } catch (err: unknown) {
+      } catch (_err: unknown) {
         return null
       }
     },

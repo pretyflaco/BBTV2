@@ -6,12 +6,12 @@
  */
 
 import { useState, useEffect } from "react"
-import { isStaging, getEnvironment } from "../lib/config/api"
-import type { EnvironmentName } from "../lib/config/api"
+
+import { getEnvironment, type EnvironmentName } from "../lib/config/api"
 
 export default function StagingBanner() {
   const [showBanner, setShowBanner] = useState<boolean>(false)
-  const [environment, setEnvironmentState] = useState<EnvironmentName>("production")
+  const [_environment, setEnvironmentState] = useState<EnvironmentName>("production")
 
   useEffect(() => {
     // Check environment on client side only

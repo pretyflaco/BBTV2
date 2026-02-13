@@ -10,22 +10,26 @@
  * - Reset card with deeplink QR (spec-compliant)
  */
 
-import { useState, useEffect } from "react"
-import { useTheme } from "../../lib/hooks/useTheme"
-import { CardStatus } from "./useBoltcards"
-import type {
-  BoltcardRecord,
-  BoltcardTransaction,
-  TopUpQRData,
-  CardActionResult,
-  CardUpdatePayload,
-  FetchDetailsResult,
-  FundResult,
-} from "./useBoltcards"
-import type { BitcoinFormatPreference } from "../../lib/number-format"
-import BoltcardTopUp from "./BoltcardTopUp"
 import { QRCodeSVG } from "qrcode.react"
-import { formatBitcoinAmount } from "../../lib/number-format"
+import { useState, useEffect } from "react"
+
+import { useTheme } from "../../lib/hooks/useTheme"
+import {
+  formatBitcoinAmount,
+  type BitcoinFormatPreference,
+} from "../../lib/number-format"
+
+import BoltcardTopUp from "./BoltcardTopUp"
+import {
+  CardStatus,
+  type BoltcardRecord,
+  type BoltcardTransaction,
+  type TopUpQRData,
+  type CardActionResult,
+  type CardUpdatePayload,
+  type FetchDetailsResult,
+  type FundResult,
+} from "./useBoltcards"
 
 // ============================================================================
 // Types
@@ -184,7 +188,7 @@ export default function BoltcardDetails({
   }, [initialCard])
 
   // Edit state
-  const [editing, setEditing] = useState(false)
+  const [_editing, setEditing] = useState(false)
   const [editName, setEditName] = useState(card.name || "")
   const [editMaxTx, setEditMaxTx] = useState(
     card.maxTxAmount
@@ -205,7 +209,7 @@ export default function BoltcardDetails({
   // Reset card state
   const [showResetModal, setShowResetModal] = useState(false)
   const [resetDeeplink, setResetDeeplink] = useState<string | null>(null)
-  const [showResetQRCode, setShowResetQRCode] = useState(false)
+  const [_showResetQRCode, setShowResetQRCode] = useState(false)
   const [wipeKeys, setWipeKeys] = useState<WipeKeysData | null>(null)
   const [wipeKeysLoading, setWipeKeysLoading] = useState(false)
   const [wipeKeysError, setWipeKeysError] = useState<string | null>(null)
@@ -214,8 +218,8 @@ export default function BoltcardDetails({
 
   // Platform detection for mobile-first UI
   const [isMobile, setIsMobile] = useState(false)
-  const [isAndroidDevice, setIsAndroidDevice] = useState(false)
-  const [isIOSDevice, setIsIOSDevice] = useState(false)
+  const [_isAndroidDevice, setIsAndroidDevice] = useState(false)
+  const [_isIOSDevice, setIsIOSDevice] = useState(false)
 
   // Detect mobile on mount
   useEffect(() => {
@@ -353,7 +357,7 @@ export default function BoltcardDetails({
   /**
    * Handle opening reset deeplink directly (mobile)
    */
-  const handleOpenResetDeeplink = () => {
+  const _handleOpenResetDeeplink = () => {
     if (resetDeeplink) {
       window.location.href = resetDeeplink
     }
@@ -583,7 +587,7 @@ export default function BoltcardDetails({
                       >
                         <li>Do not share these keys with anyone</li>
                         <li>Do not screenshot or save them insecurely</li>
-                        <li>Close this window after you're done</li>
+                        <li>Close this window after you&apos;re done</li>
                       </ul>
                     </div>
 
@@ -758,7 +762,7 @@ export default function BoltcardDetails({
                         }`}
                       >
                         <li>Open the Bolt Card NFC Programmer app</li>
-                        <li>Go to the "Reset" screen</li>
+                        <li>Go to the &quot;Reset&quot; screen</li>
                         <li>Scan the QR code above, OR enter keys manually</li>
                         <li>Tap your card on your phone when prompted</li>
                         <li>Wait for reset to complete</li>
@@ -1394,8 +1398,8 @@ export default function BoltcardDetails({
                     className={`text-xs mb-3 ${darkMode ? "text-orange-300" : "text-orange-600"}`}
                   >
                     Get the keys needed to reset your card using the NFC Programmer app.
-                    You'll be able to reprogram it afterward or use it with a different
-                    service.
+                    You&apos;ll be able to reprogram it afterward or use it with a
+                    different service.
                   </p>
                   <button
                     onClick={handleShowResetModal}
@@ -1429,8 +1433,8 @@ export default function BoltcardDetails({
                     className={`text-xs mb-3 ${darkMode ? "text-red-300" : "text-red-600"}`}
                   >
                     Wiping a card from the database will permanently delete it and its
-                    transaction history. This cannot be undone. Use "Reset Card" above to
-                    also reset the physical card.
+                    transaction history. This cannot be undone. Use &quot;Reset Card&quot;
+                    above to also reset the physical card.
                   </p>
                   <button
                     onClick={handleWipe}

@@ -727,7 +727,11 @@ class VoucherReceipt {
     this._buildFooter(opts, compact)
 
     if (opts.autoCut) {
-      opts.partialCut ? b.partialCut() : b.cut()
+      if (opts.partialCut) {
+        b.partialCut()
+      } else {
+        b.cut()
+      }
     } else {
       b.feed(opts.feedLinesAfter)
     }

@@ -1,3 +1,4 @@
+import { bech32 } from "bech32"
 import {
   useState,
   useEffect,
@@ -8,7 +9,9 @@ import {
   ReactElement,
 } from "react"
 import QRCode from "react-qr-code"
-import { bech32 } from "bech32"
+
+import { unlockAudioContext, playSound } from "../lib/audio-utils"
+import { getEnvironment } from "../lib/config/api"
 import {
   formatDisplayAmount as formatCurrency,
   getCurrencyById,
@@ -16,18 +19,17 @@ import {
   parseAmountParts,
   CurrencyMetadata,
 } from "../lib/currency-utils"
+import type { ExchangeRateData } from "../lib/hooks/useExchangeRate"
+import type { Theme } from "../lib/hooks/useTheme"
 import {
   formatNumber,
   NumberFormatPreference,
   BitcoinFormatPreference,
   NumpadLayoutPreference,
 } from "../lib/number-format"
-import ExpirySelector, { DEFAULT_EXPIRY, getExpiryOption } from "./ExpirySelector"
-import type { ExchangeRateData } from "../lib/hooks/useExchangeRate"
+
+import { DEFAULT_EXPIRY, getExpiryOption } from "./ExpirySelector"
 import Numpad from "./Numpad"
-import { unlockAudioContext, playSound } from "../lib/audio-utils"
-import { getEnvironment } from "../lib/config/api"
-import type { Theme } from "../lib/hooks/useTheme"
 
 // =============================================================================
 // Types & Interfaces
@@ -180,9 +182,9 @@ const MultiVoucher = forwardRef<MultiVoucherHandle, MultiVoucherProps>(
       bitcoinFormat = "sats",
       numpadLayout = "calculator",
       currencies,
-      darkMode,
+      darkMode: _darkMode,
       theme,
-      cycleTheme,
+      cycleTheme: _cycleTheme,
       soundEnabled,
       onInternalTransition,
       commissionEnabled,
@@ -198,7 +200,7 @@ const MultiVoucher = forwardRef<MultiVoucherHandle, MultiVoucherProps>(
     // Amount input state
     const [amount, setAmount] = useState<string>("")
     const [exchangeRate, setExchangeRate] = useState<ExchangeRateData | null>(null)
-    const [loadingRate, setLoadingRate] = useState<boolean>(false)
+    const [_loadingRate, setLoadingRate] = useState<boolean>(false)
     const [error, setError] = useState<string>("")
 
     // Multi-voucher configuration
@@ -208,9 +210,9 @@ const MultiVoucher = forwardRef<MultiVoucherHandle, MultiVoucherProps>(
     const [selectedExpiry, setSelectedExpiry] = useState<string>(initialExpiry)
 
     // Generation state
-    const [generating, setGenerating] = useState<boolean>(false)
+    const [_generating, setGenerating] = useState<boolean>(false)
     const [generatedVouchers, setGeneratedVouchers] = useState<GeneratedVoucher[]>([])
-    const [showPreview, setShowPreview] = useState<boolean>(false)
+    const [_showPreview, setShowPreview] = useState<boolean>(false)
     const [downloadingPdf, setDownloadingPdf] = useState<boolean>(false)
     const [printing, setPrinting] = useState<boolean>(false)
 
@@ -551,7 +553,7 @@ const MultiVoucher = forwardRef<MultiVoucherHandle, MultiVoucherProps>(
           if (sats < 1) {
             return false
           }
-        } catch (e) {
+        } catch (_e) {
           return false
         }
       }

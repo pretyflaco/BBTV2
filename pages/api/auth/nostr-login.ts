@@ -16,8 +16,8 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-import Nip98Verifier from "../../../lib/nostr/Nip98Verifier"
 import AuthManager from "../../../lib/auth"
+import Nip98Verifier from "../../../lib/nostr/Nip98Verifier"
 import { withRateLimit, RATE_LIMIT_AUTH } from "../../../lib/rate-limit"
 
 /**

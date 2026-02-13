@@ -5,17 +5,16 @@
  */
 
 import {
+  CITRUSRATE_EXCLUSIVE_CURRENCIES,
+  isCitrusrateExclusiveCurrency as isExclusive,
+} from "./citrusrate-currencies-client"
+import {
   formatNumber,
   formatBitcoinAmount,
   DEFAULT_BITCOIN_FORMAT,
   NumberFormatPreference,
   BitcoinFormatPreference,
 } from "./number-format"
-import {
-  CITRUSRATE_EXCLUSIVE_CURRENCIES,
-  CITRUSRATE_EXCLUSIVE_IDS,
-  isCitrusrateExclusiveCurrency as isExclusive,
-} from "./citrusrate-currencies-client"
 
 // =============================================================================
 // Types

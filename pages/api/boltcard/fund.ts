@@ -1,5 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next"
-import type { EnvironmentName } from "../../../lib/config/api"
+
+import BlinkAPI from "../../../lib/blink-api"
+import * as boltcard from "../../../lib/boltcard"
+import { getApiUrlForEnvironment, type EnvironmentName } from "../../../lib/config/api"
 import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
 
 /**
@@ -19,10 +22,6 @@ import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
  *
  * Response includes a 'warning' field if card balance exceeds wallet balance (soft limit).
  */
-
-import * as boltcard from "../../../lib/boltcard"
-import BlinkAPI from "../../../lib/blink-api"
-import { getApiUrlForEnvironment } from "../../../lib/config/api"
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {

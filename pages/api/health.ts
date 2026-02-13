@@ -9,10 +9,11 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from "next"
-import { getHybridStore } from "../../lib/storage/hybrid-store"
-import voucherStore from "../../lib/voucher-store"
+
 import { getSharedPool } from "../../lib/db"
 import { baseLogger } from "../../lib/logger"
+import { getHybridStore } from "../../lib/storage/hybrid-store"
+import voucherStore from "../../lib/voucher-store"
 
 const logger = baseLogger.child({ module: "health" })
 

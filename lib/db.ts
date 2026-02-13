@@ -9,6 +9,7 @@
  */
 
 import { Pool, PoolClient, QueryResult } from "pg"
+
 import { baseLogger } from "./logger"
 import { onShutdown } from "./shutdown"
 

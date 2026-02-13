@@ -20,13 +20,13 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
 import BlinkAPI from "../../../lib/blink-api"
+import { withRateLimit, RATE_LIMIT_READ } from "../../../lib/rate-limit"
+import { getCachedRate, setCachedRate } from "../../../lib/rate-providers/cache"
 import { getCitrusrateAPI } from "../../../lib/rate-providers/citrusrate"
 import {
   getProviderForCurrency,
   getBaseCurrency,
 } from "../../../lib/rate-providers/index"
-import { getCachedRate, setCachedRate } from "../../../lib/rate-providers/cache"
-import { withRateLimit, RATE_LIMIT_READ } from "../../../lib/rate-limit"
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {

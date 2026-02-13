@@ -6,30 +6,15 @@
  */
 
 import { useState, useEffect } from "react"
-import { useCombinedAuth } from "../../lib/hooks/useCombinedAuth"
-import type { StoredProfile, StoredPreferences } from "../../lib/storage/ProfileStorage"
-import type {
-  MigrationResult as MigrationResultType,
-  MigrationService as MigrationServiceType,
-} from "../../lib/migration/MigrationService"
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const MigrationService: typeof MigrationServiceType =
-  require("../../lib/migration/MigrationService").default ||
-  require("../../lib/migration/MigrationService").MigrationService
 
-interface MigrationResult {
-  success: boolean
-  error?: string
-  blinkUsername: string
-  apiKey: string
-  preferences?: {
-    preferredCurrency?: string
-    [key: string]: unknown
-  }
-}
+import { useCombinedAuth } from "../../lib/hooks/useCombinedAuth"
+import MigrationService, {
+  type MigrationResult as MigrationResultType,
+} from "../../lib/migration/MigrationService"
+import type { StoredProfile, StoredPreferences } from "../../lib/storage/ProfileStorage"
 
 export default function MigrationSection() {
-  const { authMode, user, hasExtension, isMobile } = useCombinedAuth()
+  const { authMode, user, hasExtension: _hasExtension, isMobile } = useCombinedAuth()
 
   const [migrating, setMigrating] = useState(false)
   const [error, setError] = useState<string | null>(null)

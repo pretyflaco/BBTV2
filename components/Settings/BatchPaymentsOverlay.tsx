@@ -1,5 +1,5 @@
-import BatchPayments from "../BatchPayments"
 import type { VoucherWallet } from "../../lib/hooks/useVoucherWalletState"
+import BatchPayments from "../BatchPayments"
 
 interface BatchPaymentsOverlayProps {
   voucherWallet: VoucherWallet

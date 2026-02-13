@@ -14,14 +14,11 @@
  * Every valid npub automatically has a npub.cash Lightning address.
  */
 
-import { useState, useEffect, useRef } from "react"
 import { nip19 } from "nostr-tools"
+import { useState, useEffect, useRef } from "react"
+
 import { useTheme } from "../../lib/hooks/useTheme"
-import {
-  validateNpubCashAddress,
-  probeNpubCashAddress,
-  isNpubCashAddress,
-} from "../../lib/lnurl"
+import { validateNpubCashAddress, probeNpubCashAddress } from "../../lib/lnurl"
 
 interface NpubCashCompleteData {
   type: "npub-cash"

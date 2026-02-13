@@ -15,9 +15,12 @@
  */
 
 import crypto from "crypto"
+
 import type { QueryResult, QueryResultRow } from "pg"
-import { getSharedPool } from "../db"
+
 import AuthManager from "../auth"
+import { getSharedPool } from "../db"
+
 import * as boltcardCrypto from "./crypto"
 
 // ==========================================================================
@@ -591,7 +594,7 @@ class BoltcardStore {
              WHERE id = $1`,
             [registrationId, PendingStatus.COMPLETED, Date.now(), existingCard.id],
           )
-          return await this.getCard(existingCard.id, true)
+          return this.getCard(existingCard.id, true)
         }
       } else {
         throw new Error(`Card with UID ${cardUid} already registered to another user`)
@@ -637,7 +640,7 @@ class BoltcardStore {
     )
 
     // Return card with keys for programming
-    return await this.getCard(card.id, true)
+    return this.getCard(card.id, true)
   }
 
   /**

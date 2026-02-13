@@ -8,6 +8,8 @@
  * - PICCData decryption
  */
 
+import crypto from "crypto"
+
 import * as boltcardCrypto from "../../lib/boltcard/crypto"
 
 describe("Boltcard Crypto", () => {
@@ -104,7 +106,6 @@ describe("Boltcard Crypto", () => {
       plaintext[10] = (counter >> 16) & 0xff // Counter byte 2
 
       // Encrypt with K1
-      const crypto = require("crypto")
       const k1 = Buffer.from(TEST_VECTORS.expected.k1, "hex")
       const iv = Buffer.alloc(16, 0)
       const cipher = crypto.createCipheriv("aes-128-cbc", k1, iv)
@@ -123,8 +124,6 @@ describe("Boltcard Crypto", () => {
     })
 
     it("should reject PICCData with wrong tag byte", () => {
-      const crypto = require("crypto")
-
       // Create PICCData with wrong tag
       const plaintext = Buffer.alloc(16)
       plaintext[0] = 0x00 // Wrong tag
@@ -261,8 +260,6 @@ describe("Boltcard Crypto", () => {
 
   describe("verifyCardTap (Integration)", () => {
     it("should verify a complete valid card tap", () => {
-      const crypto = require("crypto")
-
       const uid = TEST_VECTORS.uid
       const counter = 100
       const keys = boltcardCrypto.deriveAllKeys(
@@ -320,8 +317,6 @@ describe("Boltcard Crypto", () => {
     })
 
     it("should reject tap with invalid SunMAC", () => {
-      const crypto = require("crypto")
-
       const uid = TEST_VECTORS.uid
       const counter = 100
       const keys = boltcardCrypto.deriveAllKeys(
@@ -359,8 +354,6 @@ describe("Boltcard Crypto", () => {
     })
 
     it("should reject counter replay", () => {
-      const crypto = require("crypto")
-
       const uid = TEST_VECTORS.uid
       const counter = 50
       const lastCounter = 100 // Last seen counter is higher!

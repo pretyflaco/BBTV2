@@ -1,9 +1,10 @@
-import type ReactPDF from "@react-pdf/renderer"
-import type { NextApiRequest, NextApiResponse } from "next"
-import React from "react"
-import { renderToBuffer } from "@react-pdf/renderer"
 import fs from "fs"
 import path from "path"
+
+import ReactPDF, { renderToBuffer } from "@react-pdf/renderer"
+import type { NextApiRequest, NextApiResponse } from "next"
+import React from "react"
+
 import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
 
 // Dynamic import to avoid issues with font registration at module load time

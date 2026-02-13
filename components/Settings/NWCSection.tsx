@@ -3,8 +3,9 @@
  */
 
 import { useState, useEffect } from "react"
-import { useTheme } from "../../lib/hooks/useTheme"
+
 import { useCombinedAuth } from "../../lib/hooks/useCombinedAuth"
+import { useTheme } from "../../lib/hooks/useTheme"
 import NWCSetup from "../wallet/NWCSetup"
 
 // Local shapes for NWC data returned by useCombinedAuth (typed as unknown)

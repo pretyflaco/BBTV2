@@ -1,3 +1,4 @@
+import { bech32 } from "bech32"
 import {
   useState,
   useEffect,
@@ -8,28 +9,28 @@ import {
   type ReactNode,
 } from "react"
 import QRCode from "react-qr-code"
-import { bech32 } from "bech32"
+
+import { unlockAudioContext, playSound } from "../lib/audio-utils"
+import { getEnvironment } from "../lib/config/api"
 import {
   formatDisplayAmount as formatCurrency,
   getCurrencyById,
   isBitcoinCurrency,
   parseAmountParts,
+  type CurrencyMetadata,
 } from "../lib/currency-utils"
-import type { CurrencyMetadata } from "../lib/currency-utils"
-import { formatNumber } from "../lib/number-format"
-import type {
-  NumberFormatPreference,
-  BitcoinFormatPreference,
-  NumpadLayoutPreference,
-} from "../lib/number-format"
-import { DEFAULT_EXPIRY } from "./ExpirySelector"
-import type { ExchangeRateData } from "../lib/hooks/useExchangeRate"
 import { useThermalPrint } from "../lib/escpos/hooks/useThermalPrint"
+import type { ExchangeRateData } from "../lib/hooks/useExchangeRate"
+import { THEMES, type Theme } from "../lib/hooks/useTheme"
+import {
+  formatNumber,
+  type NumberFormatPreference,
+  type BitcoinFormatPreference,
+  type NumpadLayoutPreference,
+} from "../lib/number-format"
+
+import { DEFAULT_EXPIRY } from "./ExpirySelector"
 import Numpad from "./Numpad"
-import { THEMES } from "../lib/hooks/useTheme"
-import type { Theme } from "../lib/hooks/useTheme"
-import { unlockAudioContext, playSound } from "../lib/audio-utils"
-import { getEnvironment } from "../lib/config/api"
 
 // =============================================================================
 // Types & Interfaces
@@ -138,12 +139,12 @@ const Voucher = forwardRef<VoucherHandle, VoucherProps>(
     const [loading, setLoading] = useState<boolean>(false)
     const [error, setError] = useState<string>("")
     const [exchangeRate, setExchangeRate] = useState<ExchangeRateData | null>(null)
-    const [loadingRate, setLoadingRate] = useState<boolean>(false)
+    const [_loadingRate, setLoadingRate] = useState<boolean>(false)
     const [redeemed, setRedeemed] = useState<boolean>(false)
     const [showPrintModal, setShowPrintModal] = useState<boolean>(false)
     const [printFormat, setPrintFormat] = useState<string>("a4")
     const [generatingPdf, setGeneratingPdf] = useState<boolean>(false)
-    const [companionAppInstalled, setCompanionAppInstalled] = useState<boolean>(false)
+    const [_companionAppInstalled, setCompanionAppInstalled] = useState<boolean>(false)
     const [printing, setPrinting] = useState<boolean>(false)
     // Commission selection state
     const [showCommissionDialog, setShowCommissionDialog] = useState<boolean>(false)
@@ -155,8 +156,8 @@ const Voucher = forwardRef<VoucherHandle, VoucherProps>(
     // Expiry selection state
     const [selectedExpiry, setSelectedExpiry] = useState<string>(initialExpiry)
     // Thermal print state
-    const [thermalPrintMethod, setThermalPrintMethod] = useState<string>("auto")
-    const [showThermalOptions, setShowThermalOptions] = useState<boolean>(false)
+    const [_thermalPrintMethod, _setThermalPrintMethod] = useState<string>("auto")
+    const [_showThermalOptions, _setShowThermalOptions] = useState<boolean>(false)
     const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const successSoundRef = useRef<HTMLAudioElement | null>(null)
     const qrRef = useRef<HTMLDivElement | null>(null)
@@ -170,8 +171,8 @@ const Voucher = forwardRef<VoucherHandle, VoucherProps>(
       isPrinting: isThermalPrinting,
       error: thermalPrintError,
       recommendations: printRecommendations,
-      isLoading: isPrintSystemLoading,
-      isMobile: checkIsMobile,
+      isLoading: _isPrintSystemLoading,
+      isMobile: _checkIsMobile,
     } = useThermalPrint({ paperWidth: printFormat === "thermal-58" ? 58 : 80 })
 
     // BC Theme helpers
@@ -717,7 +718,7 @@ const Voucher = forwardRef<VoucherHandle, VoucherProps>(
           if (sats < 1) {
             return false
           }
-        } catch (e) {
+        } catch (_e) {
           return false
         }
       }
@@ -1390,7 +1391,7 @@ const Voucher = forwardRef<VoucherHandle, VoucherProps>(
     }
 
     // Legacy companion app print (fallback if needed)
-    const printVoucherLegacy = (): void => {
+    const _printVoucherLegacy = (): void => {
       if (!voucher) return
 
       // Build the display amounts (show for fiat currencies, not for BTC/BTC-BIP177)

@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/router"
-import { useCombinedAuth } from "../lib/hooks/useCombinedAuth"
-import WalletSetup from "../components/wallet/WalletSetup"
-import Dashboard from "../components/Dashboard"
+import { useState, useEffect, useRef } from "react"
+
 import SessionEstablishmentModal from "../components/auth/SessionEstablishmentModal"
+import Dashboard from "../components/Dashboard"
+import WalletSetup from "../components/wallet/WalletSetup"
+import { useCombinedAuth } from "../lib/hooks/useCombinedAuth"
 
 /**
  * Home Page - Smart router based on authentication state
@@ -27,8 +28,8 @@ export default function Home() {
     authMode,
     needsWalletSetup,
     hasNWC,
-    hasBlinkAccount,
-    user,
+    hasBlinkAccount: _hasBlinkAccount,
+    user: _user,
     publicKey,
     hasServerSession,
     establishServerSession,

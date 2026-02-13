@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react"
-import { useNFC } from "../../components/NFCPayment"
-import type { UseNFCReturn } from "../../components/NFCPayment"
-import type { SoundTheme } from "./useSoundSettings"
+
+import { useNFC, type UseNFCReturn } from "../../components/NFCPayment"
+
 import type { PaymentData } from "./useBlinkWebSocket"
+import type { SoundTheme } from "./useSoundSettings"
 
 // ─── Types ────────────────────────────────────────────────────────
 

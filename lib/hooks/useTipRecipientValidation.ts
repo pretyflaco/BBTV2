@@ -1,5 +1,7 @@
 import { useEffect, useCallback } from "react"
+
 import { getApiUrl, getAllValidDomains } from "../config/api"
+
 import type { UsernameValidationState } from "./useTipSettings"
 
 // ─── Types ────────────────────────────────────────────────────────

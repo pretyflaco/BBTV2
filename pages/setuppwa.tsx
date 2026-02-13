@@ -1,4 +1,5 @@
 import Head from "next/head"
+
 import SetupPWAForm from "../components/SetupPWAForm"
 import { useTheme, THEMES } from "../lib/hooks/useTheme"
 

@@ -8,8 +8,7 @@
  * - UI preferences
  */
 
-import CryptoUtils from "./CryptoUtils"
-import type { EncryptedData } from "./CryptoUtils"
+import CryptoUtils, { type EncryptedData } from "./CryptoUtils"
 
 const PROFILES_STORAGE_KEY: string = "blinkpos_profiles"
 const ACTIVE_PROFILE_KEY: string = "blinkpos_active_profile"
@@ -429,7 +428,7 @@ class ProfileStorage {
       return null
     }
 
-    return await CryptoUtils.decryptWithDeviceKey(account.apiKey!)
+    return CryptoUtils.decryptWithDeviceKey(account.apiKey!)
   }
 
   /**
@@ -451,7 +450,7 @@ class ProfileStorage {
       return null
     }
 
-    return await CryptoUtils.decryptWithDeviceKey(activeAccount.apiKey!)
+    return CryptoUtils.decryptWithDeviceKey(activeAccount.apiKey!)
   }
 
   /**
@@ -568,7 +567,7 @@ class ProfileStorage {
     )
     if (!connection) throw new Error("Connection not found")
 
-    return await CryptoUtils.decryptWithDeviceKey(connection.uri)
+    return CryptoUtils.decryptWithDeviceKey(connection.uri)
   }
 
   /**
@@ -585,7 +584,7 @@ class ProfileStorage {
     )
     if (!activeConnection) return null
 
-    return await CryptoUtils.decryptWithDeviceKey(activeConnection.uri)
+    return CryptoUtils.decryptWithDeviceKey(activeConnection.uri)
   }
 
   /**

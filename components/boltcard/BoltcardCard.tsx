@@ -6,8 +6,8 @@
  */
 
 import { useTheme } from "../../lib/hooks/useTheme"
-import { CardStatus, CardStatusValue } from "./useBoltcards"
-import type { BoltcardRecord } from "./useBoltcards"
+
+import { CardStatus, type BoltcardRecord } from "./useBoltcards"
 
 // ============================================================================
 // Types
@@ -107,7 +107,7 @@ export default function BoltcardCard({
   const statusInfo = getStatusInfo(card.status, darkMode)
 
   // Card icon based on currency
-  const CurrencyIcon =
+  const _CurrencyIcon =
     card.walletCurrency === "USD" ? (
       <span className="text-lg">$</span>
     ) : (

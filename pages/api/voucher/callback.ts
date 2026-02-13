@@ -1,11 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
-import type { EnvironmentName } from "../../../lib/config/api"
-
-import voucherStore from "../../../lib/voucher-store"
 import BlinkAPI from "../../../lib/blink-api"
-import { getApiUrlForEnvironment } from "../../../lib/config/api"
+import { getApiUrlForEnvironment, type EnvironmentName } from "../../../lib/config/api"
 import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
+import voucherStore from "../../../lib/voucher-store"
 
 /**
  * LNURL-withdraw callback endpoint

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Re-encrypt Boltcard Keys Migration Script
  *
@@ -71,7 +72,7 @@ function encryptWithNewKey(plaintext) {
 }
 
 // Re-encrypt a value
-function reencrypt(encrypted) {
+function _reencrypt(encrypted) {
   const decrypted = decryptWithOldKey(encrypted)
   if (!decrypted) {
     console.warn("  WARNING: Could not decrypt value, skipping")

@@ -1,12 +1,13 @@
-import type { NextApiRequest, NextApiResponse } from "next"
-import type {
-  LNURLWithdrawParams,
-  LNURLResponse,
-  LNURLChannelParams,
-  LNURLAuthParams,
-  LNURLPayParams,
+import {
+  getParams,
+  type LNURLWithdrawParams,
+  type LNURLResponse,
+  type LNURLChannelParams,
+  type LNURLAuthParams,
+  type LNURLPayParams,
 } from "js-lnurl"
-import { getParams } from "js-lnurl"
+import type { NextApiRequest, NextApiResponse } from "next"
+
 import { withRateLimit, RATE_LIMIT_PUBLIC } from "../../lib/rate-limit"
 
 type LNURLResult =

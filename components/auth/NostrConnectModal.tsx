@@ -14,11 +14,13 @@
  * - NDK implementation available via NEXT_PUBLIC_USE_NDK_NIP46=true flag
  */
 
-import { useState, useEffect, useCallback } from "react"
 import { QRCodeSVG } from "qrcode.react"
+import { useState, useEffect, useCallback } from "react"
+
 import NostrConnectService from "../../lib/nostr/NostrConnectService"
 import NostrConnectServiceNDK from "../../lib/nostr/NostrConnectServiceNDK"
 import { logAuth, logAuthError, logAuthWarn } from "../../lib/version"
+
 import ProgressStepper from "./ProgressStepper"
 
 // Feature flag to use NDK implementation for bunker:// URLs
@@ -93,7 +95,7 @@ export default function NostrConnectModal({
 }: NostrConnectModalProps) {
   // UI state
   const [showBunkerInput, setShowBunkerInput] = useState<boolean>(false)
-  const [showQRCode, setShowQRCode] = useState<boolean>(false)
+  const [_showQRCode, _setShowQRCode] = useState<boolean>(false)
   const [showMobileQR, setShowMobileQR] = useState<boolean>(false) // v55: QR toggle for mobile
   const [bunkerUrl, setBunkerUrl] = useState<string>("")
   const [copied, setCopied] = useState<boolean>(false)
@@ -102,7 +104,7 @@ export default function NostrConnectModal({
   const [stage, setStage] = useState<ConnectionStage>("idle")
   const [connectedPubkey, setConnectedPubkey] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string>("")
-  const [errorStage, setErrorStage] = useState<string | null>(null)
+  const [_errorStage, setErrorStage] = useState<string | null>(null)
   const [showSlowWarning, setShowSlowWarning] = useState<boolean>(false)
 
   const [awaitingApproval, setAwaitingApproval] = useState<boolean>(false)

@@ -24,8 +24,8 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
 import AuthManager from "../../../lib/auth"
-import StorageManager from "../../../lib/storage"
 import { withRateLimit, RATE_LIMIT_READ } from "../../../lib/rate-limit"
+import StorageManager from "../../../lib/storage"
 
 /** Cart item shape */
 interface CartItem {

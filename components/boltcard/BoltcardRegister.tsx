@@ -9,15 +9,17 @@
  * 5. App POSTs UID to keys endpoint, gets keys, programs card
  */
 
-import { useState, useEffect } from "react"
-import { useTheme } from "../../lib/hooks/useTheme"
-import { CardCurrency } from "./useBoltcards"
-import type {
-  CardCurrencyValue,
-  RegisterCardParams,
-  RegisterResult,
-} from "./useBoltcards"
 import { QRCodeSVG } from "qrcode.react"
+import { useState, useEffect } from "react"
+
+import { useTheme } from "../../lib/hooks/useTheme"
+
+import {
+  CardCurrency,
+  type CardCurrencyValue,
+  type RegisterCardParams,
+  type RegisterResult,
+} from "./useBoltcards"
 
 // ============================================================================
 // Types
@@ -278,8 +280,8 @@ export default function BoltcardRegister({
           Register New Boltcard
         </h4>
         <p className={`text-sm mb-4 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
-          Configure your card settings. After registration, you'll receive a QR code to
-          program your NTAG424DNA card using the Bolt Card NFC Programmer app.
+          Configure your card settings. After registration, you&apos;ll receive a QR code
+          to program your NTAG424DNA card using the Bolt Card NFC Programmer app.
         </p>
       </div>
 
@@ -452,7 +454,7 @@ export default function BoltcardRegister({
             } focus:outline-none focus:ring-2 focus:ring-blink-accent focus:border-transparent`}
           />
           <p className={`text-xs mt-1.5 ${darkMode ? "text-gray-500" : "text-gray-400"}`}>
-            This is the card's spending allowance. It represents how much the card is
+            This is the card&apos;s spending allowance. It represents how much the card is
             authorized to spend from the sending wallet.
           </p>
         </div>
@@ -589,7 +591,7 @@ export default function BoltcardRegister({
               <p
                 className={`text-sm mb-2 ${darkMode ? "text-blue-300" : "text-blue-700"}`}
               >
-                Don't have the NFC Programmer app?
+                Don&apos;t have the NFC Programmer app?
               </p>
               <div className="flex gap-3">
                 {isAndroidDevice && (
@@ -738,17 +740,17 @@ export default function BoltcardRegister({
           >
             {isMobile ? (
               <>
-                <li>Tap "Open in NFC Programmer" above</li>
+                <li>Tap &quot;Open in NFC Programmer&quot; above</li>
                 <li>The app will open and prompt you to tap your card</li>
-                <li>Hold your NTAG424DNA card to your phone's NFC reader</li>
+                <li>Hold your NTAG424DNA card to your phone&apos;s NFC reader</li>
                 <li>Wait for programming to complete</li>
                 <li>Your card is ready! Top up to start using it</li>
               </>
             ) : (
               <>
                 <li>Open the Bolt Card NFC Programmer app on your phone</li>
-                <li>Tap "Scan QR" or use camera to scan the code above</li>
-                <li>Hold your NTAG424DNA card to your phone's NFC reader</li>
+                <li>Tap &quot;Scan QR&quot; or use camera to scan the code above</li>
+                <li>Hold your NTAG424DNA card to your phone&apos;s NFC reader</li>
                 <li>Wait for programming to complete</li>
                 <li>Your card is ready! Top up to start using it</li>
               </>
@@ -760,7 +762,7 @@ export default function BoltcardRegister({
         {!isMobile && (
           <div className={`p-3 rounded-lg ${darkMode ? "bg-gray-900" : "bg-gray-50"}`}>
             <p className={`text-xs mb-2 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
-              Don't have the app?
+              Don&apos;t have the app?
             </p>
             <div className="flex gap-2 text-xs">
               <a

@@ -27,6 +27,7 @@ function getShutdownModule() {
       },
     }))
 
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     shutdownModule = require("../../lib/shutdown") as typeof import("../../lib/shutdown")
   })
 
@@ -39,7 +40,7 @@ function getShutdownModule() {
 
 describe("lib/shutdown", () => {
   // Store original process.on and process.exit so we can spy/restore
-  const originalOn = process.on.bind(process)
+  const _originalOn = process.on.bind(process)
   const originalExit = process.exit
 
   beforeEach(() => {

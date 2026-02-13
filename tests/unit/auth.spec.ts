@@ -22,12 +22,12 @@ describe("AuthManager.encryptApiKey / decryptApiKey", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let AuthManager: any
 
-  beforeAll(() => {
+  beforeAll(async () => {
     process.env.ENCRYPTION_KEY = "test-encryption-key-for-unit-tests-32chars"
     process.env.JWT_SECRET = "test-jwt-secret-for-unit-tests"
     // Dynamic require so env vars are set before module IIFE executes
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    AuthManager = require("../../lib/auth").default
+    const authModule = await import("../../lib/auth")
+    AuthManager = authModule.default
   })
 
   const sampleApiKey = "blink_yWRQMlU8UnAlFhaF8EtWL0tBHX3d_test"
@@ -105,11 +105,11 @@ describe("AuthManager.encryptApiKey backward compatibility", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let AuthManager: any
 
-  beforeAll(() => {
+  beforeAll(async () => {
     process.env.ENCRYPTION_KEY = "test-encryption-key-for-unit-tests-32chars"
     process.env.JWT_SECRET = "test-jwt-secret-for-unit-tests"
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    AuthManager = require("../../lib/auth").default
+    const authModule = await import("../../lib/auth")
+    AuthManager = authModule.default
   })
 
   it("plaintext API keys that start with blink_ are distinguishable from ciphertext", () => {

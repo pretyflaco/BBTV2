@@ -1,13 +1,6 @@
-import {
-  useState,
-  useEffect,
-  useCallback,
-  forwardRef,
-  useImperativeHandle,
-  useMemo,
-  Ref,
-} from "react"
 import { bech32 } from "bech32"
+import { useState, useEffect, forwardRef, useImperativeHandle, useMemo } from "react"
+
 import type { NostrProfile } from "../lib/nostr/NostrProfileService"
 
 /**
@@ -224,9 +217,9 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
   (
     {
       publicKey, // Nostr public key (hex or npub format)
-      nostrProfile, // Nostr profile with picture, name, display_name
-      darkMode,
-      toggleDarkMode,
+      nostrProfile: _nostrProfile, // Nostr profile with picture, name, display_name
+      darkMode: _darkMode,
+      toggleDarkMode: _toggleDarkMode,
       onInternalTransition,
       hideHeader = false,
     },
@@ -276,8 +269,8 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
     const [loadingMetrics, setLoadingMetrics] = useState<boolean>(false)
 
     const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(false)
-    const [isWhitelistedLeader, setIsWhitelistedLeader] = useState<boolean>(false)
-    const [userRole, setUserRole] = useState<string>("user") // super_admin, community_leader, user
+    const [_isWhitelistedLeader, setIsWhitelistedLeader] = useState<boolean>(false)
+    const [_userRole, setUserRole] = useState<string>("user") // super_admin, community_leader, user
 
     // Application form state
     const [showApplyModal, setShowApplyModal] = useState<boolean>(false)
@@ -862,7 +855,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
     }
 
     // Get membership status for a community (backwards compatibility)
-    const getMembershipStatus = (communityId: string) => {
+    const _getMembershipStatus = (communityId: string) => {
       const membership = getMembershipInfo(communityId)
       return membership?.status || null
     }
@@ -1277,7 +1270,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
 
                 <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-4">
                   <h4 className="font-medium text-blue-800 dark:text-blue-300 mb-2">
-                    What we'll access:
+                    What we&apos;ll access:
                   </h4>
                   <ul className="text-sm text-blue-700 dark:text-blue-400 space-y-1">
                     <li>• Transaction amounts and dates</li>
@@ -1430,7 +1423,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
               <div className="text-center py-12">
                 <div className="text-6xl mb-4">🤝</div>
                 <p className="text-gray-600 dark:text-gray-400 text-lg">
-                  You haven't joined any communities yet
+                  You haven&apos;t joined any communities yet
                 </p>
                 <button
                   onClick={() => navigateToView("discovery")}
@@ -2071,7 +2064,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
 
                 <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-4">
                   <h4 className="font-medium text-blue-800 dark:text-blue-300 mb-2">
-                    What we'll access:
+                    What we&apos;ll access:
                   </h4>
                   <ul className="text-sm text-blue-700 dark:text-blue-400 space-y-1">
                     <li>• Transaction amounts and dates</li>
@@ -2707,7 +2700,7 @@ const Network = forwardRef<NetworkRef, NetworkProps>(
                 How it works
               </h3>
               <ul className="text-sm text-purple-700 dark:text-purple-400 space-y-1">
-                <li>• You provide community details and leader's npub</li>
+                <li>• You provide community details and leader&apos;s npub</li>
                 <li>• The leader will be whitelisted automatically</li>
                 <li>• Leader can then approve member applications</li>
                 <li>• Members can opt-in to share transaction data</li>

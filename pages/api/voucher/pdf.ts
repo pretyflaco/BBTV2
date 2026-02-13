@@ -1,7 +1,7 @@
-import type ReactPDF from "@react-pdf/renderer"
+import ReactPDF, { renderToBuffer } from "@react-pdf/renderer"
 import type { NextApiRequest, NextApiResponse } from "next"
 import React from "react"
-import { renderToBuffer } from "@react-pdf/renderer"
+
 import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
 
 // Dynamic import to avoid issues with font registration at module load time
@@ -99,8 +99,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       ThermalVoucherDocument,
       GridVoucherDocument,
       ReissueVoucherDocument,
-      PAPER_FORMATS,
-      GRID_CONFIGS,
+      PAPER_FORMATS: _PAPER_FORMATS,
+      GRID_CONFIGS: _GRID_CONFIGS,
       getAvailableFormats,
       getAvailableGrids,
     } = await getPdfModule()

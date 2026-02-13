@@ -1,7 +1,9 @@
-import { useEffect } from "react"
-import { useRouter } from "next/router"
 import Head from "next/head"
+import Link from "next/link"
+import { useRouter } from "next/router"
 import Script from "next/script"
+import { useEffect } from "react"
+
 import NostrLoginForm from "../components/auth/NostrLoginForm"
 import { useCombinedAuth } from "../lib/hooks/useCombinedAuth"
 
@@ -108,7 +110,7 @@ export default function SignIn() {
         {/* Back to Public POS Link */}
         <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-gray-50 dark:from-black to-transparent">
           <div className="max-w-md mx-auto text-center">
-            <a
+            <Link
               href="/setuppwa"
               className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-amber-500 transition-colors"
             >
@@ -126,7 +128,7 @@ export default function SignIn() {
                 />
               </svg>
               Back to Public POS
-            </a>
+            </Link>
           </div>
         </div>
       </div>

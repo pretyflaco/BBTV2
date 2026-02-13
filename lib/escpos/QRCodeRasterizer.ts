@@ -59,7 +59,7 @@ async function getQRCodeLib(): Promise<typeof import("qrcode")> {
     // This works in both Node.js and modern browsers with bundlers
     QRCodeLib = await import("qrcode")
     return QRCodeLib
-  } catch (e) {
+  } catch (_e) {
     throw new Error(
       "QRCode library not available. Install with: npm install qrcode\n" +
         "Or use native QR printing (useNativeQR: true) if your printer supports it.",
@@ -122,8 +122,8 @@ class QRCodeRasterizer {
     const moduleSize = opts.moduleSize
     const margin = opts.margin * moduleSize
     const qrSize = matrix.length * moduleSize
-    let width = qrSize + margin * 2
-    let height = width // QR codes are square
+    const width = qrSize + margin * 2
+    const height = width // QR codes are square
 
     // Enforce max width (scale down if needed)
     if (width > opts.maxWidth) {

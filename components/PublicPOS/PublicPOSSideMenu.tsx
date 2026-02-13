@@ -1,5 +1,6 @@
-import type { NumberFormatPreference } from "../../lib/number-format"
-import { FORMAT_LABELS } from "../../lib/number-format"
+import Link from "next/link"
+
+import { FORMAT_LABELS, type NumberFormatPreference } from "../../lib/number-format"
 
 /**
  * PublicPOSSideMenu - Side menu overlay for PublicPOSDashboard
@@ -68,7 +69,7 @@ export default function PublicPOSSideMenu({
         <div className="max-w-md mx-auto px-4 py-6">
           <div className="space-y-4">
             {/* Profile - Links to sign in */}
-            <a
+            <Link
               href="/signin"
               className={`block w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
             >
@@ -100,10 +101,10 @@ export default function PublicPOSSideMenu({
                 </div>
                 <span className="text-gray-400">›</span>
               </div>
-            </a>
+            </Link>
 
             {/* Switch Account - Go to /setuppwa to choose different username */}
-            <a
+            <Link
               href="/setuppwa"
               className={`block w-full rounded-lg p-4 ${getMenuTileClasses()} transition-colors`}
             >
@@ -135,7 +136,7 @@ export default function PublicPOSSideMenu({
                 </div>
                 <span className="text-gray-400">›</span>
               </div>
-            </a>
+            </Link>
 
             {/* Theme Selection */}
             <button

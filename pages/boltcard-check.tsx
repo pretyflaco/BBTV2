@@ -16,6 +16,7 @@
  */
 
 import Head from "next/head"
+
 import WebNFCBalanceCheck from "../components/boltcard/WebNFCBalanceCheck"
 
 export default function BoltcardCheckPage() {

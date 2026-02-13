@@ -1,6 +1,7 @@
+import crypto from "crypto"
 import fs from "fs/promises"
 import path from "path"
-import crypto from "crypto"
+
 import AuthManager from "./auth"
 
 interface UserData {
@@ -72,7 +73,7 @@ class StorageManager {
       }
 
       return data
-    } catch (err: unknown) {
+    } catch (_err: unknown) {
       // File doesn't exist or other error
       return null
     }
@@ -84,7 +85,7 @@ class StorageManager {
       const filePath: string = this.getUserStoragePath(userId)
       await fs.unlink(filePath)
       return true
-    } catch (err: unknown) {
+    } catch (_err: unknown) {
       return false
     }
   }
@@ -96,7 +97,7 @@ class StorageManager {
       return files
         .filter((file: string) => file.startsWith("user_") && file.endsWith(".json"))
         .map((file: string) => file.replace("user_", "").replace(".json", ""))
-    } catch (err: unknown) {
+    } catch (_err: unknown) {
       return []
     }
   }

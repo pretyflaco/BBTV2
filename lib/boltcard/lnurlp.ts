@@ -22,9 +22,10 @@
  */
 
 import { bech32 } from "bech32"
+
 import type { EnvironmentName } from "../config/api"
-import boltcardStore from "./store"
-import { CardStatus } from "./store"
+
+import boltcardStore, { CardStatus } from "./store"
 
 // ============================================================================
 // Types

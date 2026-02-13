@@ -4,7 +4,8 @@
  * @module tests/unit/hooks/useDisplaySettings.spec
  */
 
-import { renderHook, act, waitFor } from "@testing-library/react"
+import { renderHook, act } from "@testing-library/react"
+
 import { useDisplaySettings } from "../../../lib/hooks/useDisplaySettings"
 import type { NumberFormatPreference } from "../../../lib/number-format"
 

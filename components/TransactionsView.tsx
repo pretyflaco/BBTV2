@@ -1,8 +1,9 @@
-import { getTransactionLabel } from "./TransactionDetail"
-import type { TransactionRecord } from "./TransactionDetail"
 import type { RefObject, KeyboardEvent } from "react"
-import type { LocalBlinkAccount } from "../lib/hooks/useProfile"
+
 import type { LocalNWCConnection } from "../lib/hooks/useNWC"
+import type { LocalBlinkAccount } from "../lib/hooks/useProfile"
+
+import { getTransactionLabel, type TransactionRecord } from "./TransactionDetail"
 
 // ============================================================================
 // Types

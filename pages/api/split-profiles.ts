@@ -19,11 +19,13 @@
  * - DELETE: Remove a split profile
  */
 
+import crypto from "crypto"
+
 import type { NextApiRequest, NextApiResponse } from "next"
 
 import AuthManager from "../../lib/auth"
-import StorageManager from "../../lib/storage"
 import { withRateLimit, RATE_LIMIT_READ } from "../../lib/rate-limit"
+import StorageManager from "../../lib/storage"
 
 /** Recipient in a split profile */
 interface SplitRecipient {
@@ -193,7 +195,7 @@ async function handlePost(
   const splitProfiles = (userData.splitProfiles || []) as SplitProfile[]
 
   // Generate ID if new profile
-  const profileId = profile.id || require("crypto").randomUUID()
+  const profileId = profile.id || crypto.randomUUID()
 
   // Check if updating existing or creating new
   const existingIndex = splitProfiles.findIndex((p: SplitProfile) => p.id === profileId)

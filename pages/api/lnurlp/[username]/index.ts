@@ -35,7 +35,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     let walletInfo: { id: string } | undefined
     try {
       walletInfo = await BlinkAPI.getWalletByUsername(username)
-    } catch (err) {
+    } catch (_err) {
       console.log(`[LNURL] User not found: ${username}`)
       return res.status(404).json({
         status: "ERROR",

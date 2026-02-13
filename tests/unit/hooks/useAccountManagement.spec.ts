@@ -5,10 +5,8 @@
  */
 
 import { renderHook, act } from "@testing-library/react"
-import {
-  useAccountManagement,
-  type AccountType,
-} from "@/lib/hooks/useAccountManagement"
+
+import { useAccountManagement, type AccountType } from "@/lib/hooks/useAccountManagement"
 
 describe("useAccountManagement", () => {
   describe("initial state", () => {
@@ -303,7 +301,11 @@ describe("useAccountManagement", () => {
         result.current.setAddAccountLoading(true)
         result.current.setAddAccountError("Some error")
         result.current.setNwcValidating(true)
-        result.current.setNwcValidated({ walletPubkey: "pk", relays: [], capabilities: [] })
+        result.current.setNwcValidated({
+          walletPubkey: "pk",
+          relays: [],
+          capabilities: [],
+        })
         result.current.setLnAddressValidating(true)
         result.current.setLnAddressValidated({
           username: "user",
@@ -372,7 +374,11 @@ describe("useAccountManagement", () => {
       // Set validation states
       act(() => {
         result.current.setNwcValidating(true)
-        result.current.setNwcValidated({ walletPubkey: "pk", relays: [], capabilities: [] })
+        result.current.setNwcValidated({
+          walletPubkey: "pk",
+          relays: [],
+          capabilities: [],
+        })
         result.current.setLnAddressValidating(true)
         result.current.setLnAddressValidated({
           username: "user",
@@ -410,7 +416,11 @@ describe("useAccountManagement", () => {
         result.current.setNewAccountApiKey("test-key")
         result.current.setNewAccountLabel("Test Label")
         result.current.setNewAccountType("blink")
-        result.current.setNwcValidated({ walletPubkey: "pk", relays: [], capabilities: [] })
+        result.current.setNwcValidated({
+          walletPubkey: "pk",
+          relays: [],
+          capabilities: [],
+        })
       })
 
       act(() => {
@@ -485,7 +495,9 @@ describe("useAccountManagement", () => {
       // User starts adding NWC
       act(() => {
         result.current.setNewAccountType("nwc")
-        result.current.setNewAccountNwcUri("nostr+walletconnect://pubkey?relay=wss://relay.com&secret=abc")
+        result.current.setNewAccountNwcUri(
+          "nostr+walletconnect://pubkey?relay=wss://relay.com&secret=abc",
+        )
       })
 
       // Start NWC validation
@@ -573,7 +585,10 @@ describe("useAccountManagement", () => {
         result.current.setEditedWalletLabel("New Label")
       })
 
-      expect(result.current.editingWalletLabel).toEqual({ type: "nwc", id: "nwc-wallet-123" })
+      expect(result.current.editingWalletLabel).toEqual({
+        type: "nwc",
+        id: "nwc-wallet-123",
+      })
       expect(result.current.editedWalletLabel).toBe("New Label")
 
       // Save complete, clear editing state

@@ -8,6 +8,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from "next"
+
 import { withRateLimit, RATE_LIMIT_READ } from "../../../../lib/rate-limit"
 
 // Super admin - can create communities and whitelist new leaders

@@ -16,7 +16,7 @@
  * - Shared via native share API
  */
 
-import { BaseAdapter, AdapterStatus, AdapterCapabilities } from "./BaseAdapter"
+import { BaseAdapter, AdapterStatus } from "./BaseAdapter"
 
 interface PDFAdapterOptions {
   format?: string
@@ -210,8 +210,8 @@ class PDFAdapter extends BaseAdapter {
    * @private
    */
   private async _generatePDFClientSide(
-    voucher: PDFVoucher,
-    format: string,
+    _voucher: PDFVoucher,
+    _format: string,
   ): Promise<Blob> {
     // Client-side PDF generation is not supported in this adapter
     // Use the API endpoint instead
@@ -253,7 +253,7 @@ class PDFAdapter extends BaseAdapter {
           reader.onloadend = () => resolve(reader.result as string)
           reader.readAsDataURL(blob)
         })
-      } catch (e: unknown) {
+      } catch (_e: unknown) {
         return null
       }
     }
@@ -308,7 +308,7 @@ class PDFAdapter extends BaseAdapter {
             URL.revokeObjectURL(url)
             resolve(true)
           }, 1000)
-        } catch (e: unknown) {
+        } catch (_e: unknown) {
           // Fallback: open in new tab
           window.open(url, "_blank")
           resolve(true)

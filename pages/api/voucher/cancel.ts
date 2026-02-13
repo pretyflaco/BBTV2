@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
-import voucherStore from "../../../lib/voucher-store"
 import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
+import voucherStore from "../../../lib/voucher-store"
 
 /**
  * API endpoint to cancel a voucher

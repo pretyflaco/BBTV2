@@ -1,9 +1,3 @@
-import type {
-  NumberFormatPreference,
-  BitcoinFormatPreference,
-  NumpadLayoutPreference,
-} from "../../lib/number-format"
-
 import {
   FORMAT_OPTIONS,
   FORMAT_LABELS,
@@ -16,6 +10,9 @@ import {
   NUMPAD_LAYOUT_OPTIONS,
   NUMPAD_LAYOUT_LABELS,
   NUMPAD_LAYOUT_DESCRIPTIONS,
+  type NumberFormatPreference,
+  type BitcoinFormatPreference,
+  type NumpadLayoutPreference,
 } from "../../lib/number-format"
 
 /**

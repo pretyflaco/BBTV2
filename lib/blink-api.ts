@@ -376,7 +376,7 @@ class BlinkAPI {
       }
     `
 
-    return await this.query(query)
+    return this.query(query)
   }
 
   // Get CSV export from Blink (official backend-generated CSV with all fields)

@@ -18,6 +18,10 @@ interface ExportOptionsOverlayProps {
   downloadCSV: (csv: string, filename: string) => void
   exportBasicTransactions: () => void
   exportFullTransactions: () => void
+  exportFullFilteredTransactions: (
+    dateRange: DateRange,
+    rangeLabel: string,
+  ) => Promise<void>
   getSubmenuBgClasses: () => string
   getSubmenuHeaderClasses: () => string
 }
@@ -33,6 +37,7 @@ export default function ExportOptionsOverlay({
   downloadCSV,
   exportBasicTransactions,
   exportFullTransactions,
+  exportFullFilteredTransactions,
   getSubmenuBgClasses,
   getSubmenuHeaderClasses,
 }: ExportOptionsOverlayProps) {
@@ -108,6 +113,43 @@ export default function ExportOptionsOverlay({
                       </p>
                     </div>
                     <div className="text-green-600 dark:text-green-400 text-xl">↓</div>
+                  </div>
+                </button>
+
+                {/* Full Filtered Export - 24 columns, date filtered */}
+                <button
+                  onClick={() => {
+                    if (selectedDateRange) {
+                      exportFullFilteredTransactions(
+                        selectedDateRange,
+                        selectedDateRange.label || "filtered",
+                      )
+                    }
+                  }}
+                  disabled={exportingData}
+                  className="w-full p-4 rounded-lg border-2 border-purple-500 dark:border-purple-400 bg-white dark:bg-blink-dark hover:border-purple-600 dark:hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-left">
+                      <h3
+                        className="text-lg font-semibold text-gray-900 dark:text-white mb-1"
+                        style={{ fontFamily: "'Source Sans Pro', sans-serif" }}
+                      >
+                        Export Full Filtered
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {exportingData
+                          ? "Fetching and filtering complete data..."
+                          : `${selectedDateRange?.label} - all 24 columns (CSV)`}
+                      </p>
+                    </div>
+                    {exportingData ? (
+                      <div className="animate-spin rounded-full h-6 w-6 border-2 border-purple-600 dark:border-purple-400 border-t-transparent"></div>
+                    ) : (
+                      <div className="text-purple-600 dark:text-purple-400 text-xl">
+                        ↓
+                      </div>
+                    )}
                   </div>
                 </button>
               </div>
@@ -188,7 +230,13 @@ export default function ExportOptionsOverlay({
             {dateFilterActive && filteredTransactions.length > 0 && (
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                 <strong>Filtered Export:</strong> Only transactions from{" "}
-                {selectedDateRange?.label}.
+                {selectedDateRange?.label} (9 columns).
+              </p>
+            )}
+            {dateFilterActive && filteredTransactions.length > 0 && (
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                <strong>Full Filtered Export:</strong> Only transactions from{" "}
+                {selectedDateRange?.label} with all 24 columns.
               </p>
             )}
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">

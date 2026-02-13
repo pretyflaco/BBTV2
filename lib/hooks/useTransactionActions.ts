@@ -144,6 +144,10 @@ export interface UseTransactionActionsReturn {
   downloadCSV: (csvContent: string, filename: string) => void
   exportBasicTransactions: () => Promise<void>
   exportFullTransactions: () => Promise<void>
+  exportFullFilteredTransactions: (
+    dateRange: DateRange,
+    rangeLabel: string,
+  ) => Promise<void>
   // Month grouping
   groupTransactionsByMonth: (transactions: Transaction[]) => Record<string, MonthGroup>
   getMonthGroups: () => Record<string, MonthGroup>
@@ -860,6 +864,169 @@ export function useTransactionActions({
     }
   }
 
+  // Parse a CSV row respecting quoted fields (handles commas inside quotes)
+  const parseCSVRow = (row: string): string[] => {
+    const fields: string[] = []
+    let current = ""
+    let inQuotes = false
+
+    for (let i = 0; i < row.length; i++) {
+      const char = row[i]
+      if (char === '"') {
+        // Check for escaped quote ("")
+        if (inQuotes && i + 1 < row.length && row[i + 1] === '"') {
+          current += '"'
+          i++ // skip next quote
+        } else {
+          inQuotes = !inQuotes
+        }
+      } else if (char === "," && !inQuotes) {
+        fields.push(current)
+        current = ""
+      } else {
+        current += char
+      }
+    }
+    fields.push(current) // last field
+
+    return fields
+  }
+
+  // Export full 24-column CSV filtered by date range
+  const exportFullFilteredTransactions = async (
+    dateRange: DateRange,
+    rangeLabel: string,
+  ): Promise<void> => {
+    setExportingData(true)
+    try {
+      console.log("Starting full filtered transaction export...")
+
+      // Step 1: Fetch the full CSV from Blink (same as exportFullTransactions)
+      const walletIds = wallets.map((w) => w.id)
+
+      if (walletIds.length === 0) {
+        throw new Error("No wallets found. Please ensure you are logged in.")
+      }
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      }
+      if (apiKey) {
+        headers["X-API-KEY"] = apiKey
+      }
+
+      const response = await fetch("/api/blink/csv-export", {
+        method: "POST",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({ walletIds }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || `API returned ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (!data.csv) {
+        throw new Error("No CSV data received from API")
+      }
+
+      const csv: string = data.csv
+
+      // Step 2: Parse CSV and filter by date range
+      const lines = csv.split("\n")
+      if (lines.length < 2) {
+        throw new Error("CSV data is empty or has no transactions")
+      }
+
+      const headerLine = lines[0]
+      const headerFields = parseCSVRow(headerLine)
+
+      // Find the timestamp column index
+      const timestampIdx = headerFields.findIndex(
+        (field) => field.trim().toLowerCase() === "timestamp",
+      )
+
+      if (timestampIdx === -1) {
+        throw new Error(
+          "Could not find 'timestamp' column in CSV. Columns found: " +
+            headerFields.join(", "),
+        )
+      }
+
+      console.log(`Found timestamp column at index ${timestampIdx}`)
+
+      const startDate = dateRange.start
+      const endDate = dateRange.end
+
+      // Filter data rows by date range
+      const filteredLines = lines.slice(1).filter((line) => {
+        if (!line.trim()) return false // skip empty lines
+
+        const fields = parseCSVRow(line)
+        const timestampValue = fields[timestampIdx]
+
+        if (!timestampValue) return false
+
+        // Clean the timestamp value (remove surrounding quotes if any)
+        const cleanTimestamp = timestampValue.replace(/^"|"$/g, "").trim()
+        const txDate = new Date(cleanTimestamp)
+
+        if (isNaN(txDate.getTime())) {
+          // Try parsing as unix timestamp
+          const numericValue = parseInt(cleanTimestamp, 10)
+          if (!isNaN(numericValue)) {
+            const fromUnix =
+              numericValue < 10000000000
+                ? new Date(numericValue * 1000)
+                : new Date(numericValue)
+            return fromUnix >= startDate && fromUnix <= endDate
+          }
+          console.warn("Could not parse timestamp:", cleanTimestamp)
+          return false
+        }
+
+        return txDate >= startDate && txDate <= endDate
+      })
+
+      console.log(
+        `Filtered ${filteredLines.length} of ${lines.length - 1} transactions for range: ${rangeLabel}`,
+      )
+
+      if (filteredLines.length === 0) {
+        alert(
+          `No transactions found in the selected date range (${rangeLabel}). The full export may use different timestamps than the filtered view.`,
+        )
+        return
+      }
+
+      // Step 3: Reassemble CSV with header + filtered rows
+      const filteredCSV = [headerLine, ...filteredLines].join("\n")
+
+      // Step 4: Download
+      const date = new Date()
+      const dateStr =
+        date.getFullYear() +
+        String(date.getMonth() + 1).padStart(2, "0") +
+        String(date.getDate()).padStart(2, "0")
+      const username = user?.username || "user"
+      const sanitizedLabel = rangeLabel.replace(/[^a-zA-Z0-9]/g, "-") || "filtered"
+      const filename = `${dateStr}-${username}-${sanitizedLabel}-transactions-FULL-blink.csv`
+
+      downloadCSV(filteredCSV, filename)
+      setShowExportOptions(false)
+    } catch (error: unknown) {
+      console.error("Error exporting filtered full transactions:", error)
+      alert(
+        `Failed to export filtered transactions: ${(error as Error).message || "Unknown error"}. Check console for details.`,
+      )
+    } finally {
+      setExportingData(false)
+    }
+  }
+
   // Export basic transactions to CSV (simplified format)
   const exportBasicTransactions = async (): Promise<void> => {
     setExportingData(true)
@@ -1212,6 +1379,7 @@ export function useTransactionActions({
     downloadCSV,
     exportBasicTransactions,
     exportFullTransactions,
+    exportFullFilteredTransactions,
     // Month grouping
     groupTransactionsByMonth,
     getMonthGroups,

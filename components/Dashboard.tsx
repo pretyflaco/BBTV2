@@ -646,6 +646,7 @@ export default function Dashboard() {
     downloadCSV,
     exportBasicTransactions,
     exportFullTransactions,
+    exportFullFilteredTransactions,
     groupTransactionsByMonth,
     getMonthGroups,
     toggleMonth,
@@ -1200,6 +1201,7 @@ export default function Dashboard() {
           downloadCSV={downloadCSV}
           exportBasicTransactions={exportBasicTransactions}
           exportFullTransactions={exportFullTransactions}
+          exportFullFilteredTransactions={exportFullFilteredTransactions}
           getSubmenuBgClasses={getSubmenuBgClasses}
           getSubmenuHeaderClasses={getSubmenuHeaderClasses}
         />

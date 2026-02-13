@@ -21,22 +21,22 @@ if (typeof global !== "undefined" && typeof global.WebSocket === "undefined") {
   Object.assign(global, { WebSocket })
 }
 
-import BlinkAPI from "../../../lib/blink-api"
-import { verifyWebhookSignature } from "../../../lib/webhook-verify"
-import { getInvoiceFromLightningAddress } from "../../../lib/lnurl"
-import NWCClient from "../../../lib/nwc/NWCClient"
-import type { NWCResponse, MakeInvoiceResult } from "../../../lib/nwc/NWCClient"
-import type { HybridStore } from "../../../lib/storage/hybrid-store"
 import AuthManager from "../../../lib/auth"
-import { getHybridStore } from "../../../lib/storage/hybrid-store"
+import BlinkAPI from "../../../lib/blink-api"
+import * as boltcardLnurlp from "../../../lib/boltcard/lnurlp"
+import { getApiUrlForEnvironment, type EnvironmentName } from "../../../lib/config/api"
 import {
   formatCurrencyServer,
   isBitcoinCurrency,
 } from "../../../lib/currency-formatter-server"
-import type { EnvironmentName } from "../../../lib/config/api"
-import { getApiUrlForEnvironment } from "../../../lib/config/api"
+import { getInvoiceFromLightningAddress } from "../../../lib/lnurl"
+import NWCClient, {
+  type NWCResponse,
+  type MakeInvoiceResult,
+} from "../../../lib/nwc/NWCClient"
+import { getHybridStore, type HybridStore } from "../../../lib/storage/hybrid-store"
+import { verifyWebhookSignature } from "../../../lib/webhook-verify"
 // Import boltcard LNURL-pay for top-up processing
-import * as boltcardLnurlp from "../../../lib/boltcard/lnurlp"
 
 /** Result of forwarding a payment */
 interface ForwardResult {
@@ -154,19 +154,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const stagingSecret = process.env.BLINK_STAGING_WEBHOOK_SECRET
 
     let isValid = false
-    let webhookEnvironment: string | null = null
+    let _webhookEnvironment: string | null = null
 
     if (productionSecret || stagingSecret) {
       // Try production secret first
       if (productionSecret && verifyWebhookSignature(req, productionSecret)) {
         isValid = true
-        webhookEnvironment = "production"
+        _webhookEnvironment = "production"
         console.log("[Webhook] Signature verified with PRODUCTION secret")
       }
       // Try staging secret if production didn't work
       else if (stagingSecret && verifyWebhookSignature(req, stagingSecret)) {
         isValid = true
-        webhookEnvironment = "staging"
+        _webhookEnvironment = "staging"
         console.log("[Webhook] Signature verified with STAGING secret")
       }
 

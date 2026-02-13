@@ -1,6 +1,7 @@
-import Head from "next/head"
-import PublicPOSDashboard from "../components/PublicPOSDashboard"
 import type { GetServerSideProps } from "next"
+import Head from "next/head"
+
+import PublicPOSDashboard from "../components/PublicPOSDashboard"
 
 /**
  * Public POS Page - Pay any Blink user directly

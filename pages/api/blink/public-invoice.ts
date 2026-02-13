@@ -12,8 +12,8 @@ import type { NextApiRequest, NextApiResponse } from "next"
  * Staging uses signet (not real sats) for testing.
  */
 
-import type { EnvironmentName } from "../../../lib/config/api"
 import BlinkAPI from "../../../lib/blink-api"
+import type { EnvironmentName } from "../../../lib/config/api"
 import { withRateLimit, RATE_LIMIT_PUBLIC } from "../../../lib/rate-limit"
 
 // API URLs for each environment

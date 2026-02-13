@@ -3,9 +3,10 @@
  */
 
 import { useState, useEffect } from "react"
+
 import { useCombinedAuth } from "../../lib/hooks/useCombinedAuth"
-import { useTheme, THEMES } from "../../lib/hooks/useTheme"
 import { useCurrencies } from "../../lib/hooks/useCurrencies"
+import { useTheme, THEMES } from "../../lib/hooks/useTheme"
 
 interface ToggleProps {
   value: boolean

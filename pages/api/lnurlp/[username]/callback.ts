@@ -8,10 +8,11 @@
  * Returns a Lightning invoice according to LUD-06
  */
 
+import crypto from "crypto"
+
 import type { NextApiRequest, NextApiResponse } from "next"
 
 import BlinkAPI from "../../../../lib/blink-api"
-import crypto from "crypto"
 import { withRateLimit, RATE_LIMIT_PUBLIC } from "../../../../lib/rate-limit"
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -62,7 +63,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     let walletInfo: { id: string } | undefined
     try {
       walletInfo = await BlinkAPI.getBtcWalletByUsername(username)
-    } catch (err) {
+    } catch (_err) {
       console.log(`[LNURL Callback] User not found: ${username}`)
       return res.status(404).json({
         status: "ERROR",
@@ -85,7 +86,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     ])
 
     // Create description hash
-    const descriptionHash = crypto.createHash("sha256").update(metadata).digest("hex")
+    const _descriptionHash = crypto.createHash("sha256").update(metadata).digest("hex")
 
     // Create invoice with description hash
     // Note: Blink's createInvoiceOnBehalfOfRecipient uses memo, not descriptionHash

@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react"
+
 import { getApiUrl } from "../lib/config/api"
 
 /**
@@ -125,7 +126,7 @@ interface FileSelectEvent {
 export default function BatchPayments({
   apiKey,
   walletId,
-  darkMode,
+  darkMode: _darkMode,
   onClose,
   hideHeader = false,
 }: BatchPaymentsProps) {
@@ -684,7 +685,7 @@ machankura@8333.mobi,2000,SATS,Payment to Machankura user`
   // STEP: REVIEW
   // =====================
   if (currentStep === STEPS.REVIEW && validationResults) {
-    const { summary, results, parseErrors } = validationResults
+    const { summary, results, parseErrors: _parseErrors } = validationResults
     const validResults = results.filter((r) => r.valid)
     const invalidResults = results.filter((r) => !r.valid)
 
@@ -1148,7 +1149,7 @@ machankura@8333.mobi,2000,SATS,Payment to Machankura user`
   // =====================
   if (currentStep === STEPS.RESULTS && executionResults) {
     const { summary, results } = executionResults
-    const successfulResults = results.filter((r) => r.success)
+    const _successfulResults = results.filter((r) => r.success)
     const failedResults = results.filter((r) => !r.success)
 
     return (

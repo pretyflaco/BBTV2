@@ -7,6 +7,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from "next"
+
 import { withRateLimit, RATE_LIMIT_PUBLIC } from "../../../../../lib/rate-limit"
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {

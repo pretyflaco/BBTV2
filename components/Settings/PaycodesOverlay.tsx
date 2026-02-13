@@ -2,8 +2,9 @@
  * PaycodesOverlay - Static paycode/LNURL-pay QR code display and PDF generation
  * Extracted from Dashboard.js
  */
-import QRCode from "react-qr-code"
 import { bech32 } from "bech32"
+import QRCode from "react-qr-code"
+
 import { getPayUrl, getLnAddressDomain } from "../../lib/config/api"
 import type { LocalBlinkAccount } from "../../lib/hooks/useCombinedAuth"
 

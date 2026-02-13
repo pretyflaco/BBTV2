@@ -12,11 +12,8 @@ import {
   isCitrusrateExclusiveCurrency,
   isCitrusrateAltCurrency,
   getCitrusrateBaseCurrency,
-} from "./citrusrate-currencies"
-
-import type {
-  CitrusrateExclusiveCurrency,
-  CitrusrateAltCurrency,
+  type CitrusrateExclusiveCurrency,
+  type CitrusrateAltCurrency,
 } from "./citrusrate-currencies"
 
 export interface RateProvider {

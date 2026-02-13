@@ -1,7 +1,7 @@
 import { getApiUrl } from "../../lib/config/api"
-import { formatNumber, NumberFormatPreference } from "../../lib/number-format"
-import type { VoucherWallet } from "../../lib/hooks/useVoucherWalletState"
 import type { EditingWalletLabel } from "../../lib/hooks/useAccountManagement"
+import type { VoucherWallet } from "../../lib/hooks/useVoucherWalletState"
+import { formatNumber, NumberFormatPreference } from "../../lib/number-format"
 
 interface VoucherWalletOverlayProps {
   // State values

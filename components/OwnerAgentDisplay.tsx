@@ -1,14 +1,16 @@
 import React from "react"
-import ExpirySelector from "./ExpirySelector"
+
+import type { LocalNWCConnection } from "../lib/hooks/useNWC"
+import type { LocalBlinkAccount } from "../lib/hooks/useProfile"
+import type { SplitProfile } from "../lib/hooks/useSplitProfiles"
 import type { DashboardView } from "../lib/hooks/useViewNavigation"
 import type {
   VoucherWallet,
   VoucherCurrencyMode,
   VoucherExpiry,
 } from "../lib/hooks/useVoucherWalletState"
-import type { LocalBlinkAccount } from "../lib/hooks/useProfile"
-import type { LocalNWCConnection } from "../lib/hooks/useNWC"
-import type { SplitProfile } from "../lib/hooks/useSplitProfiles"
+
+import ExpirySelector from "./ExpirySelector"
 
 interface VoucherImperativeHandle {
   setSelectedExpiry?: (expiryId: string) => void

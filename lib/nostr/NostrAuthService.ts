@@ -20,6 +20,7 @@ import { sha256 } from "@noble/hashes/sha256"
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore -- subpath exports require moduleResolution:"bundler", works at runtime via webpack
 import { bytesToHex, hexToBytes, randomBytes } from "@noble/hashes/utils"
+
 import { logAuth, logAuthError, logAuthWarn } from "../version"
 
 // NIP-07 window.nostr type is declared in types/nostr.d.ts (NostrExtension interface)
@@ -1069,7 +1070,7 @@ class NostrAuthService {
     }
 
     if (method === "extension") {
-      return await this.signEventWithExtension(event)
+      return this.signEventWithExtension(event)
     } else if (method === "externalSigner") {
       // This will throw and redirect - does not return
       this.signEventWithExternalSigner(event)
@@ -1084,7 +1085,7 @@ class NostrAuthService {
       return this.signEventWithPrivateKey(event, privateKey)
     } else if (method === "nostrConnect") {
       // Sign with remote signer via NIP-46
-      return await this.signEventWithNostrConnect(event)
+      return this.signEventWithNostrConnect(event)
     }
 
     throw new Error(`Unknown sign-in method: ${method}`)
@@ -1304,7 +1305,7 @@ class NostrAuthService {
       content: "",
     }
 
-    return await this.signEvent(event)
+    return this.signEvent(event)
   }
 
   /**
@@ -1385,7 +1386,7 @@ class NostrAuthService {
     const method = this.getCurrentMethod()
 
     if (method === "extension" && window.nostr?.nip04?.encrypt) {
-      return await window.nostr.nip04.encrypt(recipientPubkey, plaintext)
+      return window.nostr.nip04.encrypt(recipientPubkey, plaintext)
     }
 
     throw new Error("NIP-04 encryption not available with current sign-in method")
@@ -1401,7 +1402,7 @@ class NostrAuthService {
     const method = this.getCurrentMethod()
 
     if (method === "extension" && window.nostr?.nip04?.decrypt) {
-      return await window.nostr.nip04.decrypt(senderPubkey, ciphertext)
+      return window.nostr.nip04.decrypt(senderPubkey, ciphertext)
     }
 
     throw new Error("NIP-04 decryption not available with current sign-in method")

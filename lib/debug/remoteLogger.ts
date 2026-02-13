@@ -19,7 +19,7 @@ let batchTimer: ReturnType<typeof setInterval> | null = null
 let isInitialized: boolean = false
 let deviceId: string | null = null
 let sendCount: number = 0
-let errorCount: number = 0
+let _errorCount: number = 0
 
 // Original console methods (stored before override)
 let originalConsole: Record<string, (...args: unknown[]) => void> = {}
@@ -34,7 +34,7 @@ function generateDeviceId(): string {
       const stored: string | null = sessionStorage.getItem("remoteLogDeviceId")
       if (stored) return stored
     }
-  } catch (e: unknown) {
+  } catch (_e: unknown) {
     // sessionStorage might be blocked
   }
 
@@ -47,7 +47,7 @@ function generateDeviceId(): string {
     if (typeof sessionStorage !== "undefined") {
       sessionStorage.setItem("remoteLogDeviceId", id)
     }
-  } catch (e: unknown) {
+  } catch (_e: unknown) {
     // Ignore storage errors
   }
 
@@ -86,7 +86,7 @@ function formatLogArgs(args: unknown[]): string {
       if (typeof arg === "object") {
         try {
           return JSON.stringify(arg, null, 0)
-        } catch (e: unknown) {
+        } catch (_e: unknown) {
           return "[Object - circular or unserializable]"
         }
       }
@@ -99,7 +99,7 @@ function formatLogArgs(args: unknown[]): string {
  * Add a log entry to the buffer
  */
 function bufferLog(level: string, args: IArguments | unknown[]): void {
-  const timestamp: string = new Date().toISOString()
+  const _timestamp: string = new Date().toISOString()
   const message: string = formatLogArgs(Array.from(args))
 
   // Truncate very long messages
@@ -136,7 +136,7 @@ function sendLogsBeacon(logs: string[]): boolean {
       REMOTE_LOG_ENDPOINT,
       new Blob([data], { type: "application/json" }),
     )
-  } catch (e: unknown) {
+  } catch (_e: unknown) {
     return false
   }
 }
@@ -172,9 +172,9 @@ async function sendLogsFetch(logs: string[]): Promise<boolean> {
 
     clearTimeout(timeoutId)
     return response.ok
-  } catch (error: unknown) {
+  } catch (_error: unknown) {
     clearTimeout(timeoutId)
-    errorCount++
+    _errorCount++
     return false
   }
 }

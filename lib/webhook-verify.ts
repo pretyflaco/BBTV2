@@ -13,6 +13,7 @@
  */
 
 import crypto from "crypto"
+
 import type { NextApiRequest } from "next"
 
 interface WebhookHeaders {
@@ -119,7 +120,7 @@ function verifyWebhookSignature(req: NextApiRequest, secret: string): boolean {
         ) {
           return true
         }
-      } catch (comparisonError: unknown) {
+      } catch (_comparisonError: unknown) {
         // Buffer length mismatch or other error
         continue
       }

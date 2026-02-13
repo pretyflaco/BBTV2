@@ -1,10 +1,4 @@
-import NWCClient from "../../lib/nwc/NWCClient"
 import { getApiUrl, getLnAddressDomain } from "../../lib/config/api"
-import { isNpubCashAddress, probeNpubCashAddress } from "../../lib/lnurl"
-import type { LocalBlinkAccount } from "../../lib/hooks/useProfile"
-import type { LocalNWCConnection, NWCOperationResult } from "../../lib/hooks/useNWC"
-import type { AuthMode } from "../../lib/hooks/useCombinedAuth"
-import type { StoreBlinkAccountResult } from "../../lib/hooks/useCombinedAuth"
 import type {
   AccountType,
   EditingWalletLabel,
@@ -13,6 +7,11 @@ import type {
   NpubCashValidation,
   ConfirmDeleteWallet,
 } from "../../lib/hooks/useAccountManagement"
+import type { AuthMode, StoreBlinkAccountResult } from "../../lib/hooks/useCombinedAuth"
+import type { LocalNWCConnection, NWCOperationResult } from "../../lib/hooks/useNWC"
+import type { LocalBlinkAccount } from "../../lib/hooks/useProfile"
+import { isNpubCashAddress, probeNpubCashAddress } from "../../lib/lnurl"
+import NWCClient from "../../lib/nwc/NWCClient"
 
 interface WalletsOverlayProps {
   // State values

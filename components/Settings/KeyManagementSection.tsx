@@ -8,8 +8,9 @@
  */
 
 import { useState } from "react"
-import { useTheme } from "../../lib/hooks/useTheme"
+
 import { useNostrAuth } from "../../lib/hooks/useNostrAuth"
+import { useTheme } from "../../lib/hooks/useTheme"
 import NostrAuthService from "../../lib/nostr/NostrAuthService"
 import CryptoUtils, { type EncryptedData } from "../../lib/storage/CryptoUtils"
 
@@ -151,7 +152,7 @@ export default function KeyManagementSection() {
       const nsec = bech32Encode("nsec", hexToBytes(privateKey))
       setExportedNsec(nsec)
       setPassword("")
-    } catch (err: unknown) {
+    } catch (_err: unknown) {
       setError("Incorrect password")
     }
 

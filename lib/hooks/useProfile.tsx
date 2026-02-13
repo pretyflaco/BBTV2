@@ -26,17 +26,17 @@ import React, {
   useContext,
   useRef,
 } from "react"
-import ProfileStorage from "../storage/ProfileStorage"
-import type {
-  StoredBlinkAccount,
-  StoredNWCConnection,
-  StoredTippingSettings,
-  StoredPreferences,
-  StoredProfile,
-  ProfileExportData,
+
+import CryptoUtils, { type EncryptedData } from "../storage/CryptoUtils"
+import ProfileStorage, {
+  type StoredBlinkAccount,
+  type StoredNWCConnection,
+  type StoredTippingSettings,
+  type StoredPreferences,
+  type StoredProfile,
+  type ProfileExportData,
 } from "../storage/ProfileStorage"
-import CryptoUtils from "../storage/CryptoUtils"
-import type { EncryptedData } from "../storage/CryptoUtils"
+
 import { useNostrAuth } from "./useNostrAuth"
 
 // ============= Server Response Types =============
@@ -595,7 +595,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
             let apiKey: string | null = null
             try {
               apiKey = await CryptoUtils.decryptWithDeviceKey(account.apiKey!)
-            } catch (decryptErr: unknown) {
+            } catch (_decryptErr: unknown) {
               console.warn("[useProfile] Could not decrypt API key for", account.username)
             }
             return {
@@ -689,7 +689,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
   /**
    * Fetch LN Address wallets from server (backwards compatibility)
    */
-  const fetchLnAddressWalletsFromServer = useCallback(async (): Promise<
+  const _fetchLnAddressWalletsFromServer = useCallback(async (): Promise<
     ServerLnAddressWallet[]
   > => {
     const data = await fetchBlinkDataFromServer()
@@ -1044,7 +1044,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
         // Load data directly from storage to avoid stale closure issues
         const freshProfile = ProfileStorage.getProfileById(profileId)
         if (freshProfile) {
-          const activeAccount: StoredBlinkAccount | null =
+          const _activeAccount: StoredBlinkAccount | null =
             freshProfile.blinkAccounts.find((a: StoredBlinkAccount) => a.isActive) || null
           updateState({
             loading: false,
@@ -1105,7 +1105,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
         // Load data directly from storage to avoid stale closure issues
         const freshProfile = ProfileStorage.getProfileById(profileId)
         if (freshProfile) {
-          const activeAccount: StoredBlinkAccount | null =
+          const _activeAccount: StoredBlinkAccount | null =
             freshProfile.blinkAccounts.find((a: StoredBlinkAccount) => a.isActive) || null
           updateState({
             loading: false,
@@ -1158,7 +1158,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
         // Load data directly from storage to avoid stale closure issues
         const freshProfile = ProfileStorage.getProfileById(profileId)
         if (freshProfile) {
-          const activeAccount: StoredBlinkAccount | null =
+          const _activeAccount: StoredBlinkAccount | null =
             freshProfile.blinkAccounts.find((a: StoredBlinkAccount) => a.isActive) || null
           updateState({
             loading: false,
@@ -1231,7 +1231,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
         // Load data directly from storage to avoid stale closure issues
         const freshProfile = ProfileStorage.getProfileById(profileId)
         if (freshProfile) {
-          const activeAccount: StoredBlinkAccount | null =
+          const _activeAccount: StoredBlinkAccount | null =
             freshProfile.blinkAccounts.find((a: StoredBlinkAccount) => a.isActive) || null
           updateState({
             blinkAccounts: freshProfile.blinkAccounts,
@@ -1271,7 +1271,7 @@ export function ProfileProvider({ children }: ProfileProviderProps): React.JSX.E
         // Load data directly from storage to avoid stale closure issues
         const freshProfile = ProfileStorage.getProfileById(profileId)
         if (freshProfile) {
-          const activeAccount: StoredBlinkAccount | null =
+          const _activeAccount: StoredBlinkAccount | null =
             freshProfile.blinkAccounts.find((a: StoredBlinkAccount) => a.isActive) || null
           updateState({
             loading: false,

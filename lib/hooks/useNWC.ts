@@ -17,16 +17,15 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from "react"
-import NWCClient from "../nwc/NWCClient"
-import type {
-  NWCResponse,
-  GetBalanceResult,
-  PayInvoiceResult,
-  MakeInvoiceResult,
-  ListTransactionsParams,
+
+import NWCClient, {
+  type NWCResponse,
+  type GetBalanceResult,
+  type PayInvoiceResult,
+  type MakeInvoiceResult,
+  type ListTransactionsParams,
 } from "../nwc/NWCClient"
-import CryptoUtils from "../storage/CryptoUtils"
-import type { EncryptedData } from "../storage/CryptoUtils"
+import CryptoUtils, { type EncryptedData } from "../storage/CryptoUtils"
 
 // ============= Local Interfaces =============
 

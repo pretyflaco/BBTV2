@@ -9,9 +9,9 @@ import type { NextApiRequest, NextApiResponse } from "next"
 
 import BlinkAPI from "../../../lib/blink-api"
 import { getApiUrlForEnvironment } from "../../../lib/config/api"
+import { baseLogger } from "../../../lib/logger"
 import { withRateLimit, RATE_LIMIT_READ } from "../../../lib/rate-limit"
 import { validateBody, checkPaymentSchema } from "../../../lib/validation"
-import { baseLogger } from "../../../lib/logger"
 
 const logger = baseLogger.child({ module: "check-payment" })
 

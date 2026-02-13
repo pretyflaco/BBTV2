@@ -3,9 +3,10 @@
  */
 
 import { useTheme } from "../../lib/hooks/useTheme"
-import ProfileSection from "./ProfileSection"
-import KeyManagementSection from "./KeyManagementSection"
 import { BoltcardSection } from "../boltcard"
+
+import KeyManagementSection from "./KeyManagementSection"
+import ProfileSection from "./ProfileSection"
 
 interface SettingsPageProps {
   onClose: () => void

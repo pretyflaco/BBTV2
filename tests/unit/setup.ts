@@ -57,9 +57,7 @@ const mockCrypto = {
     }
     return array
   }),
-  randomUUID: jest.fn(
-    () => "test-uuid-" + Math.random().toString(36).substring(7),
-  ),
+  randomUUID: jest.fn(() => "test-uuid-" + Math.random().toString(36).substring(7)),
   subtle: mockSubtle,
 }
 
@@ -84,25 +82,23 @@ global.fetch = jest.fn()
 
 // Mock TextEncoder/TextDecoder if not available
 if (typeof TextEncoder === "undefined") {
-  ;(global as unknown as { TextEncoder: typeof TextEncoder }).TextEncoder =
-    class {
-      encode(str: string) {
-        const arr = new Uint8Array(str.length)
-        for (let i = 0; i < str.length; i++) {
-          arr[i] = str.charCodeAt(i)
-        }
-        return arr
+  ;(global as unknown as { TextEncoder: typeof TextEncoder }).TextEncoder = class {
+    encode(str: string) {
+      const arr = new Uint8Array(str.length)
+      for (let i = 0; i < str.length; i++) {
+        arr[i] = str.charCodeAt(i)
       }
-    } as unknown as typeof TextEncoder
+      return arr
+    }
+  } as unknown as typeof TextEncoder
 }
 
 if (typeof TextDecoder === "undefined") {
-  ;(global as unknown as { TextDecoder: typeof TextDecoder }).TextDecoder =
-    class {
-      decode(arr: ArrayBuffer) {
-        return String.fromCharCode.apply(null, Array.from(new Uint8Array(arr)))
-      }
-    } as unknown as typeof TextDecoder
+  ;(global as unknown as { TextDecoder: typeof TextDecoder }).TextDecoder = class {
+    decode(arr: ArrayBuffer) {
+      return String.fromCharCode.apply(null, Array.from(new Uint8Array(arr)))
+    }
+  } as unknown as typeof TextDecoder
 }
 
 // Mock btoa/atob if not available

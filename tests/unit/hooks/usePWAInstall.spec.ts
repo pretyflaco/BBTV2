@@ -5,8 +5,11 @@
  */
 
 import { renderHook, act } from "@testing-library/react"
-import { usePWAInstall } from "../../../lib/hooks/usePWAInstall"
-import type { BeforeInstallPromptEvent } from "../../../lib/hooks/usePWAInstall"
+
+import {
+  usePWAInstall,
+  type BeforeInstallPromptEvent,
+} from "../../../lib/hooks/usePWAInstall"
 
 // ============================================================================
 // Test Fixtures
@@ -33,14 +36,14 @@ const createMockBeforeInstallPromptEvent = (
 
 describe("usePWAInstall", () => {
   let originalMatchMedia: typeof window.matchMedia
-  let originalNavigator: Navigator
+  let _originalNavigator: Navigator
   let addEventListenerSpy: jest.SpyInstance
   let removeEventListenerSpy: jest.SpyInstance
 
   beforeEach(() => {
     // Store originals
     originalMatchMedia = window.matchMedia
-    originalNavigator = window.navigator
+    _originalNavigator = window.navigator
 
     // Mock matchMedia
     window.matchMedia = jest.fn().mockImplementation((query: string) => ({
@@ -215,7 +218,7 @@ describe("usePWAInstall", () => {
     })
 
     it("should capture beforeinstallprompt event", () => {
-      const { result } = renderHook(() => usePWAInstall())
+      const { result: _result } = renderHook(() => usePWAInstall())
       const mockPrompt = createMockBeforeInstallPromptEvent()
 
       // Simulate the beforeinstallprompt event

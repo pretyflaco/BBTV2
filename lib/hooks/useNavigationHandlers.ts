@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react"
+
 import type { DashboardView } from "./useViewNavigation"
 import type { VoucherWallet } from "./useVoucherWalletState"
 

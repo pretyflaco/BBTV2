@@ -1,6 +1,6 @@
-import Network from "../Network"
 import { SPINNER_COLORS } from "../../lib/hooks/useViewNavigation"
 import type { NostrProfile } from "../../lib/nostr/NostrProfileService"
+import Network from "../Network"
 
 interface NetworkOverlayProps {
   publicKey: string | null

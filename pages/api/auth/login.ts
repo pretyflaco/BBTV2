@@ -1,9 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
 import AuthManager from "../../../lib/auth"
-import StorageManager from "../../../lib/storage"
 import BlinkAPI from "../../../lib/blink-api"
 import { withRateLimit, RATE_LIMIT_AUTH } from "../../../lib/rate-limit"
+import StorageManager from "../../../lib/storage"
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -11,7 +11,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    const { username, apiKey } = req.body as { username: string; apiKey: string }
+    const { username: _username, apiKey } = req.body as {
+      username: string
+      apiKey: string
+    }
     console.log("Login attempt with API key length:", apiKey?.length)
 
     if (!apiKey) {
@@ -44,7 +47,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     // Use user's preferred display currency from Blink
     // All currencies supported by Blink are now supported
-    let preferredCurrency = userDisplayCurrency || "BTC" // Default to BTC (sats) if not set
+    const preferredCurrency = userDisplayCurrency || "BTC" // Default to BTC (sats) if not set
 
     console.log(
       `User display currency: ${userDisplayCurrency} → Using: ${preferredCurrency}`,

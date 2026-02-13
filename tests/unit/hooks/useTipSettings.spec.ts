@@ -1,6 +1,6 @@
 import { renderHook, act } from "@testing-library/react"
-import { useTipSettings } from "../../../lib/hooks/useTipSettings"
-import type { TipProfile } from "../../../lib/hooks/useTipSettings"
+
+import { useTipSettings, type TipProfile } from "../../../lib/hooks/useTipSettings"
 
 describe("useTipSettings", () => {
   // Mock localStorage

@@ -25,13 +25,13 @@
  * }
  */
 
+import crypto from "crypto"
+
 import type { NextApiRequest, NextApiResponse } from "next"
 
-import { verifyChallenge } from "../../../lib/auth/challengeStore"
 import AuthManager from "../../../lib/auth"
+import { verifyChallenge } from "../../../lib/auth/challengeStore"
 import { withRateLimit, RATE_LIMIT_AUTH } from "../../../lib/rate-limit"
-
-import crypto from "crypto"
 
 interface CryptoModules {
   secp256k1: typeof import("@noble/curves/secp256k1") | null
@@ -46,12 +46,12 @@ let modulesLoaded = false
 /**
  * Load crypto modules for BIP-340 Schnorr signatures
  */
-function loadModules(): CryptoModules {
+async function loadModules(): Promise<CryptoModules> {
   if (modulesLoaded) return { secp256k1, sha256: sha256Fn }
 
   try {
-    const curvesModule = require("@noble/curves/secp256k1")
-    const hashesModule = require("@noble/hashes/sha256")
+    const curvesModule = await import("@noble/curves/secp256k1")
+    const hashesModule = await import("@noble/hashes/sha256")
 
     secp256k1 = curvesModule
     sha256Fn = hashesModule.sha256
@@ -88,13 +88,13 @@ function bytesToHex(bytes: Uint8Array): string {
 /**
  * Calculate the event ID (SHA256 hash of serialized event)
  */
-function calculateEventId(event: {
+async function calculateEventId(event: {
   pubkey: string
   created_at: number
   kind: number
   tags: string[][]
   content: string
-}): string {
+}): Promise<string> {
   const serialized = JSON.stringify([
     0,
     event.pubkey,
@@ -104,7 +104,7 @@ function calculateEventId(event: {
     event.content,
   ])
 
-  const { sha256 } = loadModules()
+  const { sha256 } = await loadModules()
 
   if (sha256) {
     const hash = sha256(new TextEncoder().encode(serialized))
@@ -117,12 +117,12 @@ function calculateEventId(event: {
 /**
  * Verify a BIP-340 Schnorr signature
  */
-function verifySchnorrSignature(
+async function verifySchnorrSignature(
   signature: string,
   message: string,
   publicKey: string,
-): boolean {
-  const { secp256k1 } = loadModules()
+): Promise<boolean> {
+  const { secp256k1 } = await loadModules()
 
   if (!secp256k1?.schnorr) {
     console.error("[verify-ownership] schnorr not available")
@@ -295,7 +295,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
 
     // 2. Verify event ID matches calculated hash
-    const calculatedId = calculateEventId(signedEvent)
+    const calculatedId = await calculateEventId(signedEvent)
     if (calculatedId.toLowerCase() !== signedEvent.id.toLowerCase()) {
       console.warn("[verify-ownership] Event ID mismatch")
       return res.status(400).json({
@@ -304,7 +304,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
 
     // 3. Verify signature
-    const sigValid = verifySchnorrSignature(
+    const sigValid = await verifySchnorrSignature(
       signedEvent.sig,
       signedEvent.id,
       signedEvent.pubkey,

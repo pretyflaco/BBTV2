@@ -1,3 +1,4 @@
+import { bech32 } from "bech32"
 import {
   useState,
   useEffect,
@@ -6,14 +7,15 @@ import {
   useImperativeHandle,
   useCallback,
 } from "react"
+import QRCode from "react-qr-code"
+
 import {
   formatDisplayAmount as formatCurrency,
   isBitcoinCurrency,
   CurrencyMetadata,
 } from "../lib/currency-utils"
+
 import { ExpiryBadge, formatExpiryDate } from "./ExpirySelector"
-import QRCode from "react-qr-code"
-import { bech32 } from "bech32"
 
 // =============================================================================
 // Types
@@ -87,12 +89,12 @@ const VoucherManager = forwardRef<VoucherManagerRef, VoucherManagerProps>(
   (
     {
       voucherWallet,
-      displayCurrency,
+      displayCurrency: _displayCurrency,
       currencies,
-      darkMode,
-      theme,
-      cycleTheme,
-      soundEnabled,
+      darkMode: _darkMode,
+      theme: _theme,
+      cycleTheme: _cycleTheme,
+      soundEnabled: _soundEnabled,
       onInternalTransition,
     },
     ref,

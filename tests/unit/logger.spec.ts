@@ -10,9 +10,8 @@ describe("lib/logger", () => {
     jest.resetModules()
   })
 
-  it("should export a baseLogger object", () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { baseLogger } = require("../../lib/logger")
+  it("should export a baseLogger object", async () => {
+    const { baseLogger } = await import("../../lib/logger")
     expect(baseLogger).toBeDefined()
     expect(typeof baseLogger.info).toBe("function")
     expect(typeof baseLogger.error).toBe("function")
@@ -20,22 +19,20 @@ describe("lib/logger", () => {
     expect(typeof baseLogger.debug).toBe("function")
   })
 
-  it("should support child loggers with module context", () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { baseLogger } = require("../../lib/logger")
+  it("should support child loggers with module context", async () => {
+    const { baseLogger } = await import("../../lib/logger")
     const child = baseLogger.child({ module: "test-module" })
     expect(child).toBeDefined()
     expect(typeof child.info).toBe("function")
     expect(typeof child.error).toBe("function")
   })
 
-  it("should default to 'info' level when LOGLEVEL is not set", () => {
+  it("should default to 'info' level when LOGLEVEL is not set", async () => {
     const origLevel = process.env.LOGLEVEL
     delete process.env.LOGLEVEL
 
     jest.resetModules()
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { baseLogger } = require("../../lib/logger")
+    const { baseLogger } = await import("../../lib/logger")
     expect(baseLogger.level).toBe("info")
 
     if (origLevel !== undefined) {
@@ -43,13 +40,12 @@ describe("lib/logger", () => {
     }
   })
 
-  it("should respect LOGLEVEL env var", () => {
+  it("should respect LOGLEVEL env var", async () => {
     const origLevel = process.env.LOGLEVEL
     process.env.LOGLEVEL = "debug"
 
     jest.resetModules()
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { baseLogger } = require("../../lib/logger")
+    const { baseLogger } = await import("../../lib/logger")
     expect(baseLogger.level).toBe("debug")
 
     if (origLevel !== undefined) {
@@ -59,9 +55,8 @@ describe("lib/logger", () => {
     }
   })
 
-  it("should have browser.asObject set to true", () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { baseLogger } = require("../../lib/logger")
+  it("should have browser.asObject set to true", async () => {
+    const { baseLogger } = await import("../../lib/logger")
     // Pino exposes the options; verify the logger is usable in browser mode
     // by checking it doesn't throw when logging
     expect(() => baseLogger.info("test message")).not.toThrow()

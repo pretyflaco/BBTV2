@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react"
-import { playSound, SOUND_THEMES } from "../lib/audio-utils"
-import type { SoundThemeName } from "../lib/audio-utils"
+
+import { playSound, SOUND_THEMES, type SoundThemeName } from "../lib/audio-utils"
 
 interface Payment {
   amount: number

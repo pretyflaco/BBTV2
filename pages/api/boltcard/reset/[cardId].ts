@@ -1,4 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next"
+
+import * as boltcardCrypto from "../../../../lib/boltcard/crypto"
+import boltcardStore from "../../../../lib/boltcard/store"
 import { withRateLimit, RATE_LIMIT_WRITE } from "../../../../lib/rate-limit"
 
 /**
@@ -33,9 +36,6 @@ import { withRateLimit, RATE_LIMIT_WRITE } from "../../../../lib/rate-limit"
  * References:
  * - https://github.com/boltcard/boltcard/blob/main/docs/DEEPLINK.md
  */
-
-import boltcardStore from "../../../../lib/boltcard/store"
-import * as boltcardCrypto from "../../../../lib/boltcard/crypto"
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Set CORS headers for NFC Programmer app
@@ -134,7 +134,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     // Build the LNURLW URL that was on the card
     const host = req.headers.host
-    const protocol = req.headers["x-forwarded-proto"] || "https"
+    const _protocol = req.headers["x-forwarded-proto"] || "https"
     const lnurlwUrl = `lnurlw://${host}/api/boltcard/lnurlw/${cardId}`
 
     // Return current keys for reset operation per DEEPLINK.md spec

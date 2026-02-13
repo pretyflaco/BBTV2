@@ -78,6 +78,14 @@ function ensureHandlersRegistered(): void {
     process.exit(0)
   }
 
-  process.on("SIGTERM", () => void shutdown("SIGTERM"))
-  process.on("SIGINT", () => void shutdown("SIGINT"))
+  process.on("SIGTERM", () => {
+    shutdown("SIGTERM").catch((err) => {
+      console.error("[Shutdown] SIGTERM handler error:", err)
+    })
+  })
+  process.on("SIGINT", () => {
+    shutdown("SIGINT").catch((err) => {
+      console.error("[Shutdown] SIGINT handler error:", err)
+    })
+  })
 }

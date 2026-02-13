@@ -1,12 +1,13 @@
 /**
  * Tests for useUIVisibility hook
  */
-import { renderHook, act } from '@testing-library/react';
-import { useUIVisibility } from '../../../lib/hooks/useUIVisibility';
+import { renderHook, act } from "@testing-library/react"
 
-describe('useUIVisibility', () => {
-  describe('initial state', () => {
-    it('should initialize all visibility states to false', () => {
+import { useUIVisibility } from "../../../lib/hooks/useUIVisibility"
+
+describe("useUIVisibility", () => {
+  describe("initial state", () => {
+    it("should initialize all visibility states to false", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       // Settings panels
@@ -36,8 +37,8 @@ describe('useUIVisibility', () => {
     })
   })
 
-  describe('settings panel toggles', () => {
-    it('should toggle showAccountSettings', () => {
+  describe("settings panel toggles", () => {
+    it("should toggle showAccountSettings", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       act(() => {
@@ -51,7 +52,7 @@ describe('useUIVisibility', () => {
       expect(result.current.showAccountSettings).toBe(false)
     })
 
-    it('should toggle showVoucherWalletSettings', () => {
+    it("should toggle showVoucherWalletSettings", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       act(() => {
@@ -60,7 +61,7 @@ describe('useUIVisibility', () => {
       expect(result.current.showVoucherWalletSettings).toBe(true)
     })
 
-    it('should toggle showCurrencySettings', () => {
+    it("should toggle showCurrencySettings", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       act(() => {
@@ -69,7 +70,7 @@ describe('useUIVisibility', () => {
       expect(result.current.showCurrencySettings).toBe(true)
     })
 
-    it('should toggle showRegionalSettings', () => {
+    it("should toggle showRegionalSettings", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       act(() => {
@@ -78,7 +79,7 @@ describe('useUIVisibility', () => {
       expect(result.current.showRegionalSettings).toBe(true)
     })
 
-    it('should toggle showTipSettings', () => {
+    it("should toggle showTipSettings", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       act(() => {
@@ -87,7 +88,7 @@ describe('useUIVisibility', () => {
       expect(result.current.showTipSettings).toBe(true)
     })
 
-    it('should toggle showTipProfileSettings', () => {
+    it("should toggle showTipProfileSettings", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       act(() => {
@@ -96,7 +97,7 @@ describe('useUIVisibility', () => {
       expect(result.current.showTipProfileSettings).toBe(true)
     })
 
-    it('should toggle showPercentSettings', () => {
+    it("should toggle showPercentSettings", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       act(() => {
@@ -106,8 +107,8 @@ describe('useUIVisibility', () => {
     })
   })
 
-  describe('feature toggles', () => {
-    it('should toggle showKeyManagement', () => {
+  describe("feature toggles", () => {
+    it("should toggle showKeyManagement", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       act(() => {
@@ -116,7 +117,7 @@ describe('useUIVisibility', () => {
       expect(result.current.showKeyManagement).toBe(true)
     })
 
-    it('should toggle showBoltcards', () => {
+    it("should toggle showBoltcards", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       act(() => {
@@ -125,7 +126,7 @@ describe('useUIVisibility', () => {
       expect(result.current.showBoltcards).toBe(true)
     })
 
-    it('should toggle showBatchPayments', () => {
+    it("should toggle showBatchPayments", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       act(() => {
@@ -134,7 +135,7 @@ describe('useUIVisibility', () => {
       expect(result.current.showBatchPayments).toBe(true)
     })
 
-    it('should toggle showNetworkOverlay', () => {
+    it("should toggle showNetworkOverlay", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       act(() => {
@@ -144,8 +145,8 @@ describe('useUIVisibility', () => {
     })
   })
 
-  describe('modal toggles', () => {
-    it('should toggle showAddAccountForm', () => {
+  describe("modal toggles", () => {
+    it("should toggle showAddAccountForm", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       act(() => {
@@ -154,7 +155,7 @@ describe('useUIVisibility', () => {
       expect(result.current.showAddAccountForm).toBe(true)
     })
 
-    it('should toggle showDateRangeSelector', () => {
+    it("should toggle showDateRangeSelector", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       act(() => {
@@ -163,7 +164,7 @@ describe('useUIVisibility', () => {
       expect(result.current.showDateRangeSelector).toBe(true)
     })
 
-    it('should toggle showExportOptions', () => {
+    it("should toggle showExportOptions", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       act(() => {
@@ -172,7 +173,7 @@ describe('useUIVisibility', () => {
       expect(result.current.showExportOptions).toBe(true)
     })
 
-    it('should toggle showTimeInputs', () => {
+    it("should toggle showTimeInputs", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       act(() => {
@@ -182,8 +183,8 @@ describe('useUIVisibility', () => {
     })
   })
 
-  describe('payment state toggles', () => {
-    it('should toggle showingInvoice', () => {
+  describe("payment state toggles", () => {
+    it("should toggle showingInvoice", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       act(() => {
@@ -197,7 +198,7 @@ describe('useUIVisibility', () => {
       expect(result.current.showingInvoice).toBe(false)
     })
 
-    it('should toggle showingVoucherQR', () => {
+    it("should toggle showingVoucherQR", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       act(() => {
@@ -207,8 +208,8 @@ describe('useUIVisibility', () => {
     })
   })
 
-  describe('closeAllSettings', () => {
-    it('should close all settings panels', () => {
+  describe("closeAllSettings", () => {
+    it("should close all settings panels", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       // Open all settings
@@ -242,7 +243,7 @@ describe('useUIVisibility', () => {
       expect(result.current.showPercentSettings).toBe(false)
     })
 
-    it('should not affect non-settings states', () => {
+    it("should not affect non-settings states", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       // Open a feature and modal
@@ -266,8 +267,8 @@ describe('useUIVisibility', () => {
     })
   })
 
-  describe('closeAllOverlays', () => {
-    it('should close all visibility states', () => {
+  describe("closeAllOverlays", () => {
+    it("should close all visibility states", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       // Open everything
@@ -329,8 +330,8 @@ describe('useUIVisibility', () => {
     })
   })
 
-  describe('state independence', () => {
-    it('should allow multiple states to be open simultaneously', () => {
+  describe("state independence", () => {
+    it("should allow multiple states to be open simultaneously", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       act(() => {
@@ -344,7 +345,7 @@ describe('useUIVisibility', () => {
       expect(result.current.showingInvoice).toBe(true)
     })
 
-    it('should allow toggling individual states without affecting others', () => {
+    it("should allow toggling individual states without affecting others", () => {
       const { result } = renderHook(() => useUIVisibility())
 
       act(() => {

@@ -1,17 +1,19 @@
 import { useEffect, useCallback } from "react"
+
 import { getApiUrl, getAllValidDomains } from "../config/api"
 import {
   isNpubCashAddress,
   validateNpubCashAddress,
   probeNpubCashAddress,
 } from "../lnurl"
+
+import type { AuthMode } from "./useCombinedAuth"
 import type {
   SplitRecipient,
   SplitProfile,
   RecipientValidationState,
   RecipientType,
 } from "./useSplitProfiles"
-import type { AuthMode } from "./useCombinedAuth"
 
 /** @deprecated Use RecipientValidationState from useSplitProfiles instead */
 export type RecipientValidation = RecipientValidationState

@@ -1,4 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next"
+
+import * as boltcardCrypto from "../../../lib/boltcard/crypto"
+import * as lnurlp from "../../../lib/boltcard/lnurlp"
+import * as lnurlw from "../../../lib/boltcard/lnurlw"
+import boltcardStore from "../../../lib/boltcard/store"
 import type { EnvironmentName } from "../../../lib/config/api"
 import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
 
@@ -33,11 +38,6 @@ import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
  *   environment?: string    // 'production' or 'staging'
  * }
  */
-
-import boltcardStore from "../../../lib/boltcard/store"
-import * as boltcardCrypto from "../../../lib/boltcard/crypto"
-import * as lnurlw from "../../../lib/boltcard/lnurlw"
-import * as lnurlp from "../../../lib/boltcard/lnurlp"
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {

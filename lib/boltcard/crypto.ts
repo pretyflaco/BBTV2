@@ -802,7 +802,7 @@ export function generateResetDeeplink(keysRequestUrl: string): string {
 export function generateKeysResponse(
   lnurlwUrl: string,
   keys: CardKeys,
-  cardName: string = "Boltcard",
+  _cardName: string = "Boltcard",
 ): KeysResponse {
   // Convert https:// URL to lnurlw:// format
   // The card stores this as the base URL and appends ?p=...&c=... when tapped
@@ -941,7 +941,7 @@ export function extractPandC(url: string): PandCParams | null {
     }
 
     return { p, c }
-  } catch (err: unknown) {
+  } catch (_err: unknown) {
     return null
   }
 }

@@ -10,8 +10,8 @@
  * No login required - authenticated via card tap (p/c params)
  */
 
-import { useState } from "react"
 import { QRCodeSVG } from "qrcode.react"
+import { useState } from "react"
 
 // ============================================================================
 // Types & Interfaces

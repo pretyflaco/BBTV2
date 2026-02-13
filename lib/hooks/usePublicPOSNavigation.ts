@@ -1,5 +1,10 @@
-import { useRef, useEffect, useCallback } from "react"
-import type { RefObject, TouchEvent as ReactTouchEvent } from "react"
+import {
+  useRef,
+  useEffect,
+  useCallback,
+  type RefObject,
+  type TouchEvent as ReactTouchEvent,
+} from "react"
 
 /**
  * Handle interface for POS component ref methods

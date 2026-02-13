@@ -7,8 +7,9 @@
  * - LNURLs: Decode and fetch metadata
  */
 
-import { RECIPIENT_TYPES, type ParsedRecipient } from "./csv-parser"
 import { getApiUrl, getAllValidDomains } from "../config/api"
+
+import { RECIPIENT_TYPES, type ParsedRecipient } from "./csv-parser"
 
 // Blink API endpoint - now uses centralized config
 const getBlinkApiUrl = (): string => getApiUrl()

@@ -24,8 +24,8 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
 import AuthManager from "../../../lib/auth"
-import StorageManager from "../../../lib/storage"
 import { withRateLimit, RATE_LIMIT_READ } from "../../../lib/rate-limit"
+import StorageManager from "../../../lib/storage"
 
 /** Blink API account shape for sync */
 interface BlinkApiAccount {
@@ -97,7 +97,7 @@ interface VoucherWalletData {
 }
 
 /** Split profile shape */
-interface SplitProfile {
+interface _SplitProfile {
   id: string
   label: string
   recipients: Array<{ username: string; share?: number }>

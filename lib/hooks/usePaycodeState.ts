@@ -12,7 +12,7 @@
  * @module lib/hooks/usePaycodeState
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback } from "react"
 
 // ============================================================================
 // Types
@@ -21,27 +21,27 @@ import { useState, useCallback } from 'react';
 /** Return type for the usePaycodeState hook */
 export interface UsePaycodeStateReturn {
   // Visibility state
-  showPaycode: boolean;
-  setShowPaycode: (show: boolean) => void;
-  openPaycode: () => void;
-  closePaycode: () => void;
-  togglePaycode: () => void;
+  showPaycode: boolean
+  setShowPaycode: (show: boolean) => void
+  openPaycode: () => void
+  closePaycode: () => void
+  togglePaycode: () => void
 
   // Amount state
-  paycodeAmount: string;
-  setPaycodeAmount: (amount: string) => void;
-  clearPaycodeAmount: () => void;
-  hasPaycodeAmount: boolean;
+  paycodeAmount: string
+  setPaycodeAmount: (amount: string) => void
+  clearPaycodeAmount: () => void
+  hasPaycodeAmount: boolean
 
   // PDF generation state
-  paycodeGeneratingPdf: boolean;
-  setPaycodeGeneratingPdf: (generating: boolean) => void;
-  startPdfGeneration: () => void;
-  finishPdfGeneration: () => void;
+  paycodeGeneratingPdf: boolean
+  setPaycodeGeneratingPdf: (generating: boolean) => void
+  startPdfGeneration: () => void
+  finishPdfGeneration: () => void
 
   // Combined actions
-  resetPaycode: () => void;
-  openPaycodeWithAmount: (amount: string) => void;
+  resetPaycode: () => void
+  openPaycodeWithAmount: (amount: string) => void
 }
 
 // ============================================================================
@@ -93,78 +93,78 @@ export function usePaycodeState(): UsePaycodeStateReturn {
   // State
   // ---------------------------------------------------------------------------
 
-  const [showPaycode, setShowPaycodeState] = useState<boolean>(false);
-  const [paycodeAmount, setPaycodeAmountState] = useState<string>('');
-  const [paycodeGeneratingPdf, setPaycodeGeneratingPdfState] = useState<boolean>(false);
+  const [showPaycode, setShowPaycodeState] = useState<boolean>(false)
+  const [paycodeAmount, setPaycodeAmountState] = useState<string>("")
+  const [paycodeGeneratingPdf, setPaycodeGeneratingPdfState] = useState<boolean>(false)
 
   // ---------------------------------------------------------------------------
   // Callbacks - Visibility
   // ---------------------------------------------------------------------------
 
   const setShowPaycode = useCallback((show: boolean) => {
-    setShowPaycodeState(show);
-  }, []);
+    setShowPaycodeState(show)
+  }, [])
 
   const openPaycode = useCallback(() => {
-    setShowPaycodeState(true);
-  }, []);
+    setShowPaycodeState(true)
+  }, [])
 
   const closePaycode = useCallback(() => {
-    setShowPaycodeState(false);
-  }, []);
+    setShowPaycodeState(false)
+  }, [])
 
   const togglePaycode = useCallback(() => {
-    setShowPaycodeState((prev) => !prev);
-  }, []);
+    setShowPaycodeState((prev) => !prev)
+  }, [])
 
   // ---------------------------------------------------------------------------
   // Callbacks - Amount
   // ---------------------------------------------------------------------------
 
   const setPaycodeAmount = useCallback((amount: string) => {
-    setPaycodeAmountState(amount);
-  }, []);
+    setPaycodeAmountState(amount)
+  }, [])
 
   const clearPaycodeAmount = useCallback(() => {
-    setPaycodeAmountState('');
-  }, []);
+    setPaycodeAmountState("")
+  }, [])
 
   // ---------------------------------------------------------------------------
   // Callbacks - PDF Generation
   // ---------------------------------------------------------------------------
 
   const setPaycodeGeneratingPdf = useCallback((generating: boolean) => {
-    setPaycodeGeneratingPdfState(generating);
-  }, []);
+    setPaycodeGeneratingPdfState(generating)
+  }, [])
 
   const startPdfGeneration = useCallback(() => {
-    setPaycodeGeneratingPdfState(true);
-  }, []);
+    setPaycodeGeneratingPdfState(true)
+  }, [])
 
   const finishPdfGeneration = useCallback(() => {
-    setPaycodeGeneratingPdfState(false);
-  }, []);
+    setPaycodeGeneratingPdfState(false)
+  }, [])
 
   // ---------------------------------------------------------------------------
   // Callbacks - Combined Actions
   // ---------------------------------------------------------------------------
 
   const resetPaycode = useCallback(() => {
-    setShowPaycodeState(false);
-    setPaycodeAmountState('');
-    setPaycodeGeneratingPdfState(false);
-  }, []);
+    setShowPaycodeState(false)
+    setPaycodeAmountState("")
+    setPaycodeGeneratingPdfState(false)
+  }, [])
 
   const openPaycodeWithAmount = useCallback((amount: string) => {
-    setPaycodeAmountState(amount);
-    setShowPaycodeState(true);
-  }, []);
+    setPaycodeAmountState(amount)
+    setShowPaycodeState(true)
+  }, [])
 
   // ---------------------------------------------------------------------------
   // Derived State
   // ---------------------------------------------------------------------------
 
-  const hasPaycodeAmount = paycodeAmount !== '';
+  const hasPaycodeAmount = paycodeAmount !== ""
 
   // ---------------------------------------------------------------------------
   // Return
@@ -193,7 +193,7 @@ export function usePaycodeState(): UsePaycodeStateReturn {
     // Combined actions
     resetPaycode,
     openPaycodeWithAmount,
-  };
+  }
 }
 
-export default usePaycodeState;
+export default usePaycodeState

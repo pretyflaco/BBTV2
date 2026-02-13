@@ -1,10 +1,11 @@
 import { useState, useEffect, type Dispatch, type SetStateAction } from "react"
+
+import type { SoundThemeName } from "../audio-utils"
 import type {
   NumberFormatPreference,
   BitcoinFormatPreference,
   NumpadLayoutPreference,
 } from "../number-format"
-import type { SoundThemeName } from "../audio-utils"
 
 interface UsePublicPOSSettingsReturn {
   displayCurrency: string

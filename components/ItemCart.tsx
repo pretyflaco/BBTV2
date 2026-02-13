@@ -6,6 +6,8 @@ import React, {
   forwardRef,
   useImperativeHandle,
 } from "react"
+
+import { unlockAudioContext, playSound } from "../lib/audio-utils"
 import {
   formatDisplayAmount as formatCurrency,
   getCurrencyById,
@@ -13,14 +15,13 @@ import {
   parseAmountParts,
   CurrencyMetadata,
 } from "../lib/currency-utils"
+import type { ExchangeRateData } from "../lib/hooks/useExchangeRate"
+import type { CartCheckoutData } from "../lib/hooks/useViewNavigation"
 import {
   formatNumber,
   NumberFormatPreference,
   BitcoinFormatPreference,
 } from "../lib/number-format"
-import { unlockAudioContext, playSound } from "../lib/audio-utils"
-import type { CartCheckoutData } from "../lib/hooks/useViewNavigation"
-import type { ExchangeRateData } from "../lib/hooks/useExchangeRate"
 
 // =============================================================================
 // Types
@@ -88,9 +89,9 @@ const ItemCart = forwardRef<ItemCartHandle, ItemCartProps>(
       publicKey,
       onCheckout,
       soundEnabled,
-      darkMode,
+      darkMode: _darkMode,
       theme,
-      cycleTheme,
+      cycleTheme: _cycleTheme,
       isViewTransitioning = false,
       exchangeRate = null,
       onActivate, // Called when view becomes active

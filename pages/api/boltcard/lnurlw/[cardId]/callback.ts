@@ -1,9 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next"
-import type { EnvironmentName } from "../../../../../lib/config/api"
 
-import * as boltcard from "../../../../../lib/boltcard"
 import BlinkAPI from "../../../../../lib/blink-api"
-import { getApiUrlForEnvironment } from "../../../../../lib/config/api"
+import * as boltcard from "../../../../../lib/boltcard"
+import {
+  getApiUrlForEnvironment,
+  type EnvironmentName,
+} from "../../../../../lib/config/api"
 import { withRateLimit, RATE_LIMIT_WRITE } from "../../../../../lib/rate-limit"
 
 /**
@@ -88,9 +90,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         )
 
         if (result.status === "SUCCESS") {
+          const hash = await extractPaymentHash(invoice)
           return {
             success: true,
-            paymentHash: extractPaymentHash(invoice),
+            paymentHash: hash || undefined,
           }
         } else {
           return {
@@ -124,16 +127,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 /**
  * Extract payment hash from BOLT11 invoice
  */
-function extractPaymentHash(invoice: string) {
+async function extractPaymentHash(invoice: string): Promise<string | null> {
   try {
-    const bolt11 = require("bolt11")
-    const decoded = bolt11.decode(invoice)
-    return (
-      decoded.tags.find(
-        (t: { tagName: string; data: string }) => t.tagName === "payment_hash",
-      )?.data || null
+    const bolt11 = await import("bolt11")
+    const decode = bolt11.default?.decode ?? bolt11.decode
+    const decoded = decode(invoice)
+    const tag = decoded.tags.find(
+      (t: { tagName: string }) => t.tagName === "payment_hash",
     )
-  } catch (error: unknown) {
+    return tag ? String(tag.data) : null
+  } catch (_error: unknown) {
     return null
   }
 }

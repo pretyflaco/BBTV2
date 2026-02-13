@@ -16,10 +16,10 @@
  * - Not supported on iOS, desktop browsers, or other mobile browsers
  */
 
-import { useState, useEffect, useRef, useCallback } from "react"
 import { QRCodeSVG } from "qrcode.react"
-import CardholderBalance from "./CardholderBalance"
-import type { CardholderBalanceData } from "./CardholderBalance"
+import { useState, useEffect, useRef, useCallback } from "react"
+
+import CardholderBalance, { type CardholderBalanceData } from "./CardholderBalance"
 
 // ============================================================================
 // Types & Interfaces
@@ -361,7 +361,9 @@ export default function WebNFCBalanceCheck() {
             </div>
           )}
 
-          <p className="text-gray-500 text-sm">Scan with your Android phone's camera</p>
+          <p className="text-gray-500 text-sm">
+            Scan with your Android phone&apos;s camera
+          </p>
 
           {/* Alternative */}
           <div className="mt-8 pt-6 border-t border-gray-800">

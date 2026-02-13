@@ -9,13 +9,14 @@
  */
 
 import { useCallback, useMemo, useEffect, useState } from "react"
+
+import type { ListTransactionsParams } from "../../lib/nwc/NWCClient"
+import { MigrationService } from "../migration/MigrationService"
+import type { NostrProfile } from "../nostr/NostrProfileService"
+import type { StoredTippingSettings, StoredPreferences } from "../storage/ProfileStorage"
+
 import { useAuth, type AuthContextValue, type User, type LoginResult } from "./useAuth"
 import { useNostrAuth, type NostrAuthContextValue } from "./useNostrAuth"
-import {
-  useProfile,
-  type ProfileContextValue,
-  type LocalBlinkAccount,
-} from "./useProfile"
 import {
   useNWC,
   type NWCHookReturn,
@@ -26,20 +27,11 @@ import {
   type NWCPayResult,
   type NWCInvoiceResult,
 } from "./useNWC"
-import type { ListTransactionsParams } from "../../lib/nwc/NWCClient"
-import type { NostrProfile } from "../nostr/NostrProfileService"
-import type { StoredTippingSettings, StoredPreferences } from "../storage/ProfileStorage"
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const MigrationServiceModule = require("../migration/MigrationService")
-const MigrationService: {
-  getPendingMigration: () => PendingMigration | null
-  startMigration: (username: string) => boolean
-  completeMigration: (pubkey: string) => Promise<CompleteMigrationResult>
-  clearMigration: () => void
-} =
-  MigrationServiceModule.default ||
-  MigrationServiceModule.MigrationService ||
-  MigrationServiceModule
+import {
+  useProfile,
+  type ProfileContextValue,
+  type LocalBlinkAccount,
+} from "./useProfile"
 
 // ============================================================================
 // Interfaces
@@ -461,7 +453,7 @@ export function useCombinedAuth(): UseCombinedAuthReturn {
   // Check for pending migration (for completing after Nostr sign-in)
   const pendingMigration = useMemo<PendingMigration | null>(() => {
     if (typeof window === "undefined") return null
-    return MigrationService.getPendingMigration()
+    return MigrationService.getPendingMigration() as PendingMigration | null
   }, [])
 
   // Start migration process

@@ -1,7 +1,7 @@
-import { BoltcardSection } from "../boltcard"
-import type { BitcoinFormatPreference } from "../../lib/number-format"
-import type { VoucherWallet } from "../../lib/hooks/useVoucherWalletState"
 import type { ExchangeRateData } from "../../lib/hooks/useExchangeRate"
+import type { VoucherWallet } from "../../lib/hooks/useVoucherWalletState"
+import type { BitcoinFormatPreference } from "../../lib/number-format"
+import { BoltcardSection } from "../boltcard"
 
 interface BoltcardsOverlayProps {
   voucherWallet: VoucherWallet | null

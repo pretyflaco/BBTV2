@@ -8,23 +8,25 @@
  */
 
 import { useState } from "react"
-import { useTheme } from "../../lib/hooks/useTheme"
+
 import { useCombinedAuth } from "../../lib/hooks/useCombinedAuth"
-import { useBoltcards } from "./useBoltcards"
-import type {
-  BoltcardRecord,
-  RegisterCardParams,
-  RegisterResult,
-  CardActionResult,
-  CardUpdatePayload,
-  FundResult,
-} from "./useBoltcards"
+import { useTheme } from "../../lib/hooks/useTheme"
 import type { BitcoinFormatPreference } from "../../lib/number-format"
+
 import BoltcardCard from "./BoltcardCard"
-import BoltcardRegister from "./BoltcardRegister"
 import BoltcardDetails from "./BoltcardDetails"
-import BoltcardRecovery from "./BoltcardRecovery"
 import BoltcardFundCard from "./BoltcardFundCard"
+import BoltcardRecovery from "./BoltcardRecovery"
+import BoltcardRegister from "./BoltcardRegister"
+import {
+  useBoltcards,
+  type BoltcardRecord,
+  type RegisterCardParams,
+  type RegisterResult,
+  type CardActionResult,
+  type CardUpdatePayload,
+  type FundResult,
+} from "./useBoltcards"
 
 // ============================================================================
 // Types

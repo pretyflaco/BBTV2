@@ -5,8 +5,9 @@
  * and sliding-window behaviour.
  */
 
-import type { NextApiRequest, NextApiResponse } from "next"
 import type { Socket } from "net"
+
+import type { NextApiRequest, NextApiResponse } from "next"
 
 import {
   withRateLimit,

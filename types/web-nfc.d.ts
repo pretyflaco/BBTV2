@@ -78,4 +78,3 @@ interface NDEFMakeReadOnlyOptions {
 interface NDEFScanOptions {
   signal?: AbortSignal
 }
-

@@ -1,4 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next"
+
+import boltcardStore from "../../../../../lib/boltcard/store"
 import { withRateLimit, RATE_LIMIT_WRITE } from "../../../../../lib/rate-limit"
 
 /**
@@ -13,8 +15,6 @@ import { withRateLimit, RATE_LIMIT_WRITE } from "../../../../../lib/rate-limit"
  * Returns:
  * { status: 'OK' }
  */
-
-import boltcardStore from "../../../../../lib/boltcard/store"
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Set CORS headers for NFC Programmer app

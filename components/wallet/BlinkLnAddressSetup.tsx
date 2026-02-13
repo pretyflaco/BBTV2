@@ -14,6 +14,7 @@
  */
 
 import { useState, useEffect, useRef } from "react"
+
 import { useTheme } from "../../lib/hooks/useTheme"
 
 interface BlinkLnAddressData {

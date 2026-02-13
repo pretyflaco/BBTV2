@@ -1,5 +1,6 @@
-import QRCode from "react-qr-code"
 import { bech32 } from "bech32"
+import QRCode from "react-qr-code"
+
 import { getLnAddressDomain, getPayUrl } from "../../lib/config/api"
 
 /**

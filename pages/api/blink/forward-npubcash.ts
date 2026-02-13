@@ -1,6 +1,4 @@
 import type { NextApiRequest, NextApiResponse } from "next"
-import type { HybridStore } from "../../../lib/storage/hybrid-store"
-import type { LnurlFullInvoiceResponse } from "../../../lib/lnurl"
 
 /**
  * API endpoint to forward payment to an npub.cash wallet
@@ -15,14 +13,17 @@ import type { LnurlFullInvoiceResponse } from "../../../lib/lnurl"
  */
 
 import BlinkAPI from "../../../lib/blink-api"
-import { getInvoiceFromLightningAddress } from "../../../lib/lnurl"
 import { getApiUrlForEnvironment, type EnvironmentName } from "../../../lib/config/api"
-import { getHybridStore } from "../../../lib/storage/hybrid-store"
 import {
   formatCurrencyServer,
   isBitcoinCurrency,
 } from "../../../lib/currency-formatter-server"
+import {
+  getInvoiceFromLightningAddress,
+  type LnurlFullInvoiceResponse,
+} from "../../../lib/lnurl"
 import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
+import { getHybridStore, type HybridStore } from "../../../lib/storage/hybrid-store"
 
 interface ApiTipRecipient {
   username: string
@@ -177,7 +178,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     let tipAmount = 0
     let tipRecipients: ApiTipRecipient[] = []
     let displayCurrency = "BTC"
-    let baseAmountDisplay = totalAmount
+    let _baseAmountDisplay = totalAmount
     let tipAmountDisplay = 0
     let storedMemo = memo
 
@@ -188,7 +189,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         tipAmount = tipData.tipAmount || 0
         tipRecipients = tipData.tipRecipients || []
         displayCurrency = tipData.displayCurrency || "BTC"
-        baseAmountDisplay = Number(tipData.baseAmountDisplay) || baseAmount
+        _baseAmountDisplay = Number(tipData.baseAmountDisplay) || baseAmount
         tipAmountDisplay = Number(tipData.tipAmountDisplay) || tipAmount
         storedMemo = tipData.memo || memo
 

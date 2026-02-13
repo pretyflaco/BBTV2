@@ -106,8 +106,7 @@ export interface AccountManagementActions {
   clearValidations: () => void
 }
 
-export type UseAccountManagementReturn = AccountManagementState &
-  AccountManagementActions
+export type UseAccountManagementReturn = AccountManagementState & AccountManagementActions
 
 /**
  * Hook for managing account addition and editing state
@@ -157,14 +156,16 @@ export function useAccountManagement(): UseAccountManagementReturn {
 
   // npub.cash validation state
   const [npubCashValidating, setNpubCashValidating] = useState(false)
-  const [npubCashValidated, setNpubCashValidated] =
-    useState<NpubCashValidation | null>(null)
+  const [npubCashValidated, setNpubCashValidated] = useState<NpubCashValidation | null>(
+    null,
+  )
 
   // Delete/edit states
   const [confirmDeleteWallet, setConfirmDeleteWallet] =
     useState<ConfirmDeleteWallet | null>(null)
-  const [editingWalletLabel, setEditingWalletLabel] =
-    useState<EditingWalletLabel | null>(null)
+  const [editingWalletLabel, setEditingWalletLabel] = useState<EditingWalletLabel | null>(
+    null,
+  )
   const [editedWalletLabel, setEditedWalletLabel] = useState("")
 
   /**

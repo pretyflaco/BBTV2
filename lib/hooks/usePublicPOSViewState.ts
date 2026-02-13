@@ -5,6 +5,7 @@ import {
   type SetStateAction,
   type RefObject,
 } from "react"
+
 import type { CartCheckoutData } from "./useViewNavigation"
 
 // Spinner colors for transitions

@@ -22,11 +22,12 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from "next"
-import type {
-  FlatValidationResult,
-  PaymentResultWithRecipient,
+
+import {
+  executeBatchPayments,
+  type FlatValidationResult,
+  type PaymentResultWithRecipient,
 } from "../../../lib/batch-payments/payment-executor"
-import { executeBatchPayments } from "../../../lib/batch-payments/payment-executor"
 import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {

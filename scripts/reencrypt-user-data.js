@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Migration Script: Re-encrypt User Data
  *
@@ -25,6 +26,7 @@
 
 const fs = require("fs")
 const path = require("path")
+
 const CryptoJS = require("crypto-js")
 
 // Configuration — both keys MUST be provided explicitly via environment variables.
@@ -63,7 +65,7 @@ function decrypt(encrypted, key) {
     const bytes = CryptoJS.AES.decrypt(encrypted, key)
     const result = bytes.toString(CryptoJS.enc.Utf8)
     return result || null
-  } catch (error) {
+  } catch (_error) {
     return null
   }
 }
@@ -240,8 +242,8 @@ function processUserFile(filePath) {
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
         console.log(`  ✓ Saved (backup: ${path.basename(backupPath)})`)
         stats.filesModified++
-      } catch (error) {
-        stats.errors.push({ file: fileName, error: `Failed to save: ${error.message}` })
+      } catch (_error) {
+        stats.errors.push({ file: fileName, error: `Failed to save: ${_error.message}` })
       }
     } else {
       console.log(`  (dry run - not saved)`)

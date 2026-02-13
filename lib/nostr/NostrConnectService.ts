@@ -13,13 +13,13 @@
  * @see https://github.com/nostr-protocol/nips/blob/master/46.md
  */
 
+import { bytesToHex, hexToBytes } from "@noble/hashes/utils"
 // @ts-expect-error -- nostr-tools subpath exports require moduleResolution:"bundler", works at runtime via webpack
 import { BunkerSigner, createNostrConnectURI, parseBunkerInput } from "nostr-tools/nip46"
 // @ts-expect-error -- nostr-tools subpath exports require moduleResolution:"bundler", works at runtime via webpack
 import { SimplePool } from "nostr-tools/pool"
 // @ts-expect-error -- nostr-tools subpath exports require moduleResolution:"bundler", works at runtime via webpack
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure"
-import { bytesToHex, hexToBytes } from "@noble/hashes/utils"
 
 // =====================================================================
 // Type definitions

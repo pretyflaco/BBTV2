@@ -1,4 +1,4 @@
-import type { NextApiRequest, NextApiResponse } from "next"
+// Types removed: NextApiRequest, NextApiResponse (unused - handler uses custom types)
 
 /**
  * LNURL-pay callback endpoint for Boltcard top-up

@@ -1,6 +1,8 @@
 import crypto from "crypto"
-import jwt from "jsonwebtoken"
+
 import CryptoJS from "crypto-js"
+import jwt from "jsonwebtoken"
+
 import { getApiUrl } from "./config/api"
 
 const JWT_SECRET: string = (() => {
@@ -53,7 +55,7 @@ class AuthManager {
     if (!token) return null
     try {
       return jwt.verify(token, JWT_SECRET) as SessionPayload
-    } catch (err: unknown) {
+    } catch (_err: unknown) {
       return null
     }
   }
@@ -71,7 +73,7 @@ class AuthManager {
       const bytes: CryptoJS.lib.WordArray = CryptoJS.AES.decrypt(encryptedKey, key)
       const decrypted: string = bytes.toString(CryptoJS.enc.Utf8)
       return decrypted || null
-    } catch (err: unknown) {
+    } catch (_err: unknown) {
       return null
     }
   }

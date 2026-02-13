@@ -8,12 +8,14 @@
  */
 
 import { useState } from "react"
-import { useTheme } from "../../lib/hooks/useTheme"
+
 import { useCombinedAuth } from "../../lib/hooks/useCombinedAuth"
-import NWCSetup from "./NWCSetup"
+import { useTheme } from "../../lib/hooks/useTheme"
+import BlinkAccountSetup from "../auth/BlinkAccountSetup"
+
 import BlinkLnAddressSetup from "./BlinkLnAddressSetup"
 import NpubCashSetup from "./NpubCashSetup"
-import BlinkAccountSetup from "../auth/BlinkAccountSetup"
+import NWCSetup from "./NWCSetup"
 
 type WalletType = "blink-ln-address" | "blink-api-key" | "nwc" | "npub-cash"
 

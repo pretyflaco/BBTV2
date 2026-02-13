@@ -11,9 +11,10 @@
  * 3. Display the keys as QR code and copyable text
  */
 
-import { useState } from "react"
-import { useTheme } from "../../lib/hooks/useTheme"
 import { QRCodeSVG } from "qrcode.react"
+import { useState } from "react"
+
+import { useTheme } from "../../lib/hooks/useTheme"
 
 // ============================================================================
 // Types & Interfaces
@@ -181,8 +182,9 @@ export default function BoltcardRecovery({ onClose }: BoltcardRecoveryProps) {
           {!wipeKeys && (
             <div className={`p-3 rounded-lg ${darkMode ? "bg-gray-900" : "bg-gray-50"}`}>
               <p className={`text-sm ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
-                Use this tool if you've deleted a card from BlinkPOS but the physical card
-                still has keys programmed. Enter the card's UID to recover the wipe keys.
+                Use this tool if you&apos;ve deleted a card from BlinkPOS but the physical
+                card still has keys programmed. Enter the card&apos;s UID to recover the
+                wipe keys.
               </p>
             </div>
           )}
@@ -323,7 +325,7 @@ export default function BoltcardRecovery({ onClose }: BoltcardRecoveryProps) {
                 >
                   <li>Do not share these keys with anyone</li>
                   <li>Do not screenshot or save them insecurely</li>
-                  <li>Close this window after you're done</li>
+                  <li>Close this window after you&apos;re done</li>
                 </ul>
               </div>
 
@@ -506,7 +508,7 @@ export default function BoltcardRecovery({ onClose }: BoltcardRecoveryProps) {
                   }`}
                 >
                   <li>Open the Bolt Card NFC Programmer app</li>
-                  <li>Go to the "Reset" screen</li>
+                  <li>Go to the &quot;Reset&quot; screen</li>
                   <li>Scan the QR code above, OR enter keys manually</li>
                   <li>Tap your card on your phone when prompted</li>
                   <li>Wait for reset to complete</li>

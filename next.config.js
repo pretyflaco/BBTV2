@@ -12,15 +12,10 @@ try {
 
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
   output: "standalone",
   // Inject git commit hash as environment variable
   env: {
     NEXT_PUBLIC_GIT_COMMIT: gitCommit,
-  },
-  // Enable ESM external resolution for pure ESM packages
-  experimental: {
-    esmExternals: "loose",
   },
   async headers() {
     // Security headers applied to all routes

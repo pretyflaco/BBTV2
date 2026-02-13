@@ -1,6 +1,6 @@
-import React from "react"
 import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer"
 import type { Style } from "@react-pdf/types/style"
+import React from "react"
 
 /**
  * PDF style record — maps style names to react-pdf Style objects.
@@ -393,7 +393,11 @@ const formatExpiryForPdf = (expiresAt?: string): string | null => {
 // --- Internal Components ---
 
 // Voucher Card Component - matching Blink voucher app layout
-const VoucherCard: React.FC<VoucherCardProps> = ({ voucher, format, styles }) => {
+const VoucherCard: React.FC<VoucherCardProps> = ({
+  voucher,
+  format: _format,
+  styles,
+}) => {
   const formattedSecret = formatVoucherSecret(
     voucher.voucherSecret || voucher.identifierCode,
   )
@@ -546,7 +550,7 @@ const VoucherCard: React.FC<VoucherCardProps> = ({ voucher, format, styles }) =>
 
 // Create styles for reissue voucher (includes LNURL text)
 const createReissueStyles = (format: string = "a4"): PDFStyles => {
-  const paper = PAPER_FORMATS[format] || PAPER_FORMATS.a4
+  const _paper = PAPER_FORMATS[format] || PAPER_FORMATS.a4
 
   return StyleSheet.create({
     page: {

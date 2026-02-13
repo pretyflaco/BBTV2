@@ -4,11 +4,12 @@
  */
 
 import { useState } from "react"
+
+import { getApiUrl } from "../../lib/config/api"
 import { useCombinedAuth } from "../../lib/hooks/useCombinedAuth"
 import type { LocalBlinkAccount } from "../../lib/hooks/useProfile"
 import { useTheme } from "../../lib/hooks/useTheme"
 import { isNpubCashAddress, probeNpubCashAddress } from "../../lib/lnurl"
-import { getApiUrl } from "../../lib/config/api"
 
 interface WalletInfo {
   username: string
@@ -31,9 +32,9 @@ export default function BlinkAccountsSection() {
     addBlinkLnAddressWallet,
     addNpubCashWallet,
     setActiveBlinkAccount,
-    hasServerSession,
+    hasServerSession: _hasServerSession,
     storeBlinkAccountOnServer,
-    publicKey,
+    publicKey: _publicKey,
     npubCashWallets,
   } = useCombinedAuth()
 

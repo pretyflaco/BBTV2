@@ -20,13 +20,12 @@
  */
 
 import { bech32 } from "bech32"
-import type { EnvironmentName } from "../config/api"
-
-import boltcardStore from "./store"
-import { CardStatus, TxType } from "./store"
-import * as boltcardCrypto from "./crypto"
 
 import BlinkAPI from "../blink-api"
+import type { EnvironmentName } from "../config/api"
+
+import * as boltcardCrypto from "./crypto"
+import boltcardStore, { CardStatus, TxType } from "./store"
 
 // ============================================================================
 // Types
@@ -336,7 +335,7 @@ async function handleWithdrawRequest(
       console.log(
         `[LNURLW] USD card: converted ${maxWithdrawable} cents to ${maxWithdrawableSats} sats for LNURL`,
       )
-    } catch (error: unknown) {
+    } catch (_error: unknown) {
       return {
         status: "ERROR",
         reason: "Failed to get exchange rate",
@@ -420,7 +419,7 @@ async function handleWithdrawCallback(
       console.log(
         `[LNURLW] USD card: converted ${invoiceAmount.sats} sats to ${amount} cents`,
       )
-    } catch (error: unknown) {
+    } catch (_error: unknown) {
       return {
         status: "ERROR",
         reason: "Failed to get exchange rate",

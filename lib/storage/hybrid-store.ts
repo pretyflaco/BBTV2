@@ -11,12 +11,14 @@
  * - Analytics via PostgreSQL views
  */
 
-import { createClient } from "redis"
+import crypto from "crypto"
+
 import type { Pool, PoolClient } from "pg"
+import { createClient } from "redis"
+
+import AuthManager from "../auth"
 import { getSharedPool, closePool } from "../db"
 import { onShutdown } from "../shutdown"
-import AuthManager from "../auth"
-import crypto from "crypto"
 
 // ============= Interfaces =============
 

@@ -1,14 +1,16 @@
 import { useEffect, useRef, useCallback, MutableRefObject } from "react"
-import { getEnvironment } from "../config/api"
+
 import type { TransactionRecord } from "../../components/TransactionDetail"
-import type { CombinedUser } from "./useCombinedAuth"
-import type { LocalBlinkAccount } from "./useProfile"
-import type { LocalNWCConnection, NWCOperationResult } from "./useNWC"
+import { getEnvironment } from "../config/api"
 import type { ListTransactionsParams } from "../nwc/NWCClient"
+
+import type { PaymentData } from "./useBlinkWebSocket"
+import type { CombinedUser } from "./useCombinedAuth"
+import type { DisplayCurrency } from "./useDisplaySettings"
+import type { LocalNWCConnection, NWCOperationResult } from "./useNWC"
+import type { LocalBlinkAccount } from "./useProfile"
 import type { VoucherWallet, VoucherCurrencyMode } from "./useVoucherWalletState"
 import type { WalletInfo } from "./useWalletState"
-import type { PaymentData } from "./useBlinkWebSocket"
-import type { DisplayCurrency } from "./useDisplaySettings"
 
 // ============================================================================
 // Interfaces
@@ -37,7 +39,7 @@ export interface ExchangeRate {
 /**
  * NWC transaction from NIP-47
  */
-interface NWCTransaction {
+interface _NWCTransaction {
   payment_hash?: string
   preimage?: string
   type?: string
@@ -300,7 +302,7 @@ export function useDashboardData({
 
     // Check if NWC wallet is ACTIVE (user chose to use NWC for this session)
     const isNwcActive = activeNWC && nwcClientReady
-    const hasBlinkAccount = blinkAccounts && blinkAccounts.length > 0
+    const _hasBlinkAccount = blinkAccounts && blinkAccounts.length > 0
 
     // If NWC wallet is ACTIVE, fetch NWC transactions (even if user also has Blink account)
     // This respects the user's choice of which wallet to use

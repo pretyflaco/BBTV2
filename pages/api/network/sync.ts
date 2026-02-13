@@ -8,11 +8,11 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 
 import type { MetricsRow } from "../../../lib/network/db"
+import * as db from "../../../lib/network/db"
 import {
   syncCommunityTransactions,
   syncAllCommunities,
 } from "../../../lib/network/syncService"
-import * as db from "../../../lib/network/db"
 import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
 
 async function canTriggerSync(userNpub: string, communityId?: string): Promise<boolean> {

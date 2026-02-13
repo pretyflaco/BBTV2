@@ -1,37 +1,35 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from "react"
 import QRCode from "react-qr-code"
+
+import { unlockAudioContext, playSound } from "../lib/audio-utils"
+import type { Wallet } from "../lib/blink-api"
+import { getEnvironment } from "../lib/config/api"
 import {
   formatDisplayAmount as formatCurrency,
   getCurrencyById,
   isBitcoinCurrency,
   parseAmountParts,
-  isStreetRateCurrency,
-  getBaseCurrencyId,
+  type CurrencyMetadata,
 } from "../lib/currency-utils"
-import { formatNumber } from "../lib/number-format"
-import type {
-  NumberFormatPreference,
-  BitcoinFormatPreference,
-  NumpadLayoutPreference,
-} from "../lib/number-format"
-import { useNFC } from "./NFCPayment"
-import type { UseNFCReturn } from "./NFCPayment"
-import Numpad from "./Numpad"
-import { THEMES } from "../lib/hooks/useTheme"
-import type { Theme } from "../lib/hooks/useTheme"
-import { unlockAudioContext, playSound } from "../lib/audio-utils"
-import { getEnvironment } from "../lib/config/api"
+import type { PaymentData } from "../lib/hooks/useBlinkWebSocket"
 import type { CombinedUser } from "../lib/hooks/useCombinedAuth"
-import type { CurrencyMetadata } from "../lib/currency-utils"
-import type { Wallet } from "../lib/blink-api"
 import type {
   LocalNWCConnection,
   NWCInvoiceResult,
   NWCOperationResult,
 } from "../lib/hooks/useNWC"
 import type { LocalBlinkAccount } from "../lib/hooks/useProfile"
+import { THEMES, type Theme } from "../lib/hooks/useTheme"
 import type { CartCheckoutData } from "../lib/hooks/useViewNavigation"
-import type { PaymentData } from "../lib/hooks/useBlinkWebSocket"
+import {
+  formatNumber,
+  type NumberFormatPreference,
+  type BitcoinFormatPreference,
+  type NumpadLayoutPreference,
+} from "../lib/number-format"
+
+import type { UseNFCReturn } from "./NFCPayment"
+import Numpad from "./Numpad"
 
 interface TipRecipient {
   username: string
@@ -140,7 +138,7 @@ const POS = forwardRef<POSRef, POSProps>(
   (
     {
       apiKey,
-      user,
+      user: _user,
       displayCurrency,
       numberFormat = "auto",
       bitcoinFormat = "sats",
@@ -148,9 +146,9 @@ const POS = forwardRef<POSRef, POSProps>(
       currencies,
       wallets,
       onPaymentReceived,
-      connected,
-      manualReconnect,
-      reconnectAttempts,
+      connected: _connected,
+      manualReconnect: _manualReconnect,
+      reconnectAttempts: _reconnectAttempts,
       tipsEnabled,
       tipPresets,
       tipRecipients = [],
@@ -164,7 +162,7 @@ const POS = forwardRef<POSRef, POSProps>(
       activeNWC,
       nwcClientReady,
       nwcMakeInvoice,
-      nwcLookupInvoice,
+      nwcLookupInvoice: _nwcLookupInvoice,
       getActiveNWCUri,
       activeBlinkAccount,
       activeNpubCashWallet,

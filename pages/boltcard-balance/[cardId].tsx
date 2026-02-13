@@ -10,11 +10,13 @@
  * No login required - card tap authenticates the user.
  */
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/router"
 import Head from "next/head"
-import CardholderBalance from "../../components/boltcard/CardholderBalance"
-import type { CardholderBalanceData } from "../../components/boltcard/CardholderBalance"
+import { useRouter } from "next/router"
+import { useState, useEffect } from "react"
+
+import CardholderBalance, {
+  type CardholderBalanceData,
+} from "../../components/boltcard/CardholderBalance"
 
 export default function CardholderPage() {
   const router = useRouter()

@@ -237,7 +237,7 @@ async function handleAction(req: NextApiRequest, res: NextApiResponse, cardId: s
         message = success ? "Card enabled" : "Failed to enable card"
         break
 
-      case "adjust":
+      case "adjust": {
         // Manual balance adjustment (admin function)
         if (amount === undefined) {
           return res.status(400).json({ error: "Missing amount for balance adjustment" })
@@ -264,6 +264,7 @@ async function handleAction(req: NextApiRequest, res: NextApiResponse, cardId: s
           ? `Balance adjusted by ${adjustAmount}`
           : "Failed to adjust balance"
         break
+      }
 
       case "resetDaily":
         success = await boltcard.store.resetDailySpent(cardId)

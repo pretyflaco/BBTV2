@@ -8,10 +8,10 @@
 
 import type { NextApiRequest, NextApiResponse } from "next"
 
-import * as db from "../../../lib/network/db"
-import BlinkAPI from "../../../lib/blink-api"
-import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
 import AuthManager from "../../../lib/auth"
+import BlinkAPI from "../../../lib/blink-api"
+import * as db from "../../../lib/network/db"
+import { withRateLimit, RATE_LIMIT_WRITE } from "../../../lib/rate-limit"
 
 /**
  * Fetch Blink username using the provided API key

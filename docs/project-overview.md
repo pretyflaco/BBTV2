@@ -6,12 +6,12 @@
 
 ## Project Identity
 
-| Attribute | Value |
-|-----------|-------|
-| **Name** | Blink POS / BBTV2 |
-| **Type** | Web Application |
-| **Framework** | Next.js 12.3.4 |
-| **License** | AGPL-3.0 |
+| Attribute      | Value                               |
+| -------------- | ----------------------------------- |
+| **Name**       | Blink POS / BBTV2                   |
+| **Type**       | Web Application                     |
+| **Framework**  | Next.js 12.3.4                      |
+| **License**    | MIT                                 |
 | **Repository** | https://github.com/pretyflaco/BBTV2 |
 
 ## Core Features
@@ -57,17 +57,17 @@
 
 ## Technology Stack
 
-| Layer | Technology |
-|-------|------------|
-| **Frontend** | React 18, Tailwind CSS 3 |
-| **Backend** | Next.js API Routes |
-| **Database** | PostgreSQL 13+ |
-| **Cache** | Redis 4.7 |
-| **Real-time** | WebSocket (Blink subscription) |
-| **Lightning** | bolt11, js-lnurl, Blink GraphQL API |
-| **Identity** | Nostr (nostr-tools), JWT |
-| **Encryption** | AES-256-GCM |
-| **PDF** | @react-pdf/renderer |
+| Layer          | Technology                          |
+| -------------- | ----------------------------------- |
+| **Frontend**   | React 18, Tailwind CSS 3            |
+| **Backend**    | Next.js API Routes                  |
+| **Database**   | PostgreSQL 13+                      |
+| **Cache**      | Redis 4.7                           |
+| **Real-time**  | WebSocket (Blink subscription)      |
+| **Lightning**  | bolt11, js-lnurl, Blink GraphQL API |
+| **Identity**   | Nostr (nostr-tools), JWT            |
+| **Encryption** | AES-256-GCM                         |
+| **PDF**        | @react-pdf/renderer                 |
 
 ## Architecture Overview
 
@@ -113,7 +113,7 @@
 - **Blink-Native**: Built for Blink wallet ecosystem
 - **Circular Economy Focus**: Unique metrics for closed-loop Bitcoin commerce
 - **Privacy-First**: Encrypted API key storage, consent-based data sharing
-- **Open Source**: AGPL-3.0 license ensures community benefits
+- **Open Source**: MIT license ensures maximum freedom and community benefits
 
 ## Project Status
 
@@ -125,4 +125,4 @@
 
 ---
 
-*Last Updated: January 2026*
+_Last Updated: January 2026_

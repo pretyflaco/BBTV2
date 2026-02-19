@@ -31,7 +31,7 @@
       "project_type": "web",
       "framework": "Next.js 12.3.4",
       "language": "JavaScript",
-      "license": "AGPL-3.0"
+      "license": "MIT"
     },
     "technology_stack": {
       "frontend": ["React 18", "Tailwind CSS 3"],

@@ -1,4 +1,4 @@
-# Blink Bitcoin Terminal
+# Blink Terminal
 
 A powerful Bitcoin Lightning terminal for Blink power users. Execute advanced operations, manage vouchers, process batch payments, accept payments with automatic forwarding, and leverage the full capabilities of your Blink account.
 
@@ -106,8 +106,8 @@ Frontend (Next.js) → Direct Blink WebSocket → Instant Payment Detection
 1. **Clone the repository:**
 
    ```bash
-   git clone https://github.com/pretyflaco/BBTV2.git
-   cd BBTV2
+   git clone https://github.com/blinkbitcoin/blink-terminal.git
+   cd blink-terminal
    ```
 
 2. **Install dependencies:**
@@ -154,7 +154,7 @@ Frontend (Next.js) → Direct Blink WebSocket → Instant Payment Detection
 ## Project Structure
 
 ```
-BBTV2/
+blink-terminal/
 ├── components/
 │   ├── Dashboard.js           # Main dashboard interface
 │   ├── POS.js                 # Point of Sale interface
@@ -361,7 +361,7 @@ See the [LICENSE](LICENSE) file for details.
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/pretyflaco/BBTV2/issues)
+- **Issues**: [GitHub Issues](https://github.com/blinkbitcoin/blink-terminal/issues)
 - **Blink Support**: [Blink Developer Docs](https://dev.blink.sv/)
 
 ---

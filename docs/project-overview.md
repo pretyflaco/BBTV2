@@ -1,18 +1,18 @@
-# BBTV2 Project Overview
+# Blink Terminal Project Overview
 
 ## Executive Summary
 
-**Blink Bitcoin Terminal V2 (BBTV2)** is a Bitcoin Lightning Point of Sale and circular economy management platform built with Next.js. It provides merchants and community leaders with tools to accept Bitcoin payments, manage transactions, create vouchers, and track circular economy health metrics.
+**Blink Terminal** is a Bitcoin Lightning Point of Sale and circular economy management platform built with Next.js. It provides merchants and community leaders with tools to accept Bitcoin payments, manage transactions, create vouchers, and track circular economy health metrics.
 
 ## Project Identity
 
-| Attribute      | Value                               |
-| -------------- | ----------------------------------- |
-| **Name**       | Blink POS / BBTV2                   |
-| **Type**       | Web Application                     |
-| **Framework**  | Next.js 12.3.4                      |
-| **License**    | MIT                                 |
-| **Repository** | https://github.com/pretyflaco/BBTV2 |
+| Attribute      | Value                                          |
+| -------------- | ---------------------------------------------- |
+| **Name**       | Blink Terminal                                 |
+| **Type**       | Web Application                                |
+| **Framework**  | Next.js 14                                     |
+| **License**    | MIT                                            |
+| **Repository** | https://github.com/blinkbitcoin/blink-terminal |
 
 ## Core Features
 
@@ -113,7 +113,7 @@
 - **Blink-Native**: Built for Blink wallet ecosystem
 - **Circular Economy Focus**: Unique metrics for closed-loop Bitcoin commerce
 - **Privacy-First**: Encrypted API key storage, consent-based data sharing
-- **Open Source**: MIT license ensures maximum freedom and community benefits
+- **Open Source**: MIT license ensures maximum freedom and adoption
 
 ## Project Status
 
@@ -125,4 +125,4 @@
 
 ---
 
-_Last Updated: January 2026_
+_Last Updated: February 2026_

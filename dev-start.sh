@@ -31,7 +31,7 @@ if [ $? -ne 0 ]; then
     echo "   ⚠️  Containers not found. Creating them..."
     echo ""
     echo "   Please run the Docker setup first:"
-    echo "   cd ~/Documents/BLINK/BBTV2"
+    echo "   cd ~/Documents/BLINK/blink-terminal"
     echo "   docker-compose up -d"
     echo ""
     exit 1
@@ -99,7 +99,7 @@ case $choice in
     * )
         echo ""
         echo "   Skipped. Start manually when ready:"
-        echo "   cd ~/Documents/BLINK/BBTV2"
+        echo "   cd ~/Documents/BLINK/blink-terminal"
         echo "   npm run dev"
         echo ""
         ;;

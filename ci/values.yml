@@ -1,0 +1,19 @@
+#@data/values
+---
+git_uri: git@github.com:blinkbitcoin/blink-terminal.git
+git_branch: main
+git_charts_uri: git@github.com:blinkbitcoin/private-charts.git
+git_charts_branch: main
+git_charts_bot_branch: bot-bump-blink-terminal-image
+github_private_key: ((github-blinkbitcoin.private_key))
+github_token: ((github-blinkbitcoin.api_token))
+github_app_id: ((github-blinkbitcoin.github_app_id))
+github_app_private_key: ((github-blinkbitcoin.github_app_private_key))
+docker_registry: us.gcr.io/galoy-org
+docker_registry_user: ((docker-creds.username))
+docker_registry_password: ((docker-creds.password))
+git_version_branch: version
+gh_org: blinkbitcoin
+gh_repository: blink-terminal
+slack_channel: blink-addons-github
+slack_webhook_url: ((blink-addons-slack.api_url))

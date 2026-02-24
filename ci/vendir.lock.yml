@@ -1,0 +1,15 @@
+apiVersion: vendir.k14s.io/v1alpha1
+directories:
+- contents:
+  - git:
+      commitTitle: 'chore: register blink-terminal in src_repos (#23)...'
+      sha: 2055dbe92df1048a2e77d8ac26480cba5d41aa0b
+    path: .
+  path: ../.github/workflows/vendor
+- contents:
+  - git:
+      commitTitle: 'chore: register blink-terminal in src_repos (#23)...'
+      sha: 2055dbe92df1048a2e77d8ac26480cba5d41aa0b
+    path: .
+  path: vendor
+kind: LockConfig

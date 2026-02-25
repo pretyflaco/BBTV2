@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "code:check": "pnpm lint && pnpm build",
     "postinstall": "patch-package",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",

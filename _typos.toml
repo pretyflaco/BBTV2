@@ -1,9 +1,0 @@
-[default.extend-words]
-# MENA = Middle East & North Africa region
-mena = "mena"
-# chaching = sound effect (ka-ching), not "caching"
-chaching = "chaching"
-# JOD = Jordanian Dinar (ISO 4217 currency code)
-JOD = "JOD"
-# .ist = TLD for Istanbul/Turkey
-ist = "ist"

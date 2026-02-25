@@ -19,7 +19,6 @@
 #@   "release_task_image_config",
 #@   "edge_image_resource",
 #@   "public_docker_registry",
-#@   "docker_host_pool",
 #@   "pipeline_tasks_resource",
 #@   "nodejs_task_image_config",
 #@   "slack_resource",
@@ -59,7 +58,6 @@ resources:
 
 - #@ gh_release_resource()
 - #@ charts_repo_bot_branch()
-- #@ docker_host_pool()
 
 resource_types:
 - #@ gcr_resource_type()

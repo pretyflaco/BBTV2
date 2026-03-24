@@ -1,5 +1,6 @@
 # Production Dockerfile for BlinkPOS
-FROM node:18-alpine AS base
+FROM node:20-alpine AS base
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Install dependencies only when needed
 FROM base AS deps
@@ -7,11 +8,10 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Install dependencies based on the preferred package manager
-COPY package.json package-lock.json* ./
-# Copy patches directory for patch-package postinstall
+# Install dependencies
+COPY package.json pnpm-lock.yaml ./
 COPY patches ./patches
-RUN npm ci
+RUN pnpm install --frozen-lockfile
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -28,8 +28,10 @@ ENV NEXT_TELEMETRY_DISABLED 1
 # They get inlined into the JavaScript bundle during build
 ENV NEXT_PUBLIC_USE_NDK_NIP46=true
 
-# Git commit hash for build versioning (passed from docker-compose or build command)
+# Git commit hash for build versioning
 ARG GIT_COMMIT=unknown
+ARG COMMITHASH=unknown
+ARG BUILDTIME=unknown
 ENV GIT_COMMIT=${GIT_COMMIT}
 ENV NEXT_PUBLIC_GIT_COMMIT=${GIT_COMMIT}
 
@@ -37,7 +39,7 @@ ENV NEXT_PUBLIC_GIT_COMMIT=${GIT_COMMIT}
 # Disable webpack cache to save disk space during build
 ENV NODE_OPTIONS="--max-old-space-size=1024"
 
-RUN npm run build
+RUN pnpm run build
 
 # Production image, copy all the files and run next
 FROM base AS runner

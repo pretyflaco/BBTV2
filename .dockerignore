@@ -1,10 +1,14 @@
 Dockerfile
 .dockerignore
 node_modules
+.pnpm-store
 npm-debug.log
 .next
 .git
 .gitignore
+ci
+.beads
+.history
 .env*.local
 .env
 .vscode
@@ -15,4 +19,5 @@ server.log
 coverage
 .tip-store.json*
 backup_*
+*.md
 

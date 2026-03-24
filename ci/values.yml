@@ -2,7 +2,7 @@
 ---
 git_uri: git@github.com:blinkbitcoin/blink-terminal.git
 git_branch: main
-git_charts_uri: git@github.com:blinkbitcoin/private-charts.git
+git_charts_uri: git@github.com:blinkbitcoin/charts.git
 git_charts_branch: main
 git_charts_bot_branch: bot-bump-blink-terminal-image
 github_private_key: ((github-blinkbitcoin.private_key))

@@ -421,11 +421,15 @@ export default function BatchPayments({
       const a = document.createElement("a")
       a.href = url
       a.download = "batch-payment-template.csv"
+      a.style.display = "none"
       document.body.appendChild(a)
       a.click()
-      document.body.removeChild(a)
-      // Delay revocation so the browser has time to consume the blob URL
-      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      // Defer cleanup so the browser finishes initiating the download
+      // before the element is removed (fixes Chrome freeze with fixed overlays)
+      requestAnimationFrame(() => {
+        document.body.removeChild(a)
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
+      })
     } catch (err) {
       console.error("Failed to download template:", err)
       setError("Failed to download template. Please try again.")
@@ -450,10 +454,13 @@ export default function BatchPayments({
       const a = document.createElement("a")
       a.href = url
       a.download = `batch-results-${batchId}.csv`
+      a.style.display = "none"
       document.body.appendChild(a)
       a.click()
-      document.body.removeChild(a)
-      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      requestAnimationFrame(() => {
+        document.body.removeChild(a)
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
+      })
     } catch (err) {
       console.error("Failed to download results:", err)
       setError("Failed to download results. Please try again.")
@@ -559,6 +566,18 @@ export default function BatchPayments({
 
         {renderStepIndicator()}
 
+        {/* Hidden file input - placed outside the drop zone to prevent
+            click event bubbling back into the drop zone's onClick handler,
+            which would create an infinite loop and freeze the browser. */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv"
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleFileSelect(e)}
+          onClick={(e: React.MouseEvent) => e.stopPropagation()}
+          className="hidden"
+        />
+
         {/* Upload Area */}
         <div
           onDrop={handleDrop}
@@ -570,14 +589,6 @@ export default function BatchPayments({
               : "border-gray-300 dark:border-gray-600 hover:border-teal-500 dark:hover:border-teal-400"
           }`}
         >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv"
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleFileSelect(e)}
-            className="hidden"
-          />
-
           {csvContent ? (
             <>
               <div className="text-5xl mb-4">✓</div>

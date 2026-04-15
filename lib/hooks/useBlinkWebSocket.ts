@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { getWsUrl } from "../config/api"
 
@@ -33,7 +33,10 @@ export function useBlinkWebSocket(
   const [showAnimation, setShowAnimation] = useState<boolean>(false)
   const [connected, setConnected] = useState<boolean>(false)
   const [reconnectAttempts, setReconnectAttempts] = useState<number>(0)
-  const [lastActivity, setLastActivity] = useState<number>(Date.now())
+  // Track last user activity without triggering re-renders.
+  // Previously this was useState, which caused a full Dashboard re-render on
+  // every click/keydown/touchstart because Date.now() always produces a new value.
+  const lastActivityRef = useRef<number>(Date.now())
 
   // Function to create WebSocket connection
   const createConnection = (): WebSocket | null => {
@@ -211,7 +214,7 @@ export function useBlinkWebSocket(
     }
 
     const handleFocus = (): void => {
-      setLastActivity(Date.now())
+      lastActivityRef.current = Date.now()
       if (!connected && apiKey && username) {
         console.log("🎯 Window focused and not connected - triggering reconnect")
         setReconnectAttempts((prev) => prev + 1)
@@ -219,7 +222,7 @@ export function useBlinkWebSocket(
     }
 
     const handleUserActivity = (): void => {
-      setLastActivity(Date.now())
+      lastActivityRef.current = Date.now()
     }
 
     // Listen for visibility and focus events
@@ -239,10 +242,6 @@ export function useBlinkWebSocket(
       window.removeEventListener("touchstart", handleUserActivity)
     }
   }, [connected, apiKey, username])
-
-  // Suppress unused variable warning — lastActivity is set but used to track activity timing
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _lastActivity = lastActivity
 
   // Manual reconnection function
   const manualReconnect = (): void => {

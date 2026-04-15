@@ -1,8 +1,7 @@
 /* eslint-env serviceworker */
 // Service Worker for Blink POS
-const CACHE_NAME = "blink-tracker-v18-show-build-version" // Update this version when deploying changes
-const urlsToCache = [
-  "/",
+const CACHE_NAME = "blink-tracker-v19-fix-sw-freeze" // Update this version when deploying changes
+const STATIC_ASSETS = [
   "/manifest.json",
   "/icons/icon-192x192.svg",
   "/icons/icon-512x512.svg",
@@ -25,8 +24,8 @@ self.addEventListener("install", (event) => {
     caches
       .open(CACHE_NAME)
       .then((cache) => {
-        console.log("Service Worker: Caching files")
-        return cache.addAll(urlsToCache)
+        console.log("Service Worker: Caching static assets")
+        return cache.addAll(STATIC_ASSETS)
       })
       .then(() => {
         console.log("Service Worker: Installation complete")
@@ -58,61 +57,87 @@ self.addEventListener("activate", (event) => {
   )
 })
 
-// Fetch event - serve from cache when offline
+// Helper: check if a URL points to a static asset we should cache
+function isStaticAsset(url) {
+  return (
+    url.includes("/_next/static/") ||
+    url.includes("/icons/") ||
+    url.pathname === "/manifest.json" ||
+    url.pathname === "/favicon.svg" ||
+    url.pathname.endsWith(".mp3")
+  )
+}
+
+// Fetch event - network-first for pages/scripts, cache-first for static assets
 self.addEventListener("fetch", (event) => {
+  const url = new URL(event.request.url)
+
   // Skip non-GET requests
   if (event.request.method !== "GET") {
     return
   }
 
-  // Skip requests to external APIs (like Blink API)
+  // CRITICAL: Skip non-http(s) schemes (blob:, chrome-extension:, data:, etc.)
+  // Service workers cannot fetch these and attempting to do so will hang the browser.
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    return
+  }
+
+  // Skip API routes - these should always go to the network
+  if (url.pathname.startsWith("/api/")) {
+    return
+  }
+
+  // Skip requests to external services
   if (
-    event.request.url.includes("api.blink.sv") ||
-    event.request.url.includes("ws.blink.sv")
+    url.hostname !== self.location.hostname ||
+    url.hostname.includes("api.blink.sv") ||
+    url.hostname.includes("ws.blink.sv")
   ) {
     return
   }
 
-  event.respondWith(
-    caches
-      .match(event.request)
-      .then((response) => {
-        // Return cached version if available
-        if (response) {
-          console.log("Service Worker: Serving from cache", event.request.url)
-          return response
+  // Skip WebSocket upgrade requests
+  if (event.request.headers.get("Upgrade") === "websocket") {
+    return
+  }
+
+  // Static assets (icons, sounds, Next.js chunks): cache-first
+  if (isStaticAsset(url)) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) {
+          return cached
         }
-
-        // Otherwise fetch from network
-        console.log("Service Worker: Fetching from network", event.request.url)
         return fetch(event.request).then((response) => {
-          // Don't cache if not a valid response
-          if (!response || response.status !== 200 || response.type !== "basic") {
-            return response
+          if (response && response.status === 200 && response.type === "basic") {
+            const clone = response.clone()
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone))
           }
-
-          // Clone the response
-          const responseToCache = response.clone()
-
-          // Cache static assets
-          if (
-            event.request.url.includes("/_next/static/") ||
-            event.request.url.includes("/icons/") ||
-            event.request.url.includes("/manifest.json")
-          ) {
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache)
-            })
-          }
-
           return response
         })
+      }),
+    )
+    return
+  }
+
+  // Everything else (HTML pages, JS bundles): network-first
+  // This ensures code updates are picked up immediately when online.
+  event.respondWith(
+    fetch(event.request)
+      .then((response) => {
+        return response
       })
       .catch(() => {
-        // Return offline page for navigation requests when offline
-        if (event.request.mode === "navigate") {
-          return caches.match("/")
-        }
+        // Offline fallback: try cache, then return cached home page for navigation
+        return caches.match(event.request).then((cached) => {
+          if (cached) {
+            return cached
+          }
+          if (event.request.mode === "navigate") {
+            return caches.match("/")
+          }
+        })
       }),
   )
 })

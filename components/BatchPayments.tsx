@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react"
 
+import { generateTemplate } from "../lib/batch-payments"
 import { getApiUrl } from "../lib/config/api"
 
 /**
@@ -413,39 +414,50 @@ export default function BatchPayments({
 
   // Download CSV template
   const handleDownloadTemplate = useCallback(() => {
-    const template = `recipient,amount,currency,memo
-hermann,1000,SATS,Payment to Blink user
-user@getalby.com,500,SATS,Payment to external wallet
-machankura@8333.mobi,2000,SATS,Payment to Machankura user`
-
-    const blob = new Blob([template], { type: "text/csv" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = "batch-payment-template.csv"
-    a.click()
-    URL.revokeObjectURL(url)
+    try {
+      const template = generateTemplate()
+      const blob = new Blob([template], { type: "text/csv" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = "batch-payment-template.csv"
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      // Delay revocation so the browser has time to consume the blob URL
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (err) {
+      console.error("Failed to download template:", err)
+      setError("Failed to download template. Please try again.")
+    }
   }, [])
 
   // Download results CSV
   const handleDownloadResults = useCallback(() => {
     if (!executionResults?.results) return
 
-    const header = "row,recipient,type,amount_sats,success,error\n"
-    const rows = executionResults.results
-      .map(
-        (r) =>
-          `${r.rowNumber},"${r.recipient}",${r.type},${r.amountSats},${r.success},"${r.error?.message || ""}"`,
-      )
-      .join("\n")
+    try {
+      const header = "row,recipient,type,amount_sats,success,error\n"
+      const rows = executionResults.results
+        .map(
+          (r) =>
+            `${r.rowNumber},"${r.recipient}",${r.type},${r.amountSats},${r.success},"${r.error?.message || ""}"`,
+        )
+        .join("\n")
 
-    const blob = new Blob([header + rows], { type: "text/csv" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `batch-results-${batchId}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+      const blob = new Blob([header + rows], { type: "text/csv" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `batch-results-${batchId}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (err) {
+      console.error("Failed to download results:", err)
+      setError("Failed to download results. Please try again.")
+    }
   }, [executionResults, batchId])
 
   // Reset to start new batch
